@@ -187,3 +187,5 @@
     @apply bg-background text-foreground;
   }
 }
+
+@import "../styles/Auth.css";
