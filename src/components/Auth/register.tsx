@@ -8,7 +8,11 @@ import { Eye, EyeOff, Github, Apple, Chrome, Square } from "lucide-react";
 import Link from "next/link";
 import { Label } from "../ui/label";
 
-const Register = () => {
+
+type RegisterProps = {
+  onSwitch: () => void;
+};
+const Register = ({ onSwitch }: RegisterProps) => {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -29,8 +33,9 @@ const Register = () => {
         <Input placeholder="Email" type="email" />
       </div>
 
-      <div className="mb-6 relative">
+      <div className="mb-6">
         <Label htmlFor="password" className="text-sm mb-2">Password</Label>
+        <div className="relative">
         <Input
           placeholder="Password"
           type={showPassword ? "text" : "password"}
@@ -43,6 +48,7 @@ const Register = () => {
         >
           {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
         </button>
+        </div>
       </div>
 
       <Button className="w-full text-white py-2 text-sm hover:bg-[#6db966]" variant="default">
@@ -72,9 +78,9 @@ const Register = () => {
 
       <div className="text-center text-sm text-gray-600">
         Already have an account?{" "}
-        <Link href="/auth/login" className="text-[#16A34A] text-base hover:underline">
+        <button onClick={onSwitch} className="text-[#16A34A] text-base hover:underline">
           Log In
-        </Link>
+        </button>
       </div>
     </div>
   );

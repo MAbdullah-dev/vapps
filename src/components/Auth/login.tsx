@@ -8,7 +8,11 @@ import { Eye, EyeOff, Github, Apple, Chrome, Square } from "lucide-react";
 import Link from "next/link";
 import { Label } from "../ui/label";
 
-const Login = () => {
+
+type LoginProps = {
+  onSwitch: () => void;
+};
+const Login = ({ onSwitch }: LoginProps) => {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -19,30 +23,29 @@ const Login = () => {
         <p className="text-base text-[#4A5565]">Login to your account</p>
       </div>
 
-      {/* Email */}
       <div className="mb-4">
         <Label htmlFor="email" className="text-sm mb-2">Email</Label>
-        <Input placeholder="Email" type="email"/>
+        <Input placeholder="Email" type="email" />
       </div>
 
-      {/* Password */}
-      <div className="mb-4 relative">
+      <div className="mb-4">
         <Label htmlFor="password" className="text-sm mb-2">Password</Label>
-        <Input
-          placeholder="Password"
-          type={showPassword ? "text" : "password"}
-          className="pr-10"
-        />
-        <button
-          type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-        >
-          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-        </button>
+        <div className="relative">
+          <Input
+            placeholder="Password"
+            type={showPassword ? "text" : "password"}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
       </div>
 
-      {/* Remember me + Forgot password */}
       <div className="flex items-center justify-between mb-6">
         <label className="flex items-center gap-2 text-sm text-[#0A0A0A]">
           <input type="checkbox" /> Remember me
@@ -53,7 +56,6 @@ const Login = () => {
         </Link>
       </div>
 
-      {/* Login Button */}
       <Button className="w-full text-white py-2 text-sm hover:bg-[#6db966]" variant="default">
         Login
       </Button>
@@ -64,7 +66,6 @@ const Login = () => {
         <Separator className="flex-1" />
       </div>
 
-      {/* Social buttons */}
       <div className="grid grid-cols-4 gap-2.5 mb-6">
         <Button variant="outline" className="flex justify-center">
           <Chrome size={16} />
@@ -82,9 +83,9 @@ const Login = () => {
 
       <div className="text-center text-sm text-gray-600">
         Don't have an account?{" "}
-        <Link href="/auth/register" className="text-[#16A34A] text-base hover:underline">
+        <button onClick={onSwitch} className="text-[#16A34A] text-base hover:underline">
           Sign Up
-        </Link>
+        </button>
       </div>
     </div>
   );
