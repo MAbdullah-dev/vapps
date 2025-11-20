@@ -1,6 +1,7 @@
 import Header from "@/components/common/Header";
 import { Button } from "@/components/ui/button";
 import { UsersRound, Plus, Check, ArrowRight, Mail, Star, Building2, ChevronRight } from 'lucide-react';
+import Link from "next/link";
 
 export default function DashboardPage() {
   return (
@@ -217,8 +218,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Button stuck to bottom */}
-              <Button variant="default" size="lg" className="w-full flex items-center justify-center gap-2 mt-6">
+              <Button asChild variant="default" size="lg" className="w-full flex items-center justify-center gap-2 mt-6">
+                <Link href="/organization-setup/step1">
                 Create Organization <ArrowRight />
+                </Link>
               </Button>
             </div>
 
