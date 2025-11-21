@@ -1,31 +1,134 @@
 "use client";
 
+import React from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Step3Values, step3Schema } from "@/schemas/onboarding/step3Schema";
+import { useSiteStore } from "@/store/onboardingStore";
 
-const step3 = () => {
-  const router = useRouter();
+export default function Step3Page() {
+  const { data, updateStep } = useSiteStore(); // Accessing the store
+
+  const form = useForm<Step3Values>({
+    resolver: zodResolver(step3Schema),
+    defaultValues: {
+      leaders: data.step3.leaders?.length > 0 ? data.step3.leaders : [{ name: "", role: "", level: "Executive", email: "" }], // Set default to one leader row
+    },
+  });
+
+  const { fields, append } = useFieldArray({
+    name: "leaders",
+    control: form.control,
+  });
+
+  const addLeader = () => {
+    append({
+      name: "",
+      role: "",
+      level: "Executive", // Default to 'Executive' for level
+      email: "",
+    });
+  };
+
   return (
-    <>
-      <div className="container mx-auto px-5">
-        <div className="innner">
-          <h1 className="text-2xl font-bold mb-6">Step 3</h1>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Leadership Structure</h2>
+      <p className="text-gray-600">Configure your leadership structure settings</p>
 
-          <div className="fields p-6 rounded-2xl border border-[#0000001A]"></div>
+      <h3 className="text-xl font-semibold mt-4">Add Leadership Roles</h3>
 
-          <div className="flex justify-between mt-10">
-            <Button onClick={() => router.push("/organization-setup/step2")} variant="outline"><ArrowLeft className="mr-2" /> Previous</Button>
+      <Form {...form}>
+        <form className="space-y-4">
+          {fields.map((field, index) => (
+            <div key={field.id} className="border rounded-lg p-4">
+              <div className="grid grid-cols-4 gap-4">
+                {/* NAME */}
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.name`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <div className="flex gap-4">
-              <Button variant="secondary" onClick={() => router.push("/organization-setup/step4")}>Skip</Button>
-              <Button onClick={() => router.push("/organization-setup/step4")} variant="default">Next <ArrowRight className="ml-2" /></Button>
+                {/* ROLE */}
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.role`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter role" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* LEVEL */}
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.level`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Level *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl className="w-full">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Executive">Executive</SelectItem>
+                          <SelectItem value="Senior">Senior</SelectItem>
+                          <SelectItem value="Mid">Mid</SelectItem>
+                          <SelectItem value="Junior">Junior</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* EMAIL */}
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.email`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="email@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
+          ))}
 
-export default step3
+          <Button
+            type="button"
+            variant="default"
+            onClick={addLeader}
+            className="mt-2"
+          >
+            + Add Leader
+          </Button>
+        </form>
+      </Form>
+    </div>
+  );
+}
