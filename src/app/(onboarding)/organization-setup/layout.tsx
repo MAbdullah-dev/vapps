@@ -2,9 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import Header from "@/components/common/Header";
-import StepProgress from "@/components/common/StepProgress";
-import StepTabs from "@/components/common/StepTabs";
-import OnboardingFooter from "@/components/common/OnboardingFooter";
+import StepProgress from "@/components/multistepform/StepProgress";
+import StepTabs from "@/components/multistepform/StepTabs";
+import OnboardingFooter from "@/components/multistepform/OnboardingFooter";
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
