@@ -35,6 +35,7 @@ export default function Step3Page() {
   };
 
   return (
+    <>
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Leadership Structure</h2>
       <p className="text-gray-600">Configure your leadership structure settings</p>
@@ -130,5 +131,6 @@ export default function Step3Page() {
         </form>
       </Form>
     </div>
+    </>
   );
 }

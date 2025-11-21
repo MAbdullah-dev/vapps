@@ -48,7 +48,7 @@ const step7 = () => {
     };
 
     return (
-        <div className="container mx-auto px-5">
+        <>
             {/* Heading */}
             <h1 className="text-2xl font-bold mb-2">Customers & Vendors</h1>
             <p className="text-gray-600 mb-8">Configure your customers & vendors settings</p>
@@ -277,7 +277,7 @@ const step7 = () => {
 
                 </form>
             </Form>
-        </div>
+        </>
     );
 }
 

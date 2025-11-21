@@ -36,7 +36,7 @@ const step6 = () => {
     };
 
     return (
-        <div className="container mx-auto px-5">
+        <>
             <h1 className="text-2xl font-bold mb-2">Product & Inventory</h1>
             <p className="text-gray-600 mb-8">Configure your product & inventory settings</p>
 
@@ -176,7 +176,7 @@ const step6 = () => {
 
                 </form>
             </Form>
-        </div>
+        </>
     );
 }
 

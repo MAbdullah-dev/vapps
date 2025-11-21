@@ -22,7 +22,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
 
       <StepTabs currentStep={currentStep} />
 
-      <div className="container mx-auto px-5 py-10">{children}</div>
+      <div className="container mx-auto px-5 py-10 border border-[#D4D4D4] rounded-2xl">{children}</div>
 
       <OnboardingFooter currentStep={currentStep} totalSteps={totalSteps} />
     </>

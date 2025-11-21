@@ -43,7 +43,7 @@ const step10 = () => {
     };
 
     return (
-        <div className="container mx-auto px-5">
+        <>
             <h1 className="text-2xl font-bold mb-2">Security Settings</h1>
 
             <Form {...form}>
@@ -233,7 +233,7 @@ const step10 = () => {
 
                 </form>
             </Form>
-        </div>
+        </>
     );
 }
 

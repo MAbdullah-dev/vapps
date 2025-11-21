@@ -1,31 +1,163 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { step4Schema, Step4Values, TeamMember } from "@/schemas/onboarding/step4Schema";
 
+import {
+    Form,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormControl,
+    FormMessage,
+} from "@/components/ui/form";
+
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 const step4 = () => {
-  const router = useRouter();
+    const form = useForm<Step4Values>({
+        resolver: zodResolver(step4Schema),
+        defaultValues: {
+            teamMembers: [
+                { fullName: "John Doe", email: "john@acme.com", role: "", ssoMethod: "Email/Password" },
+            ],
+        },
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "teamMembers",
+    });
+
+    const onSubmit = (values: Step4Values) => {
+        console.log("Step 4:", values);
+    };
+
     return (
         <>
-            <div className="container mx-auto px-5">
-                <div className="innner">
-                    <h1 className="text-2xl font-bold mb-6">Step 4</h1>
+            <h1 className="text-2xl font-bold mb-2">User & Role Management</h1>
+            <p className="text-gray-600 mb-8">Configure your user & role management settings</p>
 
-                    <div className="fields p-6 rounded-2xl border border-[#0000001A]"></div>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
 
-                    <div className="flex justify-between mt-10">
-                        <Button onClick={() => router.push("/organization-setup/step3")} variant="outline"><ArrowLeft className="mr-2" /> Previous</Button>
+                    <h3 className="text-xl font-semibold mb-4">Add Team Members</h3>
 
-                        <div className="flex gap-4">
-                            {/* <Button variant="secondary" onClick={() => router.push("/organization-setup/step5")}>Skip</Button> */}
-                            <Button onClick={() => router.push("/organization-setup/step5")} variant="default">Next <ArrowRight className="ml-2" /></Button>
+                    {fields.map((field, index) => (
+                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4">
+                            {/* Full Name */}
+                            <FormField
+                                control={form.control}
+                                name={`teamMembers.${index}.fullName` as const}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Full Name *</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="John Doe" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Email */}
+                            <FormField
+                                control={form.control}
+                                name={`teamMembers.${index}.email` as const}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email *</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="john@acme.com" type="email" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Role */}
+                            <FormField
+                                control={form.control}
+                                name={`teamMembers.${index}.role` as const}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Role *</FormLabel>
+                                        <FormControl>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Select role" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Admin">Admin</SelectItem>
+                                                    <SelectItem value="Manager">Manager</SelectItem>
+                                                    <SelectItem value="User">User</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* SSO Method */}
+                            <FormField
+                                control={form.control}
+                                name={`teamMembers.${index}.ssoMethod` as const}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>SSO Method</FormLabel>
+                                        <FormControl>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Email/Password" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Email/Password">Email/Password</SelectItem>
+                                                    <SelectItem value="SSO">SSO</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Remove button */}
+                            {fields.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => remove(index)}
+                                    className="mt-2"
+                                >
+                                    Remove
+                                </Button>
+                            )}
                         </div>
+                    ))}
+
+                    {/* Add more user button */}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                            append({ fullName: "", email: "", role: "", ssoMethod: "Email/Password" } as TeamMember)
+                        }
+                    >
+                        Add User
+                    </Button>
+
+                    {/* Submit */}
+                    <div className="flex justify-end mt-6">
+                        <Button type="submit">Save & Continue</Button>
                     </div>
-                </div>
-            </div>
+                </form>
+            </Form>
         </>
-    )
+    );
 }
 
 export default step4

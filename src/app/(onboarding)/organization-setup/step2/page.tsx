@@ -34,6 +34,7 @@ export default function Step2() {
   };
 
   return (
+    <>
     <div className="bg-white border border-[#0000001A] rounded-[14px] p-6">
       <h2 className="text-lg font-semibold">Sites & Processes</h2>
       <p className="text-sm text-gray-500 mb-6">
@@ -138,5 +139,7 @@ export default function Step2() {
         </p>
       </div>
     </div>
+    </>
+
   );
 }

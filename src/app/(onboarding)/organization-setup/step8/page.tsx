@@ -44,7 +44,7 @@ const step8 = () => {
     };
 
     return (
-        <div className="container mx-auto px-5 py-5">
+        <>
             <h1 className="text-2xl font-bold mb-2">Operational Parameters</h1>
             <p className="text-gray-600 mb-8">
                 Configure your operational parameters settings
@@ -241,7 +241,7 @@ const step8 = () => {
 
                 </form>
             </Form>
-        </div>
+        </>
     );
 }
 

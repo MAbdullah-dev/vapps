@@ -8,7 +8,7 @@ const step5 = () => {
     const router = useRouter();
     return (
         <>
-            <div className="container mx-auto px-5">
+            <div className="">
                 <div className="innner">
                     <h1 className="text-2xl font-bold mb-6">Step 5</h1>
 
