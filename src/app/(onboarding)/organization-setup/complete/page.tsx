@@ -1,17 +1,15 @@
-// app/organization-setup/complete/page.tsx
 "use client";
 
 import React from "react";
-import { useOnboardingStore } from "@/store/onboardingStore";
+import { useSiteStore } from "@/store/onboardingStore";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
 export default function CompletePage() {
-  const { data, reset } = useOnboardingStore();
+  const { data, reset } = useSiteStore();
   const router = useRouter();
 
   const onDone = () => {
-    
     reset();
     router.push("/");
   };

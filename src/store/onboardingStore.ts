@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-interface Step1Data {
+export interface Step1Data {
   companyName?: string;
   registrationId?: string;
   address?: string;
@@ -11,38 +11,45 @@ interface Step1Data {
   industry?: string;
 }
 
-interface Step2Data {
-  // fill later
+export interface Step2Site {
+  siteName: string;
+  siteCode: string;
+  location: string;
 }
 
-interface Step3Data {
-  // fill later
+export interface Step2Data {
+  sites: Step2Site[];
 }
 
-// Add all steps up to 11
+export interface Step3Data {
+  leaders: LeaderData[]; // Updated to include leaders
+}
+
+export interface LeaderData {
+  name: string;
+  role: string;
+  level: string;
+  email?: string;
+}
+
 export interface OnboardingData {
   step1: Step1Data;
   step2: Step2Data;
   step3: Step3Data;
-  // ...
-  // step4
-  // step5
-  // ...
-  // step11
 }
 
 interface OnboardingStore {
   data: OnboardingData;
   updateStep: (step: keyof OnboardingData, values: any) => void;
+  addSiteToStep2: (site: Step2Site) => void;
   reset: () => void;
 }
 
-export const useOnboardingStore = create<OnboardingStore>((set) => ({
+export const useSiteStore = create<OnboardingStore>((set) => ({
   data: {
     step1: {},
-    step2: {},
-    step3: {},
-    // add empty objects for future steps
+    step2: { sites: [] },
+    step3: { leaders: [] }, // Make sure leaders is an empty array by default
   },
 
   updateStep: (step, values) =>
@@ -53,12 +60,22 @@ export const useOnboardingStore = create<OnboardingStore>((set) => ({
       },
     })),
 
+  addSiteToStep2: (site) =>
+    set((state) => ({
+      data: {
+        ...state.data,
+        step2: {
+          sites: [...state.data.step2.sites, site],
+        },
+      },
+    })),
+
   reset: () =>
     set({
       data: {
         step1: {},
-        step2: {},
-        step3: {},
+        step2: { sites: [] },
+        step3: { leaders: [] }, // Reset leaders on reset
       },
     }),
 }));
