@@ -1,31 +1,284 @@
 "use client";
 
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import { step7Schema, Step7Values } from "@/schemas/onboarding/step7Schema";
+
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 const step7 = () => {
-    const router = useRouter();
+    const form = useForm<Step7Values>({
+        resolver: zodResolver(step7Schema),
+        defaultValues: {
+            activeTab: "customers",
+            customers: [
+                { name: "", email: "", phone: "", address: "" }
+            ],
+            vendors: [
+                { name: "", email: "", phone: "", address: "" }
+            ]
+        }
+    });
+
+    const {
+        fields: customerFields,
+        append: addCustomer,
+        remove: removeCustomer
+    } = useFieldArray({
+        control: form.control,
+        name: "customers"
+    });
+
+    const {
+        fields: vendorFields,
+        append: addVendor,
+        remove: removeVendor
+    } = useFieldArray({
+        control: form.control,
+        name: "vendors"
+    });
+
+    const tab = form.watch("activeTab");
+
+    const onSubmit = (values: Step7Values) => {
+        console.log("STEP 7 DATA:", values);
+    };
+
     return (
-       <>
-            <div className="container mx-auto px-5">
-                <div className="innner">
-                    <h1 className="text-2xl font-bold mb-6">Step 7</h1>
+        <div className="container mx-auto px-5">
+            {/* Heading */}
+            <h1 className="text-2xl font-bold mb-2">Customers & Vendors</h1>
+            <p className="text-gray-600 mb-8">Configure your customers & vendors settings</p>
 
-                    <div className="fields p-6 rounded-2xl border border-[#0000001A]"></div>
+            {/* Tab System */}
+            <div className="flex mb-6">
+                <div className="flex gap-3 p-1 bg-gray-100 border rounded-full">
+                    <Button
+                        type="button"
+                        variant={tab === "customers" ? "default" : "ghost"}
+                        className={`rounded-full px-4 ${tab === "customers" ? "bg-primary text-white" : ""
+                            }`}
+                        onClick={() => form.setValue("activeTab", "customers")}
+                    >
+                        Customers
+                    </Button>
 
-                    <div className="flex justify-between mt-10">
-                        <Button onClick={() => router.push("/organization-setup/step6")} variant="outline"><ArrowLeft className="mr-2" /> Previous</Button>
-
-                        <div className="flex gap-4">
-                            <Button variant="secondary" onClick={() => router.push("/organization-setup/step8")}>Skip</Button>
-                            <Button onClick={() => router.push("/organization-setup/step8")} variant="default">Next <ArrowRight className="ml-2" /></Button>
-                        </div>
-                    </div>
+                    <Button
+                        type="button"
+                        variant={tab === "vendors" ? "default" : "ghost"}
+                        className={`rounded-full px-4 ${tab === "vendors" ? "bg-primary text-white" : ""
+                            }`}
+                        onClick={() => form.setValue("activeTab", "vendors")}
+                    >
+                        Vendors
+                    </Button>
                 </div>
             </div>
-        </>
-    )
+
+
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
+
+                    {tab === "customers" && (
+                        <>
+                            <h3 className="text-xl font-semibold">Add Customer</h3>
+
+                            {customerFields.map((field, index) => (
+                                <div key={field.id} className="">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                        {/* Customer Name */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`customers.${index}.name`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Customer Name *</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="ABC Corp" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Email */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`customers.${index}.email`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Email</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="contact@abccorp.com" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Phone */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`customers.${index}.phone`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Phone</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="+1 555-0100" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Address */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`customers.${index}.address`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Address</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="123 Main St" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                    </div>
+
+                                    {/* Remove Button */}
+                                    <div className="mt-4 flex justify-end">
+                                        {customerFields.length > 1 && (
+                                            <Button variant="destructive" type="button" onClick={() => removeCustomer(index)}>
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Add Customer Button */}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                    addCustomer({ name: "", email: "", phone: "", address: "" })
+                                }
+                            >
+                                + Add Customer
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Vendors TAB */}
+                    {tab === "vendors" && (
+                        <>
+                            <h3 className="text-xl font-semibold">Add Vendor</h3>
+
+                            {vendorFields.map((field, index) => (
+                                <div key={field.id} className="">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                        {/* Vendor Name */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`vendors.${index}.name`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Vendor Name *</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="ABC Corp" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Email */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`vendors.${index}.email`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Email</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="contact@abccorp.com" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Phone */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`vendors.${index}.phone`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Phone</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="+1 555-0100" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Address */}
+                                        <FormField
+                                            control={form.control}
+                                            name={`vendors.${index}.address`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Address</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="123 Main St" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end">
+                                        {vendorFields.length > 1 && (
+                                            <Button variant="destructive" type="button" onClick={() => removeVendor(index)}>
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Add Vendor Button */}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                    addVendor({ name: "", email: "", phone: "", address: "" })
+                                }
+                            >
+                                + Add Vendor
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Submit */}
+                    {/* <div className="pt-4">
+            <Button type="submit">Save & Continue</Button>
+          </div> */}
+
+                </form>
+            </Form>
+        </div>
+    );
 }
 
 export default step7
