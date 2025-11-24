@@ -16,14 +16,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useOnboardingStore } from "@/store/onboardingStore";
 const step4 = () => {
+    const saved = useOnboardingStore((s) => s.data.step4);
+    const updateStep = useOnboardingStore((s) => s.updateStep);
     const form = useForm<Step4Values>({
         resolver: zodResolver(step4Schema),
-        defaultValues: {
-            teamMembers: [
-                { fullName: "John Doe", email: "john@acme.com", role: "", ssoMethod: "Email/Password" },
-            ],
-        },
+        defaultValues: { teamMembers: saved.teamMembers?.length ? saved.teamMembers : [{ fullName: "John Doe", email: "john@acme.com", role: "", ssoMethod: "Email/Password" }] },
     });
 
     const { fields, append, remove } = useFieldArray({
@@ -32,9 +31,9 @@ const step4 = () => {
     });
 
     const onSubmit = (values: Step4Values) => {
-        console.log("Step 4:", values);
+        updateStep("step4", { teamMembers: values.teamMembers });
+        console.log("Step 4 saved:", values);
     };
-
     return (
         <>
             <h1 className="text-2xl font-bold mb-2">User & Role Management</h1>
