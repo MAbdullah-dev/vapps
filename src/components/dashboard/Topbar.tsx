@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Bell, Menu, Moon, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -31,7 +31,12 @@ export default function Topbar() {
                 <Button variant="ghost" size="icon">
                     <Bell size={20} />
                 </Button>
-
+                <Button variant="ghost" size="icon">
+                    <Moon size={20} />
+                </Button>
+                <Button variant="ghost" size="icon">
+                     <Globe size={20} />
+                </Button>
                 <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
             </div>
         </header>
