@@ -67,29 +67,33 @@ export default function Sidebar({ orgId }: { orgId: string }) {
 
         {/* Processes */}
         {/* Processes (Parent Tab Click → show all processes) */}
-        <Link
-          href={link("processes")}
-          className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition cursor-pointer
-    ${pathname.includes("/processes") ? "bg-gray-100 font-medium text-gray-900" : "text-gray-600 hover:bg-gray-50"}
+        <div
+          className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition
+    ${pathname.includes("/processes") ? "bg-gray-100" : "hover:bg-gray-50"}
   `}
-          onClick={() => setProcessOpen(true)} // Keep collapse open when clicking parent
         >
-          <div className="flex items-center gap-3">
+          <Link
+            href={link("processes")}
+            className={`flex items-center gap-3
+      ${pathname.includes("/processes") ? "font-medium text-gray-900" : "text-gray-600"}
+    `}
+          >
             <FolderKanban size={18} />
             Processes
-          </div>
+          </Link>
 
-          {processOpen ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </Link>
+          <button onClick={() => setProcessOpen((prev) => !prev)}>
+            {processOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        </div>
 
         {/* Collapsible Child Process List */}
         <Collapsible open={processOpen} onOpenChange={setProcessOpen}>
           <CollapsibleContent className="pt-1 pl-9 space-y-1">
-
             {[
               { title: "Mobile App Development", href: "processes/mobile-app" },
               { title: "Quality Control", href: "processes/quality-control" },
@@ -108,7 +112,6 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                 {item.title}
               </Link>
             ))}
-
           </CollapsibleContent>
         </Collapsible>
 

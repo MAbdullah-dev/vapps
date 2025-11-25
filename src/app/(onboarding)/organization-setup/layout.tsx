@@ -8,10 +8,8 @@ import OnboardingFooter from "@/components/multistepform/OnboardingFooter";
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-
   const match = pathname.match(/step(\d+)/);
   const currentStep = match ? Number(match[1]) : 1;
-
   const totalSteps = 11;
 
   return (
@@ -19,10 +17,11 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
       <Header />
 
       <StepProgress step={currentStep} total={totalSteps} />
-
       <StepTabs currentStep={currentStep} />
 
-      <div className="container mx-auto px-5 py-10 border border-[#D4D4D4] rounded-2xl">{children}</div>
+      <div className="container mx-auto px-5 py-10 border border-[#D4D4D4] rounded-2xl">
+        {children}
+      </div>
 
       <OnboardingFooter currentStep={currentStep} totalSteps={totalSteps} />
     </>

@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { step9Schema, Step9Values } from "@/schemas/onboarding/step9Schema";
 
+
 import {
     Form,
     FormField,
@@ -16,7 +17,11 @@ import {
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { useOnboardingStore } from "@/store/onboardingStore";
 const step9 = () => {
+    const saved = useOnboardingStore((s) => s.data.step9);
+    const updateStep = useOnboardingStore((s) => s.updateStep);
+
     const form = useForm<Step9Values>({
         resolver: zodResolver(step9Schema),
         defaultValues: {
@@ -39,9 +44,9 @@ const step9 = () => {
     const selectedCount = Object.values(form.watch("widgets")).filter(Boolean).length;
 
     const onSubmit = (values: Step9Values) => {
-        console.log("Step 9:", values);
+        updateStep("step9", values);
+        console.log("Step 9 saved:", values);
     };
-
     return (
         <>
             <h1 className="text-2xl font-bold mb-2">KPI & Reporting</h1>

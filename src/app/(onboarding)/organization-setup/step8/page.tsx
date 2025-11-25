@@ -17,8 +17,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-
+import { useOnboardingStore } from "@/store/onboardingStore";
 const step8 = () => {
+    const saved = useOnboardingStore((s) => s.data.step8);
+    const updateStep = useOnboardingStore((s) => s.updateStep);
     const form = useForm<Step8Values>({
         resolver: zodResolver(step8Schema) as unknown as Resolver<Step8Values>,
         defaultValues: {
@@ -32,17 +34,16 @@ const step8 = () => {
 
             emailNotifications: true,
             inAppNotifications: true,
-           smsNotifications: false, 
+            smsNotifications: false,
 
             escalationRules: "",
         },
     });
 
-    const onSubmit: SubmitHandler<Step8Values> = (values) => {
-        console.log("Step 8:", values);
-        // TODO: update zustand store and navigate to next step
+    const onSubmit = (values: Step8Values) => {
+        updateStep("step8", values);
+        console.log("Step 8 saved:", values);
     };
-
     return (
         <>
             <h1 className="text-2xl font-bold mb-2">Operational Parameters</h1>
