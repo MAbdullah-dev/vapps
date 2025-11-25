@@ -26,7 +26,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     <div className="w-full">
 
       {/* Header */}
-      <p className="flex items-center gap-2 mb-5">
+      <p className="flex items-center gap-2 mb-5 cursor-pointer">
         <ArrowLeft /> Processes
       </p>
 
@@ -35,21 +35,23 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           <TrendingUp size={16} />
         </span>
         <h1 className="text-base font-bold capitalize">
-          {processId?.toString().replace("-", " ")}
+          {processId?.toString().replaceAll("-", " ")}
         </h1>
       </div>
 
-      <p>
+      <p className="text-sm text-gray-600 mb-4">
         Building the next generation mobile experience with React Native and cutting-edge features
       </p>
 
       {/* ⭐ Tabs */}
-      <div className="flex items-center justify-between border-b">
+      <div className="flex items-center justify-between border-b h-10">
 
         {/* Left Tabs */}
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-8 items-center h-full">
           {tabs.map((tab) => {
             const fullPath = `${base}/${tab.href}`;
+
+            // Active if exact match OR nested route
             const isActive =
               pathname === fullPath || pathname.startsWith(fullPath + "/");
 
@@ -57,10 +59,10 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <Link
                 key={tab.href}
                 href={fullPath}
-                className={`text-sm transition-all px-4 py-2 ${
+                className={`text-sm h-full flex items-center transition-all ${
                   isActive
-                    ? "text-black font-medium border-b-2 border-black"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "text-black font-semibold border-b-2 border-black"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 {tab.name}
@@ -69,8 +71,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           })}
         </div>
 
-        {/* Menu Icon */}
-        <EllipsisVertical className="cursor-pointer text-muted-foreground" />
+        {/* Right Icon */}
+        <EllipsisVertical className="cursor-pointer text-gray-500 hover:text-gray-800" />
       </div>
 
       {/* Page Content */}
