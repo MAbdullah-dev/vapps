@@ -8,14 +8,14 @@ export default function Topbar() {
     return (
         <header className="h-14 border-b bg-white px-4 flex items-center justify-between">
             {/* Left - Mobile menu button */}
-            <div className="md:hidden">
+            {/* <div className="md:hidden">
                 <Button variant="ghost" size="icon">
                     <Menu size={20} />
                 </Button>
-            </div>
+            </div> */}
 
             {/* Center - Search */}
-            <div className="flex-1 flex justify-center">
+            <div className="flex-1 flex">
                 <div className="relative w-full max-w-md">
                     <Search size={18} className="absolute top-3 left-3 text-gray-500" />
                     <Input
@@ -27,6 +27,7 @@ export default function Topbar() {
 
             {/* Right */}
             <div className="flex items-center gap-3">
+                <Button variant="outline">Ask AI Assistant</Button>
                 <Button variant="ghost" size="icon">
                     <Bell size={20} />
                 </Button>

@@ -20,8 +20,6 @@ import {
 import { CartesianGrid, Line, LineChart, XAxis, Pie, PieChart, Cell } from "recharts";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-export const description = "A line chart with dots";
-
 const lineChartData = [
     { month: "January", desktop: 186, mobile: 80 },
     { month: "February", desktop: 305, mobile: 200 },
@@ -118,7 +116,7 @@ export default function OrgDashboardPage({ params }: any) {
                         <CardDescription>January - June 2024</CardDescription>
                     </CardHeader>
                     <CardContent className="p-4">
-                        <ChartContainer config={chartConfig} className="max-h-[250px]">
+                        <ChartContainer config={chartConfig} className="max-h-[250px] w-full">
                             <LineChart
                                 accessibilityLayer
                                 data={lineChartData}
@@ -139,19 +137,19 @@ export default function OrgDashboardPage({ params }: any) {
                                 <Line
                                     dataKey="desktop"
                                     type="natural"
-                                    MTroke="var(--chart-1)"
-                                    MTrokeWidth={2}
+                                    stroke="var(--chart-1)"
+                                    strokeWidth={2}
                                     dot={{ fill: "var(--chart-1)" }}
                                     activeDot={{ r: 6 }}
                                 />
-                                {/* <Line
+                                <Line
                                     dataKey="mobile"
                                     type="natural"
-                                 MTroke="var(--chart-2)"
-                                 MTrokeWidth={2}
+                                    stroke="var(--chart-2)"
+                                    strokeWidth={2}
                                     dot={{ fill: "var(--chart-2)" }}
                                     activeDot={{ r: 6 }}
-                                /> */}
+                                />
                             </LineChart>
                         </ChartContainer>
                     </CardContent>
