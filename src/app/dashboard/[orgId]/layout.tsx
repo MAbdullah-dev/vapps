@@ -15,7 +15,7 @@ export default function OrgDashboardLayout({ children }: any) {
                 <Topbar />
 
                 {/* Content */}
-                <main className="p-6">
+                <main className="p-6 w-full bg-[#F9F9F9] flex-1">
                     {children}
                 </main>
             </div>
