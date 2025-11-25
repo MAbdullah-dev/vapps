@@ -117,7 +117,7 @@ export default function OrgDashboardPage({ params }: any) {
                         <CardTitle>Line Chart - Dots</CardTitle>
                         <CardDescription>January - June 2024</CardDescription>
                     </CardHeader>
-                    <CardContent className="!p-4">
+                    <CardContent className="p-4">
                         <ChartContainer config={chartConfig} className="max-h-[250px]">
                             <LineChart
                                 accessibilityLayer
