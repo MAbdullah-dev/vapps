@@ -1,4 +1,3 @@
-// Step2.tsx
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -14,7 +13,7 @@ import { useRouter } from "next/navigation";
 
 export default function Step2() {
   const router = useRouter();
-  const savedSites = useOnboardingStore((s) => s.data.sites);
+  const savedSites = useOnboardingStore((s) => s.data.step2.sites);
   const addSite = useOnboardingStore((s) => s.addSite);
 
   const form = useForm<Step2Values>({
@@ -28,10 +27,14 @@ export default function Step2() {
   });
 
   const onSubmit = (values: Step2Values) => {
-    addSite({ siteName: values.siteName, siteCode: values.siteCode, location: values.location, process: values.process });
+    addSite({
+      siteName: values.siteName,
+      siteCode: values.siteCode,
+      location: values.location,
+      processes: values.process ? [values.process] : [],
+    });
     form.reset();
     console.log("Site added:", values);
-    // Optional: automatically go to next step after adding a site
     router.push("/organization-setup/step3");
   };
 

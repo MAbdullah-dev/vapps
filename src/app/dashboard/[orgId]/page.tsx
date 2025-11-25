@@ -19,6 +19,8 @@ import {
 
 import { CartesianGrid, Line, LineChart, XAxis, Pie, PieChart, Cell } from "recharts";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 const lineChartData = [
     { month: "January", desktop: 186, mobile: 80 },
@@ -248,8 +250,15 @@ export default function OrgDashboardPage({ params }: any) {
                     </CardContent>
                 </Card>
             </div>
-
-
+            <div className="mt-5 p-5 rounded-lg bg-[#E8F1FF] border border-[#C3D9FF] flex items-center justify-between">
+                <div className="description">
+                    <h3 className="font-semibold text-sm mb-1">Need Help? Ask VApps AI</h3>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                        Get instant insights, generate reports, or find information quickly.
+                    </p>
+                </div>
+                <Button variant="dark" size="lg">Ask VApps AI</Button>
+            </div>
         </>
     );
 }

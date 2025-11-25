@@ -95,6 +95,9 @@
   --fs-base: 16px;
   --fs-small: 14px;
   --fs-x-small: 12px;
+  /* custom colors */
+  --headings-color: #0A0A0A;
+  --paragraph-color: #6A7282;
 }
 
 @media (max-width: 1024px) {
@@ -175,6 +178,7 @@
   --text-base: var(--fs-base);
   --text-sm: var(--fs-small);
   --text-xs: var(--fs-x-small);
+  --text-color: var(--foreground);
 }
 
 
@@ -185,6 +189,22 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-poppins);
+    color: var(--headings-color);
+  }
+
+  p {
+    color: var(--paragraph-color);
+    font-family: var(--font-poppins);
+    font-size: var(--fs-small);
   }
 }
 
