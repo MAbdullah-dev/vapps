@@ -3,18 +3,14 @@ import Topbar from "@/components/dashboard/Topbar";
 
 export default function OrgDashboardLayout({ children }: any) {
     return (
-        <div className="flex min-h-screen">
+        <div className="flex min-h-screen bg-[#f9f9f9]">
 
-            {/* Sidebar */}
-            <Sidebar />
+            <Sidebar orgId="abc"/>
 
-            {/* Main Area */}
             <div className="flex-1 flex flex-col">
 
-                {/* Topbar */}
                 <Topbar />
 
-                {/* Content */}
                 <main className="p-6 w-full bg-[#F9F9F9] flex-1">
                     {children}
                 </main>
