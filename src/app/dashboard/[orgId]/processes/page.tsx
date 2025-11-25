@@ -40,8 +40,8 @@ export default function ProcessesListPage() {
           {/* Search */}
           <div className="flex-1 flex">
             <div className="relative w-full max-w-md">
-              <Search size={18} className="absolute top-3 left-3 text-gray-500" />
-              <Input className="pl-10" placeholder="Search tasks, docs, processes..." />
+              <Search size={18} className="absolute top-[50%] transform -translate-y-1/2 left-3 text-gray-500" />
+              <Input className="pl-10 border-none bg-[#F3F3F5]" placeholder="Search tasks, docs, processes..." />
             </div>
           </div>
 

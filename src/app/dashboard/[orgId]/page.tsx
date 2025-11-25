@@ -19,7 +19,6 @@ import {
 
 import { CartesianGrid, Line, LineChart, XAxis, Pie, PieChart, Cell } from "recharts";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const lineChartData = [

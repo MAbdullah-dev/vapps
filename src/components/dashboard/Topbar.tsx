@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Topbar() {
     return (
-        <header className="h-14 border-b bg-white px-4 flex items-center justify-between">
+        <header className="h-14 border-b bg-[#FCFCFC] px-4 flex items-center justify-between">
             {/* Left - Mobile menu button */}
             {/* <div className="md:hidden">
                 <Button variant="ghost" size="icon">
@@ -17,9 +17,9 @@ export default function Topbar() {
             {/* Center - Search */}
             <div className="flex-1 flex">
                 <div className="relative w-full max-w-md">
-                    <Search size={18} className="absolute top-3 left-3 text-gray-500" />
+                    <Search size={18} className="absolute top-[50%] transform -translate-y-1/2 left-3 text-gray-500" />
                     <Input
-                        className="pl-10"
+                        className="pl-10 border-none bg-[#F3F3F5]"
                         placeholder="Search tasks, docs, processes..."
                     />
                 </div>

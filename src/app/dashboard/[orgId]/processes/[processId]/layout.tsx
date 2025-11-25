@@ -47,7 +47,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       <div className="flex items-center justify-between border-b">
 
         {/* Left Tabs */}
-        <div className="flex gap-10 items-center">
+        <div className="flex gap-2 items-center">
           {tabs.map((tab) => {
             const fullPath = `${base}/${tab.href}`;
             const isActive =
@@ -57,7 +57,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <Link
                 key={tab.href}
                 href={fullPath}
-                className={`text-sm py-2 transition-all ${
+                className={`text-sm transition-all px-4 py-2 ${
                   isActive
                     ? "text-black font-medium border-b-2 border-black"
                     : "text-muted-foreground hover:text-foreground"
