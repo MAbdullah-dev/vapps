@@ -1,4 +1,3 @@
-// Step3Page.tsx (updated)
 "use client";
 
 import React from "react";
@@ -10,6 +9,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 
 import { useOnboardingStore } from "@/store/onboardingStore";
 
@@ -19,53 +19,84 @@ export default function Step3Page() {
 
   const form = useForm<Step3Values>({
     resolver: zodResolver(step3Schema),
-    defaultValues: { leaders: data.leaders?.length ? data.leaders : [{ name: "", role: "", level: "Executive", email: "" }] },
+    defaultValues: {
+      leaders: data.leaders?.length
+        ? data.leaders
+        : [{ name: "", role: "", level: "Executive", email: "" }],
+    },
   });
 
-  const { fields, append } = useFieldArray({ name: "leaders", control: form.control });
+  const { fields, append, remove } = useFieldArray({
+    name: "leaders",
+    control: form.control,
+  });
 
-  const addLeader = () => append({ name: "", role: "", level: "Executive", email: "" });
+  const addLeader = () =>
+    append({ name: "", role: "", level: "Executive", email: "" });
 
   const onSubmit = (values: Step3Values) => {
     updateStep("step3", { leaders: values.leaders });
-    console.log("Step 3 saved:", values);
   };
 
   return (
-    <>
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Leadership Structure</h2>
-        <p className="text-gray-600">Configure your leadership structure settings</p>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Leadership Structure</h2>
+      <p className="text-gray-600">Configure your leadership structure settings</p>
 
-        <h3 className="text-xl font-semibold mt-4">Add Leadership Roles</h3>
+      <h3 className="text-xl font-semibold mt-4">Add Leadership Roles</h3>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {fields.map((field, index) => (
-              <div key={field.id} className="border rounded-lg p-4">
-                <div className="grid grid-cols-4 gap-4">
-                  <FormField control={form.control} name={`leaders.${index}.name`} render={({ field }) => (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {fields.map((field, index) => (
+            <div key={field.id} className="relative border rounded-lg p-4">
+
+              {fields.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  className="
+                    absolute right-2 top-2 text-red-500 hover:text-red-700
+                  "
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+
+              <div className="grid grid-cols-4 gap-4">
+
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.name`}
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name *</FormLabel>
                       <FormControl><Input placeholder="Enter name" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
-                  )} />
+                  )}
+                />
 
-                  <FormField control={form.control} name={`leaders.${index}.role`} render={({ field }) => (
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.role`}
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role *</FormLabel>
                       <FormControl><Input placeholder="Enter role" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
-                  )} />
+                  )}
+                />
 
-                  <FormField control={form.control} name={`leaders.${index}.level`} render={({ field }) => (
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.level`}
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Level *</FormLabel>
                       <FormControl>
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="Select level" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Executive">Executive</SelectItem>
                             <SelectItem value="Senior">Senior</SelectItem>
@@ -76,27 +107,34 @@ export default function Step3Page() {
                       </FormControl>
                       <FormMessage />
                     </FormItem>
-                  )} />
+                  )}
+                />
 
-                  <FormField control={form.control} name={`leaders.${index}.email`} render={({ field }) => (
+                {/* Leader Email */}
+                <FormField
+                  control={form.control}
+                  name={`leaders.${index}.email`}
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Email</FormLabel>
-                      <FormControl><Input type="email" placeholder="email@example.com" {...field} /></FormControl>
+                      <FormControl><Input placeholder="email@example.com" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
-                  )} />
-                </div>
+                  )}
+                />
               </div>
-            ))}
-
-            <Button type="button" variant="default" onClick={addLeader} className="mt-2">+ Add Leader</Button>
-
-            <div className="flex justify-end mt-4">
-              <Button type="submit">Save & Continue</Button>
             </div>
-          </form>
-        </Form>
-      </div>
-    </>
+          ))}
+
+          <Button type="button" variant="default" onClick={addLeader} className="mt-2">
+            + Add Leader
+          </Button>
+
+          <div className="flex justify-end mt-4">
+            <Button type="submit">Save & Continue</Button>
+          </div>
+        </form>
+      </Form>
+    </div>
   );
 }

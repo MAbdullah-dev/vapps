@@ -39,7 +39,7 @@ export default function Step1Form() {
   };
 
   return (
-    <div className="bg-white border border-[#0000001A] rounded-[14px] p-6">
+    <div className="bg-white">
       <h1 className="text-2xl font-bold mb-2">Company Information</h1>
       <p className="text-gray-600 mb-8">Configure your company information settings</p>
 
