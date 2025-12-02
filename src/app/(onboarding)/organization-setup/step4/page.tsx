@@ -16,13 +16,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+
+import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
-const step4 = () => {
+
+const Step4 = () => {
+    const router = useRouter();
     const saved = useOnboardingStore((s) => s.data.step4);
     const updateStep = useOnboardingStore((s) => s.updateStep);
+
     const form = useForm<Step4Values>({
         resolver: zodResolver(step4Schema),
-        defaultValues: { teamMembers: saved.teamMembers?.length ? saved.teamMembers : [{ fullName: "John Doe", email: "john@acme.com", role: "", ssoMethod: "Email/Password" }] },
+        defaultValues: {
+            teamMembers: saved.teamMembers?.length
+                ? saved.teamMembers
+                : [
+                    {
+                        fullName: "John Doe",
+                        email: "john@acme.com",
+                        role: "",
+                        ssoMethod: "Email/Password",
+                    },
+                ],
+        },
     });
 
     const { fields, append, remove } = useFieldArray({
@@ -32,8 +48,9 @@ const step4 = () => {
 
     const onSubmit = (values: Step4Values) => {
         updateStep("step4", { teamMembers: values.teamMembers });
-        console.log("Step 4 saved:", values);
+        router.push("/organization-setup/step5");
     };
+
     return (
         <>
             <h1 className="text-2xl font-bold mb-2">User & Role Management</h1>
@@ -41,7 +58,6 @@ const step4 = () => {
 
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-
                     <h3 className="text-xl font-semibold mb-4">Add Team Members</h3>
 
                     {fields.map((field, index) => (
@@ -49,7 +65,7 @@ const step4 = () => {
                             {/* Full Name */}
                             <FormField
                                 control={form.control}
-                                name={`teamMembers.${index}.fullName` as const}
+                                name={`teamMembers.${index}.fullName`}
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Full Name *</FormLabel>
@@ -64,7 +80,7 @@ const step4 = () => {
                             {/* Email */}
                             <FormField
                                 control={form.control}
-                                name={`teamMembers.${index}.email` as const}
+                                name={`teamMembers.${index}.email`}
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Email *</FormLabel>
@@ -79,12 +95,12 @@ const step4 = () => {
                             {/* Role */}
                             <FormField
                                 control={form.control}
-                                name={`teamMembers.${index}.role` as const}
+                                name={`teamMembers.${index}.role`}
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Role *</FormLabel>
                                         <FormControl>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={field.onChange} value={field.value}>
                                                 <SelectTrigger className="w-full">
                                                     <SelectValue placeholder="Select role" />
                                                 </SelectTrigger>
@@ -103,12 +119,12 @@ const step4 = () => {
                             {/* SSO Method */}
                             <FormField
                                 control={form.control}
-                                name={`teamMembers.${index}.ssoMethod` as const}
+                                name={`teamMembers.${index}.ssoMethod`}
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>SSO Method</FormLabel>
                                         <FormControl>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={field.onChange} value={field.value}>
                                                 <SelectTrigger className="w-full">
                                                     <SelectValue placeholder="Email/Password" />
                                                 </SelectTrigger>
@@ -123,7 +139,7 @@ const step4 = () => {
                                 )}
                             />
 
-                            {/* Remove button */}
+                            {/* Remove */}
                             {fields.length > 1 && (
                                 <Button
                                     type="button"
@@ -138,18 +154,21 @@ const step4 = () => {
                         </div>
                     ))}
 
-                    {/* Add more user button */}
                     <Button
                         type="button"
                         variant="outline"
                         onClick={() =>
-                            append({ fullName: "", email: "", role: "", ssoMethod: "Email/Password" } as TeamMember)
+                            append({
+                                fullName: "",
+                                email: "",
+                                role: "",
+                                ssoMethod: "Email/Password",
+                            } as TeamMember)
                         }
                     >
                         Add User
                     </Button>
 
-                    {/* Submit */}
                     <div className="flex justify-end mt-6">
                         <Button type="submit">Save & Continue</Button>
                     </div>
@@ -157,6 +176,6 @@ const step4 = () => {
             </Form>
         </>
     );
-}
+};
 
-export default step4
+export default Step4;

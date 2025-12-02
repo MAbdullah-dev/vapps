@@ -17,8 +17,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
+import { Button } from "@/components/ui/button";
 const step8 = () => {
+    const router = useRouter();
     const saved = useOnboardingStore((s) => s.data.step8);
     const updateStep = useOnboardingStore((s) => s.updateStep);
     const form = useForm<Step8Values>({
@@ -42,7 +45,7 @@ const step8 = () => {
 
     const onSubmit = (values: Step8Values) => {
         updateStep("step8", values);
-        console.log("Step 8 saved:", values);
+        router.push("/organization-setup/step9");
     };
     return (
         <>
@@ -231,14 +234,9 @@ const step8 = () => {
                         </div>
                     </section>
 
-                    {/* <div className="flex justify-end">
-                        <button
-                            type="submit"
-                            className="px-6 py-2 bg-blue-600 text-white rounded-md"
-                        >
-                            Save & Continue
-                        </button>
-                    </div> */}
+                    <div className="flex justify-end mt-4">
+                        <Button type="submit">Save & Continue</Button>
+                    </div>
 
                 </form>
             </Form>

@@ -14,18 +14,15 @@ import { useRouter } from "next/navigation";
 
 export default function Step2() {
   const router = useRouter();
-  const addSiteToStore = useOnboardingStore((s) => s.addSite);
+
+  const saved = useOnboardingStore((s) => s.data.step2);
+  const updateStep = useOnboardingStore((s) => s.updateStep);
 
   const form = useForm<Step2Values>({
     resolver: zodResolver(step2Schema),
-    defaultValues: {
+    defaultValues: saved || {
       sites: [
-        {
-          siteName: "",
-          siteCode: "",
-          location: "",
-          process: "",
-        },
+        { siteName: "", siteCode: "", location: "", process: "" },
       ],
     },
   });
@@ -36,15 +33,7 @@ export default function Step2() {
   });
 
   const onSubmit = (values: Step2Values) => {
-    values.sites.forEach((site) => {
-      addSiteToStore({
-        siteName: site.siteName,
-        siteCode: site.siteCode,
-        location: site.location,
-        processes: site.process ? [site.process] : [],
-      });
-    });
-
+    updateStep("step2", values); // ✅ Store entire step2 object correctly
     router.push("/organization-setup/step3");
   };
 
@@ -152,12 +141,7 @@ export default function Step2() {
             type="button"
             variant="default"
             onClick={() =>
-              append({
-                siteName: "",
-                siteCode: "",
-                location: "",
-                process: "",
-              })
+              append({ siteName: "", siteCode: "", location: "", process: "" })
             }
           >
             + Add Site
@@ -171,13 +155,6 @@ export default function Step2() {
           </div>
         </form>
       </Form>
-
-      <div className="mt-6 p-4 rounded-lg bg-[#E8F1FF] border border-[#C3D9FF]">
-        <h3 className="font-semibold text-sm mb-1">About Process Taxonomy</h3>
-        <p className="text-xs text-gray-600 leading-relaxed">
-          Process taxonomy follows ISO 9001 standards. Each site can have multiple processes assigned.
-        </p>
-      </div>
     </div>
   );
 }

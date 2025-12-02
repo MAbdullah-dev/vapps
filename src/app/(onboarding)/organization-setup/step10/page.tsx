@@ -13,9 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
+import { useRouter } from "next/navigation";
+
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step10 = () => {
+  const router = useRouter();
   const saved = useOnboardingStore((s) => s.data.step10);
   const updateStep = useOnboardingStore((s) => s.updateStep);
 
@@ -36,7 +39,7 @@ const Step10 = () => {
 
   const onSubmit = (values: Step10Values) => {
     updateStep("step10", values);
-    console.log("Step 10 saved:", values);
+    router.push("/organization-setup/step11");
   };
 
   return (
@@ -74,11 +77,11 @@ const Step10 = () => {
             <h3 className="text-xl font-semibold mb-3">Access Control</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="passwordPolicy" render={({ field }) => (
-                <FormItem><FormLabel>Password Policy</FormLabel><FormControl><Input placeholder="Standard (10+ chars, mixed case)" {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem><FormLabel>Password Policy</FormLabel><FormControl><Input placeholder="Standard (10+ chars, mixed case)" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
 
               <FormField control={form.control} name="sessionDuration" render={({ field }) => (
-                <FormItem><FormLabel>Session Duration (minutes)</FormLabel><FormControl><Input placeholder="60" {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem><FormLabel>Session Duration (minutes)</FormLabel><FormControl><Input placeholder="60" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
           </section>
@@ -92,7 +95,7 @@ const Step10 = () => {
             )} />
 
             <FormField control={form.control} name="logRetention" render={({ field }) => (
-              <FormItem><FormLabel>Log Retention Period (days)</FormLabel><FormControl><Input placeholder="365" {...field} /></FormControl><FormMessage/></FormItem>
+              <FormItem><FormLabel>Log Retention Period (days)</FormLabel><FormControl><Input placeholder="365" {...field} /></FormControl><FormMessage /></FormItem>
             )} />
           </section>
 
@@ -118,7 +121,7 @@ const Step10 = () => {
               )} />
 
               <FormField control={form.control} name="backupRetention" render={({ field }) => (
-                <FormItem><FormLabel>Backup Retention (days)</FormLabel><FormControl><Input placeholder="30" {...field} /></FormControl><FormMessage/></FormItem>
+                <FormItem><FormLabel>Backup Retention (days)</FormLabel><FormControl><Input placeholder="30" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
           </section>

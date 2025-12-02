@@ -33,8 +33,6 @@ export default function Step1Form() {
 
   const onSubmit = (values: Step1Values) => {
     updateStep("step1", values);
-    console.log("Step 1 saved:", values);
-    // Move to step 2 after validation
     router.push("/organization-setup/step2");
   };
 
@@ -117,9 +115,8 @@ export default function Step1Form() {
 
           </div>
 
-          {/* Step Footer Buttons */}
           <div className="flex justify-between items-center mt-6">
-            <div /> {/* Empty space for Previous button alignment */}
+            <div />
 
             <div className="flex items-center gap-6">
               <Button type="submit" variant="default">

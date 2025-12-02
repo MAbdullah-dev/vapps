@@ -5,15 +5,32 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Step3Values, step3Schema } from "@/schemas/onboarding/step3Schema";
 
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
+
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 
+import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 export default function Step3Page() {
+  const router = useRouter();
+
   const data = useOnboardingStore((s) => s.data.step3);
   const updateStep = useOnboardingStore((s) => s.updateStep);
 
@@ -36,6 +53,7 @@ export default function Step3Page() {
 
   const onSubmit = (values: Step3Values) => {
     updateStep("step3", { leaders: values.leaders });
+    router.push("/organization-setup/step4");
   };
 
   return (
@@ -49,45 +67,48 @@ export default function Step3Page() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {fields.map((field, index) => (
             <div key={field.id} className="relative border rounded-lg p-4">
-
               {fields.length > 1 && (
                 <button
                   type="button"
                   onClick={() => remove(index)}
-                  className="
-                    absolute right-2 top-2 text-red-500 hover:text-red-700
-                  "
+                  className="absolute right-2 top-2 text-red-500 hover:text-red-700"
                 >
                   <Trash2 size={16} />
                 </button>
               )}
 
               <div className="grid grid-cols-4 gap-4">
-
+                {/* Name */}
                 <FormField
                   control={form.control}
                   name={`leaders.${index}.name`}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name *</FormLabel>
-                      <FormControl><Input placeholder="Enter name" {...field} /></FormControl>
+                      <FormControl>
+                        <Input placeholder="Enter name" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                {/* Role */}
                 <FormField
                   control={form.control}
                   name={`leaders.${index}.role`}
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Role *</FormLabel>
-                      <FormControl><Input placeholder="Enter role" {...field} /></FormControl>
+                      <FormControl>
+                        <Input placeholder="Enter role" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                {/* Level */}
                 <FormField
                   control={form.control}
                   name={`leaders.${index}.level`}
@@ -96,7 +117,9 @@ export default function Step3Page() {
                       <FormLabel>Level *</FormLabel>
                       <FormControl>
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select level" /></SelectTrigger>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Executive">Executive</SelectItem>
                             <SelectItem value="Senior">Senior</SelectItem>
@@ -117,7 +140,9 @@ export default function Step3Page() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Email</FormLabel>
-                      <FormControl><Input placeholder="email@example.com" {...field} /></FormControl>
+                      <FormControl>
+                        <Input placeholder="email@example.com" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -126,10 +151,12 @@ export default function Step3Page() {
             </div>
           ))}
 
-          <Button type="button" variant="default" onClick={addLeader} className="mt-2">
+          {/* Add Leader */}
+          <Button type="button" onClick={addLeader} className="mt-2">
             + Add Leader
           </Button>
 
+          {/* Submit */}
           <div className="flex justify-end mt-4">
             <Button type="submit">Save & Continue</Button>
           </div>

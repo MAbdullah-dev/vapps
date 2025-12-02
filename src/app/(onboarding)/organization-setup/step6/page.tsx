@@ -1,4 +1,3 @@
-// step6.tsx (updated)
 "use client";
 
 import { useForm, useFieldArray } from "react-hook-form";
@@ -10,9 +9,12 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
+import { useRouter } from "next/navigation";
+
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step6 = () => {
+  const router = useRouter();
   const saved = useOnboardingStore((s) => s.data.step6);
   const updateStep = useOnboardingStore((s) => s.updateStep);
 
@@ -25,7 +27,7 @@ const Step6 = () => {
 
   const onSubmit = (values: Step6Values) => {
     updateStep("step6", { products: values.products });
-    console.log("Step 6 saved:", values);
+    router.push("/organization-setup/step7");
   };
 
   return (
@@ -40,27 +42,27 @@ const Step6 = () => {
             <div key={field.id} className="">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <FormField control={form.control} name={`products.${index}.sku`} render={({ field }) => (
-                  <FormItem><FormLabel>SKU</FormLabel><FormControl><Input placeholder="Enter SKU" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>SKU</FormLabel><FormControl><Input placeholder="Enter SKU" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
                 <FormField control={form.control} name={`products.${index}.name`} render={({ field }) => (
-                  <FormItem><FormLabel>Product Name *</FormLabel><FormControl><Input placeholder="Enter product name" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>Product Name *</FormLabel><FormControl><Input placeholder="Enter product name" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
                 <FormField control={form.control} name={`products.${index}.category`} render={({ field }) => (
-                  <FormItem><FormLabel>Category</FormLabel><FormControl><Input placeholder="Enter category" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>Category</FormLabel><FormControl><Input placeholder="Enter category" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
                 <FormField control={form.control} name={`products.${index}.unit`} render={({ field }) => (
-                  <FormItem><FormLabel>Unit of Measure</FormLabel><FormControl><Input placeholder="Enter unit (e.g. pcs, box)" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>Unit of Measure</FormLabel><FormControl><Input placeholder="Enter unit (e.g. pcs, box)" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
                 <FormField control={form.control} name={`products.${index}.cost`} render={({ field }) => (
-                  <FormItem><FormLabel>Unit Cost</FormLabel><FormControl><Input placeholder="Enter cost" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>Unit Cost</FormLabel><FormControl><Input placeholder="Enter cost" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
                 <FormField control={form.control} name={`products.${index}.reorder`} render={({ field }) => (
-                  <FormItem><FormLabel>Reorder Level</FormLabel><FormControl><Input placeholder="Enter reorder level (e.g. 20)" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormItem><FormLabel>Reorder Level</FormLabel><FormControl><Input placeholder="Enter reorder level (e.g. 20)" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
 
