@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Login from "@/components/Auth/Login";
+import Login from "@/components/Auth/login";
 import Register from "@/components/Auth/Register";
 
 const AuthPage = () => {
