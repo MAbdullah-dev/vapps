@@ -9,9 +9,12 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
+import { useRouter } from "next/navigation";
+
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step7 = () => {
+  const router = useRouter();
   const saved = useOnboardingStore((s) => s.data.step7);
   const updateStep = useOnboardingStore((s) => s.updateStep);
 
@@ -28,6 +31,7 @@ const Step7 = () => {
   const onSubmit = (values: Step7Values) => {
     updateStep("step7", values);
     console.log("Step 7 saved:", values);
+    router.push("/organization-setup/step8");
   };
 
   return (
@@ -51,19 +55,19 @@ const Step7 = () => {
                 <div key={field.id} className="">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField control={form.control} name={`customers.${index}.name`} render={({ field }) => (
-                      <FormItem><FormLabel>Customer Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Customer Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`customers.${index}.email`} render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`customers.${index}.phone`} render={({ field }) => (
-                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`customers.${index}.address`} render={({ field }) => (
-                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                   </div>
 
@@ -84,19 +88,19 @@ const Step7 = () => {
                 <div key={field.id} className="">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField control={form.control} name={`vendors.${index}.name`} render={({ field }) => (
-                      <FormItem><FormLabel>Vendor Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Vendor Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`vendors.${index}.email`} render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`vendors.${index}.phone`} render={({ field }) => (
-                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
 
                     <FormField control={form.control} name={`vendors.${index}.address`} render={({ field }) => (
-                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                   </div>
 

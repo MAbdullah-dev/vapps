@@ -2,9 +2,8 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
+import { useRouter } from "next/navigation";
 import { step9Schema, Step9Values } from "@/schemas/onboarding/step9Schema";
-
 
 import {
     Form,
@@ -18,25 +17,26 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { useOnboardingStore } from "@/store/onboardingStore";
-const step9 = () => {
+import { Button } from "@/components/ui/button";
+
+export default function Step9() {
+    const router = useRouter();
     const saved = useOnboardingStore((s) => s.data.step9);
     const updateStep = useOnboardingStore((s) => s.updateStep);
 
     const form = useForm<Step9Values>({
         resolver: zodResolver(step9Schema),
-        defaultValues: {
+        defaultValues: saved || {
             widgets: {
                 tasksCompleted: false,
                 complianceScore: false,
                 workloadByUser: false,
                 overdueTasks: false,
-
                 issueDistribution: false,
                 auditTrend: false,
                 projectProgress: false,
                 documentVersion: false,
             },
-
             reportFrequency: "",
         },
     });
@@ -45,8 +45,9 @@ const step9 = () => {
 
     const onSubmit = (values: Step9Values) => {
         updateStep("step9", values);
-        console.log("Step 9 saved:", values);
+        router.push("/organization-setup/step10");
     };
+
     return (
         <>
             <h1 className="text-2xl font-bold mb-2">KPI & Reporting</h1>
@@ -55,136 +56,33 @@ const step9 = () => {
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
 
-                    {/* Select Dashboard Widgets */}
+                    {/* --- Widget Selection --- */}
                     <section>
                         <h3 className="text-xl font-semibold mb-1">Select Dashboard Widgets</h3>
                         <p className="text-gray-600 mb-5">
-                            Choose which KPIs and metrics you want to display on your dashboard
+                            Choose the KPIs and metrics to display on your dashboard
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                            {/** Left Column */}
+                            {/* LEFT COLUMN */}
                             <div className="space-y-4">
-                                {/* Tasks Completed */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.tasksCompleted"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Tasks Completed Over Time</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Compliance Health */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.complianceScore"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Compliance Health Score</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Workload by User */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.workloadByUser"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Workload by User</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Overdue Tasks Alert */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.overdueTasks"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Overdue Tasks Alert</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
+                                {renderCheckboxField(form, "widgets.tasksCompleted", "Tasks Completed Over Time")}
+                                {renderCheckboxField(form, "widgets.complianceScore", "Compliance Health Score")}
+                                {renderCheckboxField(form, "widgets.workloadByUser", "Workload by User")}
+                                {renderCheckboxField(form, "widgets.overdueTasks", "Overdue Tasks Alert")}
                             </div>
 
-                            {/** Right Column */}
+                            {/* RIGHT COLUMN */}
                             <div className="space-y-4">
-                                {/* Issue Distribution */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.issueDistribution"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Issue Distribution by Status</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Audit Completion Trend */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.auditTrend"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Audit Completion Trend</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Project Progress */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.projectProgress"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Project Progress Overview</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Document Version Control */}
-                                <FormField
-                                    control={form.control}
-                                    name="widgets.documentVersion"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center space-x-3">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel>Document Version Control</FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
+                                {renderCheckboxField(form, "widgets.issueDistribution", "Issue Distribution by Status")}
+                                {renderCheckboxField(form, "widgets.auditTrend", "Audit Completion Trend")}
+                                {renderCheckboxField(form, "widgets.projectProgress", "Project Progress Overview")}
+                                {renderCheckboxField(form, "widgets.documentVersion", "Document Version Control")}
                             </div>
                         </div>
                     </section>
 
-                    {/* Report Generation Frequency */}
+                    {/* --- Report Frequency --- */}
                     <section>
                         <h3 className="text-lg font-semibold mb-3">Report Generation Frequency</h3>
 
@@ -195,7 +93,7 @@ const step9 = () => {
                                 <FormItem className="space-y-2">
                                     <FormLabel>Automated Report Schedule</FormLabel>
                                     <FormControl>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value}>
                                             <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select frequency" />
                                             </SelectTrigger>
@@ -206,38 +104,27 @@ const step9 = () => {
                                             </SelectContent>
                                         </Select>
                                     </FormControl>
-
-                                    <p className="text-gray-600 text-sm">
-                                        Reports will be automatically generated and sent to administrators
-                                    </p>
-
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
-
                     </section>
 
+                    {/* Summary */}
                     <section>
                         <div className="bg-[#EFF6FF] p-4 rounded-2xl">
-                            <p className="mt-4 text-base font-medium mb-4">
+                            <p className="text-base font-medium mb-4">
                                 Selected Widgets: {selectedCount}
                             </p>
                             <p className="text-gray-500 text-sm">
-                                You can customize and add more widgets after setup from the Dashboard settings
+                                You can add or customize widgets later from Dashboard settings.
                             </p>
                         </div>
                     </section>
 
-                    {/* Submit */}
-                    {/* <div className="flex justify-end">
-                        <button
-                            type="submit"
-                            className="px-6 py-2 bg-blue-600 text-white rounded-md"
-                        >
-                            Save & Continue
-                        </button>
-                    </div> */}
+                    <div className="flex justify-end mt-4">
+                        <Button type="submit">Save & Continue</Button>
+                    </div>
 
                 </form>
             </Form>
@@ -245,4 +132,20 @@ const step9 = () => {
     );
 }
 
-export default step9
+/** Helper for Checkbox Fields */
+function renderCheckboxField(form: any, name: any, label: string) {
+    return (
+        <FormField
+            control={form.control}
+            name={name}
+            render={({ field }) => (
+                <FormItem className="flex items-center space-x-3">
+                    <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel>{label}</FormLabel>
+                </FormItem>
+            )}
+        />
+    );
+}
