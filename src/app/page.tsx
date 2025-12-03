@@ -2,6 +2,19 @@ import Header from "@/components/common/Header";
 import { Button } from "@/components/ui/button";
 import { UsersRound, Plus, Check, ArrowRight, Mail, Star, Building2, ChevronRight } from 'lucide-react';
 import Link from "next/link";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator";
 
 
 const HomePage = () => {
@@ -286,9 +299,59 @@ const HomePage = () => {
               </div>
 
               {/* Button at bottom */}
-              <Button variant="outline" size="lg" className="w-full flex items-center justify-center gap-2 mt-6">
-                <Mail /> Join Organization <ArrowRight />
-              </Button>
+              <Dialog>
+                <form>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="lg" className="w-full flex items-center justify-center gap-2 mt-6">
+                      <Mail /> Join Organization <ArrowRight />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Join a Site</DialogTitle>
+                      <DialogDescription>
+                        Enter an invite code or email to join an existing Site
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4">
+                      <div className="grid gap-3">
+                        <Label htmlFor="invite-code">Invite code</Label>
+                        <Input id="invite-code" name="invite-code" defaultValue="e.g., TEAM-ABC-123" />
+                        <p>Ask your site admin for an invite code</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Separator className="flex-1" /><span className="text-gray-500 text-sm">OR</span><Separator className="flex-1" />
+                      </div>
+                      <div className="grid gap-3">
+                        <Label htmlFor="request-via-email">Request via email</Label>
+                        <Input id="request-via-email" name="request-via-email" defaultValue="e.g., admin@company.com" />
+                        <p>We'll send a request to join this team</p>
+                      </div>
+                    </div>
+                    <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-4 mt-4">
+                      <div className="flex gap-1.5">
+                        <div className="rounded-full w-8 h-8 flex items-center justify-center bg-[#DBEAFE]">
+                          <Mail size={16} className="text-[#1447E6]" />
+                        </div>
+                        <h3 className="font-semibold text-[#1C398E] text-sm">How it works</h3>
+                      </div>
+                      <ul className="list-disc pl-13">
+                        <li className="text-[#1447E6] text-xs">Use an invite code for instant access</li>
+                        <li className="text-[#1447E6] text-xs">Or request access via email</li>
+                        <li className="text-[#1447E6] text-xs">Team admin will approve your request</li>
+                      </ul>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button type="submit">Join Site</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </form>
+              </Dialog>
+
+
             </div>
           </div>
 
@@ -296,8 +359,8 @@ const HomePage = () => {
           <p className="text-sm text-center mt-6">
             Need help? Contact <span className="text-[#4F39F6]">support@vapps.com</span>
           </p>
-        </div>
-      </section>
+        </div >
+      </section >
     </>
   )
 }
