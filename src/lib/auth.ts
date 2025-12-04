@@ -29,6 +29,12 @@ export const authOptions: NextAuthOptions = {
     Atlassian({
       clientId: process.env.ATLASSIAN_ID!,
       clientSecret: process.env.ATLASSIAN_SECRET!,
+      authorization: {
+        params: {
+          scope: "read:me read:account",
+          prompt: "consent",
+        },
+      }
     }),
 
     // ✅ Credentials Provider

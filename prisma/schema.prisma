@@ -24,7 +24,6 @@ model User {
 model Account {
   id                String  @id @default(cuid())
   userId            String
-  type              String   // ✅ REQUIRED
   provider          String
   providerAccountId String
   refresh_token     String?
@@ -34,6 +33,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
+  type              String
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
