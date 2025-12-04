@@ -6,7 +6,7 @@ export const step2Schema = z.object({
       siteName: z.string().min(1, "Site Name is required"),
       siteCode: z.string().min(1, "Site Code is required"),
       location: z.string().min(1, "Location is required"),
-      process: z.string().optional(),
+      processes: z.array(z.string()).optional(), // <-- plural
     })
   ),
 });

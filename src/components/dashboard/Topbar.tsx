@@ -11,7 +11,6 @@ import {
     DropdownMenuTrigger,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
@@ -67,7 +66,6 @@ export default function Topbar() {
                     </PopoverContent>
                 </Popover>
 
-                {/* Language Selector */}
                 {/* Language Selector */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>

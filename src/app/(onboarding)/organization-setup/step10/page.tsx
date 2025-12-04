@@ -136,8 +136,28 @@ const Step10 = () => {
             </ul>
           </section>
 
-          <div className="flex justify-end">
-            <Button type="submit">Save & Continue</Button>
+          <div className="flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/organization-setup/step09")}
+            >
+              Previous
+            </Button>
+
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/organization-setup/step11")}
+              >
+                Skip Step
+              </Button>
+
+              <Button type="submit" variant="default">
+                Next
+              </Button>
+            </div>
           </div>
         </form>
       </Form>

@@ -13,7 +13,8 @@ import {
   Search,
   TrendingUp,
   UsersRound,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Check
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
@@ -39,6 +40,7 @@ import { format } from "date-fns";
 import "react-day-picker/dist/style.css";
 
 export default function ProcessesListPage() {
+  const [selectedLang, setSelectedLang] = useState("All Spaces");
   const [view, setView] = useState<"card" | "list">("card");
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const { orgId } = useParams();
@@ -71,9 +73,33 @@ export default function ProcessesListPage() {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" className="flex gap-2">
-            <Funnel size={18} /> Filter By
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex gap-2">
+                <Funnel size={18} /> Filter By
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent
+              align="end"
+              className="w-44 rounded-lg shadow-md border bg-white"
+            >
+
+              {["All Spaces", "Active", "Planning", "On Hold", "Completed"].map((lang) => (
+                <DropdownMenuItem
+                  key={lang}
+                  onClick={() => setSelectedLang(lang)}
+                  className="flex justify-between items-center cursor-pointer text-[#0A0A0A] text-sm"
+                >
+                  {lang}
+
+                  {selectedLang === lang && (
+                    <Check className="h-4 w-4 text-black" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             variant="outline"
@@ -145,7 +171,7 @@ export default function ProcessesListPage() {
                     <div className="mb-4">
                       <label className="block text-sm font-medium">Issue Type *</label>
                       <Select>
-                        <SelectTrigger><SelectValue placeholder="Task" /></SelectTrigger>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Task" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="task">Task</SelectItem>
                           <SelectItem value="bug">Bug</SelectItem>
@@ -166,74 +192,93 @@ export default function ProcessesListPage() {
                       <Textarea placeholder="Detailed description..." />
                     </div>
 
-                    {/* Priority */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Priority</label>
-                      <Select>
-                        <SelectTrigger><SelectValue placeholder="Medium" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-4">
+                      {/* Priority */}
+                      <div className="w-1/2 mb-4">
+                        <label className="block text-sm font-medium">Priority</label>
+                        <Select>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="Medium" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Status */}
+                      <div className="w-1/2 mb-4">
+                        <label className="block text-sm font-medium">Status</label>
+                        <Select>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="To Do" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="to-do">To Do</SelectItem>
+                            <SelectItem value="in-progress">In Progress</SelectItem>
+                            <SelectItem value="done">Done</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
-                    {/* Status */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Status</label>
-                      <Select>
-                        <SelectTrigger><SelectValue placeholder="To Do" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="to-do">To Do</SelectItem>
-                          <SelectItem value="in-progress">In Progress</SelectItem>
-                          <SelectItem value="done">Done</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-4">
+                      {/* Assignee */}
+                      <div className="w-1/2 mb-4">
+                        <label className="block text-sm font-medium">Assignee</label>
+                        <Select>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="Select assignee" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="assignee1">Assignee 1</SelectItem>
+                            <SelectItem value="assignee2">Assignee 2</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="w-1/2 mb-4">
+                        <label className="block text-sm font-medium">Sprint</label>
+                        <Select>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="Select sprint" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sprint1">Sprint 1</SelectItem>
+                            <SelectItem value="sprint2">Sprint 2</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                     </div>
 
-                    {/* Assignee */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Assignee</label>
-                      <Select>
-                        <SelectTrigger><SelectValue placeholder="Select assignee" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="assignee1">Assignee 1</SelectItem>
-                          <SelectItem value="assignee2">Assignee 2</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <div className="flex items-center gap-4">
+                      {/* ✅ Due Date */}
+                      <div className="w-full mb-4">
+                        <label className="block text-sm font-medium">Due Date</label>
 
-                    {/* ✅ Due Date */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Due Date</label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {dueDate ? format(dueDate, "yyyy/MM/dd") : "Pick a date"}
+                            </Button>
+                          </PopoverTrigger>
 
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {dueDate ? format(dueDate, "yyyy/MM/dd") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <DayPicker
+                              className="p-4"
+                              mode="single"
+                              selected={dueDate ?? undefined}
+                              onSelect={(date) => setDueDate(date ?? null)}
+                            />
+                          </PopoverContent>
 
-                        <PopoverContent className="w-auto p-0">
-                          <DayPicker
-                            mode="single"
-                            selected={dueDate ?? undefined} // ✅ convert null to undefined
-                            onSelect={(date) => setDueDate(date ?? null)} // ✅ convert undefined to null
-                          />
-                        </PopoverContent>
+                        </Popover>
+                      </div>
 
-                      </Popover>
-                    </div>
-
-                    {/* Story Points */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Story Points</label>
-                      <Input placeholder="3" />
+                      {/* Story Points */}
+                      {/* <div className="w-1/2 mb-4">
+                        <label className="block text-sm font-medium">Story Points</label>
+                        <Input placeholder="3" />
+                      </div> */}
                     </div>
 
                     {/* Buttons */}
@@ -288,6 +333,61 @@ export default function ProcessesListPage() {
                     <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7]">ST</AvatarFallback>
                   </Avatar>
                 </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {view === "list" && (
+        <div className="processes-list flex flex-col gap-6 mt-6">
+          <div className="list border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:shadow-md transition">
+
+            {/* Left */}
+            <div className="flex items-start md:items-center gap-4 flex-1">
+              <span className="bg-[#2B7FFF] p-2 rounded-full text-white flex items-center justify-center">
+                <TrendingUp />
+              </span>
+
+              <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 mb-1">
+                  <h3 className="text-lg font-semibold">Product Launch Q4</h3>
+                  <div className="flex gap-2 mt-1 sm:mt-0">
+                    <Badge variant="default">Active</Badge>
+                    <Badge variant="destructive">Critical</Badge>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-500">
+                  Marketing and sales campaign preparation for the holiday season
+                </p>
+              </div>
+            </div>
+
+            {/* Right */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-3 md:mt-0">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <CalendarIcon size={16} /> <span>Nov 30, 2025</span>
+              </div>
+
+              <div className="progress-bar w-full sm:w-40">
+                <p className="text-sm text-gray-600 mb-1">Progress: 68%</p>
+                <Progress value={68} />
+              </div>
+
+              <Badge variant="outline" className="text-sm">5/28 issues</Badge>
+
+              <div className="flex -space-x-2">
+                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
+                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
+                </Avatar>
+                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
+                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
+                </Avatar>
+                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
+                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
+                </Avatar>
               </div>
             </div>
 
