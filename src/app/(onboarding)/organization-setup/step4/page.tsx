@@ -169,9 +169,19 @@ const Step4 = () => {
                         Add User
                     </Button>
 
-                    <div className="flex justify-end mt-6">
-                        <Button type="submit">Save & Continue</Button>
-                    </div>
+                    <div className="flex justify-between gap-3">
+                               <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={() => router.push("/organization-setup/step3")}
+                               >
+                                 Previous
+                               </Button>
+                   
+                               <Button type="submit" variant="default">
+                                 Next
+                               </Button>
+                             </div>
                 </form>
             </Form>
         </>

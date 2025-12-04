@@ -1,6 +1,6 @@
-// step7.tsx (updated)
 "use client";
 
+import { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { step7Schema, Step7Values } from "@/schemas/onboarding/step7Schema";
@@ -20,13 +20,30 @@ const Step7 = () => {
 
   const form = useForm<Step7Values>({
     resolver: zodResolver(step7Schema),
-    defaultValues: saved || { activeTab: "customers", customers: [{ name: "", email: "", phone: "", address: "" }], vendors: [{ name: "", email: "", phone: "", address: "" }] },
+    defaultValues: saved || {
+      activeTab: "customers",
+      customers: [{ name: "", email: "", phone: "", address: "" }],
+      vendors: [{ name: "", email: "", phone: "", address: "" }],
+    },
   });
 
-  const { fields: customerFields, append: addCustomer, remove: removeCustomer } = useFieldArray({ control: form.control, name: "customers" });
-  const { fields: vendorFields, append: addVendor, remove: removeVendor } = useFieldArray({ control: form.control, name: "vendors" });
+  const { fields: customerFields, append: addCustomer, remove: removeCustomer } = useFieldArray({
+    control: form.control,
+    name: "customers",
+  });
+
+  const { fields: vendorFields, append: addVendor, remove: removeVendor } = useFieldArray({
+    control: form.control,
+    name: "vendors",
+  });
 
   const tab = form.watch("activeTab");
+
+  // Ensure at least one customer and one vendor exist
+  useEffect(() => {
+    if (customerFields.length === 0) addCustomer({ name: "", email: "", phone: "", address: "" });
+    if (vendorFields.length === 0) addVendor({ name: "", email: "", phone: "", address: "" });
+  }, []);
 
   const onSubmit = (values: Step7Values) => {
     updateStep("step7", values);
@@ -41,8 +58,22 @@ const Step7 = () => {
 
       <div className="flex mb-6">
         <div className="flex gap-3 p-1 bg-gray-100 border rounded-full">
-          <Button type="button" variant={tab === "customers" ? "default" : "ghost"} className={`rounded-full px-4 ${tab === "customers" ? "bg-primary text-white" : ""}`} onClick={() => form.setValue("activeTab", "customers")}>Customers</Button>
-          <Button type="button" variant={tab === "vendors" ? "default" : "ghost"} className={`rounded-full px-4 ${tab === "vendors" ? "bg-primary text-white" : ""}`} onClick={() => form.setValue("activeTab", "vendors")}>Vendors</Button>
+          <Button
+            type="button"
+            variant={tab === "customers" ? "default" : "ghost"}
+            className={`rounded-full px-4 ${tab === "customers" ? "bg-primary text-white" : ""}`}
+            onClick={() => form.setValue("activeTab", "customers")}
+          >
+            Customers
+          </Button>
+          <Button
+            type="button"
+            variant={tab === "vendors" ? "default" : "ghost"}
+            className={`rounded-full px-4 ${tab === "vendors" ? "bg-primary text-white" : ""}`}
+            onClick={() => form.setValue("activeTab", "vendors")}
+          >
+            Vendors
+          </Button>
         </div>
       </div>
 
@@ -52,32 +83,78 @@ const Step7 = () => {
             <>
               <h3 className="text-xl font-semibold">Add Customer</h3>
               {customerFields.map((field, index) => (
-                <div key={field.id} className="">
+                <div key={field.id}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField control={form.control} name={`customers.${index}.name`} render={({ field }) => (
-                      <FormItem><FormLabel>Customer Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`customers.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Customer Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="ABC Corp" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`customers.${index}.email`} render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`customers.${index}.email`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="contact@abccorp.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`customers.${index}.phone`} render={({ field }) => (
-                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`customers.${index}.phone`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 555-0100" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`customers.${index}.address`} render={({ field }) => (
-                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`customers.${index}.address`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address</FormLabel>
+                          <FormControl>
+                            <Input placeholder="123 Main St" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   <div className="mt-4 flex justify-end">
-                    {customerFields.length > 1 && <Button variant="destructive" type="button" onClick={() => removeCustomer(index)}>Remove</Button>}
+                    {customerFields.length > 1 && (
+                      <Button variant="destructive" type="button" onClick={() => removeCustomer(index)}>
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
 
-              <Button type="button" variant="outline" onClick={() => addCustomer({ name: "", email: "", phone: "", address: "" })}>+ Add Customer</Button>
+              <Button type="button" variant="outline" onClick={() => addCustomer({ name: "", email: "", phone: "", address: "" })}>
+                + Add Customer
+              </Button>
             </>
           )}
 
@@ -85,37 +162,95 @@ const Step7 = () => {
             <>
               <h3 className="text-xl font-semibold">Add Vendor</h3>
               {vendorFields.map((field, index) => (
-                <div key={field.id} className="">
+                <div key={field.id}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField control={form.control} name={`vendors.${index}.name`} render={({ field }) => (
-                      <FormItem><FormLabel>Vendor Name *</FormLabel><FormControl><Input placeholder="ABC Corp" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`vendors.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vendor Name *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="ABC Corp" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`vendors.${index}.email`} render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="contact@abccorp.com" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`vendors.${index}.email`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="contact@abccorp.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`vendors.${index}.phone`} render={({ field }) => (
-                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+1 555-0100" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`vendors.${index}.phone`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 555-0100" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <FormField control={form.control} name={`vendors.${index}.address`} render={({ field }) => (
-                      <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
+                    <FormField
+                      control={form.control}
+                      name={`vendors.${index}.address`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address</FormLabel>
+                          <FormControl>
+                            <Input placeholder="123 Main St" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   <div className="mt-4 flex justify-end">
-                    {vendorFields.length > 1 && <Button variant="destructive" type="button" onClick={() => removeVendor(index)}>Remove</Button>}
+                    {vendorFields.length > 1 && (
+                      <Button variant="destructive" type="button" onClick={() => removeVendor(index)}>
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
 
-              <Button type="button" variant="outline" onClick={() => addVendor({ name: "", email: "", phone: "", address: "" })}>+ Add Vendor</Button>
+              <Button type="button" variant="outline" onClick={() => addVendor({ name: "", email: "", phone: "", address: "" })}>
+                + Add Vendor
+              </Button>
             </>
           )}
 
-          <div className="flex justify-end">
-            <Button type="submit">Save & Continue</Button>
+          <div className="flex justify-between gap-3">
+            <Button type="button" variant="outline" onClick={() => router.push("/organization-setup/step6")}>
+              Previous
+            </Button>
+
+            <div className="flex gap-4">
+              <Button type="button" variant="outline" onClick={() => router.push("/organization-setup/step8")}>
+                Skip Step
+              </Button>
+
+              <Button type="submit" variant="default">
+                Next
+              </Button>
+            </div>
           </div>
         </form>
       </Form>

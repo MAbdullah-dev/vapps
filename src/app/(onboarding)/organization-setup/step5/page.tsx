@@ -48,7 +48,7 @@ const Step5 = () => {
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             {/* Base Currency */}
             <FormField
               control={form.control}
@@ -149,7 +149,7 @@ const Step5 = () => {
 
           {/* Accounts */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+
             <FormField
               control={form.control}
               name="defaultAssetAccount"
@@ -188,8 +188,28 @@ const Step5 = () => {
 
           </div>
 
-          <div className="flex justify-end">
-            <Button type="submit">Save & Continue</Button>
+          <div className="flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/organization-setup/step4")}
+            >
+              Previous
+            </Button>
+
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/organization-setup/step6")}
+              >
+                Skip Step
+              </Button>
+
+              <Button type="submit" variant="default">
+                Next
+              </Button>
+            </div>
           </div>
         </form>
       </div>

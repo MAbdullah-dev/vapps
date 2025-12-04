@@ -74,8 +74,28 @@ const Step6 = () => {
 
           <Button type="button" variant="outline" onClick={() => append({ sku: "", name: "", category: "", unit: "", cost: "", reorder: "" })}>+ Add Another Product</Button>
 
-          <div className="flex justify-end mt-4">
-            <Button type="submit">Save & Continue</Button>
+          <div className="flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/organization-setup/step5")}
+            >
+              Previous
+            </Button>
+
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/organization-setup/step7")}
+              >
+                Skip Step
+              </Button>
+
+              <Button type="submit" variant="default">
+                Next
+              </Button>
+            </div>
           </div>
         </form>
       </Form>
