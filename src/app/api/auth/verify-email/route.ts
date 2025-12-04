@@ -31,12 +31,12 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.redirect(
-      new URL("/auth/login?verified=true", req.url)
+      new URL("/auth/?verified=true", req.url)
     );
   } catch (error) {
     console.error("VERIFY_EMAIL_ERROR", error);
     return NextResponse.redirect(
-      new URL("/auth/login?error=VerificationFailed", req.url)
+      new URL("/auth/?error=VerificationFailed", req.url)
     );
   }
 }

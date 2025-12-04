@@ -1,5 +1,4 @@
-// lib/auth.ts (or wherever your authOptions live)
-
+// lib/auth.ts
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "./prisma";
 import NextAuth, { NextAuthOptions } from "next-auth";
@@ -14,6 +13,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
   providers: [
+    // ✅ OAuth Providers
     Google({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,
@@ -31,13 +31,13 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.ATLASSIAN_SECRET!,
     }),
 
+    // ✅ Credentials Provider
     Credentials({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) {
           throw new Error("Email and password are required");
@@ -51,16 +51,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid email or password");
         }
 
-        // ✅ EMAIL VERIFICATION CHECK
+        // Email verification check
         if (!user.emailVerified) {
           throw new Error("Please verify your email before logging in");
         }
 
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
+        const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
           throw new Error("Invalid email or password");
         }
@@ -77,7 +73,7 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   pages: {
-    signIn: "/auth/login",
+    signIn: "/auth", // Custom login page
   },
 
   callbacks: {
@@ -90,9 +86,29 @@ export const authOptions: NextAuthOptions = {
       if (session.user) session.user.id = token.sub!;
       return session;
     },
+
+    async redirect({ url, baseUrl }) {
+      // After login redirect
+      if (url.startsWith("/")) return baseUrl + url;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
+  },
+
+  events: {
+    // ✅ Auto-verify OAuth users after creation
+    async createUser({ user }) {
+      if (!user.emailVerified) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: new Date() },
+        });
+      }
+    },
   },
 
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV !== "production",
 };
 
 export default NextAuth(authOptions);
