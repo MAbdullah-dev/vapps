@@ -46,8 +46,15 @@ const Step7 = () => {
   }, []);
 
   const onSubmit = (values: Step7Values) => {
-    updateStep("step7", values);
-    console.log("Step 7 saved:", values);
+    // Filter out empty entries (entries with no name)
+    const filteredCustomers = values.customers.filter(c => c.name && c.name.trim().length > 0);
+    const filteredVendors = values.vendors.filter(v => v.name && v.name.trim().length > 0);
+    
+    updateStep("step7", {
+      ...values,
+      customers: filteredCustomers.length > 0 ? filteredCustomers : [],
+      vendors: filteredVendors.length > 0 ? filteredVendors : [],
+    });
     router.push("/organization-setup/step8");
   };
 

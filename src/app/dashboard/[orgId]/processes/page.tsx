@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +16,7 @@ import {
   Calendar as CalendarIcon,
   Check
 } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -33,24 +33,88 @@ import {
   SelectContent
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import axios from "axios";
+import { format } from "date-fns";
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { DayPicker } from "react-day-picker";
-import { format } from "date-fns";
 import "react-day-picker/dist/style.css";
+
+interface Process {
+  id: string;
+  name: string;
+  siteId: string;
+  createdAt: string;
+  updatedAt: string;
+  siteName?: string;
+  siteCode?: string;
+  siteLocation?: string;
+}
+
+interface Site {
+  id: string;
+  name: string;
+  code: string;
+  location: string;
+  processes: Array<{ id: string; name: string; createdAt: string }>;
+}
 
 export default function ProcessesListPage() {
   const [selectedLang, setSelectedLang] = useState("All Spaces");
   const [view, setView] = useState<"card" | "list">("card");
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const { orgId } = useParams();
+  const router = useRouter();
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const processes = [
-    { id: "mobile-app", name: "Mobile App Development" },
-    { id: "it-services", name: "IT Services" },
-    { id: "quality-control", name: "Quality Control" },
-  ];
+  // Fetch sites and processes
+  useEffect(() => {
+    fetchData();
+  }, [orgId]);
+
+  const fetchData = async () => {
+    try {
+      // Fetch sites to get the first/selected site
+      const sitesResponse = await axios.get(`/api/organization/${orgId}/sites`);
+      const sitesData = sitesResponse.data.sites || [];
+      setSites(sitesData);
+
+      // Get the first site as selected site
+      if (sitesData.length > 0) {
+        const firstSite = sitesData[0];
+        setSelectedSiteId(firstSite.id);
+
+        // Fetch processes for the selected site
+        const processesResponse = await axios.get(
+          `/api/organization/${orgId}/processes?siteId=${firstSite.id}`
+        );
+        setProcesses(processesResponse.data.processes || []);
+      } else {
+        setProcesses([]);
+      }
+    } catch (error) {
+      console.error("Error fetching processes:", error);
+      setProcesses([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filter processes based on search
+  const filteredProcesses = processes.filter((process) =>
+    process.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Calculate stats
+  const totalProcesses = processes.length;
+  const activeProjects = 0; // Not in DB yet - will be implemented with task management
+  const totalIssues = 0; // Not in DB yet - will be implemented with task management
+  const avgProgress = 0; // Not in DB yet - will be implemented with task management
 
   return (
     <div className="Processes p-2">
@@ -68,7 +132,12 @@ export default function ProcessesListPage() {
         <div className="flex-1 flex">
           <div className="relative w-full max-w-md">
             <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-500" />
-            <Input className="pl-10 bg-[#F3F3F5]" placeholder="Search tasks, docs, processes..." />
+            <Input 
+              className="pl-10 bg-[#F3F3F5]" 
+              placeholder="Search tasks, docs, processes..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
@@ -116,282 +185,305 @@ export default function ProcessesListPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-6">
         <div className="border rounded-lg p-4">
           <p className="text-[#717182]">Total Processes</p>
-          <span className="font-semibold">6</span>
+          <span className="font-semibold">{totalProcesses}</span>
         </div>
         <div className="border rounded-lg p-4">
           <p className="text-[#717182]">Active Projects</p>
-          <span className="font-semibold">4</span>
+          <span className="font-semibold">{activeProjects}</span>
         </div>
         <div className="border rounded-lg p-4">
           <p className="text-[#717182]">Total Issues</p>
-          <span className="font-semibold">2</span>
+          <span className="font-semibold">{totalIssues}</span>
         </div>
         <div className="border rounded-lg p-4">
           <p className="text-[#717182]">Avg. Progress</p>
-          <span className="font-semibold">0 %</span>
+          <span className="font-semibold">{avgProgress}%</span>
         </div>
       </div>
 
       {/* Process Cards */}
-      {view === "card" && (
+      {isLoading ? (
+        <div className="text-center py-8 text-gray-500 mt-6">Loading processes...</div>
+      ) : filteredProcesses.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 mt-6">
+          {searchQuery ? "No processes found matching your search." : "No processes available. Create your first process to get started."}
+        </div>
+      ) : view === "card" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          <div className="border rounded-lg p-4 hover:shadow-md transition flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <span className="bg-[#2B7FFF] p-2 rounded-lg text-white">
-                <TrendingUp />
-              </span>
+          {filteredProcesses.map((process) => {
+            const processCreatedDate = new Date(process.createdAt);
+            const gradients = [
+              "bg-[linear-gradient(135deg,#615FFF_0%,#9810FA_100%)]",
+              "bg-[linear-gradient(135deg,#2B7FFF_0%,#4F39F6_100%)]",
+              "bg-[linear-gradient(135deg,#00C950_0%,#009966_100%)]",
+            ];
+            const gradientIndex = filteredProcesses.indexOf(process) % gradients.length;
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="p-2 rounded hover:bg-gray-100">
-                    <EllipsisVertical />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setEditModalOpen(true)}>
-                    Edit Space
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>Space Settings</DropdownMenuItem>
-                  <DropdownMenuItem>Share</DropdownMenuItem>
-                  <DropdownMenuItem>Archive</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            return (
+              <div
+                key={process.id}
+                onClick={() => router.push(`/dashboard/${orgId}/processes/${process.id}`)}
+                className="border rounded-lg p-4 hover:shadow-md transition flex flex-col justify-between cursor-pointer"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <span className={`${gradients[gradientIndex]} p-2 rounded-lg text-white`}>
+                    <TrendingUp size={18} />
+                  </span>
 
-            {/* Modal */}
-            {isEditModalOpen && (
-              <div className="fixed inset-0 flex items-center justify-center z-50">
-                <div className="bg-black opacity-50 absolute inset-0"></div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button 
+                        className="p-2 rounded hover:bg-gray-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <EllipsisVertical size={18} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditModalOpen(true); }}>
+                        Edit Process
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Process Settings</DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Share</DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Archive</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-                <div className="bg-white rounded-lg p-6 z-10 max-w-lg w-full">
-                  <h2 className="text-lg font-semibold mb-4">Create New Issue</h2>
+                {/* Card Content */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-lg font-semibold">{process.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    {process.siteName ? `${process.siteName} - ${process.siteLocation}` : "Process"}
+                  </p>
 
-                  <form>
-                    {/* Issue Type */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Issue Type *</label>
-                      <Select>
-                        <SelectTrigger className="w-full"><SelectValue placeholder="Task" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="task">Task</SelectItem>
-                          <SelectItem value="bug">Bug</SelectItem>
-                          <SelectItem value="story">Story</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  <div className="flex gap-2">
+                    <Badge>Active</Badge>
+                  </div>
+
+                  <div className="mt-2">
+                    <ul className="flex justify-between text-sm text-gray-600 mb-1">
+                      <li>Progress</li>
+                      <li>{avgProgress}%</li>
+                    </ul>
+                    <Progress value={avgProgress} />
+                  </div>
+
+                  <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon size={16} /> 
+                      <span>{format(processCreatedDate, "MMM dd, yyyy")}</span>
                     </div>
+                    <Badge variant="outline">{totalIssues} issues</Badge>
+                  </div>
 
-                    {/* Title */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Title *</label>
-                      <Input placeholder="Brief description of the issue" />
+                  <div className="flex items-center gap-2 mt-3">
+                    <UsersRound size={20} />
+                    <div className="flex -space-x-2">
+                      {/* Placeholder avatars - will be replaced when members are implemented */}
+                      <Avatar className="h-8 w-8 ring-2 ring-white">
+                        <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] text-xs">P</AvatarFallback>
+                      </Avatar>
                     </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-                    {/* Description */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium">Description</label>
-                      <Textarea placeholder="Detailed description..." />
-                    </div>
+      {/* Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="bg-black opacity-50 absolute inset-0" onClick={() => setEditModalOpen(false)}></div>
 
-                    <div className="flex items-center gap-4">
-                      {/* Priority */}
-                      <div className="w-1/2 mb-4">
-                        <label className="block text-sm font-medium">Priority</label>
-                        <Select>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Medium" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+          <div className="bg-white rounded-lg p-6 z-10 max-w-lg w-full">
+            <h2 className="text-lg font-semibold mb-4">Create New Issue</h2>
 
-                      {/* Status */}
-                      <div className="w-1/2 mb-4">
-                        <label className="block text-sm font-medium">Status</label>
-                        <Select>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="To Do" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="to-do">To Do</SelectItem>
-                            <SelectItem value="in-progress">In Progress</SelectItem>
-                            <SelectItem value="done">Done</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+            <form>
+              {/* Issue Type */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium">Issue Type *</label>
+                <Select>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Task" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="task">Task</SelectItem>
+                    <SelectItem value="bug">Bug</SelectItem>
+                    <SelectItem value="story">Story</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                    <div className="flex items-center gap-4">
-                      {/* Assignee */}
-                      <div className="w-1/2 mb-4">
-                        <label className="block text-sm font-medium">Assignee</label>
-                        <Select>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select assignee" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="assignee1">Assignee 1</SelectItem>
-                            <SelectItem value="assignee2">Assignee 2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              {/* Title */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium">Title *</label>
+                <Input placeholder="Brief description of the issue" />
+              </div>
 
-                      <div className="w-1/2 mb-4">
-                        <label className="block text-sm font-medium">Sprint</label>
-                        <Select>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select sprint" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sprint1">Sprint 1</SelectItem>
-                            <SelectItem value="sprint2">Sprint 2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              {/* Description */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium">Description</label>
+                <Textarea placeholder="Detailed description..." />
+              </div>
 
-                    </div>
+              <div className="flex items-center gap-4">
+                {/* Priority */}
+                <div className="w-1/2 mb-4">
+                  <label className="block text-sm font-medium">Priority</label>
+                  <Select>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Medium" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    <div className="flex items-center gap-4">
-                      {/* ✅ Due Date */}
-                      <div className="w-full mb-4">
-                        <label className="block text-sm font-medium">Due Date</label>
+                {/* Status */}
+                <div className="w-1/2 mb-4">
+                  <label className="block text-sm font-medium">Status</label>
+                  <Select>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="To Do" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="to-do">To Do</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="done">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {dueDate ? format(dueDate, "yyyy/MM/dd") : "Pick a date"}
-                            </Button>
-                          </PopoverTrigger>
+              <div className="flex items-center gap-4">
+                {/* Assignee */}
+                <div className="w-1/2 mb-4">
+                  <label className="block text-sm font-medium">Assignee</label>
+                  <Select>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select assignee" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="assignee1">Assignee 1</SelectItem>
+                      <SelectItem value="assignee2">Assignee 2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                          <PopoverContent className="w-auto p-0">
-                            <DayPicker
-                              className="p-4"
-                              mode="single"
-                              selected={dueDate ?? undefined}
-                              onSelect={(date) => setDueDate(date ?? null)}
-                            />
-                          </PopoverContent>
+                <div className="w-1/2 mb-4">
+                  <label className="block text-sm font-medium">Sprint</label>
+                  <Select>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select sprint" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sprint1">Sprint 1</SelectItem>
+                      <SelectItem value="sprint2">Sprint 2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                        </Popover>
-                      </div>
-
-                      {/* Story Points */}
-                      {/* <div className="w-1/2 mb-4">
-                        <label className="block text-sm font-medium">Story Points</label>
-                        <Input placeholder="3" />
-                      </div> */}
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-4 mt-4">
-                      <Button variant="outline" onClick={() => setEditModalOpen(false)}>
-                        Cancel
+              <div className="flex items-center gap-4">
+                {/* Due Date */}
+                <div className="w-full mb-4">
+                  <label className="block text-sm font-medium">Due Date</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dueDate ? format(dueDate, "yyyy/MM/dd") : "Pick a date"}
                       </Button>
-                      <Button>Create Issue</Button>
-                    </div>
-                  </form>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <DayPicker
+                        className="p-4"
+                        mode="single"
+                        selected={dueDate ?? undefined}
+                        onSelect={(date) => setDueDate(date ?? null)}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
-            )}
 
-            {/* Card Content */}
-            <div className="flex flex-col gap-3">
-              <h3 className="text-lg font-semibold">Product Launch Q4</h3>
-              <p className="text-sm text-gray-500">
-                Marketing and sales campaign preparation for the holiday season
-              </p>
-
-              <div className="flex gap-2">
-                <Badge>Active</Badge>
-                <Badge variant="destructive">Critical</Badge>
+              {/* Buttons */}
+              <div className="flex justify-end gap-4 mt-4">
+                <Button variant="outline" onClick={() => setEditModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button>Create Issue</Button>
               </div>
-
-              <div className="mt-2">
-                <ul className="flex justify-between text-sm text-gray-600 mb-1">
-                  <li>Progress</li>
-                  <li>82%</li>
-                </ul>
-                <Progress value={82} />
-              </div>
-
-              <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon size={16} /> <span>Nov 30, 2025</span>
-                </div>
-                <Badge variant="outline">5/28 issues</Badge>
-              </div>
-
-              <div className="flex items-center gap-2 mt-3">
-                <UsersRound size={20} />
-                <div className="flex -space-x-2">
-                  <Avatar className="h-8 w-8 ring-2 ring-white">
-                    <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7]">ST</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-8 w-8 ring-2 ring-white">
-                    <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7]">ST</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-8 w-8 ring-2 ring-white">
-                    <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7]">ST</AvatarFallback>
-                  </Avatar>
-                </div>
-              </div>
-            </div>
-
+            </form>
           </div>
         </div>
       )}
 
-      {view === "list" && (
+      {view === "list" && !isLoading && (
         <div className="processes-list flex flex-col gap-6 mt-6">
-          <div className="list border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:shadow-md transition">
+          {filteredProcesses.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              {searchQuery ? "No processes found matching your search." : "No processes available."}
+            </div>
+          ) : (
+            filteredProcesses.map((process) => {
+              const processCreatedDate = new Date(process.createdAt);
+              const gradients = [
+                "bg-[linear-gradient(135deg,#615FFF_0%,#9810FA_100%)]",
+                "bg-[linear-gradient(135deg,#2B7FFF_0%,#4F39F6_100%)]",
+                "bg-[linear-gradient(135deg,#00C950_0%,#009966_100%)]",
+              ];
+              const gradientIndex = filteredProcesses.indexOf(process) % gradients.length;
 
-            {/* Left */}
-            <div className="flex items-start md:items-center gap-4 flex-1">
-              <span className="bg-[#2B7FFF] p-2 rounded-full text-white flex items-center justify-center">
-                <TrendingUp />
-              </span>
+              return (
+                <div
+                  key={process.id}
+                  onClick={() => router.push(`/dashboard/${orgId}/processes/${process.id}`)}
+                  className="list border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:shadow-md transition cursor-pointer"
+                >
+                  {/* Left */}
+                  <div className="flex items-start md:items-center gap-4 flex-1">
+                    <span className={`${gradients[gradientIndex]} p-2 rounded-full text-white flex items-center justify-center`}>
+                      <TrendingUp size={18} />
+                    </span>
 
-              <div className="flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 mb-1">
-                  <h3 className="text-lg font-semibold">Product Launch Q4</h3>
-                  <div className="flex gap-2 mt-1 sm:mt-0">
-                    <Badge variant="default">Active</Badge>
-                    <Badge variant="destructive">Critical</Badge>
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 mb-1">
+                        <h3 className="text-lg font-semibold">{process.name}</h3>
+                        <div className="flex gap-2 mt-1 sm:mt-0">
+                          <Badge variant="default">Active</Badge>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-500">
+                        {process.siteName ? `${process.siteName} - ${process.siteLocation}` : "Process"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-3 md:mt-0">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <CalendarIcon size={16} /> 
+                      <span>{format(processCreatedDate, "MMM dd, yyyy")}</span>
+                    </div>
+
+                    <div className="progress-bar w-full sm:w-40">
+                      <p className="text-sm text-gray-600 mb-1">Progress: {avgProgress}%</p>
+                      <Progress value={avgProgress} />
+                    </div>
+
+                    <Badge variant="outline" className="text-sm">{totalIssues} issues</Badge>
+
+                    <div className="flex -space-x-2">
+                      <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
+                        <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full text-xs">P</AvatarFallback>
+                      </Avatar>
+                    </div>
                   </div>
                 </div>
-
-                <p className="text-sm text-gray-500">
-                  Marketing and sales campaign preparation for the holiday season
-                </p>
-              </div>
-            </div>
-
-            {/* Right */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-3 md:mt-0">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <CalendarIcon size={16} /> <span>Nov 30, 2025</span>
-              </div>
-
-              <div className="progress-bar w-full sm:w-40">
-                <p className="text-sm text-gray-600 mb-1">Progress: 68%</p>
-                <Progress value={68} />
-              </div>
-
-              <Badge variant="outline" className="text-sm">5/28 issues</Badge>
-
-              <div className="flex -space-x-2">
-                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
-                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
-                </Avatar>
-                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
-                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
-                </Avatar>
-                <Avatar className="h-8 w-8 ring-2 ring-white rounded-full">
-                  <AvatarFallback className="bg-[#E0E7FF] text-[#432DD7] rounded-full">ST</AvatarFallback>
-                </Avatar>
-              </div>
-            </div>
-
-          </div>
+              );
+            })
+          )}
         </div>
       )}
     </div>

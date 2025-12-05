@@ -1,0 +1,196 @@
+// Tenant Database Schema
+// This schema is used for tenant-specific data (sites, processes, etc.)
+// Each organization has its own database with this schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Organization details (redundant but useful for tenant DB)
+model OrganizationInfo {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Company Information (from step1)
+  registrationId String?
+  address        String?
+  contactName    String?
+  contactEmail   String?
+  phone          String?
+  website        String?
+  industry       String?
+
+  @@map("organization_info")
+}
+
+// Sites (from step2)
+model Site {
+  id        String     @id @default(uuid())
+  name      String
+  code      String
+  location  String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  processes Process[]
+
+  @@unique([code])
+  @@map("sites")
+}
+
+// Processes/Projects/Workspaces (from step2)
+model Process {
+  id        String   @id @default(uuid())
+  name      String
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("processes")
+}
+
+// Leadership Team (from step3)
+model Leader {
+  id        String   @id @default(uuid())
+  name      String
+  role      String
+  level     String
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("leaders")
+}
+
+// Team Members (from step4)
+model TeamMember {
+  id        String   @id @default(uuid())
+  fullName  String
+  email     String
+  role      String
+  ssoMethod String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([email])
+  @@map("team_members")
+}
+
+// Financial Settings (from step5)
+model FinancialSettings {
+  id                      String   @id @default(uuid())
+  baseCurrency            String?
+  fiscalYearStart         String?
+  defaultTaxRate          String?
+  paymentTerms            String?
+  chartOfAccountsTemplate String?
+  defaultAssetAccount     String?
+  defaultRevenueAccount   String?
+  defaultExpenseAccount   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("financial_settings")
+}
+
+// Products (from step6)
+model Product {
+  id        String   @id @default(uuid())
+  sku       String?
+  name      String
+  category  String?
+  unit      String?
+  cost      String?
+  reorder   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+
+// Customers (from step7)
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+// Vendors (from step7)
+model Vendor {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("vendors")
+}
+
+// Workflow Settings (from step8)
+model WorkflowSettings {
+  id                      String   @id @default(uuid())
+  multiLevelApprovals     Boolean  @default(false)
+  automaticTaskAssignment Boolean  @default(false)
+  criticalSLA             String?
+  highPrioritySLA         String?
+  mediumPrioritySLA       String?
+  lowPrioritySLA          String?
+  emailNotifications      Boolean  @default(true)
+  inAppNotifications      Boolean  @default(true)
+  smsNotifications        Boolean  @default(false)
+  escalationRules         String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("workflow_settings")
+}
+
+// Dashboard Widgets (from step9)
+model DashboardWidgets {
+  id               String   @id @default(uuid())
+  tasksCompleted   Boolean  @default(false)
+  complianceScore  Boolean  @default(false)
+  workloadByUser   Boolean  @default(false)
+  overdueTasks     Boolean  @default(false)
+  issueDistribution Boolean @default(false)
+  auditTrend       Boolean  @default(false)
+  projectProgress  Boolean  @default(false)
+  documentVersion  Boolean  @default(false)
+  reportFrequency  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("dashboard_widgets")
+}
+
+// Security Settings (from step10)
+model SecuritySettings {
+  id              String   @id @default(uuid())
+  require2FA      Boolean  @default(false)
+  ipWhitelisting  Boolean  @default(false)
+  sessionTimeout Boolean  @default(false)
+  passwordPolicy  String?
+  sessionDuration String?
+  logAllActions   Boolean  @default(false)
+  logRetention    String?
+  backupFrequency String?
+  backupRetention String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("security_settings")
+}

@@ -26,7 +26,11 @@ const Step6 = () => {
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "products" });
 
   const onSubmit = (values: Step6Values) => {
-    updateStep("step6", { products: values.products });
+    // Filter out empty entries (entries with no name)
+    const filteredProducts = values.products.filter(
+      p => p.name && p.name.trim().length > 0
+    );
+    updateStep("step6", { products: filteredProducts.length > 0 ? filteredProducts : [] });
     router.push("/organization-setup/step7");
   };
 

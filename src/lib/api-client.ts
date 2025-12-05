@@ -1,3 +1,5 @@
+import axios, { AxiosInstance, AxiosError } from "axios";
+
 type FetchOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: any;
@@ -5,33 +7,44 @@ type FetchOptions = {
 };
 
 class ApiClient {
+  private axiosInstance: AxiosInstance;
+
+  constructor() {
+    this.axiosInstance = axios.create({
+      baseURL: "/api",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    // Add response interceptor for error handling
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        const errorMessage = (error.response?.data as any)?.error || error.message || "Something went wrong";
+        throw new Error(errorMessage);
+      }
+    );
+  }
+
   private async fetch<T>(
     endpoint: string,
     options: FetchOptions = {}
   ): Promise<T> {
     const { method = "GET", body, headers = {} } = options;
 
-    const response = await fetch(`/api${endpoint}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    let data;
     try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
+      const response = await this.axiosInstance.request<T>({
+        url: endpoint,
+        method,
+        data: body,
+        headers,
+      });
 
-    if (!response.ok) {
-      throw new Error(data?.error || "Something went wrong");
+      return response.data;
+    } catch (error: any) {
+      throw error;
     }
-
-    return data;
   }
 
   register(data: { email: string; password: string }) {

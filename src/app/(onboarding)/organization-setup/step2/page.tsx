@@ -70,7 +70,22 @@ export default function Step2() {
   });
 
   const onSubmit = (values: Step2Values) => {
-    updateStep("step2", values);
+    // Filter out empty entries (entries with no site name)
+    const validSites = values.sites.filter(
+      s => s.siteName && s.siteName.trim().length > 0 && s.location && s.location.trim().length > 0
+    );
+    
+    // Auto-generate site code if not provided
+    const sitesWithCodes = validSites.map((site, index) => {
+      if (!site.siteCode || site.siteCode.trim().length === 0) {
+        // Generate code like S001, S002, etc.
+        const code = `S${String(index + 1).padStart(3, '0')}`;
+        return { ...site, siteCode: code };
+      }
+      return site;
+    });
+    
+    updateStep("step2", { sites: sitesWithCodes.length > 0 ? sitesWithCodes : [] });
     router.push("/organization-setup/step3");
   };
 

@@ -47,7 +47,11 @@ const Step4 = () => {
     });
 
     const onSubmit = (values: Step4Values) => {
-        updateStep("step4", { teamMembers: values.teamMembers });
+        // Filter out empty entries (entries with no name or email)
+        const filteredMembers = values.teamMembers.filter(
+            m => m.fullName && m.fullName.trim().length > 0 && m.email && m.email.trim().length > 0
+        );
+        updateStep("step4", { teamMembers: filteredMembers.length > 0 ? filteredMembers : [] });
         router.push("/organization-setup/step5");
     };
 

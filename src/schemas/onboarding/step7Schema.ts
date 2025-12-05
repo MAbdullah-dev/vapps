@@ -15,9 +15,9 @@ export const vendorSchema = z.object({
 });
 
 export const step7Schema = z.object({
-  activeTab: z.enum(["customers", "vendors"]),
-  customers: z.array(customerSchema),
-  vendors: z.array(vendorSchema),
+  activeTab: z.enum(["customers", "vendors"]).optional(),
+  customers: z.array(customerSchema).optional().default([]),
+  vendors: z.array(vendorSchema).optional().default([]),
 });
 
 export type Step7Values = z.infer<typeof step7Schema>;

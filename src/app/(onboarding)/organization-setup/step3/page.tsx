@@ -52,7 +52,11 @@ export default function Step3Page() {
     append({ name: "", role: "", level: "Executive", email: "" });
 
   const onSubmit = (values: Step3Values) => {
-    updateStep("step3", { leaders: values.leaders });
+    // Filter out empty entries (entries with no name)
+    const filteredLeaders = values.leaders.filter(
+      l => l.name && l.name.trim().length > 0 && l.role && l.role.trim().length > 0
+    );
+    updateStep("step3", { leaders: filteredLeaders.length > 0 ? filteredLeaders : [] });
     router.push("/organization-setup/step4");
   };
 
