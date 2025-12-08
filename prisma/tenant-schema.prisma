@@ -1,14 +1,12 @@
 // Tenant Database Schema
 // This schema is used for tenant-specific data (sites, processes, etc.)
 // Each organization has its own database with this schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-}
+//
+// NOTE: This is a REFERENCE schema only - it does NOT generate Prisma Client
+// Tenant databases are created using raw SQL migrations (see prisma/migrations/tenant/)
+// Tenant data is accessed via raw SQL queries using pg Client, not Prisma Client
+//
+// DO NOT add generator or datasource here - it will conflict with schema.prisma
 
 // Organization details (redundant but useful for tenant DB)
 model OrganizationInfo {

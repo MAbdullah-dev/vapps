@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -59,6 +59,14 @@ interface Site {
   processes: Array<{ id: string; name: string; createdAt: string }>;
 }
 
+// Type for custom siteChanged event
+interface SiteChangedEvent extends CustomEvent {
+  detail: {
+    siteId: string;
+    orgId: string;
+  };
+}
+
 export default function ProcessesListPage() {
   const [selectedLang, setSelectedLang] = useState("All Spaces");
   const [view, setView] = useState<"card" | "list">("card");
@@ -72,43 +80,108 @@ export default function ProcessesListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch sites and processes
-  useEffect(() => {
-    fetchData();
-  }, [orgId]);
-
-  const fetchData = async () => {
+  // Fetch processes for a specific site
+  const fetchProcessesForSite = useCallback(async (siteId: string, showLoading: boolean = true) => {
     try {
-      // Fetch sites to get the first/selected site
-      const sitesResponse = await axios.get(`/api/organization/${orgId}/sites`);
-      const sitesData = sitesResponse.data.sites || [];
-      setSites(sitesData);
-
-      // Get the first site as selected site
-      if (sitesData.length > 0) {
-        const firstSite = sitesData[0];
-        setSelectedSiteId(firstSite.id);
-
-        // Fetch processes for the selected site
-        const processesResponse = await axios.get(
-          `/api/organization/${orgId}/processes?siteId=${firstSite.id}`
-        );
-        setProcesses(processesResponse.data.processes || []);
-      } else {
-        setProcesses([]);
+      if (showLoading) {
+        setIsLoading(true);
       }
+      const processesResponse = await axios.get(
+        `/api/organization/${orgId}/processes?siteId=${siteId}`
+      );
+      setProcesses(processesResponse.data.processes || []);
     } catch (error) {
       console.error("Error fetching processes:", error);
       setProcesses([]);
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [orgId]);
 
-  // Filter processes based on search
-  const filteredProcesses = processes.filter((process) =>
-    process.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Fetch sites and processes
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      try {
+        // Fetch sites
+        const sitesResponse = await axios.get(`/api/organization/${orgId}/sites`);
+        const sitesData = sitesResponse.data.sites || [];
+        
+        if (!isMounted) return;
+        
+        setSites(sitesData);
+
+        // Get selected site from localStorage or use first site
+        let selectedSite = null;
+        if (typeof window !== 'undefined') {
+          const storedSite = localStorage.getItem(`selectedSite_${orgId}`);
+          if (storedSite) {
+            try {
+              const parsedSite = JSON.parse(storedSite);
+              // Verify the site still exists in the fetched sites
+              selectedSite = sitesData.find((s: Site) => s.id === parsedSite.id);
+            } catch (e) {
+              console.error("Error parsing stored site:", e);
+            }
+          }
+        }
+
+        // If no stored site or stored site not found, use first site
+        if (!selectedSite && sitesData.length > 0) {
+          selectedSite = sitesData[0];
+        }
+
+        if (selectedSite) {
+          setSelectedSiteId(selectedSite.id);
+          await fetchProcessesForSite(selectedSite.id, true);
+        } else {
+          if (isMounted) {
+            setProcesses([]);
+            setIsLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching sites:", error);
+        if (isMounted) {
+          setProcesses([]);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    // Listen for site changes from sidebar
+    const handleSiteChange = (event: Event) => {
+      const customEvent = event as SiteChangedEvent;
+      if (customEvent.detail.orgId === orgId && isMounted) {
+        const newSiteId = customEvent.detail.siteId;
+        setSelectedSiteId((prevSiteId) => {
+          // Only show loading if switching to a different site
+          const shouldShowLoading = newSiteId !== prevSiteId;
+          fetchProcessesForSite(newSiteId, shouldShowLoading);
+          return newSiteId;
+        });
+      }
+    };
+
+    window.addEventListener('siteChanged', handleSiteChange);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('siteChanged', handleSiteChange as EventListener);
+    };
+  }, [orgId, fetchProcessesForSite]);
+
+  // Filter processes based on search - memoized to prevent unnecessary recalculations
+  const filteredProcesses = useMemo(() => {
+    return processes.filter((process) =>
+      process.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [processes, searchQuery]);
 
   // Calculate stats
   const totalProcesses = processes.length;
@@ -206,7 +279,11 @@ export default function ProcessesListPage() {
         <div className="text-center py-8 text-gray-500 mt-6">Loading processes...</div>
       ) : filteredProcesses.length === 0 ? (
         <div className="text-center py-8 text-gray-500 mt-6">
-          {searchQuery ? "No processes found matching your search." : "No processes available. Create your first process to get started."}
+          {searchQuery 
+            ? "No processes found matching your search." 
+            : selectedSiteId 
+              ? "No processes available for this site. Create your first process to get started."
+              : "No processes available. Create your first process to get started."}
         </div>
       ) : view === "card" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
@@ -422,7 +499,11 @@ export default function ProcessesListPage() {
         <div className="processes-list flex flex-col gap-6 mt-6">
           {filteredProcesses.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {searchQuery ? "No processes found matching your search." : "No processes available."}
+              {searchQuery 
+                ? "No processes found matching your search." 
+                : selectedSiteId 
+                  ? "No processes available for this site."
+                  : "No processes available."}
             </div>
           ) : (
             filteredProcesses.map((process) => {

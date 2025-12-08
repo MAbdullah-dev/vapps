@@ -19,11 +19,10 @@ const Step7 = () => {
   const updateStep = useOnboardingStore((s) => s.updateStep);
 
   const form = useForm<Step7Values>({
-    resolver: zodResolver(step7Schema),
     defaultValues: saved || {
       activeTab: "customers",
       customers: [{ name: "", email: "", phone: "", address: "" }],
-      vendors: [{ name: "", email: "", phone: "", address: "" }],
+      vendors: [],
     },
   });
 
@@ -39,21 +38,59 @@ const Step7 = () => {
 
   const tab = form.watch("activeTab");
 
-  // Ensure at least one customer and one vendor exist
+  // Ensure at least one field exists for the active tab only
   useEffect(() => {
-    if (customerFields.length === 0) addCustomer({ name: "", email: "", phone: "", address: "" });
-    if (vendorFields.length === 0) addVendor({ name: "", email: "", phone: "", address: "" });
-  }, []);
+    if (tab === "customers" && customerFields.length === 0) {
+      addCustomer({ name: "", email: "", phone: "", address: "" });
+    } else if (tab === "vendors" && vendorFields.length === 0) {
+      addVendor({ name: "", email: "", phone: "", address: "" });
+    }
+  }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor]);
 
   const onSubmit = (values: Step7Values) => {
-    // Filter out empty entries (entries with no name)
-    const filteredCustomers = values.customers.filter(c => c.name && c.name.trim().length > 0);
-    const filteredVendors = values.vendors.filter(v => v.name && v.name.trim().length > 0);
+    const activeTab = values.activeTab || "customers";
+    
+    // Validate only the active tab
+    if (activeTab === "customers") {
+      // Check if at least one customer has a name
+      const hasValidCustomer = values.customers?.some(c => c.name && c.name.trim().length > 0);
+      if (!hasValidCustomer) {
+        form.setError("customers.0.name", {
+          type: "manual",
+          message: "At least one customer name is required",
+        });
+        return;
+      }
+    } else if (activeTab === "vendors") {
+      // Check if at least one vendor has a name
+      const hasValidVendor = values.vendors?.some(v => v.name && v.name.trim().length > 0);
+      if (!hasValidVendor) {
+        form.setError("vendors.0.name", {
+          type: "manual",
+          message: "At least one vendor name is required",
+        });
+        return;
+      }
+    }
+    
+    // Filter out empty entries (entries with no name) only for the active tab
+    let filteredCustomers = values.customers || [];
+    let filteredVendors = values.vendors || [];
+    
+    if (activeTab === "customers") {
+      filteredCustomers = values.customers?.filter(c => c.name && c.name.trim().length > 0) || [];
+      // Keep vendors as they were (don't filter if not active)
+      filteredVendors = values.vendors || [];
+    } else if (activeTab === "vendors") {
+      filteredVendors = values.vendors?.filter(v => v.name && v.name.trim().length > 0) || [];
+      // Keep customers as they were (don't filter if not active)
+      filteredCustomers = values.customers || [];
+    }
     
     updateStep("step7", {
-      ...values,
-      customers: filteredCustomers.length > 0 ? filteredCustomers : [],
-      vendors: filteredVendors.length > 0 ? filteredVendors : [],
+      activeTab,
+      customers: filteredCustomers as any,
+      vendors: filteredVendors as any,
     });
     router.push("/organization-setup/step8");
   };
@@ -85,7 +122,7 @@ const Step7 = () => {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
+        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-10">
           {tab === "customers" && (
             <>
               <h3 className="text-xl font-semibold">Add Customer</h3>

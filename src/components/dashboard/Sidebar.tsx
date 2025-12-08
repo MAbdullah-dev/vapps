@@ -69,7 +69,13 @@ export default function Sidebar({ orgId }: { orgId: string }) {
       
       // Set first site as selected by default
       if (data.sites && data.sites.length > 0 && !selectedSite) {
-        setSelectedSite(data.sites[0]);
+        const firstSite = data.sites[0];
+        setSelectedSite(firstSite);
+        // Store in localStorage and dispatch event
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(firstSite));
+          window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: firstSite.id, orgId } }));
+        }
       }
     } catch (error) {
       console.error("Error fetching sites:", error);
@@ -81,6 +87,12 @@ export default function Sidebar({ orgId }: { orgId: string }) {
   const handleSiteChange = (site: Site) => {
     setSelectedSite(site);
     setDropdownOpen(false);
+    // Store selected site in localStorage so other components can access it
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(site));
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: site.id, orgId } }));
+    }
   };
 
   const handleCreateSite = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -127,6 +139,12 @@ export default function Sidebar({ orgId }: { orgId: string }) {
       
       setSites(prev => [...prev, newSite]);
       setSelectedSite(newSite);
+      
+      // Store selected site in localStorage and dispatch event
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(newSite));
+        window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: newSite.id, orgId } }));
+      }
       
       // Reset form before closing dialog
       if (form) {
