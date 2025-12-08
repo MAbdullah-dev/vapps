@@ -30,11 +30,24 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  SelectContent
+  SelectContent,
+  SelectGroup,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
 import { format } from "date-fns";
+
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { DayPicker } from "react-day-picker";
@@ -124,7 +137,58 @@ export default function ProcessesListPage() {
           <h1 className="text-md font-bold mb-2">Processes</h1>
           <p className="text-base">Manage your projects and processes</p>
         </div>
-        <Button><Plus /> Create Process</Button>
+        <Dialog>
+          <form>
+            <DialogTrigger asChild>
+              <Button variant="outline"><Plus /> Create Process</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create New Process</DialogTitle>
+                <DialogDescription>
+                  Set up a new process for your project or team
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4">
+                <div className="grid gap-3">
+                  <Label htmlFor="process-name">Process Name *</Label>
+                  <Input id="process-name" name="name" placeholder="e.g., Mobile App Development" />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="process-description">Description</Label>
+                  <Input id="process-description" name="description" placeholder="Brief description of what this space is for..." />
+                </div>
+                <h4 className="font-bold">Process Configuration</h4>
+                <div className="grid gap-3">
+                  <Label htmlFor="process-key">Process Key</Label>
+                  <Input id="process-key" name="key" placeholder="e.g., MAD (used as prefix for issues)" />
+                  <p>This key will be used as a prefix for all issues in this process</p>
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="process-assignee">Default Assignee</Label>
+                  <Select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a Assignee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        <SelectItem value="assigned">Assigned</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="submit">Save changes</Button>
+              </DialogFooter>
+            </DialogContent>
+          </form>
+        </Dialog>
+
       </div>
 
       {/* Filters */}
@@ -132,9 +196,9 @@ export default function ProcessesListPage() {
         <div className="flex-1 flex">
           <div className="relative w-full max-w-md">
             <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-500" />
-            <Input 
-              className="pl-10 bg-[#F3F3F5]" 
-              placeholder="Search tasks, docs, processes..." 
+            <Input
+              className="pl-10 bg-[#F3F3F5]"
+              placeholder="Search tasks, docs, processes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -232,7 +296,7 @@ export default function ProcessesListPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button 
+                      <button
                         className="p-2 rounded hover:bg-gray-100"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -271,7 +335,7 @@ export default function ProcessesListPage() {
 
                   <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
                     <div className="flex items-center gap-2">
-                      <CalendarIcon size={16} /> 
+                      <CalendarIcon size={16} />
                       <span>{format(processCreatedDate, "MMM dd, yyyy")}</span>
                     </div>
                     <Badge variant="outline">{totalIssues} issues</Badge>
@@ -463,7 +527,7 @@ export default function ProcessesListPage() {
                   {/* Right */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-3 md:mt-0">
                     <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <CalendarIcon size={16} /> 
+                      <CalendarIcon size={16} />
                       <span>{format(processCreatedDate, "MMM dd, yyyy")}</span>
                     </div>
 
