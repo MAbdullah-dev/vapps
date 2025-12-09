@@ -133,7 +133,7 @@ export async function POST(
     const { orgId } = await params;
 
     const body = await req.json();
-    const { siteName, siteCode, location } = body;
+    const { siteName, location } = body;
 
     if (!siteName || !location) {
       return NextResponse.json(
@@ -179,16 +179,13 @@ export async function POST(
     try {
       await client.connect();
 
-      // Generate site code if not provided
-      let finalSiteCode = siteCode;
-      if (!finalSiteCode || finalSiteCode.trim().length === 0) {
-        // Get count of existing sites
-        const countResult = await client.query(`SELECT COUNT(*) as count FROM sites`);
-        const count = parseInt(countResult.rows[0].count) + 1;
-        finalSiteCode = `S${String(count).padStart(3, '0')}`;
-      }
+      // Auto-generate site code: Get count of existing sites for this organization
+      // Each organization has its own tenant database, so count starts from 1 for each org
+      const countResult = await client.query(`SELECT COUNT(*) as count FROM sites`);
+      const count = parseInt(countResult.rows[0].count) + 1;
+      const finalSiteCode = `S${String(count).padStart(3, '0')}`;
 
-      // Check if site code already exists
+      // Check if site code already exists (shouldn't happen, but safety check)
       const existingSite = await client.query(
         `SELECT id FROM sites WHERE code = $1`,
         [finalSiteCode]

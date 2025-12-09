@@ -33,7 +33,7 @@ import {
   SelectContent
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import axios from "axios";
+import { apiClient } from "@/lib/api-client";
 import { format } from "date-fns";
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -71,7 +71,8 @@ export default function ProcessesListPage() {
   const [selectedLang, setSelectedLang] = useState("All Spaces");
   const [view, setView] = useState<"card" | "list">("card");
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const { orgId } = useParams();
+  const params = useParams();
+  const orgId = params.orgId as string;
   const router = useRouter();
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [processes, setProcesses] = useState<Process[]>([]);
@@ -86,13 +87,12 @@ export default function ProcessesListPage() {
       if (showLoading) {
         setIsLoading(true);
       }
-      const processesResponse = await axios.get(
-        `/api/organization/${orgId}/processes?siteId=${siteId}`
-      );
-      setProcesses(processesResponse.data.processes || []);
-    } catch (error) {
+      const response = await apiClient.getProcesses(orgId, siteId);
+      setProcesses(response.processes || []);
+    } catch (error: any) {
       console.error("Error fetching processes:", error);
       setProcesses([]);
+      // Error is already handled by apiClient interceptor, but you can add toast notification here if needed
     } finally {
       if (showLoading) {
         setIsLoading(false);
@@ -107,8 +107,8 @@ export default function ProcessesListPage() {
     const fetchData = async () => {
       try {
         // Fetch sites
-        const sitesResponse = await axios.get(`/api/organization/${orgId}/sites`);
-        const sitesData = sitesResponse.data.sites || [];
+        const sitesResponse = await apiClient.getSites(orgId);
+        const sitesData = sitesResponse.sites || [];
         
         if (!isMounted) return;
         

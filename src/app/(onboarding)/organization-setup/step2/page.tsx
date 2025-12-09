@@ -49,9 +49,10 @@ export default function Step2() {
   // Default sites with processes as array
   const defaultSites =
     !saved || !saved.sites || saved.sites.length === 0
-      ? [{ siteName: "", siteCode: "", location: "", processes: [] }]
+      ? [{ siteName: "", location: "", processes: [] }]
       : saved.sites.map((site) => ({
-        ...site,
+        siteName: site.siteName,
+        location: site.location,
         processes: Array.isArray(site.processes)
           ? site.processes
           : site.processes
@@ -75,14 +76,11 @@ export default function Step2() {
       s => s.siteName && s.siteName.trim().length > 0 && s.location && s.location.trim().length > 0
     );
     
-    // Auto-generate site code if not provided
+    // Auto-generate site code for all sites (always generate, starting from S001)
     const sitesWithCodes = validSites.map((site, index) => {
-      if (!site.siteCode || site.siteCode.trim().length === 0) {
-        // Generate code like S001, S002, etc.
-        const code = `S${String(index + 1).padStart(3, '0')}`;
-        return { ...site, siteCode: code };
-      }
-      return site;
+      // Always generate code like S001, S002, etc.
+      const code = `S${String(index + 1).padStart(3, '0')}`;
+      return { ...site, siteCode: code };
     });
     
     updateStep("step2", { sites: sitesWithCodes.length > 0 ? sitesWithCodes : [] });
@@ -120,7 +118,7 @@ export default function Step2() {
                 </button>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
                 {/* Site Name */}
                 <FormField
                   control={form.control}
@@ -130,21 +128,6 @@ export default function Step2() {
                       <FormLabel>Site Name *</FormLabel>
                       <FormControl>
                         <Input placeholder="Main Office" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Site Code */}
-                <FormField
-                  control={form.control}
-                  name={`sites.${index}.siteCode`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Site Code *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="S001" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -165,6 +148,13 @@ export default function Step2() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              {/* Auto-generated site code info */}
+              <div className="mb-4">
+                <p className="text-xs text-gray-500">
+                  Site code will be auto-generated: {`S${String(index + 1).padStart(3, '0')}`}
+                </p>
               </div>
 
               {/* Multi-select for processes */}
@@ -275,9 +265,8 @@ export default function Step2() {
             onClick={() =>
               append({
                 siteName: "",
-                siteCode: "",
                 location: "",
-                processes: [], // <-- plural
+                processes: [],
               })
             }
           >

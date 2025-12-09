@@ -31,7 +31,7 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import axios from "axios";
+import { apiClient } from "@/lib/api-client";
 
 interface Site {
   id: string;
@@ -61,8 +61,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
 
   const fetchSites = async () => {
     try {
-      const response = await axios.get(`/api/organization/${orgId}/sites`);
-      const data = response.data;
+      const data = await apiClient.getSites(orgId);
       setSites(data.sites || []);
       setOrganization(data.organization);
       setUserRole(data.userRole || "member");
@@ -103,7 +102,6 @@ export default function Sidebar({ orgId }: { orgId: string }) {
     const form = e.currentTarget;
     const formData = new FormData(form);
     const siteName = (formData.get("siteName") as string)?.trim();
-    const siteCode = (formData.get("siteCode") as string)?.trim();
     const location = (formData.get("location") as string)?.trim();
 
     // Validate required fields
@@ -120,13 +118,10 @@ export default function Sidebar({ orgId }: { orgId: string }) {
     }
 
     try {
-      const response = await axios.post(`/api/organization/${orgId}/sites`, {
+      const data = await apiClient.createSite(orgId, {
         siteName,
-        siteCode: siteCode && siteCode.length > 0 ? siteCode : undefined,
         location,
       });
-
-      const data = response.data;
       
       // Add the new site to local state immediately (optimistic update)
       const newSite: Site = {
@@ -249,16 +244,6 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                                 />
                               </div>
                               <div className="grid gap-3">
-                                <Label htmlFor="site-code">Site Code (optional)</Label>
-                                <Input 
-                                  id="site-code" 
-                                  name="siteCode" 
-                                  placeholder="Auto-generated if empty" 
-                                  disabled={isCreatingSite}
-                                />
-                                <p className="text-xs text-gray-500">Leave empty to auto-generate</p>
-                              </div>
-                              <div className="grid gap-3">
                                 <Label htmlFor="location">Location *</Label>
                                 <Input 
                                   id="location" 
@@ -267,6 +252,11 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                                   required
                                   disabled={isCreatingSite}
                                 />
+                              </div>
+                              <div className="grid gap-3">
+                                <p className="text-xs text-gray-500">
+                                  Site code will be auto-generated (S001, S002, etc.)
+                                </p>
                               </div>
                             </div>
                             <DialogFooter>
