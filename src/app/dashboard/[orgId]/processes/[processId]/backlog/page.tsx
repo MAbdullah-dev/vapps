@@ -7,6 +7,7 @@ import {
   GripVertical,
   MoreVertical,
   Plus,
+  Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 
-// -------------------- Types --------------------
 type Issue = {
   id: string;
   priority: "low" | "medium" | "high" | "critical";
@@ -30,38 +30,45 @@ type Issue = {
   assignee: string;
 };
 
-export default function SprintAndBacklogList() {
-  const [openSprint, setOpenSprint] = useState(true);
-  const [openBacklog, setOpenBacklog] = useState(true);
+type Sprint = {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+  isOpen: boolean;
+  isRenaming: boolean;
+  issues: Issue[];
+};
 
-  // -------------------- Data --------------------
-  const [sprintIssues, setSprintIssues] = useState<Issue[]>([
+export default function SprintAndBacklogList() {
+  const [sprints, setSprints] = useState<Sprint[]>([
     {
-      id: "ISS-101",
-      priority: "high",
-      tags: ["Backend", "Security"],
-      title: "Implement user authentication flow",
-      status: "To Do",
-      points: 5,
-      assignee: "JD",
-    },
-    {
-      id: "ISS-102",
-      priority: "critical",
-      tags: ["Design", "UI"],
-      title: "Design dashboard UI components",
-      status: "In Progress",
-      points: 8,
-      assignee: "SJ",
-    },
-    {
-      id: "ISS-103",
-      priority: "high",
-      tags: ["DevOps"],
-      title: "Set up CI/CD pipeline",
-      status: "To Do",
-      points: 3,
-      assignee: "ED",
+      id: "sprint-1",
+      name: "Sprint 1",
+      start: "Nov 1",
+      end: "Nov 15",
+      isOpen: true,
+      isRenaming: false,
+      issues: [
+        {
+          id: "ISS-101",
+          priority: "high",
+          tags: ["Backend", "Security"],
+          title: "Implement user authentication flow",
+          status: "To Do",
+          points: 5,
+          assignee: "JD",
+        },
+        {
+          id: "ISS-102",
+          priority: "critical",
+          tags: ["Design", "UI"],
+          title: "Design dashboard UI components",
+          status: "In Progress",
+          points: 8,
+          assignee: "SJ",
+        },
+      ],
     },
   ]);
 
@@ -86,43 +93,105 @@ export default function SprintAndBacklogList() {
     },
   ]);
 
-  // -------------------- Drag Handler (FINAL VERSION) --------------------
+  // ---------------------- NEW: AUTO DATE CALC -------------------------
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const addDays = (date: Date, days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+
+  const createSprintDates = () => {
+    if (sprints.length === 0) {
+      const start = new Date();
+      const end = addDays(start, 14);
+      return { start: formatDate(start), end: formatDate(end) };
+    }
+
+    const lastSprint = sprints[sprints.length - 1];
+    const lastEnd = new Date(lastSprint.end + " 2024"); // quick parse
+
+    const start = addDays(lastEnd, 1);
+    const end = addDays(start, 14);
+
+    return { start: formatDate(start), end: formatDate(end) };
+  };
+
+  // ---------------------- NEW: CREATE SPRINT --------------------------
+  const addSprint = () => {
+    const { start, end } = createSprintDates();
+
+    const newSprint: Sprint = {
+      id: `sprint-${sprints.length + 1}`,
+      name: `Sprint ${sprints.length + 1}`,
+      start,
+      end,
+      isOpen: true,
+      isRenaming: false,
+      issues: [],
+    };
+
+    setSprints([...sprints, newSprint]);
+  };
+
+  // ---------------------- NEW: DELETE SPRINT --------------------------
+  const deleteSprint = (id: string) => {
+    setSprints((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  // ---------------------- NEW: RENAME SPRINT --------------------------
+  const startRenaming = (id: string) => {
+    setSprints((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, isRenaming: true } : s
+      )
+    );
+  };
+
+  const finishRenaming = (id: string, newName: string) => {
+    setSprints((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, name: newName || s.name, isRenaming: false } : s
+      )
+    );
+  };
+
+  // ---------------------- DRAG AND DROP -------------------------------
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
     const sourceId = result.source.droppableId;
     const destId = result.destination.droppableId;
 
-    const isSameList = sourceId === destId;
+    const getList = (id: string) => {
+      if (id === "backlog") return backlogIssues;
+      const sprint = sprints.find((s) => s.id === id);
+      return sprint ? sprint.issues : [];
+    };
 
-    const sourceList = sourceId === "sprint" ? sprintIssues : backlogIssues;
-    const destList = destId === "sprint" ? sprintIssues : backlogIssues;
+    const setList = (id: string, list: Issue[]) => {
+      if (id === "backlog") {
+        setBacklogIssues(list);
+        return;
+      }
+      setSprints((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, issues: list } : s))
+      );
+    };
 
-    const setSource = sourceId === "sprint" ? setSprintIssues : setBacklogIssues;
-    const setDest = destId === "sprint" ? setSprintIssues : setBacklogIssues;
+    const sourceList = getList(sourceId);
+    const destList = getList(destId);
 
-    const item = sourceList[result.source.index];
+    const [moved] = sourceList.splice(result.source.index, 1);
+    destList.splice(result.destination.index, 0, moved);
 
-    // Clone
-    const newSource = Array.from(sourceList);
-    newSource.splice(result.source.index, 1);
-
-    // Reorder inside same list
-    if (isSameList) {
-      newSource.splice(result.destination.index, 0, item);
-      setSource(newSource);
-      return;
-    }
-
-    // Move between lists
-    const newDest = Array.from(destList);
-    newDest.splice(result.destination.index, 0, item);
-
-    setSource(newSource);
-    setDest(newDest);
+    setList(sourceId, [...sourceList]);
+    setList(destId, [...destList]);
   };
 
-  // -------------------- Render Issue --------------------
+  // ---------------------- Issue Card ----------------------------------
   const renderIssueCard = (issue: Issue, index: number) => (
     <Draggable draggableId={issue.id} index={index} key={issue.id}>
       {(provided, snapshot) => (
@@ -133,160 +202,149 @@ export default function SprintAndBacklogList() {
             ...provided.draggableProps.style,
             zIndex: snapshot.isDragging ? 50 : "auto",
           }}
-          className={`flex items-start justify-between p-4 border-b last:border-b-0 bg-white ${
-            snapshot.isDragging ? "shadow-md" : ""
-          }`}
+          className="flex items-center justify-between p-4 border-b bg-white"
         >
           <div className="flex items-start gap-4">
-            <div
-              {...provided.dragHandleProps}
-              className="mt-1 text-gray-400 cursor-grab"
-            >
+            <div {...provided.dragHandleProps} className="cursor-grab text-gray-400">
               <GripVertical />
             </div>
-
-            <input type="checkbox" className="mt-1" />
 
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">{issue.id}</span>
-
-                {/* Priority Badges */}
-                {issue.priority === "high" && (
-                  <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
-                    high
-                  </span>
-                )}
-                {issue.priority === "critical" && (
-                  <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">
-                    critical
-                  </span>
-                )}
-                {issue.priority === "medium" && (
-                  <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full">
-                    medium
-                  </span>
-                )}
-                {issue.priority === "low" && (
-                  <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
-                    low
-                  </span>
-                )}
-
-                {/* Tags */}
-                {issue.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full"
-                  >
-                    {tag}
-                  </span>
-                ))}
+                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                  {issue.priority}
+                </span>
               </div>
-
-              <p className="mt-1 text-sm">{issue.title}</p>
+              <p className="text-sm mt-1">{issue.title}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full">
-              {issue.status}
-            </span>
-
-            <span className="text-sm text-gray-600">{issue.points}</span>
-
-            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-sm font-bold">
-              {issue.assignee}
-            </div>
-
-            <MoreVertical className="text-gray-500" />
-          </div>
+          <MoreVertical />
         </div>
       )}
     </Draggable>
   );
-
-  // -------------------- Component JSX --------------------
+  
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="mt-6 space-y-6">
-        {/* Sprint Section */}
-        <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-6 mt-6">
+
+        {/* ---------------------- SPRINT SECTIONS ---------------------- */}
+        {sprints.map((sprint) => (
           <div
-            className="flex items-center justify-between p-4 cursor-pointer"
-            onClick={() => setOpenSprint(!openSprint)}
+            key={sprint.id}
+            className="rounded-xl border bg-white"
           >
-            <div>
-              <div className="flex items-center gap-2">
-                {openSprint ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                <h2 className="font-medium text-lg">Sprint 1</h2>
+            <div className="flex items-center justify-between p-4">
+
+              {/* Toggle & Title */}
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() =>
+                  setSprints((prev) =>
+                    prev.map((s) =>
+                      s.id === sprint.id ? { ...s, isOpen: !s.isOpen } : s
+                    )
+                  )
+                }
+              >
+                {sprint.isOpen ? <ChevronDown /> : <ChevronRight />}
+
+                {/* SPRINT NAME (editable) */}
+                {sprint.isRenaming ? (
+                  <input
+                    autoFocus
+                    defaultValue={sprint.name}
+                    onBlur={(e) => finishRenaming(sprint.id, e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      finishRenaming(sprint.id, (e.target as HTMLInputElement).value)
+                    }
+                    className="border px-2 py-1 rounded"
+                  />
+                ) : (
+                  <h2
+                    className="text-lg font-medium"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRenaming(sprint.id);
+                    }}
+                  >
+                    {sprint.name}
+                  </h2>
+                )}
               </div>
-              <p className="text-sm text-gray-500 ml-8">Nov 1 - Nov 15</p>
+
+              {/* Right side controls */}
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary">
+                  {sprint.issues.length} issues
+                </Badge>
+                <Badge variant="secondary">
+                  {sprint.start} - {sprint.end}
+                </Badge>
+
+                {/* Delete Sprint */}
+                <button
+                  onClick={() => deleteSprint(sprint.id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 size={18}/>
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="px-3 py-1 text-sm">
-                {sprintIssues.length} issues
-              </Badge>
+            {/* Sprint issues */}
+            {sprint.isOpen && (
+              <Droppable droppableId={sprint.id}>
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="border-t"
+                  >
+                    {sprint.issues.map(renderIssueCard)}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            )}
+          </div>
+        ))}
 
-              <Badge variant="secondary" className="px-3 py-1 text-sm">
-                {sprintIssues.reduce((total, issue) => total + issue.points, 0)}{" "}
-                points
-              </Badge>
+        {/* ---------------------- BACKLOG ---------------------- */}
+        <div className="rounded-xl border bg-white">
+          <div className="flex items-center justify-between p-4">
+            <h2 className="text-lg font-medium flex items-center gap-2">
+              <ChevronDown /> Backlog
+            </h2>
 
-              <MoreVertical className="text-gray-500" />
-            </div>
+            <Badge variant="secondary">{backlogIssues.length} issues</Badge>
           </div>
 
-          {openSprint && (
-            <Droppable droppableId="sprint">
-              {(provided) => (
-                <div ref={provided.innerRef} {...provided.droppableProps} className="border-t">
-                  {sprintIssues.map(renderIssueCard)}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          )}
+          <Droppable droppableId="backlog">
+            {(provided) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className="border-t"
+              >
+                {backlogIssues.map(renderIssueCard)}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
         </div>
 
-        {/* Backlog Section */}
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer"
-            onClick={() => setOpenBacklog(!openBacklog)}
-          >
-            <div className="flex items-center gap-2">
-              {openBacklog ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-              <h2 className="font-medium text-lg">Backlog</h2>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="px-3 py-1 text-sm">
-                {backlogIssues.length} issues
-              </Badge>
-              <MoreVertical className="text-gray-500" />
-            </div>
-          </div>
-
-          {openBacklog && (
-            <Droppable droppableId="backlog">
-              {(provided) => (
-                <div ref={provided.innerRef} {...provided.droppableProps} className="border-t">
-                  {backlogIssues.map(renderIssueCard)}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          )}
-        </div>
-
-        {/* Create Sprint */}
-        <div className="pt-4 w-full">
-          <Button variant="outline" size="lg" className="w-full px-6 py-3">
-            Create Sprint <Plus />
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full mt-4"
+          onClick={addSprint}
+        >
+          Create Sprint <Plus />
+        </Button>
       </div>
     </DragDropContext>
   );
