@@ -162,7 +162,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-white h-[90vh]">
+    <aside className="hidden md:flex flex-col w-[20%] bg-white h-[90vh]">
 
       <div className="border-b pb-3 p-5">
         <Image className="mb-3" src="/images/logo.png" alt="Vercel Logo" width={95} height={40} />

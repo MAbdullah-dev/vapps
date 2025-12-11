@@ -404,8 +404,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center justify-between border-b h-10">
-        <div className="flex gap-8 items-center h-full">
+      <div className="flex items-center justify-between border-b h-10 gap-6">
+        <div className="flex gap-8 items-center h-full overflow-auto">
           {tabs.map((tab) => {
             const fullPath = `${base}/${tab.href}`;
             const isActive =
@@ -415,7 +415,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <Link
                 key={tab.href}
                 href={fullPath}
-                className={`text-sm h-full flex items-center ${isActive ? "border-b-2 border-black font-semibold" : "text-gray-600"
+                className={`text-sm h-full whitespace-nowrap flex items-center ${isActive ? "border-b-2 border-black font-semibold" : "text-gray-600"
                   }`}
               >
                 {tab.name}
