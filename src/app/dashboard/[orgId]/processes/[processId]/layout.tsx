@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, EllipsisVertical, TrendingUp, Plus, UserPlus } from "lucide-react";
+import { ArrowLeft, TrendingUp, Plus, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import {
@@ -23,10 +24,19 @@ import {
   SelectValue,
   SelectContent,
 } from "@/components/ui/select";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
   const { orgId, processId } = useParams();
   const pathname = usePathname();
+  
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "manager" | "member">("member");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processData, setProcessData] = useState<{ siteId: string } | null>(null);
+  const [isLoadingProcess, setIsLoadingProcess] = useState(true);
 
   const tabs = [
     { name: "Summary", href: "summary" },
@@ -41,6 +51,65 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   ];
 
   const base = `/dashboard/${orgId}/processes/${processId}`;
+
+  // Fetch process data to get siteId
+  useEffect(() => {
+    const fetchProcess = async () => {
+      if (!orgId || !processId) return;
+      
+      try {
+        setIsLoadingProcess(true);
+        const process = await apiClient.getProcess(orgId as string, processId as string);
+        setProcessData(process);
+      } catch (error: any) {
+        console.error("Error fetching process:", error);
+        toast.error("Failed to load process information");
+      } finally {
+        setIsLoadingProcess(false);
+      }
+    };
+
+    fetchProcess();
+  }, [orgId, processId]);
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!orgId || !processId || !processData) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Pass role directly (API accepts: owner, admin, manager, member)
+      const result = await apiClient.createInvite({
+        orgId: orgId as string,
+        siteId: processData.siteId,
+        processId: processId as string,
+        email: email.trim(),
+        role: role,
+      });
+
+      toast.success("Invitation sent successfully!");
+
+      // Reset form and close dialog
+      setEmail("");
+      setRole("member");
+      setDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full">
@@ -96,54 +165,75 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         </div>
 
         <div className="flex items-center gap-3">
-          <Dialog>
-            <form>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="mb-2">
-                  <UserPlus size={18} /> Add Member
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Add New Member</DialogTitle>
-                  <DialogDescription>
-                    Select role and enter mail to send invitation link.
-                  </DialogDescription>
-                </DialogHeader>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="mb-2" disabled={isLoadingProcess}>
+                <UserPlus size={18} /> Add Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Member</DialogTitle>
+                <DialogDescription>
+                  Select role and enter email to send invitation link.
+                </DialogDescription>
+              </DialogHeader>
 
-                <div className="grid gap-4">
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4 py-4">
                   {/* Select Role */}
                   <div className="grid gap-3">
                     <Label htmlFor="role">Select Role</Label>
-                    <Select onValueChange={(value) => console.log("Selected role:", value)}>
+                    <Select 
+                      value={role} 
+                      onValueChange={(value) => setRole(value as "admin" | "manager" | "member")}
+                      disabled={isSubmitting}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="editor">Manager</SelectItem>
-                        <SelectItem value="viewer">User</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   {/* Invitation Mail */}
                   <div className="grid gap-3">
-                    <Label htmlFor="invitation-mail">Invitation Mail</Label>
-                    <Input id="invitation-mail" name="invitation-mail" placeholder="abc123@gmail.com" />
+                    <Label htmlFor="invitation-mail">Invitation Email</Label>
+                    <Input 
+                      id="invitation-mail" 
+                      type="email"
+                      placeholder="user@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isSubmitting}
+                      required
+                    />
                   </div>
                 </div>
 
                 <DialogFooter>
                   <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
                   </DialogClose>
-                  <DialogClose asChild>
-                    <Button type="submit">Send Invitation</Button>
-                  </DialogClose>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || !email || !processData}
+                  >
+                    {isSubmitting ? "Sending..." : "Send Invitation"}
+                  </Button>
                 </DialogFooter>
-              </DialogContent>
-            </form>
+              </form>
+            </DialogContent>
           </Dialog>
 
         </div>

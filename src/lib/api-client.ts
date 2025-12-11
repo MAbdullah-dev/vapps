@@ -94,11 +94,20 @@ class ApiClient {
 
   // ========== Auth Methods ==========
 
-  register(data: { email: string; password: string }) {
+  register(data: { email: string; password: string; inviteToken?: string }) {
     return this.fetch("/auth/register", {
       method: "POST",
       body: data,
     });
+  }
+
+  /**
+   * Get all organizations for the current user
+   */
+  getOrganizations() {
+    return this.get<{ organizations: Array<{ id: string; name: string; role: string; createdAt: string; memberCount: number }> }>(
+      "/organization/list"
+    );
   }
 
   async login(credentials: { email: string; password: string }) {
@@ -144,6 +153,83 @@ class ApiClient {
     return this.get<{ processes: any[] }>(
       `/organization/${orgId}/processes`,
       siteId ? { siteId } : undefined
+    );
+  }
+
+  /**
+   * Get a single process by ID (includes siteId)
+   */
+  async getProcess(orgId: string, processId: string) {
+    const processes = await this.getProcesses(orgId);
+    const process = processes.processes.find((p: any) => p.id === processId);
+    if (!process) {
+      throw new Error("Process not found");
+    }
+    return process;
+  }
+
+  // ========== Invite Methods ==========
+
+  /**
+   * Create an invitation for a process
+   * @param orgId - Organization ID
+   * @param siteId - Site ID (required)
+   * @param processId - Process ID (optional, for process-specific invites)
+   * @param email - Email address to invite
+   * @param role - Role: "owner" | "admin" | "manager" | "member"
+   */
+  createInvite(data: {
+    orgId: string;
+    siteId: string;
+    processId?: string;
+    email: string;
+    role?: "owner" | "admin" | "manager" | "member";
+  }) {
+    return this.post<{ success: boolean; inviteLink: string }>(
+      "/invites",
+      {
+        orgId: data.orgId,
+        siteId: data.siteId,
+        processId: data.processId,
+        email: data.email,
+        role: data.role || "member",
+      }
+    );
+  }
+
+  /**
+   * Resolve invitation details by token
+   */
+  resolveInvite(token: string) {
+    return this.get<{
+      email: string;
+      role: string;
+      status?: string; // Include status to check if already accepted
+      org: { id: string; name: string };
+      site: { id: string; name: string } | null;
+      process: { id: string; name: string } | null;
+      expiresAt: string;
+    }>("/invites/resolve", { token });
+  }
+
+  /**
+   * Accept an invitation (requires authentication)
+   */
+  acceptInvite(token: string) {
+    return this.post<{ success: boolean; orgId: string; organizationName: string }>(
+      "/invites/accept",
+      { token }
+    );
+  }
+
+  /**
+   * Accept an invitation with password (no authentication required)
+   * Creates account if user doesn't exist, or updates password if user exists
+   */
+  acceptInviteWithPassword(token: string, password: string) {
+    return this.post<{ success: boolean; message: string; email: string; orgId: string; organizationName: string }>(
+      "/invites/accept-with-password",
+      { token, password }
     );
   }
 }

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 
 import {
     DropdownMenu,
@@ -19,6 +20,10 @@ import {
 export default function Topbar() {
     const notificationCount = 3;
     const [selectedLang, setSelectedLang] = useState("English");
+
+    const handleLogout = async () => {
+        await signOut({ callbackUrl: "/auth" });
+    };
 
     return (
         <header className="h-14 border-b bg-[#FCFCFC] px-4 flex items-center justify-between">
@@ -125,7 +130,13 @@ export default function Topbar() {
 
                         <DropdownMenuSeparator />
 
-                        <DropdownMenuItem className="text-red-600 font-medium">
+                        <DropdownMenuItem
+                            className="text-red-600 font-medium"
+                            onSelect={(e) => {
+                                e.preventDefault();
+                                handleLogout();
+                            }}
+                        >
                             Logout
                         </DropdownMenuItem>
                     </DropdownMenuContent>

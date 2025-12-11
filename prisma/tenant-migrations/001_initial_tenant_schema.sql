@@ -158,3 +158,43 @@ CREATE TABLE IF NOT EXISTS "security_settings" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL
 );
+-- ===============================
+-- SITE USERS
+-- ===============================
+CREATE TABLE site_users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  site_id uuid NOT NULL,
+  user_id uuid NOT NULL, -- master DB user.id
+  role text DEFAULT 'member',
+  added_at timestamptz DEFAULT now(),
+  UNIQUE (site_id, user_id)
+);
+
+-- ===============================
+-- PROCESS USERS
+-- ===============================
+CREATE TABLE process_users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  process_id uuid NOT NULL,
+  user_id uuid NOT NULL, -- master DB user.id
+  role text DEFAULT 'member',
+  added_at timestamptz DEFAULT now(),
+  UNIQUE (process_id, user_id)
+);
+
+-- ===============================
+-- INVITATIONS
+-- ===============================
+CREATE TABLE invitations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  site_id uuid,
+  process_id uuid,
+  role text DEFAULT 'member',
+  token text UNIQUE NOT NULL,
+  status text DEFAULT 'pending',
+  expires_at timestamptz,
+  invited_by uuid, -- master user id
+  created_at timestamptz DEFAULT now()
+);
+

@@ -148,8 +148,7 @@ export async function runTenantMigrations(connectionString: string): Promise<boo
     const migrationPath = path.join(
       process.cwd(),
       "prisma",
-      "migrations",
-      "tenant",
+      "tenant-migrations",
       "001_initial_tenant_schema.sql"
     );
 

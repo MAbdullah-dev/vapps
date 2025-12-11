@@ -94,10 +94,27 @@ export const authOptions: NextAuthOptions = {
     },
 
     async redirect({ url, baseUrl }) {
-      // After login redirect
+      // After login redirect - preserve invite token if present
       if (url.startsWith("/")) return baseUrl + url;
       if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
+    },
+
+    async signIn({ user, account, profile }) {
+      // Auto-verify OAuth users
+      if (account?.provider !== "credentials" && user.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+        
+        if (dbUser && !dbUser.emailVerified) {
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: { emailVerified: new Date() },
+          });
+        }
+      }
+      return true;
     },
   },
 

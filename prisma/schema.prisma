@@ -56,13 +56,14 @@ model VerificationToken {
 }
 
 model Organization {
-  id        String               @id @default(uuid())
-  name      String
-  ownerId   String
-  createdAt DateTime             @default(now())
-  database  OrgDatabaseInstance?
-  owner     User                 @relation("OrganizationOwner", fields: [ownerId], references: [id])
-  users     UserOrganization[]
+  id          String               @id @default(uuid())
+  name        String
+  ownerId     String
+  createdAt   DateTime             @default(now())
+  database    OrgDatabaseInstance?
+  owner       User                 @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  users       UserOrganization[]
+  invitations Invitation[]
 }
 
 model UserOrganization {
@@ -86,4 +87,23 @@ model OrgDatabaseInstance {
   dbName           String
   connectionString String
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  token          String       @unique
+  organizationId String
+  email          String
+  status         String       @default("pending") // pending, accepted, expired, cancelled
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+  invitedBy      String? // User ID who created the invite
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([organizationId])
+  @@index([email, status])
+  @@index([status, expiresAt])
+  @@map("invitations")
 }
