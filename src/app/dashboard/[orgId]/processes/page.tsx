@@ -36,6 +36,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -56,6 +57,7 @@ import "react-day-picker/dist/style.css";
 interface Process {
   id: string;
   name: string;
+  description?: string;
   siteId: string;
   createdAt: string;
   updatedAt: string;
@@ -93,6 +95,9 @@ export default function ProcessesListPage() {
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isCreatingProcess, setIsCreatingProcess] = useState(false);
+  const [editingProcess, setEditingProcess] = useState<Process | null>(null);
 
   // Fetch processes for a specific site
   const fetchProcessesForSite = useCallback(async (siteId: string, showLoading: boolean = true) => {
@@ -196,6 +201,83 @@ export default function ProcessesListPage() {
     );
   }, [processes, searchQuery]);
 
+  // Handle create/edit process form submission
+  const handleCreateProcess = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    if (!selectedSiteId) {
+      toast.error("Please select a site first");
+      return;
+    }
+
+    setIsCreatingProcess(true);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const name = (formData.get("name") as string)?.trim();
+    const description = (formData.get("description") as string)?.trim();
+
+    if (!name || name.length === 0) {
+      toast.error("Process name is required");
+      setIsCreatingProcess(false);
+      return;
+    }
+
+    try {
+      if (editingProcess) {
+        // Update existing process
+        await apiClient.updateProcess(orgId, editingProcess.id, {
+          name,
+          description: description || undefined,
+        });
+
+        toast.success("Process updated successfully!");
+      } else {
+        // Create new process
+        await apiClient.createProcess(orgId, {
+          name,
+          description: description || undefined,
+          siteId: selectedSiteId,
+        });
+
+        toast.success("Process created successfully!");
+
+        // Trigger sidebar refresh by dispatching a custom event
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('processCreated', { 
+            detail: { siteId: selectedSiteId, orgId } 
+          }));
+        }
+      }
+      
+      // Reset form
+      form.reset();
+      setIsCreateDialogOpen(false);
+      setEditingProcess(null);
+
+      // Refresh processes list
+      await fetchProcessesForSite(selectedSiteId, false);
+    } catch (error: any) {
+      console.error(`Error ${editingProcess ? 'updating' : 'creating'} process:`, error);
+      toast.error(error.message || `Failed to ${editingProcess ? 'update' : 'create'} process`);
+    } finally {
+      setIsCreatingProcess(false);
+    }
+  };
+
+  // Handle edit process click
+  const handleEditProcess = (process: Process) => {
+    setEditingProcess(process);
+    setIsCreateDialogOpen(true);
+  };
+
+  // Reset edit state when dialog closes
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      setEditingProcess(null);
+    }
+  };
+
   // Calculate stats
   const totalProcesses = processes.length;
   const activeProjects = 0; // Not in DB yet - will be implemented with task management
@@ -210,56 +292,65 @@ export default function ProcessesListPage() {
           <h1 className="text-md font-bold mb-2">Processes</h1>
           <p className="text-base">Manage your projects and processes</p>
         </div>
-        <Dialog>
-          <form>
-            <DialogTrigger asChild>
-              <Button variant="outline"><Plus /> Create Process</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
+          <DialogTrigger asChild>
+            <Button variant="outline"><Plus /> Create Process</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <form key={editingProcess?.id || "create"} onSubmit={handleCreateProcess}>
               <DialogHeader>
-                <DialogTitle>Create New Process</DialogTitle>
+                <DialogTitle>{editingProcess ? "Edit Process" : "Create New Process"}</DialogTitle>
                 <DialogDescription>
-                  Set up a new process for your project or team
+                  {editingProcess 
+                    ? "Update the process details"
+                    : "Set up a new process for your project or team"
+                  }
+                  {!editingProcess && selectedSiteId && sites.length > 0 && (
+                    <span className="block mt-1 text-sm text-gray-600">
+                      Site: {sites.find(s => s.id === selectedSiteId)?.name || "Current site"}
+                    </span>
+                  )}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4">
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-3">
                   <Label htmlFor="process-name">Process Name *</Label>
-                  <Input id="process-name" name="name" placeholder="e.g., Mobile App Development" />
+                  <Input 
+                    id="process-name" 
+                    name="name" 
+                    placeholder="e.g., Mobile App Development" 
+                    required
+                    disabled={isCreatingProcess}
+                    defaultValue={editingProcess?.name || ""}
+                  />
                 </div>
                 <div className="grid gap-3">
                   <Label htmlFor="process-description">Description</Label>
-                  <Input id="process-description" name="description" placeholder="Brief description of what this space is for..." />
-                </div>
-                <h4 className="font-bold">Process Configuration</h4>
-                <div className="grid gap-3">
-                  <Label htmlFor="process-key">Process Key</Label>
-                  <Input id="process-key" name="key" placeholder="e.g., MAD (used as prefix for issues)" />
-                  <p>This key will be used as a prefix for all issues in this process</p>
-                </div>
-                <div className="grid gap-3">
-                  <Label htmlFor="process-assignee">Default Assignee</Label>
-                  <Select>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a Assignee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        <SelectItem value="assigned">Assigned</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                  <Textarea 
+                    id="process-description" 
+                    name="description" 
+                    placeholder="Brief description of what this process is for..." 
+                    rows={3}
+                    disabled={isCreatingProcess}
+                    defaultValue={editingProcess?.description || ""}
+                  />
                 </div>
               </div>
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
+                  <Button type="button" variant="outline" disabled={isCreatingProcess}>
+                    Cancel
+                  </Button>
                 </DialogClose>
-                <Button type="submit">Save changes</Button>
+                <Button type="submit" disabled={isCreatingProcess || (!editingProcess && !selectedSiteId)}>
+                  {isCreatingProcess 
+                    ? (editingProcess ? "Updating..." : "Creating...") 
+                    : (editingProcess ? "Update Process" : "Create Process")
+                  }
+                </Button>
               </DialogFooter>
-            </DialogContent>
-          </form>
+            </form>
+          </DialogContent>
         </Dialog>
 
       </div>
@@ -381,7 +472,7 @@ export default function ProcessesListPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditModalOpen(true); }}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditProcess(process); }}>
                         Edit Process
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Process Settings</DropdownMenuItem>

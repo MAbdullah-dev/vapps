@@ -1,5 +1,5 @@
-import Sidebar from "@/components/dashboard/Sidebar";
 import Topbar from "@/components/dashboard/Topbar";
+import SidebarWrapper from "@/components/dashboard/SidebarWrapper";
 
 export default async function OrgDashboardLayout({ 
     children, 
@@ -13,7 +13,7 @@ export default async function OrgDashboardLayout({
     return (
         <div className="flex min-h-screen bg-[#f9f9f9]">
 
-            <Sidebar orgId={orgId}/>
+            <SidebarWrapper orgId={orgId}/>
 
             <div className="flex-1 flex flex-col">
 

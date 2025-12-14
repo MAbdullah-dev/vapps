@@ -5,12 +5,12 @@ import { Client } from "pg";
 import crypto from "crypto";
 
 /**
- * GET /api/organization/[orgId]/processes?siteId=xxx
- * Get all processes for an organization, optionally filtered by siteId
+ * GET /api/organization/[orgId]/processes/[processId]/sprints
+ * Get all sprints for a process
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> }
+  { params }: { params: Promise<{ orgId: string; processId: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -18,9 +18,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
-    const { searchParams } = new URL(req.url);
-    const siteId = searchParams.get("siteId");
+    const { orgId, processId } = await params;
 
     // Get organization and verify user has access
     const org = await prisma.organization.findUnique({
@@ -62,49 +60,82 @@ export async function GET(
     try {
       await client.connect();
 
-      // Get processes, optionally filtered by siteId
-      let processesQuery = `
-        SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-      `;
+      // Verify process exists
+      const processResult = await client.query(
+        `SELECT id FROM processes WHERE id = $1`,
+        [processId]
+      );
 
-      const queryParams: string[] = [];
-      if (siteId) {
-        processesQuery += ` WHERE p."siteId" = $1`;
-        queryParams.push(siteId);
+      if (processResult.rows.length === 0) {
+        await client.end();
+        return NextResponse.json(
+          { error: "Process not found" },
+          { status: 404 }
+        );
       }
 
-      processesQuery += ` ORDER BY p."createdAt" DESC`;
+      // Get all sprints for this process with their issues
+      const sprintsResult = await client.query(
+        `SELECT 
+          s.id,
+          s.name,
+          s."startDate",
+          s."endDate",
+          s."processId",
+          s."createdAt",
+          s."updatedAt"
+        FROM sprints s
+        WHERE s."processId" = $1
+        ORDER BY s."startDate" ASC`,
+        [processId]
+      );
 
-      const processesResult = await client.query(
-        processesQuery,
-        queryParams.length > 0 ? queryParams : undefined
+      // Get issues for each sprint
+      const sprintsWithIssues = await Promise.all(
+        sprintsResult.rows.map(async (sprint: any) => {
+          const issuesResult = await client.query(
+            `SELECT 
+              i.id,
+              i.title,
+              i.description,
+              i.priority,
+              i.status,
+              i.points,
+              i.assignee,
+              i.tags,
+              i.source,
+              i."sprintId",
+              i."processId",
+              i."order",
+              i."createdAt",
+              i."updatedAt"
+            FROM issues i
+            WHERE i."sprintId" = $1 AND i.status != 'done'
+            ORDER BY i."order" ASC, i."createdAt" ASC`,
+            [sprint.id]
+          );
+
+          return {
+            ...sprint,
+            issues: issuesResult.rows,
+          };
+        })
       );
 
       await client.end();
 
       return NextResponse.json({
-        processes: processesResult.rows,
+        sprints: sprintsWithIssues,
       });
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to fetch processes", message: dbError.message },
+        { error: "Failed to fetch sprints", message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error fetching processes:", error);
+    console.error("Error fetching sprints:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
@@ -113,12 +144,12 @@ export async function GET(
 }
 
 /**
- * POST /api/organization/[orgId]/processes
- * Create a new process for a site
+ * POST /api/organization/[orgId]/processes/[processId]/sprints
+ * Create a new sprint
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> }
+  { params }: { params: Promise<{ orgId: string; processId: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -126,20 +157,20 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
+    const { orgId, processId } = await params;
     const body = await req.json();
-    const { name, description, siteId } = body;
+    const { name, startDate, endDate } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
-        { error: "Process name is required" },
+        { error: "Sprint name is required" },
         { status: 400 }
       );
     }
 
-    if (!siteId) {
+    if (!startDate || !endDate) {
       return NextResponse.json(
-        { error: "Site ID is required" },
+        { error: "Start date and end date are required" },
         { status: 400 }
       );
     }
@@ -184,64 +215,64 @@ export async function POST(
     try {
       await client.connect();
 
-      // Verify site exists
-      const siteResult = await client.query(
-        `SELECT id, name FROM sites WHERE id = $1`,
-        [siteId]
+      // Verify process exists
+      const processResult = await client.query(
+        `SELECT id FROM processes WHERE id = $1`,
+        [processId]
       );
 
-      if (siteResult.rows.length === 0) {
+      if (processResult.rows.length === 0) {
         await client.end();
         return NextResponse.json(
-          { error: "Site not found" },
+          { error: "Process not found" },
           { status: 404 }
         );
       }
 
-      // Insert new process
-      const processId = crypto.randomUUID();
+      // Insert new sprint
+      const sprintId = crypto.randomUUID();
       await client.query(
-        `INSERT INTO processes (id, name, description, "siteId", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-        [processId, name.trim(), description?.trim() || null, siteId]
+        `INSERT INTO sprints (id, name, "startDate", "endDate", "processId", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+        [sprintId, name.trim(), startDate, endDate, processId]
       );
 
-      // Fetch the created process with site information
-      const processResult = await client.query(
+      // Fetch the created sprint
+      const sprintResult = await client.query(
         `SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-        WHERE p.id = $1`,
-        [processId]
+          s.id,
+          s.name,
+          s."startDate",
+          s."endDate",
+          s."processId",
+          s."createdAt",
+          s."updatedAt"
+        FROM sprints s
+        WHERE s.id = $1`,
+        [sprintId]
       );
 
       await client.end();
 
       return NextResponse.json(
         {
-          message: "Process created successfully",
-          process: processResult.rows[0],
+          message: "Sprint created successfully",
+          sprint: {
+            ...sprintResult.rows[0],
+            issues: [],
+          },
         },
         { status: 201 }
       );
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to create process", message: dbError.message },
+        { error: "Failed to create sprint", message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error creating process:", error);
+    console.error("Error creating sprint:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }

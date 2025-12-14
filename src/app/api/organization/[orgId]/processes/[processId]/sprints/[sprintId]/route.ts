@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
 import { Client } from "pg";
-import crypto from "crypto";
 
 /**
- * GET /api/organization/[orgId]/processes?siteId=xxx
- * Get all processes for an organization, optionally filtered by siteId
+ * PUT /api/organization/[orgId]/processes/[processId]/sprints/[sprintId]
+ * Update a sprint
  */
-export async function GET(
+export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> }
+  { params }: { params: Promise<{ orgId: string; processId: string; sprintId: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -18,9 +17,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
-    const { searchParams } = new URL(req.url);
-    const siteId = searchParams.get("siteId");
+    const { orgId, processId, sprintId } = await params;
+    const body = await req.json();
+    const { name, startDate, endDate } = body;
 
     // Get organization and verify user has access
     const org = await prisma.organization.findUnique({
@@ -62,49 +61,89 @@ export async function GET(
     try {
       await client.connect();
 
-      // Get processes, optionally filtered by siteId
-      let processesQuery = `
-        SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-      `;
+      // Verify sprint exists and belongs to this process
+      const sprintResult = await client.query(
+        `SELECT id FROM sprints WHERE id = $1 AND "processId" = $2`,
+        [sprintId, processId]
+      );
 
-      const queryParams: string[] = [];
-      if (siteId) {
-        processesQuery += ` WHERE p."siteId" = $1`;
-        queryParams.push(siteId);
+      if (sprintResult.rows.length === 0) {
+        await client.end();
+        return NextResponse.json(
+          { error: "Sprint not found" },
+          { status: 404 }
+        );
       }
 
-      processesQuery += ` ORDER BY p."createdAt" DESC`;
+      // Build update query dynamically
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
 
-      const processesResult = await client.query(
-        processesQuery,
-        queryParams.length > 0 ? queryParams : undefined
+      if (name !== undefined) {
+        updates.push(`name = $${paramIndex++}`);
+        values.push(name.trim());
+      }
+      if (startDate !== undefined) {
+        updates.push(`"startDate" = $${paramIndex++}`);
+        values.push(startDate);
+      }
+      if (endDate !== undefined) {
+        updates.push(`"endDate" = $${paramIndex++}`);
+        values.push(endDate);
+      }
+
+      if (updates.length === 0) {
+        await client.end();
+        return NextResponse.json(
+          { error: "No fields to update" },
+          { status: 400 }
+        );
+      }
+
+      updates.push(`"updatedAt" = NOW()`);
+      values.push(sprintId, processId);
+
+      await client.query(
+        `UPDATE sprints 
+         SET ${updates.join(", ")}
+         WHERE id = $${paramIndex++} AND "processId" = $${paramIndex++}`,
+        values
+      );
+
+      // Fetch the updated sprint
+      const updatedSprintResult = await client.query(
+        `SELECT 
+          s.id,
+          s.name,
+          s."startDate",
+          s."endDate",
+          s."processId",
+          s."createdAt",
+          s."updatedAt"
+        FROM sprints s
+        WHERE s.id = $1`,
+        [sprintId]
       );
 
       await client.end();
 
-      return NextResponse.json({
-        processes: processesResult.rows,
-      });
+      return NextResponse.json(
+        {
+          message: "Sprint updated successfully",
+          sprint: updatedSprintResult.rows[0],
+        },
+        { status: 200 }
+      );
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to fetch processes", message: dbError.message },
+        { error: "Failed to update sprint", message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error fetching processes:", error);
+    console.error("Error updating sprint:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
@@ -113,12 +152,12 @@ export async function GET(
 }
 
 /**
- * POST /api/organization/[orgId]/processes
- * Create a new process for a site
+ * DELETE /api/organization/[orgId]/processes/[processId]/sprints/[sprintId]
+ * Delete a sprint
  */
-export async function POST(
+export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> }
+  { params }: { params: Promise<{ orgId: string; processId: string; sprintId: string }> }
 ) {
   try {
     const user = await getCurrentUser();
@@ -126,23 +165,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
-    const body = await req.json();
-    const { name, description, siteId } = body;
-
-    if (!name || !name.trim()) {
-      return NextResponse.json(
-        { error: "Process name is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!siteId) {
-      return NextResponse.json(
-        { error: "Site ID is required" },
-        { status: 400 }
-      );
-    }
+    const { orgId, processId, sprintId } = await params;
 
     // Get organization and verify user has access
     const org = await prisma.organization.findUnique({
@@ -184,64 +207,43 @@ export async function POST(
     try {
       await client.connect();
 
-      // Verify site exists
-      const siteResult = await client.query(
-        `SELECT id, name FROM sites WHERE id = $1`,
-        [siteId]
+      // Verify sprint exists and belongs to this process
+      const sprintResult = await client.query(
+        `SELECT id FROM sprints WHERE id = $1 AND "processId" = $2`,
+        [sprintId, processId]
       );
 
-      if (siteResult.rows.length === 0) {
+      if (sprintResult.rows.length === 0) {
         await client.end();
         return NextResponse.json(
-          { error: "Site not found" },
+          { error: "Sprint not found" },
           { status: 404 }
         );
       }
 
-      // Insert new process
-      const processId = crypto.randomUUID();
+      // Delete sprint (issues will have sprintId set to NULL due to ON DELETE SET NULL)
       await client.query(
-        `INSERT INTO processes (id, name, description, "siteId", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-        [processId, name.trim(), description?.trim() || null, siteId]
-      );
-
-      // Fetch the created process with site information
-      const processResult = await client.query(
-        `SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-        WHERE p.id = $1`,
-        [processId]
+        `DELETE FROM sprints WHERE id = $1`,
+        [sprintId]
       );
 
       await client.end();
 
       return NextResponse.json(
         {
-          message: "Process created successfully",
-          process: processResult.rows[0],
+          message: "Sprint deleted successfully",
         },
-        { status: 201 }
+        { status: 200 }
       );
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to create process", message: dbError.message },
+        { error: "Failed to delete sprint", message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error creating process:", error);
+    console.error("Error deleting sprint:", error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }

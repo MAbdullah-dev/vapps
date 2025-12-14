@@ -168,6 +168,160 @@ class ApiClient {
     return process;
   }
 
+  /**
+   * Create a new process for a site
+   */
+  createProcess(orgId: string, data: { name: string; description?: string; siteId: string }) {
+    return this.post<{ process: any; message: string }>(
+      `/organization/${orgId}/processes`,
+      data
+    );
+  }
+
+  /**
+   * Update an existing process
+   */
+  updateProcess(orgId: string, processId: string, data: { name: string; description?: string }) {
+    return this.put<{ process: any; message: string }>(
+      `/organization/${orgId}/processes/${processId}`,
+      data
+    );
+  }
+
+  // ========== Sprint Methods ==========
+
+  /**
+   * Get all sprints for a process
+   */
+  getSprints(orgId: string, processId: string) {
+    return this.get<{ sprints: any[] }>(
+      `/organization/${orgId}/processes/${processId}/sprints`
+    );
+  }
+
+  /**
+   * Create a new sprint
+   */
+  createSprint(orgId: string, processId: string, data: { name: string; startDate: string; endDate: string }) {
+    return this.post<{ sprint: any; message: string }>(
+      `/organization/${orgId}/processes/${processId}/sprints`,
+      data
+    );
+  }
+
+  /**
+   * Update a sprint
+   */
+  updateSprint(orgId: string, processId: string, sprintId: string, data: { name?: string; startDate?: string; endDate?: string }) {
+    return this.put<{ sprint: any; message: string }>(
+      `/organization/${orgId}/processes/${processId}/sprints/${sprintId}`,
+      data
+    );
+  }
+
+  /**
+   * Delete a sprint
+   */
+  deleteSprint(orgId: string, processId: string, sprintId: string) {
+    return this.delete<{ message: string }>(
+      `/organization/${orgId}/processes/${processId}/sprints/${sprintId}`
+    );
+  }
+
+  // ========== Issue Methods ==========
+
+  /**
+   * Get all issues for a process (optionally filtered by sprintId)
+   */
+  getIssues(orgId: string, processId: string, sprintId?: string | null) {
+    return this.get<{ issues: any[] }>(
+      `/organization/${orgId}/processes/${processId}/issues`,
+      sprintId !== undefined ? { sprintId: sprintId || null } : undefined
+    );
+  }
+
+  /**
+   * Create a new issue
+   */
+  createIssue(orgId: string, processId: string, data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    points?: number;
+    assignee?: string;
+    tags?: string[];
+    sprintId?: string | null;
+    order?: number;
+  }) {
+    return this.post<{ issue: any; message: string }>(
+      `/organization/${orgId}/processes/${processId}/issues`,
+      data
+    );
+  }
+
+  /**
+   * Update an issue
+   */
+  updateIssue(orgId: string, processId: string, issueId: string, data: {
+    title?: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    points?: number;
+    assignee?: string;
+    tags?: string[];
+    sprintId?: string | null;
+    order?: number;
+  }) {
+    return this.put<{ issue: any; message: string }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}`,
+      data
+    );
+  }
+
+  /**
+   * Delete an issue
+   */
+  deleteIssue(orgId: string, processId: string, issueId: string) {
+    return this.delete<{ message: string }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}`
+    );
+  }
+
+  // ========== Process Users Methods ==========
+
+  /**
+   * Get all users who are members of a process
+   */
+  getProcessUsers(orgId: string, processId: string) {
+    return this.get<{ users: Array<{ id: string; name: string; email: string; role: string }> }>(
+      `/organization/${orgId}/processes/${processId}/users`
+    );
+  }
+
+  // ========== Metadata Methods ==========
+
+  /**
+   * Get metadata (titles, tags, or sources)
+   */
+  getMetadata(orgId: string, type: "titles" | "tags" | "sources") {
+    return this.get<{ [key: string]: string[] }>(
+      `/organization/${orgId}/metadata`,
+      { type }
+    );
+  }
+
+  /**
+   * Add a new metadata value (title, tag, or source)
+   */
+  addMetadata(orgId: string, type: "titles" | "tags" | "sources", name: string) {
+    return this.post<{ message: string; name: string }>(
+      `/organization/${orgId}/metadata?type=${type}`,
+      { name }
+    );
+  }
+
   // ========== Invite Methods ==========
 
   /**

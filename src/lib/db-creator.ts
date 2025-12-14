@@ -127,6 +127,7 @@ export async function createTenantDatabase(orgId: string): Promise<TenantDatabas
 
 /**
  * Helper to run tenant migrations programmatically
+ * Runs all migration files in order (001, 002, 003, etc.)
  * @param connectionString - Tenant database connection string
  * @returns Success status
  */
@@ -144,25 +145,47 @@ export async function runTenantMigrations(connectionString: string): Promise<boo
 
     await client.connect();
 
-    // Read the migration SQL file
-    const migrationPath = path.join(
+    // Get all migration files in order
+    const migrationsDir = path.join(
       process.cwd(),
       "prisma",
-      "tenant-migrations",
-      "001_initial_tenant_schema.sql"
+      "tenant-migrations"
     );
 
-    if (!fs.existsSync(migrationPath)) {
-      throw new Error(`Migration file not found: ${migrationPath}`);
+    if (!fs.existsSync(migrationsDir)) {
+      throw new Error(`Migrations directory not found: ${migrationsDir}`);
     }
 
-    const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
+    // Read all files in the migrations directory
+    const files = fs.readdirSync(migrationsDir);
+    
+    // Filter and sort migration files (001_, 002_, 003_, etc.)
+    const migrationFiles = files
+      .filter((file: string) => file.endsWith(".sql"))
+      .sort((a: string, b: string) => {
+        // Extract number from filename (e.g., "001_" from "001_initial_tenant_schema.sql")
+        const numA = parseInt(a.match(/^(\d+)_/)?.[1] || "0", 10);
+        const numB = parseInt(b.match(/^(\d+)_/)?.[1] || "0", 10);
+        return numA - numB;
+      });
 
-    // Execute the migration
-    await client.query(migrationSQL);
+    console.log(`Running ${migrationFiles.length} tenant migrations...`);
+
+    // Execute each migration in order
+    for (const file of migrationFiles) {
+      const migrationPath = path.join(migrationsDir, file);
+      console.log(`Running migration: ${file}`);
+      
+      const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
+      
+      // Execute the migration
+      await client.query(migrationSQL);
+      console.log(`✓ Completed migration: ${file}`);
+    }
 
     await client.end();
 
+    console.log(`✓ All tenant migrations completed successfully`);
     return true;
   } catch (error: any) {
     console.error("Error running tenant migrations:", error);

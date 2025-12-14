@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
@@ -12,6 +13,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 import {
   DragDropContext,
@@ -28,74 +31,83 @@ type Issue = {
   status: string;
   points: number;
   assignee: string;
+  order?: number;
+  sprintId?: string | null;
 };
 
 type Sprint = {
   id: string;
   name: string;
-  start: string;
-  end: string;
+  startDate: string;
+  endDate: string;
   isOpen: boolean;
   isRenaming: boolean;
   issues: Issue[];
 };
 
 export default function SprintAndBacklogList() {
-  const [sprints, setSprints] = useState<Sprint[]>([
-    {
-      id: "sprint-1",
-      name: "Sprint 1",
-      start: "Nov 1",
-      end: "Nov 15",
-      isOpen: true,
-      isRenaming: false,
-      issues: [
-        {
-          id: "ISS-101",
-          priority: "high",
-          tags: ["Backend", "Security"],
-          title: "Implement user authentication flow",
-          status: "To Do",
-          points: 5,
-          assignee: "JD",
-        },
-        {
-          id: "ISS-102",
-          priority: "critical",
-          tags: ["Design", "UI"],
-          title: "Design dashboard UI components",
-          status: "In Progress",
-          points: 8,
-          assignee: "SJ",
-        },
-      ],
-    },
-  ]);
+  const params = useParams();
+  const orgId = params.orgId as string;
+  const processId = params.processId as string;
 
-  const [backlogIssues, setBacklogIssues] = useState<Issue[]>([
-    {
-      id: "BCK-201",
-      priority: "medium",
-      tags: ["Research"],
-      title: "Analyze competitor products",
-      status: "Backlog",
-      points: 2,
-      assignee: "--",
-    },
-    {
-      id: "BCK-202",
-      priority: "low",
-      tags: ["Planning"],
-      title: "Create initial project roadmap",
-      status: "Backlog",
-      points: 4,
-      assignee: "--",
-    },
-  ]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [backlogIssues, setBacklogIssues] = useState<Issue[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ---------------------- NEW: AUTO DATE CALC -------------------------
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // ---------------------- FETCH DATA FROM API -------------------------
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch sprints with their issues
+      const sprintsResponse = await apiClient.getSprints(orgId, processId);
+      const sprintsData = sprintsResponse.sprints.map((sprint: any) => ({
+        ...sprint,
+        isOpen: true,
+        isRenaming: false,
+        issues: sprint.issues || [],
+      }));
+      setSprints(sprintsData);
+
+      // Fetch backlog issues (sprintId is null)
+      const backlogResponse = await apiClient.getIssues(orgId, processId, null);
+      setBacklogIssues(backlogResponse.issues || []);
+    } catch (error: any) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load sprints and issues");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [orgId, processId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Listen for issue creation events to refresh
+  useEffect(() => {
+    const handleIssueCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.processId === processId && customEvent.detail.orgId === orgId) {
+        fetchData();
+      }
+    };
+
+    window.addEventListener('issueCreated', handleIssueCreated);
+    return () => {
+      window.removeEventListener('issueCreated', handleIssueCreated);
+    };
+  }, [orgId, processId, fetchData]);
+
+  // ---------------------- DATE UTILITIES -------------------------
+  const formatDate = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const formatDateForAPI = (date: Date) => {
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+  };
 
   const addDays = (date: Date, days: number) => {
     const d = new Date(date);
@@ -107,41 +119,68 @@ export default function SprintAndBacklogList() {
     if (sprints.length === 0) {
       const start = new Date();
       const end = addDays(start, 14);
-      return { start: formatDate(start), end: formatDate(end) };
+      return { 
+        start: formatDateForAPI(start), 
+        end: formatDateForAPI(end),
+        startFormatted: formatDate(start),
+        endFormatted: formatDate(end)
+      };
     }
 
     const lastSprint = sprints[sprints.length - 1];
-    const lastEnd = new Date(lastSprint.end + " 2024"); // quick parse
+    const lastEnd = new Date(lastSprint.endDate);
 
     const start = addDays(lastEnd, 1);
     const end = addDays(start, 14);
 
-    return { start: formatDate(start), end: formatDate(end) };
-  };
-
-  // ---------------------- NEW: CREATE SPRINT --------------------------
-  const addSprint = () => {
-    const { start, end } = createSprintDates();
-
-    const newSprint: Sprint = {
-      id: `sprint-${sprints.length + 1}`,
-      name: `Sprint ${sprints.length + 1}`,
-      start,
-      end,
-      isOpen: true,
-      isRenaming: false,
-      issues: [],
+    return { 
+      start: formatDateForAPI(start), 
+      end: formatDateForAPI(end),
+      startFormatted: formatDate(start),
+      endFormatted: formatDate(end)
     };
-
-    setSprints([...sprints, newSprint]);
   };
 
-  // ---------------------- NEW: DELETE SPRINT --------------------------
-  const deleteSprint = (id: string) => {
-    setSprints((prev) => prev.filter((s) => s.id !== id));
+  // ---------------------- CREATE SPRINT --------------------------
+  const addSprint = async () => {
+    try {
+      const { start, end, startFormatted, endFormatted } = createSprintDates();
+      const sprintNumber = sprints.length + 1;
+
+      const result = await apiClient.createSprint(orgId, processId, {
+        name: `Sprint ${sprintNumber}`,
+        startDate: start,
+        endDate: end,
+      });
+
+      const newSprint: Sprint = {
+        ...result.sprint,
+        isOpen: true,
+        isRenaming: false,
+        issues: [],
+      };
+
+      setSprints([...sprints, newSprint]);
+      toast.success("Sprint created successfully");
+    } catch (error: any) {
+      console.error("Error creating sprint:", error);
+      toast.error(error.message || "Failed to create sprint");
+    }
   };
 
-  // ---------------------- NEW: RENAME SPRINT --------------------------
+  // ---------------------- DELETE SPRINT --------------------------
+  const deleteSprint = async (id: string) => {
+    try {
+      await apiClient.deleteSprint(orgId, processId, id);
+      setSprints((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Sprint deleted successfully");
+    } catch (error: any) {
+      console.error("Error deleting sprint:", error);
+      toast.error(error.message || "Failed to delete sprint");
+    }
+  };
+
+  // ---------------------- RENAME SPRINT --------------------------
   const startRenaming = (id: string) => {
     setSprints((prev) =>
       prev.map((s) =>
@@ -150,20 +189,45 @@ export default function SprintAndBacklogList() {
     );
   };
 
-  const finishRenaming = (id: string, newName: string) => {
-    setSprints((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, name: newName || s.name, isRenaming: false } : s
-      )
-    );
+  const finishRenaming = async (id: string, newName: string) => {
+    if (!newName || !newName.trim()) {
+      setSprints((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, isRenaming: false } : s
+        )
+      );
+      return;
+    }
+
+    try {
+      await apiClient.updateSprint(orgId, processId, id, {
+        name: newName.trim(),
+      });
+
+      setSprints((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, name: newName.trim(), isRenaming: false } : s
+        )
+      );
+      toast.success("Sprint renamed successfully");
+    } catch (error: any) {
+      console.error("Error renaming sprint:", error);
+      toast.error(error.message || "Failed to rename sprint");
+      setSprints((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, isRenaming: false } : s
+        )
+      );
+    }
   };
 
   // ---------------------- DRAG AND DROP -------------------------------
-  const onDragEnd = (result: DropResult) => {
+  const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
     const sourceId = result.source.droppableId;
     const destId = result.destination.droppableId;
+    const issueId = result.draggableId;
 
     const getList = (id: string) => {
       if (id === "backlog") return backlogIssues;
@@ -171,24 +235,46 @@ export default function SprintAndBacklogList() {
       return sprint ? sprint.issues : [];
     };
 
-    const setList = (id: string, list: Issue[]) => {
-      if (id === "backlog") {
-        setBacklogIssues(list);
-        return;
-      }
-      setSprints((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, issues: list } : s))
-      );
-    };
-
     const sourceList = getList(sourceId);
     const destList = getList(destId);
+    const movedIssue = sourceList.find((i) => i.id === issueId);
 
-    const [moved] = sourceList.splice(result.source.index, 1);
-    destList.splice(result.destination.index, 0, moved);
+    if (!movedIssue) return;
 
-    setList(sourceId, [...sourceList]);
-    setList(destId, [...destList]);
+    // Optimistic update
+    const newSourceList = sourceList.filter((i) => i.id !== issueId);
+    const newDestList = [...destList];
+    newDestList.splice(result.destination.index, 0, movedIssue);
+
+    // Update state optimistically
+    if (sourceId === "backlog") {
+      setBacklogIssues(newSourceList);
+    } else {
+      setSprints((prev) =>
+        prev.map((s) => (s.id === sourceId ? { ...s, issues: newSourceList } : s))
+      );
+    }
+
+    if (destId === "backlog") {
+      setBacklogIssues(newDestList);
+    } else {
+      setSprints((prev) =>
+        prev.map((s) => (s.id === destId ? { ...s, issues: newDestList } : s))
+      );
+    }
+
+    // Update in database
+    try {
+      await apiClient.updateIssue(orgId, processId, issueId, {
+        sprintId: destId === "backlog" ? null : destId,
+        order: result.destination.index,
+      });
+    } catch (error: any) {
+      console.error("Error updating issue:", error);
+      toast.error("Failed to move issue");
+      // Revert on error
+      fetchData();
+    }
   };
 
   // ---------------------- Issue Card ----------------------------------
@@ -282,7 +368,7 @@ export default function SprintAndBacklogList() {
                   {sprint.issues.length} issues
                 </Badge>
                 <Badge variant="secondary">
-                  {sprint.start} - {sprint.end}
+                  {formatDate(sprint.startDate)} - {formatDate(sprint.endDate)}
                 </Badge>
 
                 {/* Delete Sprint */}

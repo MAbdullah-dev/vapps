@@ -61,14 +61,79 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
 
+  // Fetch metadata, sprints, and process users on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoadingMetadata(true);
+        setIsLoadingUsers(true);
+        const [titlesRes, tagsRes, sourcesRes, sprintsRes, usersRes] = await Promise.all([
+          apiClient.getMetadata(orgId as string, "titles"),
+          apiClient.getMetadata(orgId as string, "tags"),
+          apiClient.getMetadata(orgId as string, "sources"),
+          apiClient.getSprints(orgId as string, processId as string),
+          apiClient.getProcessUsers(orgId as string, processId as string),
+        ]);
+
+        setTitles(titlesRes.titles || []);
+        setTags(tagsRes.tags || []);
+        setSources(sourcesRes.sources || []);
+        setSprints(sprintsRes.sprints?.map((s: any) => ({ id: s.id, name: s.name })) || []);
+        setProcessUsers(usersRes.users || []);
+      } catch (error: any) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load data");
+      } finally {
+        setIsLoadingMetadata(false);
+        setIsLoadingUsers(false);
+      }
+    };
+
+    if (orgId && processId) {
+      fetchData();
+    }
+  }, [orgId, processId]);
+
+  // Reset form when dialog closes
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      // Reset form when dialog closes
+      setTitle("");
+      setTag("");
+      setSource("");
+      setSelectedPriority("");
+      setSelectedStatus("");
+      setSelectedAssignee("");
+      setSelectedSprint("__backlog__");
+      setPoints(0);
+      setEditorContent("");
+      setDate(undefined);
+      setCustomTitleMode(false);
+      setCustomTagMode(false);
+      setCustomSourceMode(false);
+    }
+  };
+
   const handleCustomTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(event.target.value);
   };
 
-  const handleSaveCustomTitle = () => {
+  const handleSaveCustomTitle = async () => {
     if (!title.trim()) return;
-    if (!titles.includes(title)) setTitles([...titles, title]);
-    setCustomTitleMode(false);
+    
+    try {
+      await apiClient.addMetadata(orgId as string, "titles", title.trim());
+      if (!titles.includes(title.trim())) {
+        setTitles([...titles, title.trim()]);
+      }
+      setTitle(title.trim());
+      setCustomTitleMode(false);
+      toast.success("Title added successfully");
+    } catch (error: any) {
+      console.error("Error adding title:", error);
+      toast.error(error.message || "Failed to add title");
+    }
   };
 
   const tabs = [
@@ -83,37 +148,28 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     { name: "Reports", href: "reports" },
     { name: "Settings", href: "settings" },
   ];
-  const [titles, setTitles] = useState(["Bug", "Feature", "Task"]);
+  const [titles, setTitles] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [customTitleMode, setCustomTitleMode] = useState(false);
-  const [tags, setTags] = useState([
-    "Quality Issues",
-    "Process Improvement",
-    "Risk Mitigation",
-    "Enhancement Idea",
-    "Compliance Gap",
-    "Customer Concern",
-    "Lean Manufacturing",
-    "GRC",
-    "Industry 4.0",
-    "ESG",
-    "GRI",
-    "IFRS",
-    "SDGs",
-  ]);
+  const [tags, setTags] = useState<string[]>([]);
   const [tag, setTag] = useState("");
   const [customTagMode, setCustomTagMode] = useState(false);
-
-  const [sources, setSources] = useState([
-    "Employee Feedback",
-    "Outsourced Process Feedback",
-    "Customer Feedback",
-    "External Audit Findings",
-    "Internal Audit Findings",
-    "Management Review Action Item",
-  ]);
+  const [sources, setSources] = useState<string[]>([]);
   const [source, setSource] = useState("");
   const [customSourceMode, setCustomSourceMode] = useState(false);
+  const [sprints, setSprints] = useState<Array<{ id: string; name: string }>>([]);
+  const [processUsers, setProcessUsers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
+  
+  // Form state
+  const [selectedPriority, setSelectedPriority] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("");
+  const [selectedSprint, setSelectedSprint] = useState<string>("__backlog__");
+  const [points, setPoints] = useState<number>(0);
+  const [isCreatingIssue, setIsCreatingIssue] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
   const handleAddCustomTitle = () => {
     setCustomTitleMode(true);
@@ -122,19 +178,109 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const handleCustomTagChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setTag(e.target.value);
 
-  const handleSaveCustomTag = () => {
+  const handleSaveCustomTag = async () => {
     if (!tag.trim()) return;
-    if (!tags.includes(tag)) setTags([...tags, tag]);
-    setCustomTagMode(false);
+    
+    try {
+      await apiClient.addMetadata(orgId as string, "tags", tag.trim());
+      if (!tags.includes(tag.trim())) {
+        setTags([...tags, tag.trim()]);
+      }
+      setTag(tag.trim());
+      setCustomTagMode(false);
+      toast.success("Tag added successfully");
+    } catch (error: any) {
+      console.error("Error adding tag:", error);
+      toast.error(error.message || "Failed to add tag");
+    }
   };
 
   const handleCustomSourceChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setSource(e.target.value);
 
-  const handleSaveCustomSource = () => {
+  const handleSaveCustomSource = async () => {
     if (!source.trim()) return;
-    if (!sources.includes(source)) setSources([...sources, source]);
-    setCustomSourceMode(false);
+    
+    try {
+      await apiClient.addMetadata(orgId as string, "sources", source.trim());
+      if (!sources.includes(source.trim())) {
+        setSources([...sources, source.trim()]);
+      }
+      setSource(source.trim());
+      setCustomSourceMode(false);
+      toast.success("Source added successfully");
+    } catch (error: any) {
+      console.error("Error adding source:", error);
+      toast.error(error.message || "Failed to add source");
+    }
+  };
+
+  // Handle issue creation form submission
+  const handleCreateIssue = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Validate mandatory fields
+    if (!title || !title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    if (!tag || !tag.trim()) {
+      toast.error("Tag is required");
+      return;
+    }
+
+    if (!source || !source.trim()) {
+      toast.error("Source is required");
+      return;
+    }
+
+    setIsCreatingIssue(true);
+
+    try {
+      // Prepare issue data
+      const issueData: any = {
+        title: title.trim(),
+        tag: tag.trim(),
+        source: source.trim(),
+        description: editorContent || undefined,
+        priority: selectedPriority || undefined,
+        points: points || 0,
+        assignee: selectedAssignee || undefined,
+        tags: [tag.trim()], // Store the selected tag in tags array
+        sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
+        // Note: Status will be set automatically by API based on sprintId
+      };
+
+      await apiClient.createIssue(orgId as string, processId as string, issueData);
+
+      toast.success("Issue created successfully!");
+
+      // Reset form
+      setTitle("");
+      setTag("");
+      setSource("");
+      setSelectedPriority("");
+      setSelectedStatus("");
+      setSelectedAssignee("");
+      setSelectedSprint("__backlog__");
+      setPoints(0);
+      setEditorContent("");
+      setDate(undefined);
+      setIsCreateDialogOpen(false);
+
+      // Trigger refresh of backlog page if needed
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('issueCreated', { 
+          detail: { processId, orgId } 
+        }));
+      }
+    } catch (error: any) {
+      console.error("Error creating issue:", error);
+      toast.error(error.message || "Failed to create issue");
+    } finally {
+      setIsCreatingIssue(false);
+    }
   };
 
 
@@ -224,7 +370,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Create Issue Dialog */}
-        <Dialog>
+        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button variant="default">
               <Plus size={16} /> New Issue
@@ -238,7 +384,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
             </DialogHeader>
 
             {/* FORM */}
-            <form className="space-y-4">
+            <form onSubmit={handleCreateIssue} className="space-y-4">
 
               {/* Title */}
               <div className="space-y-1">
@@ -260,9 +406,9 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select onValueChange={(value) => setTitle(value)}>
+                    <Select onValueChange={(value) => setTitle(value)} value={title} required disabled={isCreatingIssue || isLoadingMetadata}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a title" />
+                        <SelectValue placeholder={isLoadingMetadata ? "Loading titles..." : "Select a title *"} />
                       </SelectTrigger>
                       <SelectContent>
                         {titles.map((t) => (
@@ -270,7 +416,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button type="button" variant="dark" onClick={handleAddCustomTitle}>
+                    <Button type="button" variant="dark" onClick={handleAddCustomTitle} disabled={isCreatingIssue}>
                       Add
                     </Button>
                   </div>
@@ -288,11 +434,12 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={tag}
                       onChange={handleCustomTagChange}
                       className="w-full"
+                      disabled={isCreatingIssue}
                     />
-                    <Button type="button" variant="default" onClick={handleSaveCustomTag}>
+                    <Button type="button" variant="default" onClick={handleSaveCustomTag} disabled={isCreatingIssue}>
                       Save
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setCustomTagMode(false)}>
+                    <Button type="button" variant="outline" onClick={() => setCustomTagMode(false)} disabled={isCreatingIssue}>
                       Cancel
                     </Button>
                   </div>
@@ -327,19 +474,20 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={source}
                       onChange={handleCustomSourceChange}
                       className="w-full"
+                      disabled={isCreatingIssue}
                     />
-                    <Button type="button" variant="default" onClick={handleSaveCustomSource}>
+                    <Button type="button" variant="default" onClick={handleSaveCustomSource} disabled={isCreatingIssue}>
                       Save
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setCustomSourceMode(false)}>
+                    <Button type="button" variant="outline" onClick={() => setCustomSourceMode(false)} disabled={isCreatingIssue}>
                       Cancel
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select onValueChange={(value) => setSource(value)}>
+                    <Select onValueChange={(value) => setSource(value)} value={source} required disabled={isCreatingIssue || isLoadingMetadata}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a source" />
+                        <SelectValue placeholder={isLoadingMetadata ? "Loading sources..." : "Select a source *"} />
                       </SelectTrigger>
                       <SelectContent>
                         {sources.map((s) => (
@@ -348,7 +496,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       </SelectContent>
                     </Select>
 
-                    <Button type="button" variant="dark" onClick={() => setCustomSourceMode(true)}>
+                    <Button type="button" variant="dark" onClick={() => setCustomSourceMode(true)} disabled={isCreatingIssue}>
                       Add
                     </Button>
                   </div>
@@ -359,23 +507,28 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <div className="flex items-center gap-4">
                 <div className="w-1/2">
                   <Label className="mb-2">Priority</Label>
-                  <Select>
+                  <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isCreatingIssue}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Medium" />
+                      <SelectValue placeholder="Medium (default)" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="low">Low</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="w-1/2">
                   <Label className="mb-2">Status</Label>
-                  <Select>
+                  <Select 
+                    onValueChange={setSelectedStatus} 
+                    value={selectedStatus}
+                    disabled={(selectedSprint && selectedSprint !== "__backlog__") || isCreatingIssue} // Disable if sprint is selected (will be auto-set to in-progress)
+                  >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="To Do" />
+                      <SelectValue placeholder={(selectedSprint && selectedSprint !== "__backlog__") ? "In Progress (auto)" : "To Do (default)"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="to-do">To Do</SelectItem>
@@ -383,6 +536,11 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       <SelectItem value="done">Done</SelectItem>
                     </SelectContent>
                   </Select>
+                  {selectedSprint && selectedSprint !== "__backlog__" && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Status will be set to "In Progress" when sprint is selected
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -390,28 +548,53 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <div className="flex items-center gap-4">
                 <div className="w-1/2">
                   <Label className="mb-2">Assignee</Label>
-                  <Select>
+                  <Select onValueChange={setSelectedAssignee} value={selectedAssignee || undefined} disabled={isCreatingIssue || isLoadingUsers || processUsers.length === 0}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select assignee" />
+                      <SelectValue placeholder={isLoadingUsers ? "Loading users..." : processUsers.length === 0 ? "No users available" : "Select assignee (optional)"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="user1">Assignee 1</SelectItem>
-                      <SelectItem value="user2">Assignee 2</SelectItem>
+                      {processUsers.length > 0 && processUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} {user.email && `(${user.email})`}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {processUsers.length === 0 && !isLoadingUsers && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Invite users to this process to assign tasks
+                    </p>
+                  )}
                 </div>
 
                 <div className="w-1/2">
                   <Label className="mb-2">Sprint</Label>
-                  <Select>
+                  <Select 
+                    onValueChange={(value) => {
+                      setSelectedSprint(value);
+                      // Auto-set status to in-progress when sprint is selected
+                      if (value && value !== "__backlog__") {
+                        setSelectedStatus("in-progress");
+                      } else {
+                        setSelectedStatus("to-do");
+                      }
+                    }} 
+                    value={selectedSprint}
+                    disabled={isCreatingIssue || isLoadingMetadata}
+                  >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select sprint" />
+                      <SelectValue placeholder={isLoadingMetadata ? "Loading sprints..." : "Select sprint (optional)"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sprint1">Sprint 1</SelectItem>
-                      <SelectItem value="sprint2">Sprint 2</SelectItem>
+                      <SelectItem value="__backlog__">None (Backlog)</SelectItem>
+                      {sprints.map((sprint) => (
+                        <SelectItem key={sprint.id} value={sprint.id}>{sprint.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Leave empty to add to backlog
+                  </p>
                 </div>
               </div>
 
@@ -424,6 +607,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       variant="outline"
                       id="date"
                       className="w-full justify-between"
+                      disabled={isCreatingIssue}
                     >
                       {date ? date.toLocaleDateString() : "Select date"}
                       <ChevronDownIcon className="text-muted" />
@@ -456,15 +640,21 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     heightMax: 300,
                     widthMin: 200,
                     placeholderText: "Enter issue description...",
+                    toolbarButtons: isCreatingIssue ? [] : undefined, // Disable editor when creating
+                    readOnly: isCreatingIssue,
                   }}
                 />
               </div>
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
+                  <Button type="button" variant="outline" disabled={isCreatingIssue}>
+                    Cancel
+                  </Button>
                 </DialogClose>
-                <Button type="submit">Create Issue</Button>
+                <Button type="submit" disabled={isCreatingIssue}>
+                  {isCreatingIssue ? "Creating..." : "Create Issue"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -493,48 +683,74 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Add Member Dialog */}
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="mb-2">
+            <Button variant="outline" className="mb-2" disabled={isLoadingProcess}>
               <UserPlus size={18} /> Add Member
             </Button>
           </DialogTrigger>
-
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Add New Member</DialogTitle>
-              <DialogDescription>Select role and enter email.</DialogDescription>
+              <DialogDescription>
+                Select role and enter email to send invitation link.
+              </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-4">
-              <div className="grid gap-3">
-                <Label>Select Role</Label>
-                <Select>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="user">User</SelectItem>
-                  </SelectContent>
-                </Select>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                {/* Select Role */}
+                <div className="grid gap-3">
+                  <Label htmlFor="role">Select Role</Label>
+                  <Select 
+                    value={role} 
+                    onValueChange={(value) => setRole(value as "admin" | "manager" | "member")}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Invitation Email */}
+                <div className="grid gap-3">
+                  <Label htmlFor="invitation-mail">Invitation Email</Label>
+                  <Input 
+                    id="invitation-mail" 
+                    type="email"
+                    placeholder="user@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="grid gap-3">
-                <Label>Invitation Email</Label>
-                <Input placeholder="example@gmail.com" />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
-              </DialogClose>
-              <DialogClose asChild>
-                <Button type="submit">Send Invitation</Button>
-              </DialogClose>
-            </DialogFooter>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting || !email || !processData}
+                >
+                  {isSubmitting ? "Sending..." : "Send Invitation"}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>

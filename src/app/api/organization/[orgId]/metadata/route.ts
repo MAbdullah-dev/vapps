@@ -5,8 +5,8 @@ import { Client } from "pg";
 import crypto from "crypto";
 
 /**
- * GET /api/organization/[orgId]/processes?siteId=xxx
- * Get all processes for an organization, optionally filtered by siteId
+ * GET /api/organization/[orgId]/metadata?type=titles|tags|sources
+ * Get metadata (titles, tags, or sources) for an organization
  */
 export async function GET(
   req: NextRequest,
@@ -20,7 +20,14 @@ export async function GET(
 
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
-    const siteId = searchParams.get("siteId");
+    const type = searchParams.get("type"); // titles, tags, or sources
+
+    if (!type || !["titles", "tags", "sources"].includes(type)) {
+      return NextResponse.json(
+        { error: "Invalid type. Must be 'titles', 'tags', or 'sources'" },
+        { status: 400 }
+      );
+    }
 
     // Get organization and verify user has access
     const org = await prisma.organization.findUnique({
@@ -62,49 +69,25 @@ export async function GET(
     try {
       await client.connect();
 
-      // Get processes, optionally filtered by siteId
-      let processesQuery = `
-        SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-      `;
-
-      const queryParams: string[] = [];
-      if (siteId) {
-        processesQuery += ` WHERE p."siteId" = $1`;
-        queryParams.push(siteId);
-      }
-
-      processesQuery += ` ORDER BY p."createdAt" DESC`;
-
-      const processesResult = await client.query(
-        processesQuery,
-        queryParams.length > 0 ? queryParams : undefined
+      const tableName = `issue_${type}`;
+      const result = await client.query(
+        `SELECT id, name, "createdAt" FROM ${tableName} ORDER BY name ASC`
       );
 
       await client.end();
 
       return NextResponse.json({
-        processes: processesResult.rows,
+        [type]: result.rows.map((row: any) => row.name),
       });
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to fetch processes", message: dbError.message },
+        { error: `Failed to fetch ${type}`, message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error fetching processes:", error);
+    console.error(`Error fetching ${type}:`, error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }
@@ -113,8 +96,8 @@ export async function GET(
 }
 
 /**
- * POST /api/organization/[orgId]/processes
- * Create a new process for a site
+ * POST /api/organization/[orgId]/metadata?type=titles|tags|sources
+ * Add a new metadata value (title, tag, or source)
  */
 export async function POST(
   req: NextRequest,
@@ -127,19 +110,21 @@ export async function POST(
     }
 
     const { orgId } = await params;
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
     const body = await req.json();
-    const { name, description, siteId } = body;
+    const { name } = body;
 
-    if (!name || !name.trim()) {
+    if (!type || !["titles", "tags", "sources"].includes(type)) {
       return NextResponse.json(
-        { error: "Process name is required" },
+        { error: "Invalid type. Must be 'titles', 'tags', or 'sources'" },
         { status: 400 }
       );
     }
 
-    if (!siteId) {
+    if (!name || !name.trim()) {
       return NextResponse.json(
-        { error: "Site ID is required" },
+        { error: "Name is required" },
         { status: 400 }
       );
     }
@@ -184,64 +169,52 @@ export async function POST(
     try {
       await client.connect();
 
-      // Verify site exists
-      const siteResult = await client.query(
-        `SELECT id, name FROM sites WHERE id = $1`,
-        [siteId]
+      const tableName = `issue_${type}`;
+      const trimmedName = name.trim();
+
+      // Check if already exists
+      const existing = await client.query(
+        `SELECT id FROM ${tableName} WHERE name = $1`,
+        [trimmedName]
       );
 
-      if (siteResult.rows.length === 0) {
+      if (existing.rows.length > 0) {
         await client.end();
         return NextResponse.json(
-          { error: "Site not found" },
-          { status: 404 }
+          {
+            message: `${type.slice(0, -1)} already exists`,
+            name: trimmedName,
+          },
+          { status: 200 }
         );
       }
 
-      // Insert new process
-      const processId = crypto.randomUUID();
+      // Insert new metadata
+      const id = crypto.randomUUID();
       await client.query(
-        `INSERT INTO processes (id, name, description, "siteId", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-        [processId, name.trim(), description?.trim() || null, siteId]
-      );
-
-      // Fetch the created process with site information
-      const processResult = await client.query(
-        `SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p."siteId",
-          p."createdAt",
-          p."updatedAt",
-          s.name as "siteName",
-          s.code as "siteCode",
-          s.location as "siteLocation"
-        FROM processes p
-        INNER JOIN sites s ON p."siteId" = s.id
-        WHERE p.id = $1`,
-        [processId]
+        `INSERT INTO ${tableName} (id, name, "createdAt")
+         VALUES ($1, $2, NOW())`,
+        [id, trimmedName]
       );
 
       await client.end();
 
       return NextResponse.json(
         {
-          message: "Process created successfully",
-          process: processResult.rows[0],
+          message: `${type.slice(0, -1)} added successfully`,
+          name: trimmedName,
         },
         { status: 201 }
       );
     } catch (dbError: any) {
       await client.end();
       return NextResponse.json(
-        { error: "Failed to create process", message: dbError.message },
+        { error: `Failed to add ${type}`, message: dbError.message },
         { status: 500 }
       );
     }
   } catch (error: any) {
-    console.error("Error creating process:", error);
+    console.error(`Error adding ${type}:`, error);
     return NextResponse.json(
       { error: "Internal server error", message: error.message },
       { status: 500 }

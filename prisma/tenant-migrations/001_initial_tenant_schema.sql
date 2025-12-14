@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "sites" (
 CREATE TABLE IF NOT EXISTS "processes" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
+    "description" TEXT,
     "siteId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
