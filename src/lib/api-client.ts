@@ -261,6 +261,42 @@ class ApiClient {
   }
 
   /**
+   * Save review data for an issue
+   */
+  saveIssueReview(
+    orgId: string,
+    processId: string,
+    issueId: string,
+    data: {
+      containmentText?: string;
+      rootCauseText?: string;
+      containmentFiles?: Array<{ name: string; size: number; url?: string }>;
+      rootCauseFiles?: Array<{ name: string; size: number; url?: string }>;
+      actionPlans?: Array<{
+        action: string;
+        responsible: string;
+        plannedDate: string;
+        actualDate: string;
+        files?: Array<{ name: string; size: number; url?: string }>;
+      }>;
+    }
+  ) {
+    return this.post<{ message: string }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}/review`,
+      data
+    );
+  }
+
+  /**
+   * Get review data for an issue
+   */
+  getIssueReview(orgId: string, processId: string, issueId: string) {
+    return this.get<{ review: any | null }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}/review`
+    );
+  }
+
+  /**
    * Update an issue
    */
   updateIssue(orgId: string, processId: string, issueId: string, data: {

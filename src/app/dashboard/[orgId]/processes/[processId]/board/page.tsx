@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { MoreVertical, Clock } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import ReviewDialog from '@/components/dashboard/ReviewDialog';
 
 // Define columns for the board
 const columns = [
@@ -79,6 +80,15 @@ const Board = () => {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [processUsers, setProcessUsers] = useState<ProcessUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Review dialog state - opens when moving from "in-progress" to "in-review"
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [pendingReviewUpdate, setPendingReviewUpdate] = useState<{
+    issueId: string;
+    newStatus: string;
+    previousStatus: string;
+  } | null>(null);
+  const [issuesWithReviewData, setIssuesWithReviewData] = useState<Set<string>>(new Set()); // Track issues that have review data
 
   // Update queue and processing state (using refs to avoid stale closures)
   // NOTE: The update queue exists entirely on the client and is flushed to the backend asynchronously;
@@ -257,6 +267,39 @@ const Board = () => {
         const newStatus = columnIdToStatus(item.column);
         const oldStatus = originalIssue.status;
 
+        // Special handling: If moving from "in-progress" to "in-review", open dialog first
+        if (oldStatus === 'in-progress' && newStatus === 'in-review') {
+          // Check if there's already a pending review update for this issue
+          // If so, don't open dialog again (prevents reopening empty dialog)
+          if (pendingReviewUpdate && pendingReviewUpdate.issueId === item.id) {
+            console.log('[handleDataChange] ⚠️ Dialog already open for this issue, ignoring drag');
+            // Already have a pending update, don't open dialog again
+            // Revert to original status to prevent UI glitch
+            return originalIssue;
+          }
+          
+          // Always open dialog when moving from "in-progress" to "in-review"
+          // Dialog will load existing review data if available (user can update or keep it)
+          console.log('[handleDataChange] Opening review dialog for issue:', item.id, '(will load existing data if available)');
+          
+          // Store the pending update and open dialog
+          setPendingReviewUpdate({
+            issueId: item.id,
+            newStatus,
+            previousStatus: oldStatus,
+          });
+          setReviewDialogOpen(true);
+          
+          // Update UI optimistically for smooth drag experience
+          // If user cancels dialog, we'll revert in handleReviewCancel
+          // If user submits, we'll queue the API call in handleReviewSubmit
+          return {
+            ...originalIssue,
+            status: newStatus,
+            column: item.column,
+          };
+        }
+
         // If status changed, queue the update
         if (oldStatus !== newStatus) {
           queueUpdate(item.id, newStatus, oldStatus);
@@ -272,7 +315,7 @@ const Board = () => {
     });
 
     setIssues(updatedIssues);
-  }, [queueUpdate]);
+  }, [queueUpdate, pendingReviewUpdate]);
 
   // Handle drag end - no API calls here, handled by queue
   const handleDragEnd = useCallback((event: any) => {
@@ -287,6 +330,89 @@ const Board = () => {
     // This handler is just for any additional cleanup if needed
     console.log(`[DragEnd] Drag completed for issue ${active.id}`);
   }, []);
+
+  // Handle review dialog submission - finalize the status update
+  const handleReviewSubmit = useCallback(() => {
+    if (!pendingReviewUpdate) {
+      console.warn('[handleReviewSubmit] No pending review update');
+      setReviewDialogOpen(false);
+      return;
+    }
+
+    console.log('[handleReviewSubmit] Finalizing status update:', pendingReviewUpdate);
+
+    // Store the update before clearing pendingReviewUpdate
+    const update = { ...pendingReviewUpdate };
+
+    // Mark this issue as having review data (prevents dialog from reopening)
+    setIssuesWithReviewData((prev) => new Set(prev).add(update.issueId));
+
+    // Update UI optimistically FIRST to ensure it shows "in-review" status immediately
+    setIssues((prevIssues) =>
+      prevIssues.map((issue) =>
+        issue.id === update.issueId
+          ? {
+              ...issue,
+              status: update.newStatus,
+              column: statusToColumnId(update.newStatus),
+            }
+          : issue
+      )
+    );
+    
+    // Also update the ref immediately to keep it in sync
+    issuesRef.current = issuesRef.current.map((issue) =>
+      issue.id === update.issueId
+        ? {
+            ...issue,
+            status: update.newStatus,
+            column: statusToColumnId(update.newStatus),
+          }
+        : issue
+    );
+
+    // Clear pending update and close dialog
+    setPendingReviewUpdate(null);
+    setReviewDialogOpen(false);
+
+    // Queue the update to proceed with status change
+    // This will send the status update to the backend
+    queueUpdate(
+      update.issueId,
+      update.newStatus,
+      update.previousStatus
+    );
+
+    console.log('[handleReviewSubmit] ✅ Status update queued successfully for issue:', update.issueId, 'newStatus:', update.newStatus);
+    
+    // Refresh data after a short delay to ensure status is synced with backend
+    setTimeout(() => {
+      console.log('[handleReviewSubmit] Refreshing data to ensure status sync');
+      fetchData();
+    }, 500);
+  }, [pendingReviewUpdate, queueUpdate, fetchData]);
+
+  // Handle review dialog cancellation - revert the status
+  const handleReviewCancel = useCallback(() => {
+    if (!pendingReviewUpdate) return;
+
+    // Revert UI to previous status
+    setIssues((prevIssues) =>
+      prevIssues.map((issue) =>
+        issue.id === pendingReviewUpdate.issueId
+          ? {
+              ...issue,
+              status: pendingReviewUpdate.previousStatus,
+              column: statusToColumnId(pendingReviewUpdate.previousStatus),
+            }
+          : issue
+      )
+    );
+
+    // Clear pending update
+    setPendingReviewUpdate(null);
+    setReviewDialogOpen(false);
+  }, [pendingReviewUpdate]);
 
   // Get user by ID
   const getUserById = (userId?: string): ProcessUser | null => {
@@ -345,12 +471,30 @@ const Board = () => {
   }
 
   return (
-    <KanbanProvider
-      columns={columns}
-      data={kanbanData}
-      onDataChange={handleDataChange}
-      onDragEnd={handleDragEnd}
-    >
+    <>
+      <ReviewDialog
+        open={reviewDialogOpen}
+        onOpenChange={(open) => {
+          // Prevent closing dialog without submission - force cancel to revert
+          if (!open && pendingReviewUpdate) {
+            handleReviewCancel();
+          } else {
+            setReviewDialogOpen(open);
+          }
+        }}
+        onSubmit={handleReviewSubmit}
+        onCancel={handleReviewCancel}
+        issueId={pendingReviewUpdate?.issueId}
+        orgId={orgId}
+        processId={processId}
+      />
+      
+      <KanbanProvider
+        columns={columns}
+        data={kanbanData}
+        onDataChange={handleDataChange}
+        onDragEnd={handleDragEnd}
+      >
       {(column) => {
         // Filter issues for this column
         const columnIssues = kanbanData.filter(
@@ -465,6 +609,7 @@ const Board = () => {
         );
       }}
     </KanbanProvider>
+    </>
   );
 };
 
