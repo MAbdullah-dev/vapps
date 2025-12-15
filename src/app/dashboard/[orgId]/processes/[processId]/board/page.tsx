@@ -1,5 +1,7 @@
 'use client';
-import { faker } from '@faker-js/faker';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams } from 'next/navigation';
 import {
   KanbanBoard,
   KanbanCard,
@@ -7,51 +9,355 @@ import {
   KanbanHeader,
   KanbanProvider,
 } from '@/components/ui/shadcn-io/kanban';
-import { useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
-const columns = [
-  { id: faker.string.uuid(), name: 'Planned', color: '#6B7280' },
-  { id: faker.string.uuid(), name: 'In Progress', color: '#F59E0B' },
-  { id: faker.string.uuid(), name: 'Done', color: '#10B981' },
-];
-const users = Array.from({ length: 4 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: faker.person.fullName(),
-    image: faker.image.avatar(),
-  }));
-const exampleFeatures = Array.from({ length: 20 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-    startAt: faker.date.past({ years: 0.5, refDate: new Date() }),
-    endAt: faker.date.future({ years: 0.5, refDate: new Date() }),
-    column: faker.helpers.arrayElement(columns).id,
-    owner: faker.helpers.arrayElement(users),
-  }));
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
-const shortDateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-});
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { MoreVertical, Clock } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 
+// Define columns for the board
+const columns = [
+  { id: 'to-do', name: 'To Do', color: '#6B7280' },
+  { id: 'in-progress', name: 'In Progress', color: '#F59E0B' },
+  { id: 'in-review', name: 'In Review', color: '#3B82F6' },
+  { id: 'done', name: 'Done', color: '#10B981' },
+];
+
+// Map status to column ID
+const statusToColumnId = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'to-do': 'to-do',
+    'in-progress': 'in-progress',
+    'in-review': 'in-review',
+    'done': 'done',
+  };
+  return statusMap[status] || 'to-do';
+};
+
+// Map column ID to status
+const columnIdToStatus = (columnId: string): string => {
+  return columnId;
+};
+
+type Issue = {
+  id: string;
+  title: string;
+  description?: string;
+  priority: string;
+  status: string;
+  points?: number;
+  assignee?: string;
+  tags?: string[];
+  source?: string;
+  sprintId?: string | null;
+  processId: string;
+  order?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ProcessUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+// Update queue entry
+type QueuedUpdate = {
+  issueId: string;
+  newStatus: string;
+  previousStatus: string;
+  timestamp: number;
+};
 
 const Board = () => {
-  const [features, setFeatures] = useState(exampleFeatures);
+  const params = useParams();
+  const orgId = params.orgId as string;
+  const processId = params.processId as string;
+
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [processUsers, setProcessUsers] = useState<ProcessUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Update queue and processing state (using refs to avoid stale closures)
+  // NOTE: The update queue exists entirely on the client and is flushed to the backend asynchronously;
+  // the backend does not maintain queue state.
+  const updateQueueRef = useRef<Map<string, QueuedUpdate>>(new Map()); // issueId -> update
+  const isProcessingRef = useRef<boolean>(false);
+  const processTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const issuesRef = useRef<Issue[]>([]); // Keep ref in sync for optimistic updates
+  const failedUpdatesRef = useRef<Set<string>>(new Set()); // Track failed updates for rollback
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    issuesRef.current = issues;
+  }, [issues]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (processTimeoutRef.current) {
+        clearTimeout(processTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Fetch issues and users
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [issuesRes, usersRes] = await Promise.all([
+        apiClient.getIssues(orgId, processId),
+        apiClient.getProcessUsers(orgId, processId),
+      ]);
+
+      const allIssues = issuesRes.issues || [];
+      setIssues(allIssues);
+      setProcessUsers(usersRes.users || []);
+    } catch (error: any) {
+      console.error('Error fetching board data:', error);
+      toast.error('Failed to load board data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [orgId, processId]);
+
+  useEffect(() => {
+    if (orgId && processId) {
+      fetchData();
+    }
+  }, [orgId, processId, fetchData]);
+
+  // Listen for issue creation events to refresh board
+  useEffect(() => {
+    const handleIssueCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.processId === processId && customEvent.detail.orgId === orgId) {
+        fetchData();
+      }
+    };
+
+    window.addEventListener('issueCreated', handleIssueCreated);
+    return () => {
+      window.removeEventListener('issueCreated', handleIssueCreated);
+    };
+  }, [orgId, processId, fetchData]);
+
+  // Process update queue: batches updates and sends them to backend
+  const processUpdateQueue = useCallback(async () => {
+    if (isProcessingRef.current || updateQueueRef.current.size === 0) {
+      return;
+    }
+
+    isProcessingRef.current = true;
+    const queue = new Map(updateQueueRef.current);
+    updateQueueRef.current.clear(); // Clear queue before processing
+
+    console.log(`[UpdateQueue] Processing ${queue.size} update(s)`);
+
+    // Process updates sequentially (one per issue) to avoid race conditions
+    const updates = Array.from(queue.values());
+    const results: { issueId: string; success: boolean }[] = [];
+
+    for (const update of updates) {
+      try {
+        // Each update uses a single-row UPDATE query without wrapping in unnecessary transactions
+        // to minimize RDS latency. The backend performs lightweight, indexed updates.
+        await apiClient.updateIssue(orgId, processId, update.issueId, {
+          status: update.newStatus,
+        });
+        results.push({ issueId: update.issueId, success: true });
+        failedUpdatesRef.current.delete(update.issueId);
+        console.log(`[UpdateQueue] ✅ Updated issue ${update.issueId}: ${update.previousStatus} → ${update.newStatus}`);
+      } catch (error: any) {
+        console.error(`[UpdateQueue] ❌ Failed to update issue ${update.issueId}:`, error);
+        results.push({ issueId: update.issueId, success: false });
+        failedUpdatesRef.current.add(update.issueId);
+        
+        // Rollback: revert to previous status
+        // Guard: If a newer optimistic update exists for the same issue, skip rollback
+        // to avoid reverting valid state (handles edge cases when users drag fast)
+        const currentIssue = issuesRef.current.find((i) => i.id === update.issueId);
+        const hasNewerUpdate = currentIssue && currentIssue.status !== update.newStatus;
+        
+        if (!hasNewerUpdate) {
+          setIssues((prevIssues) =>
+            prevIssues.map((issue) =>
+              issue.id === update.issueId
+                ? { ...issue, status: update.previousStatus, column: statusToColumnId(update.previousStatus) }
+                : issue
+            )
+          );
+        } else {
+          console.log(`[UpdateQueue] Skipping rollback for ${update.issueId} - newer update exists`);
+        }
+        
+        toast.error(`Failed to update issue status`);
+      }
+    }
+
+    isProcessingRef.current = false;
+
+    // If there are new updates queued while processing, schedule another batch
+    if (updateQueueRef.current.size > 0) {
+      scheduleQueueProcessing();
+    }
+  }, [orgId, processId]);
+
+  // Schedule queue processing with debouncing
+  const scheduleQueueProcessing = useCallback(() => {
+    // Clear existing timeout
+    if (processTimeoutRef.current) {
+      clearTimeout(processTimeoutRef.current);
+    }
+
+    // Debounce: wait 300ms for more updates to batch together
+    // For rapid drags, this batches multiple updates into fewer API calls
+    processTimeoutRef.current = setTimeout(() => {
+      processUpdateQueue();
+      processTimeoutRef.current = null;
+    }, 300);
+  }, [processUpdateQueue]);
+
+  // Queue an update (replaces any pending update for the same issue)
+  const queueUpdate = useCallback((issueId: string, newStatus: string, previousStatus: string) => {
+    const currentIssue = issuesRef.current.find((i) => i.id === issueId);
+    if (!currentIssue) {
+      console.warn(`[UpdateQueue] Issue ${issueId} not found, skipping update`);
+      return;
+    }
+
+    // If this issue already has a failed update, don't queue new ones until it's resolved
+    if (failedUpdatesRef.current.has(issueId)) {
+      console.warn(`[UpdateQueue] Issue ${issueId} has a failed update, skipping queue`);
+      return;
+    }
+
+    // Replace any existing update for this issue (only latest status matters)
+    updateQueueRef.current.set(issueId, {
+      issueId,
+      newStatus,
+      previousStatus,
+      timestamp: Date.now(),
+    });
+
+    console.log(`[UpdateQueue] Queued update for ${issueId}: ${previousStatus} → ${newStatus} (queue size: ${updateQueueRef.current.size})`);
+
+    // Schedule processing
+    scheduleQueueProcessing();
+  }, [scheduleQueueProcessing]);
+
+  // Handle drag and drop - optimistic UI updates only
+  const handleDataChange = useCallback((updatedData: any[]) => {
+    // Update local state optimistically for immediate UI feedback
+    const updatedIssues = updatedData.map((item) => {
+      const originalIssue = issuesRef.current.find((i) => i.id === item.id);
+      if (originalIssue) {
+        const newStatus = columnIdToStatus(item.column);
+        const oldStatus = originalIssue.status;
+
+        // If status changed, queue the update
+        if (oldStatus !== newStatus) {
+          queueUpdate(item.id, newStatus, oldStatus);
+        }
+
+        return {
+          ...originalIssue,
+          status: newStatus,
+          column: item.column,
+        };
+      }
+      return item;
+    });
+
+    setIssues(updatedIssues);
+  }, [queueUpdate]);
+
+  // Handle drag end - no API calls here, handled by queue
+  const handleDragEnd = useCallback((event: any) => {
+    const { active, over } = event;
+    
+    // Early return if invalid drop
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    // Queue processing is already scheduled by handleDataChange
+    // This handler is just for any additional cleanup if needed
+    console.log(`[DragEnd] Drag completed for issue ${active.id}`);
+  }, []);
+
+  // Get user by ID
+  const getUserById = (userId?: string): ProcessUser | null => {
+    if (!userId) return null;
+    return processUsers.find((u) => u.id === userId) || null;
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Get priority color
+  const getPriorityColor = (priority: string) => {
+    const colors: Record<string, string> = {
+      low: 'bg-gray-100 text-gray-700',
+      medium: 'bg-blue-100 text-blue-700',
+      high: 'bg-orange-100 text-orange-700',
+      critical: 'bg-red-100 text-red-700',
+    };
+    return colors[priority] || colors.medium;
+  };
+
+  // Get user initials
+  const getUserInitials = (user: ProcessUser | null): string => {
+    if (!user) return '?';
+    const nameParts = user.name.split(' ');
+    if (nameParts.length >= 2) {
+      return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+    }
+    return user.name.slice(0, 2).toUpperCase();
+  };
+
+  // Get user avatar color
+  const getUserAvatarColor = (userId?: string): string => {
+    if (!userId) return '#6B7280';
+    const colors = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+    const index = parseInt(userId.slice(-1), 16) % colors.length;
+    return colors[index];
+  };
+
+  // Transform issues for Kanban (add column and name properties)
+  const kanbanData = issues.map((issue) => ({
+    ...issue,
+    column: statusToColumnId(issue.status),
+    name: issue.title, // KanbanProvider requires 'name' property
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">Loading board...</p>
+      </div>
+    );
+  }
+
   return (
     <KanbanProvider
       columns={columns}
-      data={features}
-      onDataChange={setFeatures}
+      data={kanbanData}
+      onDataChange={handleDataChange}
+      onDragEnd={handleDragEnd}
     >
-      {(column) => (
+      {(column) => {
+        // Filter issues for this column
+        const columnIssues = kanbanData.filter(
+          (issue) => issue.column === column.id
+        );
+
+        return (
         <KanbanBoard id={column.id} key={column.id}>
           <KanbanHeader>
             <div className="flex items-center gap-2">
@@ -59,43 +365,107 @@ const Board = () => {
                 className="h-2 w-2 rounded-full"
                 style={{ backgroundColor: column.color }}
               />
-              <span>{column.name}</span>
+                <span className="font-medium">{column.name}</span>
+                <Badge variant="secondary" className="ml-2">
+                  {columnIssues.length}
+                </Badge>
             </div>
           </KanbanHeader>
           <KanbanCards id={column.id}>
-            {(feature: (typeof features)[number]) => (
+              {(item: any) => {
+                const issue = item as Issue & { name: string; column: string };
+                const assignee = getUserById(issue.assignee);
+                const issueId = issue.id.split('-')[0]?.toUpperCase() || issue.id.slice(0, 8).toUpperCase();
+
+                return (
               <KanbanCard
                 column={column.id}
-                id={feature.id}
-                key={feature.id}
-                name={feature.name}
+                    id={issue.id}
+                    key={issue.id}
+                    name={issue.title}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-col gap-1">
-                    <p className="m-0 flex-1 font-medium text-sm">
-                      {feature.name}
-                    </p>
+                    <div className="space-y-2">
+                      {/* Header: ID and Options */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-mono">
+                          {issueId}
+                        </span>
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <MoreVertical size={14} />
+                        </button>
+                      </div>
+
+                      {/* Title */}
+                      <p className="font-medium text-sm text-gray-900 line-clamp-2">
+                        {issue.title}
+                      </p>
+
+                      {/* Tags */}
+                      {issue.tags && issue.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {issue.tags.slice(0, 2).map((tag, idx) => (
+                            <Badge
+                              key={idx}
+                              variant="outline"
+                              className="text-xs px-2 py-0 bg-white"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                          {issue.tags.length > 2 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs px-2 py-0 bg-white"
+                            >
+                              +{issue.tags.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer: Priority, Date, Assignee */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-2">
+                          {/* Priority Badge */}
+                          <Badge
+                            className={`text-xs px-2 py-0 ${getPriorityColor(issue.priority)}`}
+                          >
+                            {issue.priority}
+                          </Badge>
+
+                          {/* Due Date (if available) */}
+                          {issue.updatedAt && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Clock size={12} />
+                              <span>{formatDate(issue.updatedAt)}</span>
+                            </div>
+                          )}
                   </div>
-                  {feature.owner && (
-                    <Avatar className="h-4 w-4 shrink-0">
-                      <AvatarImage src={feature.owner.image} />
-                      <AvatarFallback>
-                        {feature.owner.name?.slice(0, 2)}
+
+                        {/* Assignee Avatar */}
+                        {assignee && (
+                          <Avatar
+                            className="h-6 w-6 shrink-0"
+                            style={{
+                              backgroundColor: getUserAvatarColor(issue.assignee),
+                            }}
+                          >
+                            <AvatarFallback className="text-white text-xs">
+                              {getUserInitials(assignee)}
                       </AvatarFallback>
                     </Avatar>
                   )}
                 </div>
-                <p className="m-0 text-muted-foreground text-xs">
-                  {shortDateFormatter.format(feature.startAt)} -{' '}
-                  {dateFormatter.format(feature.endAt)}
-                </p>
+                    </div>
               </KanbanCard>
-            )}
+                );
+              }}
           </KanbanCards>
         </KanbanBoard>
-      )}
+        );
+      }}
     </KanbanProvider>
   );
-}
+};
 
-export default Board
+export default Board;

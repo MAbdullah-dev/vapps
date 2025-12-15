@@ -20,7 +20,10 @@ export async function GET(
 
     const { orgId, processId } = await params;
     const { searchParams } = new URL(req.url);
-    const sprintId = searchParams.get("sprintId");
+    const sprintIdParam = searchParams.get("sprintId");
+    // If sprintId is not in query params, it's undefined (not null)
+    // null means explicitly requesting backlog, undefined means get all
+    const sprintId = searchParams.has("sprintId") ? sprintIdParam : undefined;
 
     // Get organization and verify user has access
     const org = await prisma.organization.findUnique({
@@ -107,8 +110,9 @@ export async function GET(
         issuesQuery += ` AND i."sprintId" = $2 AND i.status != 'done'`;
         queryParams.push(sprintId);
       } else {
-        // Get all active issues (exclude "done" status)
-        issuesQuery += ` AND i.status != 'done'`;
+        // Get all issues (including sprint issues) - no additional filter
+        // This allows board to show all tasks regardless of sprint or status
+        // Board will handle filtering by status in the UI
       }
 
       issuesQuery += ` ORDER BY i."order" ASC, i."createdAt" ASC`;

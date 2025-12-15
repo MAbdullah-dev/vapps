@@ -293,10 +293,10 @@ export default function ProcessesListPage() {
           <p className="text-base">Manage your projects and processes</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
-          <DialogTrigger asChild>
-            <Button variant="outline"><Plus /> Create Process</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+            <DialogTrigger asChild>
+              <Button variant="outline"><Plus /> Create Process</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
             <form key={editingProcess?.id || "create"} onSubmit={handleCreateProcess}>
               <DialogHeader>
                 <DialogTitle>{editingProcess ? "Edit Process" : "Create New Process"}</DialogTitle>
@@ -350,7 +350,7 @@ export default function ProcessesListPage() {
                 </Button>
               </DialogFooter>
             </form>
-          </DialogContent>
+            </DialogContent>
         </Dialog>
 
       </div>
