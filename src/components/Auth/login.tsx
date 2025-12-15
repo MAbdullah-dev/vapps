@@ -17,7 +17,6 @@ import { Eye, EyeOff, Github, Apple, Chrome } from "lucide-react";
 
 import { loginSchema, LoginInput } from "@/schemas/auth/auth.schema";
 import { apiClient } from "@/lib/api-client";
-
 type LoginProps = {
   onSwitch: () => void;
 };
@@ -36,7 +35,6 @@ const Login = ({ onSwitch }: LoginProps) => {
     resolver: zodResolver(loginSchema),
   });
 
-  // ✅ EMAIL + PASSWORD LOGIN (SMOOTH REDIRECT)
   const onSubmit = async (data: LoginInput) => {
     try {
       setLoading(true);
