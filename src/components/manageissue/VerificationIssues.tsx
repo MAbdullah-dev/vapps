@@ -39,6 +39,13 @@ import {
     ChevronLeft,
     ChevronRight,
 } from "lucide-react"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -64,6 +71,10 @@ export default function IssuesDashboard() {
     const [pageSize, setPageSize] = useState(10)
     const [pageAll, setPageAll] = useState(1)
     const [pagePending, setPagePending] = useState(1)
+
+    const [openFirst, setOpenFirst] = useState(false)
+    const [openSubmit, setOpenSubmit] = useState(false)
+    const [openNoSubmit, setOpenNoSubmit] = useState(false)
 
     const sortBy = (key: string) => {
         if (sortKey === key) {
@@ -529,7 +540,11 @@ export default function IssuesDashboard() {
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
-                                                        <Button size="sm" variant="default">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            onClick={() => setOpenFirst(true)}
+                                                        >
                                                             <Eye className="mr-1 h-4 w-4" /> Review
                                                         </Button>
                                                     </TableCell>
@@ -545,6 +560,68 @@ export default function IssuesDashboard() {
                     </Card>
                 </TabsContent>
             </Tabs>
+            <Dialog open={openFirst} onOpenChange={setOpenFirst}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>First Dialog</DialogTitle>
+                        <DialogDescription>
+                            Choose what you want to do
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            onClick={() => {
+                                setOpenFirst(false)
+                                setOpenSubmit(true)
+                            }}
+                        >
+                            Submit
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setOpenFirst(false)
+                                setOpenNoSubmit(true)
+                            }}
+                        >
+                            No Submit
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={openSubmit} onOpenChange={setOpenSubmit}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Submit Dialog</DialogTitle>
+                        <DialogDescription>
+                            This dialog opens after clicking Submit
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex justify-end">
+                        <Button onClick={() => setOpenSubmit(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={openNoSubmit} onOpenChange={setOpenNoSubmit}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>No Submit Dialog</DialogTitle>
+                        <DialogDescription>
+                            This dialog opens after clicking No Submit
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex justify-end">
+                        <Button onClick={() => setOpenNoSubmit(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
         </div>
     )
 }
