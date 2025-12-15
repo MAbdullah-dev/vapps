@@ -1,5 +1,5 @@
 import Topbar from "@/components/dashboard/Topbar";
-import SidebarWrapper from "@/components/dashboard/SidebarWrapper";
+import Sidebar from "@/components/dashboard/Sidebar";
 
 export default async function OrgDashboardLayout({
     children,
