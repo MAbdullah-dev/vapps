@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 import {
   Dialog,
@@ -43,11 +46,12 @@ const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false 
 
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
+import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
   const { orgId, processId } = useParams();
   const pathname = usePathname();
-  
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "member">("member");
@@ -60,6 +64,9 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
+
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
+
 
   // Fetch metadata, sprints, and process users on mount
   useEffect(() => {
@@ -121,7 +128,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const handleSaveCustomTitle = async () => {
     if (!title.trim()) return;
-    
+
     try {
       await apiClient.addMetadata(orgId as string, "titles", title.trim());
       if (!titles.includes(title.trim())) {
@@ -159,7 +166,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const [customSourceMode, setCustomSourceMode] = useState(false);
   const [sprints, setSprints] = useState<Array<{ id: string; name: string }>>([]);
   const [processUsers, setProcessUsers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
-  
+
   // Form state
   const [selectedPriority, setSelectedPriority] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
@@ -180,7 +187,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const handleSaveCustomTag = async () => {
     if (!tag.trim()) return;
-    
+
     try {
       await apiClient.addMetadata(orgId as string, "tags", tag.trim());
       if (!tags.includes(tag.trim())) {
@@ -200,7 +207,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const handleSaveCustomSource = async () => {
     if (!source.trim()) return;
-    
+
     try {
       await apiClient.addMetadata(orgId as string, "sources", source.trim());
       if (!sources.includes(source.trim())) {
@@ -271,8 +278,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
       // Trigger refresh of backlog page if needed
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('issueCreated', { 
-          detail: { processId, orgId } 
+        window.dispatchEvent(new CustomEvent('issueCreated', {
+          detail: { processId, orgId }
         }));
       }
     } catch (error: any) {
@@ -291,7 +298,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   useEffect(() => {
     const fetchProcess = async () => {
       if (!orgId || !processId) return;
-      
+
       try {
         setIsLoadingProcess(true);
         const process = await apiClient.getProcess(orgId as string, processId as string);
@@ -310,7 +317,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!orgId || !processId || !processData) {
       toast.error("Missing required information");
       return;
@@ -522,8 +529,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
                 <div className="w-1/2">
                   <Label className="mb-2">Status</Label>
-                  <Select 
-                    onValueChange={setSelectedStatus} 
+                  <Select
+                    onValueChange={setSelectedStatus}
                     value={selectedStatus}
                     disabled={(selectedSprint && selectedSprint !== "__backlog__") || isCreatingIssue} // Disable if sprint is selected (will be auto-set to in-progress)
                   >
@@ -546,30 +553,110 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
               {/* Assignee & Sprint */}
               <div className="flex items-center gap-4">
-                <div className="w-1/2">
-                  <Label className="mb-2">Assignee</Label>
-                  <Select onValueChange={setSelectedAssignee} value={selectedAssignee || undefined} disabled={isCreatingIssue || isLoadingUsers || processUsers.length === 0}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={isLoadingUsers ? "Loading users..." : processUsers.length === 0 ? "No users available" : "Select assignee (optional)"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {processUsers.length > 0 && processUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name} {user.email && `(${user.email})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="w-1/2 space-y-2">
+                  <Label>Assignee</Label>
+
+                  {/* Selected Pills */}
+                  {selectedAssignees.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAssignees.map((id) => {
+                        const user = processUsers.find((u) => u.id === id)
+                        if (!user) return null
+
+                        return (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="flex items-center gap-1 pr-1"
+                          >
+                            {user.name}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedAssignees((prev) =>
+                                  prev.filter((v) => v !== id)
+                                )
+                              }
+                              className="ml-1 rounded-full hover:bg-muted p-0.5"
+                            >
+                              <X className="h-3 w-3 text-red-500" />
+                            </button>
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Selector */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        disabled={isCreatingIssue || isLoadingUsers || processUsers.length === 0}
+                        className={cn(
+                          "w-full justify-between",
+                          selectedAssignees.length === 0 && "text-muted-foreground"
+                        )}
+                      >
+                        {isLoadingUsers
+                          ? "Loading users..."
+                          : processUsers.length === 0
+                            ? "No users available"
+                            : "Select assignee(s)"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandEmpty>No users found.</CommandEmpty>
+                        <CommandGroup>
+                          {processUsers.map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              onSelect={() => {
+                                setSelectedAssignees((prev) =>
+                                  prev.includes(user.id)
+                                    ? prev.filter((id) => id !== user.id)
+                                    : [...prev, user.id]
+                                )
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4 text-primary",
+                                  selectedAssignees.includes(user.id)
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span>{user.name}</span>
+                                {user.email && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {user.email}
+                                  </span>
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
                   {processUsers.length === 0 && !isLoadingUsers && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500">
                       Invite users to this process to assign tasks
                     </p>
                   )}
                 </div>
 
+
                 <div className="w-1/2">
                   <Label className="mb-2">Sprint</Label>
-                  <Select 
+                  <Select
                     onValueChange={(value) => {
                       setSelectedSprint(value);
                       // Auto-set status to in-progress when sprint is selected
@@ -578,7 +665,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       } else {
                         setSelectedStatus("to-do");
                       }
-                    }} 
+                    }}
                     value={selectedSprint}
                     disabled={isCreatingIssue || isLoadingMetadata}
                   >
@@ -640,7 +727,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     heightMax: 300,
                     widthMin: 200,
                     placeholderText: "Enter issue description...",
-                    toolbarButtons: isCreatingIssue ? [] : undefined, // Disable editor when creating
+                    toolbarButtons: isCreatingIssue ? [] : undefined,
                     readOnly: isCreatingIssue,
                   }}
                 />
@@ -702,8 +789,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                 {/* Select Role */}
                 <div className="grid gap-3">
                   <Label htmlFor="role">Select Role</Label>
-                  <Select 
-                    value={role} 
+                  <Select
+                    value={role}
                     onValueChange={(value) => setRole(value as "admin" | "manager" | "member")}
                     disabled={isSubmitting}
                   >
@@ -721,8 +808,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                 {/* Invitation Email */}
                 <div className="grid gap-3">
                   <Label htmlFor="invitation-mail">Invitation Email</Label>
-                  <Input 
-                    id="invitation-mail" 
+                  <Input
+                    id="invitation-mail"
                     type="email"
                     placeholder="user@example.com"
                     value={email}
@@ -735,16 +822,16 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     disabled={isSubmitting}
                   >
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={isSubmitting || !email || !processData}
                 >
                   {isSubmitting ? "Sending..." : "Send Invitation"}
