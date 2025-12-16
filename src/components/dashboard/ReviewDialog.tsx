@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Upload, X, Paperclip } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -21,6 +22,13 @@ interface UploadedFile {
   file: File;
 }
 
+interface ExistingFileMetadata {
+  name: string;
+  size: number;
+  type?: string;
+  url?: string;
+}
+
 interface ActionPlanRow {
   id: string;
   action: string;
@@ -28,6 +36,7 @@ interface ActionPlanRow {
   plannedDate: string;
   actualDate: string;
   files: UploadedFile[];
+  existingFiles?: ExistingFileMetadata[]; // Existing files from database
 }
 
 interface ReviewDialogProps {
@@ -61,6 +70,8 @@ export default function ReviewDialog({
   const [rootCauseText, setRootCauseText] = useState("");
   const [containmentFiles, setContainmentFiles] = useState<UploadedFile[]>([]);
   const [rootCauseFiles, setRootCauseFiles] = useState<UploadedFile[]>([]);
+  const [existingContainmentFiles, setExistingContainmentFiles] = useState<ExistingFileMetadata[]>([]);
+  const [existingRootCauseFiles, setExistingRootCauseFiles] = useState<ExistingFileMetadata[]>([]);
 
   const [actionPlans, setActionPlans] = useState<ActionPlanRow[]>([
     {
@@ -70,6 +81,7 @@ export default function ReviewDialog({
       plannedDate: "",
       actualDate: "",
       files: [],
+      existingFiles: [],
     },
   ]);
 
@@ -144,6 +156,7 @@ export default function ReviewDialog({
         plannedDate: "",
         actualDate: "",
         files: [],
+        existingFiles: [],
       },
     ]);
   };
@@ -156,6 +169,10 @@ export default function ReviewDialog({
   useEffect(() => {
     const loadExistingReview = async () => {
       if (!open || !issueId || !finalOrgId || !finalProcessId) {
+        // Reset form when dialog closes
+        if (!open) {
+          resetForm();
+        }
         return;
       }
 
@@ -170,20 +187,23 @@ export default function ReviewDialog({
           setContainmentText(response.review.containmentText || "");
           setRootCauseText(response.review.rootCauseText || "");
           
-          // Note: Files are stored as metadata (name, size, type) - we can't restore File objects
-          // So we'll show them as read-only or allow re-upload
-          // For now, we'll just show the metadata in the UI
-          if (response.review.containmentFiles && Array.isArray(response.review.containmentFiles)) {
-            // Store file metadata (we can't recreate File objects from metadata)
-            // User can add new files if needed
-            console.log('[ReviewDialog] Existing containment files:', response.review.containmentFiles);
+          // Load existing file metadata (files are stored as metadata: name, size, type)
+          // Note: Actual file storage is not implemented yet - only metadata is saved
+          if (response.review.containmentFiles && Array.isArray(response.review.containmentFiles) && response.review.containmentFiles.length > 0) {
+            setExistingContainmentFiles(response.review.containmentFiles);
+            console.log('[ReviewDialog] Loaded existing containment files:', response.review.containmentFiles);
+          } else {
+            setExistingContainmentFiles([]);
           }
           
-          if (response.review.rootCauseFiles && Array.isArray(response.review.rootCauseFiles)) {
-            console.log('[ReviewDialog] Existing root cause files:', response.review.rootCauseFiles);
+          if (response.review.rootCauseFiles && Array.isArray(response.review.rootCauseFiles) && response.review.rootCauseFiles.length > 0) {
+            setExistingRootCauseFiles(response.review.rootCauseFiles);
+            console.log('[ReviewDialog] Loaded existing root cause files:', response.review.rootCauseFiles);
+          } else {
+            setExistingRootCauseFiles([]);
           }
           
-          // Load action plans
+          // Load action plans with existing files
           if (response.review.actionPlans && Array.isArray(response.review.actionPlans) && response.review.actionPlans.length > 0) {
             setActionPlans(
               response.review.actionPlans.map((plan: any) => ({
@@ -192,7 +212,10 @@ export default function ReviewDialog({
                 responsible: plan.responsible || "",
                 plannedDate: plan.plannedDate || "",
                 actualDate: plan.actualDate || "",
-                files: [], // Can't restore File objects, user can re-upload if needed
+                files: [], // New files uploaded in this session (File objects)
+                existingFiles: (plan.files && Array.isArray(plan.files) && plan.files.length > 0) 
+                  ? plan.files 
+                  : [], // Existing files from database (metadata only)
               }))
             );
           } else {
@@ -221,7 +244,11 @@ export default function ReviewDialog({
       }
     };
 
-    loadExistingReview();
+    // Only load when dialog opens and has valid issueId
+    if (open && issueId) {
+      loadExistingReview();
+    }
+    // Note: Form reset happens in handleClose, not here to avoid conflicts
   }, [open, issueId, finalOrgId, finalProcessId]);
 
   // Reset form to empty state
@@ -230,6 +257,8 @@ export default function ReviewDialog({
     setRootCauseText("");
     setContainmentFiles([]);
     setRootCauseFiles([]);
+    setExistingContainmentFiles([]);
+    setExistingRootCauseFiles([]);
     setActionPlans([
       {
         id: crypto.randomUUID(),
@@ -238,6 +267,7 @@ export default function ReviewDialog({
         plannedDate: "",
         actualDate: "",
         files: [],
+        existingFiles: [],
       },
     ]);
   };
@@ -257,29 +287,50 @@ export default function ReviewDialog({
     setIsSubmitting(true);
 
     try {
-      // Prepare file metadata (for now, just store file info - actual file upload can be added later)
-      const containmentFilesData = containmentFiles.map((f) => ({
-        name: f.file.name,
-        size: f.file.size,
-        type: f.file.type,
-      }));
+      // Prepare file metadata - merge existing files with newly uploaded files
+      // 
+      // IMPORTANT: File Storage Information
+      // Currently, only file METADATA (name, size, type) is saved to the database JSONB columns.
+      // The actual file content is NOT stored anywhere yet.
+      // 
+      // To implement actual file storage, you would need to:
+      // 1. Upload files to a storage service (AWS S3, Google Cloud Storage, Azure Blob, etc.)
+      // 2. Store the file URL/path in the database along with metadata
+      // 3. Implement file download/retrieval endpoints
+      // 
+      // For now, files are only tracked by their metadata for reference purposes.
+      const containmentFilesData = [
+        ...existingContainmentFiles, // Keep existing files
+        ...containmentFiles.map((f) => ({
+          name: f.file.name,
+          size: f.file.size,
+          type: f.file.type,
+        })), // Add newly uploaded files
+      ];
 
-      const rootCauseFilesData = rootCauseFiles.map((f) => ({
-        name: f.file.name,
-        size: f.file.size,
-        type: f.file.type,
-      }));
+      const rootCauseFilesData = [
+        ...existingRootCauseFiles, // Keep existing files
+        ...rootCauseFiles.map((f) => ({
+          name: f.file.name,
+          size: f.file.size,
+          type: f.file.type,
+        })), // Add newly uploaded files
+      ];
 
       const actionPlansData = actionPlans.map((plan) => ({
         action: plan.action,
         responsible: plan.responsible,
         plannedDate: plan.plannedDate,
         actualDate: plan.actualDate,
-        files: plan.files.map((f) => ({
-          name: f.file.name,
-          size: f.file.size,
-          type: f.file.type,
-        })),
+        // Merge existing files with newly uploaded files
+        files: [
+          ...(plan.existingFiles || []), // Keep existing files
+          ...plan.files.map((f) => ({
+            name: f.file.name,
+            size: f.file.size,
+            type: f.file.type,
+          })), // Add newly uploaded files
+        ],
       }));
 
       // Save review data to database
@@ -349,13 +400,14 @@ export default function ReviewDialog({
         </DialogHeader>
         
         {isLoadingReview && (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
             <p className="text-sm text-muted-foreground">Loading existing review data...</p>
           </div>
         )}
         
         {!isLoadingReview && (
-          <>
+          <div className="space-y-6 animate-in fade-in duration-200">
             {/* Containment Section */}
         <div className="space-y-4">
           <Textarea
@@ -380,6 +432,25 @@ export default function ReviewDialog({
             <p className="text-sm text-muted-foreground">Drag & drop or browse</p>
           </div>
 
+          {/* Show existing files from database */}
+          {existingContainmentFiles.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
+              {existingContainmentFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
+                <div key={`existing-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Show newly uploaded files */}
           {containmentFiles.map(({ id, file }) => (
             <FileItem
               key={id}
@@ -414,6 +485,25 @@ export default function ReviewDialog({
             <p className="text-sm text-muted-foreground">Drag & drop or browse</p>
           </div>
 
+          {/* Show existing files from database */}
+          {existingRootCauseFiles.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
+              {existingRootCauseFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
+                <div key={`existing-root-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Show newly uploaded files */}
           {rootCauseFiles.map(({ id, file }) => (
             <FileItem
               key={id}
@@ -470,6 +560,25 @@ export default function ReviewDialog({
                 </Button>
               </div>
 
+              {/* Show existing files from database */}
+              {row.existingFiles && row.existingFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
+                  {row.existingFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
+                    <div key={`existing-action-${row.id}-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Show newly uploaded files */}
               {row.files.map(({ id, file }) => (
                 <FileItem
                   key={id}
@@ -491,10 +600,17 @@ export default function ReviewDialog({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingReview}>
-            {isSubmitting ? "Submitting..." : "Submit to Issuer"}
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Submitting...
+              </>
+            ) : (
+              "Submit to Issuer"
+            )}
           </Button>
         </div>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
