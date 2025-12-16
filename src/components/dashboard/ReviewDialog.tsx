@@ -27,6 +27,7 @@ interface ExistingFileMetadata {
   size: number;
   type?: string;
   url?: string;
+  key?: string; // S3 object key for secure downloads
 }
 
 interface ActionPlanRow {
@@ -72,6 +73,8 @@ export default function ReviewDialog({
   const [rootCauseFiles, setRootCauseFiles] = useState<UploadedFile[]>([]);
   const [existingContainmentFiles, setExistingContainmentFiles] = useState<ExistingFileMetadata[]>([]);
   const [existingRootCauseFiles, setExistingRootCauseFiles] = useState<ExistingFileMetadata[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
 
   const [actionPlans, setActionPlans] = useState<ActionPlanRow[]>([
     {
@@ -187,8 +190,8 @@ export default function ReviewDialog({
           setContainmentText(response.review.containmentText || "");
           setRootCauseText(response.review.rootCauseText || "");
           
-          // Load existing file metadata (files are stored as metadata: name, size, type)
-          // Note: Actual file storage is not implemented yet - only metadata is saved
+          // Load existing file metadata (files are stored in S3, metadata includes S3 key)
+          // Files stored as: [{name, size, type, key}] where key is S3 object key for secure downloads
           if (response.review.containmentFiles && Array.isArray(response.review.containmentFiles) && response.review.containmentFiles.length > 0) {
             setExistingContainmentFiles(response.review.containmentFiles);
             console.log('[ReviewDialog] Loaded existing containment files:', response.review.containmentFiles);
@@ -215,7 +218,7 @@ export default function ReviewDialog({
                 files: [], // New files uploaded in this session (File objects)
                 existingFiles: (plan.files && Array.isArray(plan.files) && plan.files.length > 0) 
                   ? plan.files 
-                  : [], // Existing files from database (metadata only)
+                  : [], // Existing files from database (includes S3 key for secure downloads)
               }))
             );
           } else {
@@ -287,34 +290,102 @@ export default function ReviewDialog({
     setIsSubmitting(true);
 
     try {
+      setUploadingFiles(true);
+      setUploadProgress({});
+
+      // Upload new files to S3
+      const uploadPromises: Promise<any>[] = [];
+
+      // Upload containment files
+      containmentFiles.forEach(({ id, file }) => {
+        const promise = apiClient
+          .uploadFile(file, finalOrgId, finalProcessId, issueId, "containment")
+          .then((result) => {
+            setUploadProgress((prev) => ({ ...prev, [id]: 100 }));
+            return { id, result };
+          })
+          .catch((error) => {
+            console.error(`[ReviewDialog] Failed to upload containment file ${file.name}:`, error);
+            throw error;
+          });
+        uploadPromises.push(promise);
+      });
+
+      // Upload root cause files
+      rootCauseFiles.forEach(({ id, file }) => {
+        const promise = apiClient
+          .uploadFile(file, finalOrgId, finalProcessId, issueId, "rootCause")
+          .then((result) => {
+            setUploadProgress((prev) => ({ ...prev, [id]: 100 }));
+            return { id, result };
+          })
+          .catch((error) => {
+            console.error(`[ReviewDialog] Failed to upload root cause file ${file.name}:`, error);
+            throw error;
+          });
+        uploadPromises.push(promise);
+      });
+
+      // Upload action plan files
+      actionPlans.forEach((plan) => {
+        plan.files.forEach(({ id, file }) => {
+          const promise = apiClient
+            .uploadFile(file, finalOrgId, finalProcessId, issueId, "actionPlan")
+            .then((result) => {
+              setUploadProgress((prev) => ({ ...prev, [id]: 100 }));
+              return { planId: plan.id, id, result };
+            })
+            .catch((error) => {
+              console.error(`[ReviewDialog] Failed to upload action plan file ${file.name}:`, error);
+              throw error;
+            });
+          uploadPromises.push(promise);
+        });
+      });
+
+      // Wait for all uploads to complete
+      const uploadResults = await Promise.all(uploadPromises);
+
+      // Map upload results to file metadata
+      const containmentUploads = uploadResults
+        .filter((r) => !r.planId && containmentFiles.some((f) => f.id === r.id))
+        .map((r) => r.result.file);
+
+      const rootCauseUploads = uploadResults
+        .filter((r) => !r.planId && rootCauseFiles.some((f) => f.id === r.id))
+        .map((r) => r.result.file);
+
+      // Group action plan uploads by plan ID
+      const actionPlanUploadsMap: { [planId: string]: any[] } = {};
+      uploadResults
+        .filter((r) => r.planId)
+        .forEach((r) => {
+          if (!actionPlanUploadsMap[r.planId]) {
+            actionPlanUploadsMap[r.planId] = [];
+          }
+          actionPlanUploadsMap[r.planId].push(r.result.file);
+        });
+
       // Prepare file metadata - merge existing files with newly uploaded files
-      // 
-      // IMPORTANT: File Storage Information
-      // Currently, only file METADATA (name, size, type) is saved to the database JSONB columns.
-      // The actual file content is NOT stored anywhere yet.
-      // 
-      // To implement actual file storage, you would need to:
-      // 1. Upload files to a storage service (AWS S3, Google Cloud Storage, Azure Blob, etc.)
-      // 2. Store the file URL/path in the database along with metadata
-      // 3. Implement file download/retrieval endpoints
-      // 
-      // For now, files are only tracked by their metadata for reference purposes.
+      // Now includes S3 keys for secure downloads
       const containmentFilesData = [
-        ...existingContainmentFiles, // Keep existing files
-        ...containmentFiles.map((f) => ({
-          name: f.file.name,
-          size: f.file.size,
-          type: f.file.type,
-        })), // Add newly uploaded files
+        ...existingContainmentFiles, // Keep existing files (already have keys)
+        ...containmentUploads.map((upload) => ({
+          name: upload.name,
+          size: upload.size,
+          type: upload.type,
+          key: upload.key, // S3 key for secure downloads
+        })),
       ];
 
       const rootCauseFilesData = [
-        ...existingRootCauseFiles, // Keep existing files
-        ...rootCauseFiles.map((f) => ({
-          name: f.file.name,
-          size: f.file.size,
-          type: f.file.type,
-        })), // Add newly uploaded files
+        ...existingRootCauseFiles, // Keep existing files (already have keys)
+        ...rootCauseUploads.map((upload) => ({
+          name: upload.name,
+          size: upload.size,
+          type: upload.type,
+          key: upload.key, // S3 key for secure downloads
+        })),
       ];
 
       const actionPlansData = actionPlans.map((plan) => ({
@@ -324,12 +395,13 @@ export default function ReviewDialog({
         actualDate: plan.actualDate,
         // Merge existing files with newly uploaded files
         files: [
-          ...(plan.existingFiles || []), // Keep existing files
-          ...plan.files.map((f) => ({
-            name: f.file.name,
-            size: f.file.size,
-            type: f.file.type,
-          })), // Add newly uploaded files
+          ...(plan.existingFiles || []), // Keep existing files (already have keys)
+          ...(actionPlanUploadsMap[plan.id] || []).map((upload) => ({
+            name: upload.name,
+            size: upload.size,
+            type: upload.type,
+            key: upload.key, // S3 key for secure downloads
+          })),
         ],
       }));
 
@@ -344,6 +416,9 @@ export default function ReviewDialog({
 
       toast.success("Review data saved successfully");
       
+      setUploadingFiles(false);
+      setUploadProgress({});
+      
       // Call onSubmit callback to finalize status update
       // This will queue the status change and close the dialog
       // Form will be reset when dialog closes (in handleClose)
@@ -351,6 +426,8 @@ export default function ReviewDialog({
     } catch (error: any) {
       console.error("Error saving review data:", error);
       toast.error(error.message || "Failed to save review data");
+      setUploadingFiles(false);
+      setUploadProgress({});
     } finally {
       setIsSubmitting(false);
     }
@@ -444,7 +521,27 @@ export default function ReviewDialog({
                       {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    {fileMeta.key && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={async () => {
+                          try {
+                            const result = await apiClient.getFileDownloadUrl(fileMeta.key!);
+                            window.open(result.url, "_blank");
+                          } catch (error: any) {
+                            toast.error("Failed to download file");
+                          }
+                        }}
+                      >
+                        Download
+                      </Button>
+                    )}
+                    <Badge variant="secondary" className="text-xs">Saved</Badge>
+                  </div>
                 </div>
               ))}
             </div>
@@ -497,7 +594,27 @@ export default function ReviewDialog({
                       {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                    {fileMeta.key && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={async () => {
+                          try {
+                            const result = await apiClient.getFileDownloadUrl(fileMeta.key!);
+                            window.open(result.url, "_blank");
+                          } catch (error: any) {
+                            toast.error("Failed to download file");
+                          }
+                        }}
+                      >
+                        Download
+                      </Button>
+                    )}
+                    <Badge variant="secondary" className="text-xs">Saved</Badge>
+                  </div>
                 </div>
               ))}
             </div>
@@ -572,7 +689,27 @@ export default function ReviewDialog({
                           {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                         </p>
                       </div>
-                      <Badge variant="secondary" className="text-xs ml-2 shrink-0">Saved</Badge>
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        {fileMeta.key && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={async () => {
+                              try {
+                                const result = await apiClient.getFileDownloadUrl(fileMeta.key!);
+                                window.open(result.url, "_blank");
+                              } catch (error: any) {
+                                toast.error("Failed to download file");
+                              }
+                            }}
+                          >
+                            Download
+                          </Button>
+                        )}
+                        <Badge variant="secondary" className="text-xs">Saved</Badge>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -599,8 +736,13 @@ export default function ReviewDialog({
           <Button variant="ghost" onClick={handleCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingReview}>
-            {isSubmitting ? (
+          <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingReview || uploadingFiles}>
+            {uploadingFiles ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Uploading files...
+              </>
+            ) : isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Submitting...

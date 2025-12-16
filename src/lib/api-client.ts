@@ -9,10 +9,12 @@ type FetchOptions = {
 
 class ApiClient {
   private axiosInstance: AxiosInstance;
+  private baseUrl: string;
 
   constructor() {
+    this.baseUrl = "/api";
     this.axiosInstance = axios.create({
-      baseURL: "/api",
+      baseURL: this.baseUrl,
       headers: {
         "Content-Type": "application/json",
       },
@@ -421,6 +423,107 @@ class ApiClient {
       "/invites/accept-with-password",
       { token, password }
     );
+  }
+
+  /**
+   * Upload a file to S3
+   * @param file - File object to upload
+   * @param orgId - Organization ID
+   * @param processId - Process ID
+   * @param issueId - Issue ID
+   * @param fileType - Type of file (containment, rootCause, actionPlan)
+   * @returns Upload result with file metadata and S3 key
+   */
+  async uploadFile(
+    file: File,
+    orgId: string,
+    processId: string,
+    issueId: string,
+    fileType: "containment" | "rootCause" | "actionPlan"
+  ): Promise<{
+    success: boolean;
+    file: {
+      key: string;
+      name: string;
+      size: number;
+      type: string;
+      url: string;
+    };
+  }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("orgId", orgId);
+    formData.append("processId", processId);
+    formData.append("issueId", issueId);
+    formData.append("fileType", fileType);
+
+    // Ensure baseUrl is set (fallback to /api if somehow undefined)
+    const baseUrl = this.baseUrl || "/api";
+    const uploadUrl = `${baseUrl}/files/upload`;
+    console.log("[ApiClient] Upload URL:", uploadUrl);
+
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to upload file");
+      } else {
+        // Response is HTML (likely an error page or 404)
+        const text = await response.text();
+        console.error("[File Upload] Non-JSON error response:", text.substring(0, 200));
+        throw new Error(`Failed to upload file: ${response.status} ${response.statusText}. Check that the API route exists.`);
+      }
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get a presigned download URL for a file
+   * @param key - S3 object key
+   * @returns Presigned URL that expires in 1 hour
+   */
+  async getFileDownloadUrl(key: string): Promise<{
+    success: boolean;
+    url: string;
+    expiresIn: number;
+    fileInfo: {
+      size: number;
+      contentType: string;
+    };
+  }> {
+    // Ensure baseUrl is set (fallback to /api if somehow undefined)
+    const baseUrl = this.baseUrl || "/api";
+    const downloadUrl = `${baseUrl}/files/download?key=${encodeURIComponent(key)}`;
+    console.log("[ApiClient] Download URL:", downloadUrl);
+
+    const response = await fetch(downloadUrl, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to get download URL");
+      } else {
+        // Response is HTML (likely an error page or 404)
+        const text = await response.text();
+        console.error("[File Download] Non-JSON error response:", text.substring(0, 200));
+        throw new Error(`Failed to get download URL: ${response.status} ${response.statusText}. Check that the API route exists.`);
+      }
+    }
+
+    return response.json();
   }
 }
 

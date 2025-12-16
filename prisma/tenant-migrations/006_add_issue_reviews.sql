@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS "issue_reviews" (
     "issueId" TEXT NOT NULL,
     "containmentText" TEXT,
     "rootCauseText" TEXT,
-    "containmentFiles" JSONB DEFAULT '[]'::jsonb, -- Array of file metadata: [{name, size, url}]
-    "rootCauseFiles" JSONB DEFAULT '[]'::jsonb, -- Array of file metadata: [{name, size, url}]
-    "actionPlans" JSONB DEFAULT '[]'::jsonb, -- Array of action plans: [{action, responsible, plannedDate, actualDate, files: [{name, size, url}]}]
+    "containmentFiles" JSONB DEFAULT '[]'::jsonb, -- Array of file metadata: [{name, size, type, key}] where key is S3 object key
+    "rootCauseFiles" JSONB DEFAULT '[]'::jsonb, -- Array of file metadata: [{name, size, type, key}] where key is S3 object key
+    "actionPlans" JSONB DEFAULT '[]'::jsonb, -- Array of action plans: [{action, responsible, plannedDate, actualDate, files: [{name, size, type, key}]}] where key is S3 object key
     "submittedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
