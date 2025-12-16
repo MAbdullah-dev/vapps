@@ -49,6 +49,9 @@
   --text-base: var(--fs-base);
   --text-sm: var(--fs-small);
   --text-xs: var(--fs-x-small);
+
+  --font-times: var(--font-times-new-roman);
+  --font-poppins: var(--font-poppins);
 }
 
 :root {
@@ -87,6 +90,7 @@
 
   /* custom font families*/
   --font-poppins: 'Poppins', sans-serif;
+  --font-times-new-roman: 'Times New Roman', serif;
   /* custom font sizes */
   --fs-xx-large: 32px;
   --fs-x-large: 30px;
@@ -170,7 +174,7 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.405 0.101 131.063);
 
-
+/* text */
   --text-2xl: var(--fs-xx-large);
   --text-xl: var(--fs-x-large);
   --text-lg: var(--fs-large);
@@ -178,7 +182,13 @@
   --text-base: var(--fs-base);
   --text-sm: var(--fs-small);
   --text-xs: var(--fs-x-small);
+
+  /* color */
   --text-color: var(--foreground);
+
+  /* family */
+  --font-times: var(--font-times-new-roman);
+  --font-poppins: var(--font-poppins);
 }
 
 

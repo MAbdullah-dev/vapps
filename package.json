@@ -60,6 +60,7 @@
     "react-dom": "19.2.0",
     "react-froala-wysiwyg": "^4.7.1",
     "react-hook-form": "^7.66.1",
+    "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",

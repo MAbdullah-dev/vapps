@@ -919,16 +919,16 @@ export default function IssuesDashboard() {
                             <Input
                                 type="text"
                                 className="mt-1"
-                                value={signature}               // bind state
-                                onChange={(e) => setSignature(e.target.value)} // update state on input
+                                value={signature}
+                                onChange={(e) => setSignature(e.target.value)}
                             />
 
                             <p className="text-xs text-muted-foreground mt-2">
                                 Digital Signature Preview:
                             </p>
 
-                            <div className="rounded-md border bg-white p-2 text-sm font-semibold">
-                                {signature || "zxvvv"}  {/* show typed signature, fallback to default */}
+                            <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times">
+                                <i>{signature || "zxvvv"}</i>
                             </div>
                         </div>
                     </div>

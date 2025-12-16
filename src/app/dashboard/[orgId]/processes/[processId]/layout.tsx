@@ -46,6 +46,8 @@ const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false 
 
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
+import 'froala-editor/js/plugins.pkgd.min.js';
+
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
@@ -659,7 +661,6 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   <Select
                     onValueChange={(value) => {
                       setSelectedSprint(value);
-                      // Auto-set status to in-progress when sprint is selected
                       if (value && value !== "__backlog__") {
                         setSelectedStatus("in-progress");
                       } else {
