@@ -63,8 +63,8 @@ export default function SprintAndBacklogList() {
       const sprintsResponse = await apiClient.getSprints(orgId, processId);
       const sprintsData = sprintsResponse.sprints.map((sprint: any) => ({
         ...sprint,
-        isOpen: true,
-        isRenaming: false,
+      isOpen: true,
+      isRenaming: false,
         issues: sprint.issues || [],
       }));
       setSprints(sprintsData);
@@ -153,14 +153,14 @@ export default function SprintAndBacklogList() {
         endDate: end,
       });
 
-      const newSprint: Sprint = {
+    const newSprint: Sprint = {
         ...result.sprint,
-        isOpen: true,
-        isRenaming: false,
-        issues: [],
-      };
+      isOpen: true,
+      isRenaming: false,
+      issues: [],
+    };
 
-      setSprints([...sprints, newSprint]);
+    setSprints([...sprints, newSprint]);
       toast.success("Sprint created successfully");
     } catch (error: any) {
       console.error("Error creating sprint:", error);
@@ -172,7 +172,7 @@ export default function SprintAndBacklogList() {
   const deleteSprint = async (id: string) => {
     try {
       await apiClient.deleteSprint(orgId, processId, id);
-      setSprints((prev) => prev.filter((s) => s.id !== id));
+    setSprints((prev) => prev.filter((s) => s.id !== id));
       toast.success("Sprint deleted successfully");
     } catch (error: any) {
       console.error("Error deleting sprint:", error);
@@ -213,11 +213,11 @@ export default function SprintAndBacklogList() {
     } catch (error: any) {
       console.error("Error renaming sprint:", error);
       toast.error(error.message || "Failed to rename sprint");
-      setSprints((prev) =>
-        prev.map((s) =>
+    setSprints((prev) =>
+      prev.map((s) =>
           s.id === id ? { ...s, isRenaming: false } : s
-        )
-      );
+      )
+    );
     }
   };
 

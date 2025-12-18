@@ -175,11 +175,11 @@ export async function runTenantMigrations(connectionString: string): Promise<boo
     for (const file of migrationFiles) {
       const migrationPath = path.join(migrationsDir, file);
       console.log(`Running migration: ${file}`);
-      
-      const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
-      
-      // Execute the migration
-      await client.query(migrationSQL);
+
+    const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
+
+    // Execute the migration
+    await client.query(migrationSQL);
       console.log(`✓ Completed migration: ${file}`);
     }
 

@@ -96,42 +96,45 @@ export async function POST(req: NextRequest) {
     });
 
     // 2️⃣ Check if user exists
-    let user = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email: masterInvite.email },
     });
 
-    // 3️⃣ If user does NOT exist → create new account
-    if (!user) {
-      const hashed = await bcrypt.hash(password, 12);
-      user = await prisma.user.create({
-        data: {
-          email: masterInvite.email,
-          password: hashed,
-          emailVerified: new Date(), // invited users are auto-verified
-        },
+    // 3️⃣ SECURITY: If user already exists, they must NOT use password-based acceptance
+    // Existing users must log in first, then use the /accept endpoint (no password)
+    if (existingUser) {
+      logger.warn("Existing user attempted password-based invite acceptance", {
+        userId: existingUser.id,
+        email: existingUser.email,
+        orgId,
+        inviteId: masterInvite.id,
       });
 
-      logger.info("User created via invite", {
-        userId: user.id,
-        email: user.email,
-        orgId,
-      });
-    } else {
-      // 4️⃣ If user exists → set new password (DO NOT validate old)
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password: await bcrypt.hash(password, 12),
-          emailVerified: new Date(), // ensure verified
+      return NextResponse.json(
+        {
+          error: "ACCOUNT_EXISTS",
+          message: "An account with this email already exists. Please log in to accept this invitation.",
+          requiresLogin: true,
         },
-      });
-
-      logger.info("User password updated via invite", {
-        userId: user.id,
-        email: user.email,
-        orgId,
-      });
+        { status: 403 }
+      );
     }
+
+    // 4️⃣ User does NOT exist → create new account
+    const hashed = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: {
+        email: masterInvite.email,
+        password: hashed,
+        emailVerified: new Date(), // invited users are auto-verified
+      },
+    });
+
+    logger.info("User created via invite", {
+      userId: user.id,
+      email: user.email,
+      orgId,
+    });
 
     // 5️⃣ Check if user already belongs to this organization
     const existingMembership = await prisma.userOrganization.findUnique({

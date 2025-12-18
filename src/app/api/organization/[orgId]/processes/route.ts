@@ -62,12 +62,29 @@ export async function GET(
     try {
       await client.connect();
 
-      // Get processes, optionally filtered by siteId
-      let processesQuery = `
+      // OPTIMIZED: Single query with JOIN, using parameterized query for better performance
+      const processesQuery = siteId
+        ? `
+          SELECT 
+            p.id,
+            p.name,
+            p.description,
+            p."siteId",
+            p."createdAt",
+            p."updatedAt",
+            s.name as "siteName",
+            s.code as "siteCode",
+            s.location as "siteLocation"
+          FROM processes p
+          INNER JOIN sites s ON p."siteId" = s.id
+          WHERE p."siteId" = $1
+          ORDER BY p."createdAt" DESC
+        `
+        : `
         SELECT 
           p.id,
           p.name,
-          p.description,
+            p.description,
           p."siteId",
           p."createdAt",
           p."updatedAt",
@@ -76,19 +93,12 @@ export async function GET(
           s.location as "siteLocation"
         FROM processes p
         INNER JOIN sites s ON p."siteId" = s.id
-      `;
-
-      const queryParams: string[] = [];
-      if (siteId) {
-        processesQuery += ` WHERE p."siteId" = $1`;
-        queryParams.push(siteId);
-      }
-
-      processesQuery += ` ORDER BY p."createdAt" DESC`;
+          ORDER BY p."createdAt" DESC
+        `;
 
       const processesResult = await client.query(
         processesQuery,
-        queryParams.length > 0 ? queryParams : undefined
+        siteId ? [siteId] : undefined
       );
 
       await client.end();

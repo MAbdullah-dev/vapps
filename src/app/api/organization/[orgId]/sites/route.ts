@@ -13,6 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
+    
     const user = await getCurrentUser();
     if (!user || !user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -54,7 +55,7 @@ export async function GET(
     // Get user role
     const userRole = org.ownerId === user.id ? "owner" : org.users[0]?.role || "member";
 
-    // Connect to tenant database
+    // Connect to tenant database using optimized connection
     const client = new Client({
       connectionString: org.database.connectionString,
       ssl: { rejectUnauthorized: false },
@@ -63,32 +64,53 @@ export async function GET(
     try {
       await client.connect();
 
-      // Get all sites with their processes
-      const sitesResult = await client.query(`
+      // OPTIMIZED: Single query with LEFT JOIN to get all sites and their processes
+      // This eliminates N+1 query problem (was making 1 + N queries, now just 1)
+      const result = await client.query(`
         SELECT 
           s.id,
           s.name,
           s.code,
           s.location,
           s."createdAt",
-          s."updatedAt"
+          s."updatedAt",
+          p.id as "processId",
+          p.name as "processName",
+          p."createdAt" as "processCreatedAt"
         FROM sites s
-        ORDER BY s."createdAt" ASC
+        LEFT JOIN processes p ON p."siteId" = s.id
+        ORDER BY s."createdAt" ASC, p.name ASC
       `);
 
-      // Get processes for each site
-      const sitesWithProcesses = await Promise.all(
-        sitesResult.rows.map(async (site: any) => {
-          const processesResult = await client.query(
-            `SELECT id, name, "createdAt" FROM processes WHERE "siteId" = $1 ORDER BY name ASC`,
-            [site.id]
-          );
-          return {
-            ...site,
-            processes: processesResult.rows,
-          };
-        })
-      );
+      // Group processes by site
+      const sitesMap = new Map<string, any>();
+      
+      result.rows.forEach((row: any) => {
+        const siteId = row.id;
+        
+        if (!sitesMap.has(siteId)) {
+          sitesMap.set(siteId, {
+            id: row.id,
+            name: row.name,
+            code: row.code,
+            location: row.location,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+            processes: [],
+          });
+        }
+        
+        // Add process if it exists (LEFT JOIN may return null)
+        if (row.processId) {
+          sitesMap.get(siteId)!.processes.push({
+            id: row.processId,
+            name: row.processName,
+            createdAt: row.processCreatedAt,
+          });
+        }
+      });
+
+      const sitesWithProcesses = Array.from(sitesMap.values());
 
       await client.end();
 
