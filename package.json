@@ -79,6 +79,7 @@
     "@types/pg": "^8.15.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.8.32",
     "eslint": "^9",

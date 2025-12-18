@@ -8,24 +8,17 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-
-    console.log("Received file:", file);
-
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = file.name.split(".").pop();
-    if (!ext) {
-      return NextResponse.json({ error: "File has no extension" }, { status: 400 });
-    }
-
+    const ext = file.name.split(".").pop()!;
     const key = `froala/${uuid()}.${ext}`;
 
     await uploadFileToS3(buffer, key, file.type);
 
-    // Froala requires JSON with `link`
+    // Froala requires 'link'
     return NextResponse.json({
       link: `/api/files/froala/download?key=${encodeURIComponent(key)}`,
     });

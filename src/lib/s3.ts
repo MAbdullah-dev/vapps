@@ -7,7 +7,7 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import crypto from "crypto";
+import { FileType } from "@/types/file";
 
 // Validate environment variables
 if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
@@ -20,7 +20,7 @@ if (!process.env.AWS_S3_BUCKET_NAME) {
 
 // Initialize S3 client with credentials from environment
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: process.env.AWS_REGION || "eu-north-1",
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -39,14 +39,9 @@ export function generateFileKey(
   processId: string,
   issueId: string,
   fileName: string,
-  fileType: "containment" | "rootCause" | "actionPlan"
-): string {
-  const timestamp = Date.now();
-  const random = crypto.randomBytes(8).toString("hex");
-  const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_"); // Sanitize filename
-  const extension = fileName.split(".").pop() || "";
-  
-  return `${UPLOAD_FOLDER}/${orgId}/${processId}/${issueId}/${fileType}/${timestamp}-${random}.${extension}`;
+  fileType: FileType
+) {
+  return `${orgId}/${processId}/${issueId}/${fileType}/${fileName}`;
 }
 
 /**
@@ -205,3 +200,6 @@ export function extractS3Key(urlOrKey: string): string {
   }
   return urlOrKey;
 }
+
+
+export { s3Client as s3 };

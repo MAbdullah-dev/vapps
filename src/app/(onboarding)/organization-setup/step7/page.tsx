@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+// import { zodResolver } from "@hookform/resolvers/zod";
 import { step7Schema, Step7Values } from "@/schemas/onboarding/step7Schema";
 
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
@@ -40,16 +40,18 @@ const Step7 = () => {
 
   // Ensure at least one field exists for the active tab only
   useEffect(() => {
-    if (tab === "customers" && customerFields.length === 0) {
+    // Only add a field if there are none AND there is no saved data
+    if (tab === "customers" && customerFields.length === 0 && (!saved || !saved.customers?.length)) {
       addCustomer({ name: "", email: "", phone: "", address: "" });
-    } else if (tab === "vendors" && vendorFields.length === 0) {
+    } else if (tab === "vendors" && vendorFields.length === 0 && (!saved || !saved.vendors?.length)) {
       addVendor({ name: "", email: "", phone: "", address: "" });
     }
-  }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor]);
+  }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor, saved]);
+
 
   const onSubmit = (values: Step7Values) => {
     const activeTab = values.activeTab || "customers";
-    
+
     // Validate only the active tab
     if (activeTab === "customers") {
       // Check if at least one customer has a name
@@ -72,11 +74,11 @@ const Step7 = () => {
         return;
       }
     }
-    
+
     // Filter out empty entries (entries with no name) only for the active tab
     let filteredCustomers = values.customers || [];
     let filteredVendors = values.vendors || [];
-    
+
     if (activeTab === "customers") {
       filteredCustomers = values.customers?.filter(c => c.name && c.name.trim().length > 0) || [];
       // Keep vendors as they were (don't filter if not active)
@@ -86,7 +88,7 @@ const Step7 = () => {
       // Keep customers as they were (don't filter if not active)
       filteredCustomers = values.customers || [];
     }
-    
+
     updateStep("step7", {
       activeTab,
       customers: filteredCustomers as any,

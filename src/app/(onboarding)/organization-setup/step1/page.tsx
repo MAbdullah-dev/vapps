@@ -1,5 +1,6 @@
 // Step1Form.tsx
 "use client";
+import { useState } from "react";
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +12,15 @@ import { Button } from "@/components/ui/button";
 
 import { useOnboardingStore } from "@/store/onboardingStore";
 import { useRouter } from "next/navigation";
+
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+
 
 export default function Step1Form() {
   const router = useRouter();
@@ -30,6 +40,19 @@ export default function Step1Form() {
       industry: "",
     },
   });
+
+  const [customIndustryMode, setCustomIndustryMode] = useState(false);
+  const [customIndustry, setCustomIndustry] = useState("");
+
+  const [industries, setIndustries] = useState<string[]>([
+    "Technology",
+    "Finance",
+    "Healthcare",
+    "Retail",
+    "Manufacturing",
+  ]);
+
+
 
   const onSubmit = (values: Step1Values) => {
     updateStep("step1", values);
@@ -103,7 +126,7 @@ export default function Step1Form() {
               </FormItem>
             )} />
 
-            <div className="md:col-span-2">
+            {/* <div className="md:col-span-2">
               <FormField name="industry" control={form.control} render={({ field }) => (
                 <FormItem>
                   <FormLabel>Industry</FormLabel>
@@ -111,7 +134,94 @@ export default function Step1Form() {
                   <FormMessage />
                 </FormItem>
               )} />
+            </div> */}
+
+            <div className="md:col-span-2 space-y-1">
+              <FormField
+                control={form.control}
+                name="industry"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Industry *</FormLabel>
+
+                    {customIndustryMode ? (
+                      /* CUSTOM INPUT MODE */
+                      <div className="flex items-center gap-2 w-full">
+                        <Input
+                          placeholder="Enter custom industry"
+                          value={customIndustry}
+                          onChange={(e) => setCustomIndustry(e.target.value)}
+                        />
+
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const value = customIndustry.trim();
+                            if (!value) return;
+
+                            setIndustries((prev) =>
+                              prev.includes(value) ? prev : [...prev, value]
+                            );
+
+                            field.onChange(value);
+                            setCustomIndustry("");
+                            setCustomIndustryMode(false);
+                          }}
+                        >
+                          Save
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setCustomIndustry("");
+                            setCustomIndustryMode(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      /* SELECT MODE */
+                      <div className="flex items-center gap-2 w-full">
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select industry *" />
+                            </SelectTrigger>
+                          </FormControl>
+
+                          <SelectContent>
+                            {industries.map((industry) => (
+                              <SelectItem key={industry} value={industry}>
+                                {industry}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Button
+                          type="button"
+                          className="w-40"
+                          variant="dark"
+                          onClick={() => setCustomIndustryMode(true)}
+                        >
+                          Add Custom
+                        </Button>
+                      </div>
+                    )}
+
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
             </div>
+
 
           </div>
 

@@ -37,7 +37,6 @@ import {
     Clock,
     Eye,
     MoreVertical,
-    Link2,
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
@@ -46,8 +45,6 @@ import {
     NotebookText,
     Info,
     Upload,
-    Check,
-    ChevronsUpDown,
     CalendarIcon,
 } from "lucide-react"
 import {
@@ -68,12 +65,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 import { cn } from "@/lib/utils"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandItem,
-} from "@/components/ui/command"
+
 import SignatureCanvas from "react-signature-canvas";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
@@ -191,7 +183,7 @@ export default function IssuesDashboard() {
 
                 const issues = issuesRes.issues || []
                 setAllIssues(issues)
-                
+
                 // Filter issues with status "in-review" for verification tab
                 const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
                 setPendingIssues(inReviewIssues)
@@ -212,7 +204,7 @@ export default function IssuesDashboard() {
     const handleReviewClick = async (issue: Issue) => {
         setSelectedIssue(issue)
         setOpenFirst(true)
-        
+
         try {
             setIsLoadingReview(true)
             const reviewRes = await apiClient.getIssueReview(orgId, processId, issue.id)
@@ -331,7 +323,7 @@ export default function IssuesDashboard() {
 
             console.log("[VerificationIssues] Verification submitted successfully:", response)
             toast.success("Issue marked as effective and closed")
-            
+
             // Refresh data
             const issuesRes = await apiClient.getIssues(orgId, processId)
             setAllIssues(issuesRes.issues || [])
@@ -398,7 +390,7 @@ export default function IssuesDashboard() {
             })
 
             toast.success("Issue marked as ineffective and reassigned")
-            
+
             // Refresh data
             const issuesRes = await apiClient.getIssues(orgId, processId)
             setAllIssues(issuesRes.issues || [])
@@ -927,7 +919,7 @@ export default function IssuesDashboard() {
                 </TabsContent>
             </Tabs>
             <Dialog open={openFirst} onOpenChange={setOpenFirst}>
-                <DialogContent className="max-w-3xl!">
+                <DialogContent className="max-w-3xl! h-[90vh] overflow-y-scroll">
                     {/* Header */}
                     <DialogHeader>
                         <DialogTitle className="text-lg font-semibold">
@@ -948,80 +940,80 @@ export default function IssuesDashboard() {
                             </div>
                         ) : (
                             <>
-                        <div className="space-y-2 text-sm">
-                            <p>
-                                <span className="text-muted-foreground block">Issue ID</span>
+                                <div className="space-y-2 text-sm">
+                                    <p>
+                                        <span className="text-muted-foreground block">Issue ID</span>
                                         <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
-                            </p>
+                                    </p>
 
-                            <p>
-                                <span className="text-muted-foreground block">Title</span>
-                                <span className="font-medium text-[#0A0A0A]">
+                                    <p>
+                                        <span className="text-muted-foreground block">Title</span>
+                                        <span className="font-medium text-[#0A0A0A]">
                                             {selectedIssue?.title || "—"}
-                                </span>
-                            </p>
+                                        </span>
+                                    </p>
 
-                            <p>
-                                <span className="text-muted-foreground block mb-1">Tag Category</span>
+                                    <p>
+                                        <span className="text-muted-foreground block mb-1">Tag Category</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
                                             {selectedIssue?.tag || "—"}
                                         </Badge>
-                            </p>
-                        </div>
+                                    </p>
+                                </div>
 
-                        {/* Description */}
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Description</p>
-                            <p className="text-sm text-[#0A0A0A]">
+                                {/* Description */}
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-1">Description</p>
+                                    <p className="text-sm text-[#0A0A0A]">
                                         {selectedIssue?.description || "No description provided"}
-                            </p>
-                        </div>
+                                    </p>
+                                </div>
 
-                        {/* Root Cause */}
+                                {/* Root Cause */}
                                 {issueReview?.rootCauseText && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
-                            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
+                                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
                                             {issueReview.rootCauseText}
-                            </div>
-                        </div>
+                                        </div>
+                                    </div>
                                 )}
 
-                        {/* Containment Action */}
+                                {/* Containment Action */}
                                 {issueReview?.containmentText && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
-                            <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
+                                        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
                                             {issueReview.containmentText}
-                            </div>
-                        </div>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {/* Corrective Action Plan */}
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
                                         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        Responsible: {plan.responsible} | 
-                                                        Planned: {plan.plannedDate || "—"} | 
+                                                        Responsible: {plan.responsible} |
+                                                        Planned: {plan.plannedDate || "—"} |
                                                         Actual: {plan.actualDate || "—"}
                                                     </p>
-                            </div>
+                                                </div>
                                             ))}
-                        </div>
+                                        </div>
                                     </div>
                                 )}
 
-                        {/* Attachments */}
-                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length || 
-                                  issueReview?.actionPlans?.some(p => p.files?.length)) ? (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-2">Attachments</p>
-                            <div className="space-y-2">
+                                {/* Attachments */}
+                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length ||
+                                    issueReview?.actionPlans?.some(p => p.files?.length)) ? (
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <div className="space-y-2">
                                             {/* Containment files */}
                                             {issueReview.containmentFiles?.map((file, idx) => (
                                                 <div key={`containment-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
@@ -1045,11 +1037,11 @@ export default function IssuesDashboard() {
                                                                 Download
                                                             </Button>
                                                         )}
-                                </div>
+                                                    </div>
                                                     <span className="text-muted-foreground text-xs">
                                                         {(file.size / 1024).toFixed(1)} KB
                                                     </span>
-                                </div>
+                                                </div>
                                             ))}
                                             {/* Root cause files */}
                                             {issueReview.rootCauseFiles?.map((file, idx) => (
@@ -1074,11 +1066,11 @@ export default function IssuesDashboard() {
                                                                 Download
                                                             </Button>
                                                         )}
-                            </div>
+                                                    </div>
                                                     <span className="text-muted-foreground text-xs">
                                                         {(file.size / 1024).toFixed(1)} KB
                                                     </span>
-                        </div>
+                                                </div>
                                             ))}
                                             {/* Action plan files */}
                                             {issueReview.actionPlans?.map((plan, planIdx) =>
@@ -1186,47 +1178,47 @@ export default function IssuesDashboard() {
 
                         <div className="space-y-2 text-sm">
                             {issueReview?.containmentText && (
-                            <div>
-                                <p className="text-muted-foreground mb-1">
-                                    Containment / Immediate Correction:
-                                </p>
+                                <div>
+                                    <p className="text-muted-foreground mb-1">
+                                        Containment / Immediate Correction:
+                                    </p>
                                     <div className="rounded-md border bg-white p-2">{issueReview.containmentText}</div>
-                            </div>
+                                </div>
                             )}
 
                             {issueReview?.rootCauseText && (
-                            <div>
-                                <p className="text-muted-foreground mb-1">
-                                    Root Cause of Problem:
-                                </p>
+                                <div>
+                                    <p className="text-muted-foreground mb-1">
+                                        Root Cause of Problem:
+                                    </p>
                                     <div className="rounded-md border bg-white p-2">{issueReview.rootCauseText}</div>
-                            </div>
+                                </div>
                             )}
 
                             {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
-                            <div>
-                                <p className="text-muted-foreground mb-1">Action Plan:</p>
-                                <div className="overflow-hidden rounded-md border bg-white">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-muted">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Action</th>
-                                                <th className="px-3 py-2 text-left">Responsible</th>
-                                                <th className="px-3 py-2 text-left">Planned Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                                <div>
+                                    <p className="text-muted-foreground mb-1">Action Plan:</p>
+                                    <div className="overflow-hidden rounded-md border bg-white">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-muted">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left">Action</th>
+                                                    <th className="px-3 py-2 text-left">Responsible</th>
+                                                    <th className="px-3 py-2 text-left">Planned Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
                                                 {issueReview.actionPlans.map((plan, idx) => (
                                                     <tr key={idx} className="border-t">
                                                         <td className="px-3 py-2">{plan.action}</td>
                                                         <td className="px-3 py-2">{plan.responsible}</td>
                                                         <td className="px-3 py-2">{plan.plannedDate ? format(new Date(plan.plannedDate), "MMMM do, yyyy") : "—"}</td>
-                                            </tr>
+                                                    </tr>
                                                 ))}
-                                        </tbody>
-                                    </table>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
                             )}
                         </div>
                     </div>
@@ -1279,9 +1271,9 @@ export default function IssuesDashboard() {
                                 />
 
                                 <div className="flex items-center gap-2">
-                                <Button variant="outline" onClick={handleClick}>
-                                    <Upload className="mr-2 h-4 w-4" /> Upload Attachments
-                                </Button>
+                                    <Button variant="outline" onClick={handleClick}>
+                                        <Upload className="mr-2 h-4 w-4" /> Upload Attachments
+                                    </Button>
                                     {verificationFiles.length > 0 && (
                                         <span className="text-sm text-muted-foreground">
                                             {verificationFiles.length} file(s) selected
@@ -1390,7 +1382,7 @@ export default function IssuesDashboard() {
                             </p>
                             <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times h-30">
                                 {signature ? (
-                                    <img src={signature} alt="Signature Preview"/>
+                                    <img src={signature} alt="Signature Preview" />
                                 ) : (
                                     <i>Draw your signature above</i>
                                 )}
@@ -1425,7 +1417,7 @@ export default function IssuesDashboard() {
                         </div>
 
                         <div className="flex justify-end gap-2">
-                            <Button 
+                            <Button
                                 className="bg-green-600 hover:bg-green-700 w-[80%]"
                                 onClick={handleSubmitEffective}
                                 disabled={isSubmitting || !closureComments || !closeOutDate || !verificationDate || !signature}
@@ -1466,73 +1458,73 @@ export default function IssuesDashboard() {
                             </div>
                         ) : (
                             <>
-                        <div className="space-y-2 text-sm">
-                            <p>
-                                <span className="text-muted-foreground block">Issue ID</span>
+                                <div className="space-y-2 text-sm">
+                                    <p>
+                                        <span className="text-muted-foreground block">Issue ID</span>
                                         <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
-                            </p>
-                            <p>
-                                <span className="text-muted-foreground block">Title</span>
-                                <span className="font-medium text-[#0A0A0A]">
+                                    </p>
+                                    <p>
+                                        <span className="text-muted-foreground block">Title</span>
+                                        <span className="font-medium text-[#0A0A0A]">
                                             {selectedIssue?.title || "—"}
-                                </span>
-                            </p>
-                            <p>
-                                <span className="text-muted-foreground block mb-1">Tag Category</span>
+                                        </span>
+                                    </p>
+                                    <p>
+                                        <span className="text-muted-foreground block mb-1">Tag Category</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
                                             {selectedIssue?.tag || "—"}
                                         </Badge>
-                            </p>
-                        </div>
-                        {/* Description */}
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Description</p>
-                            <p className="text-sm text-[#0A0A0A]">
+                                    </p>
+                                </div>
+                                {/* Description */}
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-1">Description</p>
+                                    <p className="text-sm text-[#0A0A0A]">
                                         {selectedIssue?.description || "No description provided"}
-                            </p>
-                        </div>
-                        {/* Root Cause */}
+                                    </p>
+                                </div>
+                                {/* Root Cause */}
                                 {issueReview?.rootCauseText && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
-                            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
+                                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
                                             {issueReview.rootCauseText}
-                            </div>
-                        </div>
+                                        </div>
+                                    </div>
                                 )}
-                        {/* Containment Action */}
+                                {/* Containment Action */}
                                 {issueReview?.containmentText && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
-                            <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
+                                        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
                                             {issueReview.containmentText}
-                            </div>
-                        </div>
+                                        </div>
+                                    </div>
                                 )}
                                 {/* Corrective Action Plan */}
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
                                         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        Responsible: {plan.responsible} | 
-                                                        Planned: {plan.plannedDate || "—"} | 
+                                                        Responsible: {plan.responsible} |
+                                                        Planned: {plan.plannedDate || "—"} |
                                                         Actual: {plan.actualDate || "—"}
                                                     </p>
-                            </div>
+                                                </div>
                                             ))}
-                        </div>
+                                        </div>
                                     </div>
                                 )}
-                        {/* Attachments */}
-                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length || 
-                                  issueReview?.actionPlans?.some(p => p.files?.length)) ? (
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-2">Attachments</p>
-                            <div className="space-y-2">
+                                {/* Attachments */}
+                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length ||
+                                    issueReview?.actionPlans?.some(p => p.files?.length)) ? (
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <div className="space-y-2">
                                             {/* Show all files with download buttons */}
                                             {issueReview.containmentFiles?.map((file, idx) => (
                                                 <div key={`containment-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
@@ -1556,11 +1548,11 @@ export default function IssuesDashboard() {
                                                                 Download
                                                             </Button>
                                                         )}
-                                </div>
+                                                    </div>
                                                     <span className="text-muted-foreground text-xs">
                                                         {(file.size / 1024).toFixed(1)} KB
                                                     </span>
-                                </div>
+                                                </div>
                                             ))}
                                             {issueReview.rootCauseFiles?.map((file, idx) => (
                                                 <div key={`rootcause-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
@@ -1584,11 +1576,11 @@ export default function IssuesDashboard() {
                                                                 Download
                                                             </Button>
                                                         )}
-                            </div>
+                                                    </div>
                                                     <span className="text-muted-foreground text-xs">
                                                         {(file.size / 1024).toFixed(1)} KB
                                                     </span>
-                        </div>
+                                                </div>
                                             ))}
                                             {issueReview.actionPlans?.map((plan, planIdx) =>
                                                 plan.files?.map((file, fileIdx) => (
@@ -1674,7 +1666,7 @@ export default function IssuesDashboard() {
                                             <SelectItem key={user.id} value={user.id}>
                                                 {user.name} {user.email && `(${user.email})`}
                                             </SelectItem>
-                                                ))}
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>

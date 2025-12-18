@@ -398,41 +398,83 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               {/* Title */}
               <div className="space-y-1">
                 <Label className="mb-2">Title*</Label>
+
                 {customTitleMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
                       placeholder="Enter custom title"
                       value={title}
-                      onChange={handleCustomTitleChange}
+                      onChange={(e) => setTitle(e.target.value)}
                       className="w-full"
                     />
-                    <Button type="button" variant="default" onClick={handleSaveCustomTitle}>
+
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        const value = title.trim();
+                        if (!value) return;
+
+                        try {
+                          await apiClient.addMetadata(orgId as string, "titles", value);
+
+                          setTitles((prev) =>
+                            prev.includes(value) ? prev : [...prev, value]
+                          );
+
+                          setTitle(value); // ✅ auto-select
+                          setCustomTitleMode(false);
+
+                          toast.success("Title added successfully");
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to add title");
+                        }
+                      }}
+                    >
                       Save
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setCustomTitleMode(false)}>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCustomTitleMode(false)}
+                    >
                       Cancel
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select onValueChange={(value) => setTitle(value)} value={title} required disabled={isCreatingIssue || isLoadingMetadata}>
+                    <Select
+                      value={title}
+                      onValueChange={setTitle}
+                      required
+                      disabled={isCreatingIssue || isLoadingMetadata}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading titles..." : "Select a title *"} />
                       </SelectTrigger>
+
                       <SelectContent>
                         {titles.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button type="button" variant="dark" onClick={handleAddCustomTitle} disabled={isCreatingIssue}>
-                      Add
+
+                    <Button
+                      type="button"
+                      className="w-40"
+                      variant="dark"
+                      onClick={() => setCustomTitleMode(true)}
+                    >
+                      Add Custom Title
                     </Button>
                   </div>
                 )}
               </div>
 
-              {/* Tags */}
+              {/* Tag */}
               <div className="space-y-1">
                 <Label className="mb-2">Tag*</Label>
 
@@ -441,36 +483,70 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     <Input
                       placeholder="Enter custom tag"
                       value={tag}
-                      onChange={handleCustomTagChange}
+                      onChange={(e) => setTag(e.target.value)}
                       className="w-full"
-                      disabled={isCreatingIssue}
                     />
-                    <Button type="button" variant="default" onClick={handleSaveCustomTag} disabled={isCreatingIssue}>
+
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        const value = tag.trim();
+                        if (!value) return;
+
+                        try {
+                          await apiClient.addMetadata(orgId as string, "tags", value);
+
+                          setTags((prev) =>
+                            prev.includes(value) ? prev : [...prev, value]
+                          );
+
+                          setTag(value); // ✅ auto-select
+                          setCustomTagMode(false);
+
+                          toast.success("Tag added successfully");
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to add tag");
+                        }
+                      }}
+                    >
                       Save
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setCustomTagMode(false)} disabled={isCreatingIssue}>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCustomTagMode(false)}
+                    >
                       Cancel
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select onValueChange={(value) => setTag(value)}>
+                    <Select value={tag} onValueChange={setTag}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a tag" />
+                        <SelectValue placeholder="Select a tag *" />
                       </SelectTrigger>
+
                       <SelectContent>
                         {tags.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button type="button" variant="dark" onClick={() => setCustomTagMode(true)}>
-                      Add
+
+                    <Button
+                      type="button"
+                      className="w-40"
+                      variant="dark"
+                      onClick={() => setCustomTagMode(true)}
+                    >
+                      Add Custom Tag
                     </Button>
                   </div>
                 )}
               </div>
-
 
               {/* Source */}
               <div className="space-y-1">
@@ -481,32 +557,71 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     <Input
                       placeholder="Enter custom source"
                       value={source}
-                      onChange={handleCustomSourceChange}
+                      onChange={(e) => setSource(e.target.value)}
                       className="w-full"
-                      disabled={isCreatingIssue}
                     />
-                    <Button type="button" variant="default" onClick={handleSaveCustomSource} disabled={isCreatingIssue}>
+
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        const value = source.trim();
+                        if (!value) return;
+
+                        try {
+                          await apiClient.addMetadata(orgId as string, "sources", value);
+
+                          setSources((prev) =>
+                            prev.includes(value) ? prev : [...prev, value]
+                          );
+
+                          setSource(value); // ✅ auto-select
+                          setCustomSourceMode(false);
+
+                          toast.success("Source added successfully");
+                        } catch (error: any) {
+                          toast.error(error.message || "Failed to add source");
+                        }
+                      }}
+                    >
                       Save
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setCustomSourceMode(false)} disabled={isCreatingIssue}>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCustomSourceMode(false)}
+                    >
                       Cancel
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select onValueChange={(value) => setSource(value)} value={source} required disabled={isCreatingIssue || isLoadingMetadata}>
+                    <Select
+                      value={source}
+                      onValueChange={setSource}
+                      required
+                      disabled={isCreatingIssue || isLoadingMetadata}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading sources..." : "Select a source *"} />
                       </SelectTrigger>
+
                       <SelectContent>
                         {sources.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
 
-                    <Button type="button" variant="dark" onClick={() => setCustomSourceMode(true)} disabled={isCreatingIssue}>
-                      Add
+                    <Button
+                      type="button"
+                      className="w-40"
+                      variant="dark"
+                      onClick={() => setCustomSourceMode(true)}
+                    >
+                      Add Custom Source
                     </Button>
                   </div>
                 )}
@@ -728,8 +843,10 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     heightMax: 300,
                     widthMin: 200,
                     placeholderText: "Enter issue description...",
-                    toolbarButtons: isCreatingIssue ? [] : undefined,
-                    readOnly: isCreatingIssue,
+                    imageUploadURL: "/api/files/froala/upload",
+                    imageUploadMethod: "POST",
+                    imageAllowedTypes: ["jpeg", "jpg", "png", "webp"],
+                    imageMaxSize: 5 * 1024 * 1024,
                   }}
                 />
               </div>
