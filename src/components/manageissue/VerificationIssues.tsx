@@ -71,7 +71,7 @@ import {
     CommandGroup,
     CommandItem,
 } from "@/components/ui/command"
-
+import SignatureCanvas from "react-signature-canvas";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -111,7 +111,8 @@ export default function IssuesDashboard() {
     const [closeOutDate, setCloseOutDate] = useState(new Date())
     const [verificationDate, setVerificationDate] = useState(new Date())
 
-    const [signature, setSignature] = useState("")
+    // const [signature, setSignature] = useState("")
+    const [signature, setSignature] = useState<string>("");
 
     const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
 
@@ -120,6 +121,22 @@ export default function IssuesDashboard() {
 
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    const sigCanvas = useRef<SignatureCanvas | null>(null);
+
+    const handleClear = () => {
+        if (sigCanvas.current) {
+            sigCanvas.current.clear(); // Clears the signature canvas
+        }
+    };
+
+    const handleSave = () => {
+        if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+            const signatureData = sigCanvas.current.toDataURL();
+            setSignature(signatureData); // Save the base64 image string
+        } else {
+            alert("Please provide a signature.");
+        }
+    };
     const handleClick = () => {
         fileInputRef.current?.click()
     }
@@ -916,19 +933,51 @@ export default function IssuesDashboard() {
                                 Issuer Signature <span className="text-red-500">*</span>
                             </Label>
 
-                            <Input
-                                type="text"
-                                className="mt-1"
-                                value={signature}
-                                onChange={(e) => setSignature(e.target.value)}
-                            />
+                            {/* Signature Pad */}
+                            <div className="mt-2">
+                                <SignatureCanvas
+                                    ref={sigCanvas}
+                                    backgroundColor="white"
+                                    penColor="black"
+                                    canvasProps={{
+                                        width: 400,
+                                        height: 100,
+                                        className: "border bg-white p-2"
+                                    }}
+                                />
+                            </div>
 
+
+                            {/* Clear and Save Buttons */}
+                            <div className="mt-2">
+                                <button onClick={handleClear} className="mr-2 text-sm text-blue-500">
+                                    Clear
+                                </button>
+                                <button onClick={handleSave} className="text-sm text-blue-500">
+                                    Save Signature
+                                </button>
+                            </div>
+
+                            {/* Signature Preview */}
                             <p className="text-xs text-muted-foreground mt-2">
                                 Digital Signature Preview:
                             </p>
+                            <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times h-30">
+                                {signature ? (
+                                    <img src={signature} alt="Signature Preview"/>
+                                ) : (
+                                    <i>Draw your signature above</i>
+                                )}
+                            </div>
 
-                            <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times">
-                                <i>{signature || "zxvvv"}</i>
+                            <div className="mt-2 border p-2 rounded-md">
+                                <input
+                                    type="text"
+                                    className="mt-1 w-full"
+                                    value={signature || ""}
+                                    onChange={(e) => setSignature(e.target.value)}
+                                    placeholder="Enter signature (if not drawn)"
+                                />
                             </div>
                         </div>
                     </div>
