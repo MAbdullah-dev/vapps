@@ -34,11 +34,39 @@ export function isValidRole(role: string): role is Role {
 
 /**
  * Normalize role string to valid Role type
+ * Handles case-insensitive matching and common variations:
+ * - "Admin" / "admin" → "admin"
+ * - "Manager" / "manager" → "manager"
+ * - "User" / "user" / "Member" / "member" → "member"
  */
 export function normalizeRole(role: string | undefined | null, defaultRole: Role = "member"): Role {
-  if (!role || !isValidRole(role)) {
+  if (!role) {
     return defaultRole;
   }
-  return role;
+  
+  // Normalize to lowercase for comparison
+  const normalized = role.toLowerCase().trim();
+  
+  // Map common variations
+  if (normalized === "admin" || normalized === "administrator") {
+    return "admin";
+  }
+  if (normalized === "manager") {
+    return "manager";
+  }
+  if (normalized === "member" || normalized === "user" || normalized === "member") {
+    return "member";
+  }
+  if (normalized === "owner") {
+    return "owner";
+  }
+  
+  // If it's already a valid role (case-insensitive), return it
+  if (isValidRole(normalized)) {
+    return normalized as Role;
+  }
+  
+  // Default fallback
+  return defaultRole;
 }
 

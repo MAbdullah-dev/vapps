@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useMemo, ReactNode, useRef } from "react"
+import { useState, useMemo, ReactNode, useRef, useEffect } from "react"
+import { useParams } from "next/navigation"
+import { apiClient } from "@/lib/api-client"
+import { toast } from "sonner"
 import {
     Tabs,
     TabsList,
@@ -75,59 +78,332 @@ import {
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
-const allIssues = [
-    { ref: "Issue/2025/S1/P1/QI/Issue#1", title: "Missing ISO documentation for compliance review", tag: "Quality Issue", tagVariant: "default" as BadgeVariant, source: "Internal Audit", issuer: "John Doe", assignee: "Mary Chen", planDate: "11/15/2024", actualDate: "12/1/2024", dueDate: "12/15/2024", status: "Success", kpi: 3, jira: true },
-    { ref: "Issue/2025/S1/P1/PI/Issue#2", title: "Process workflow needs optimization", tag: "Process Improvement", tagVariant: "secondary" as BadgeVariant, source: "Management Review", issuer: "Sarah Jones", assignee: "Eric Davis", planDate: "12/1/2024", actualDate: "—", dueDate: "01/15/2025", status: "Pending", kpi: 0, jira: false },
-    { ref: "Issue/2025/S1/P1/RM/Issue#3", title: "Security vulnerability identified in access control", tag: "Risk Mitigation", tagVariant: "destructive" as BadgeVariant, source: "External Audit", issuer: "Ali Hamed", assignee: "John Doe", planDate: "10/1/2024", actualDate: "—", dueDate: "12/20/2024", status: "Pending", kpi: 0, jira: true },
-]
+interface Issue {
+    id: string
+    title: string
+    description?: string
+    status: string
+    tags?: string[]
+    source?: string
+    assignee?: string
+    priority?: string
+    createdAt?: string
+    updatedAt?: string
+    // For display
+    tag?: string
+    tagVariant?: BadgeVariant
+    kpi?: number
+}
 
-const pendingIssues = [
-    { id: "Issue/2025/S1/P1/QI/Issue#1", title: "Missing ISO documentation for compliance review", tag: "Quality Issue", tagVariant: "default" as BadgeVariant, assignee: "Mary Chen", assigned: "11/15/2024", due: "12/15/2024", completed: "12/1/2024", kpi: 3 },
-    { id: "Issue/2025/S1/P1/RM/Issue#3", title: "Security vulnerability identified in access control", tag: "Risk Mitigation", tagVariant: "destructive" as BadgeVariant, assignee: "John Doe", assigned: "10/1/2024", due: "12/20/2024", completed: "12/8/2024", kpi: 0 },
-    { id: "Issue/2025/S1/P1/CC/Issue#5", title: "Customer complaint about delayed shipment", tag: "Customer Concern", tagVariant: "secondary" as BadgeVariant, assignee: "Eric Davis", assigned: "11/20/2024", due: "12/30/2024", completed: "12/9/2024", kpi: 3 },
-]
-
-const assignees = [
-    { value: "john", label: "John Doe" },
-    { value: "mary", label: "Mary Collins" },
-    { value: "alex", label: "Alex Smith" },
-]
+interface IssueReview {
+    containmentText?: string
+    rootCauseText?: string
+    containmentFiles?: Array<{ name: string; size: number; type?: string; key?: string }>
+    rootCauseFiles?: Array<{ name: string; size: number; type?: string; key?: string }>
+    actionPlans?: Array<{
+        action: string
+        responsible: string
+        plannedDate?: string
+        actualDate?: string
+        files?: Array<{ name: string; size: number; type?: string; key?: string }>
+    }>
+}
 
 export default function IssuesDashboard() {
+    const params = useParams()
+    const orgId = params.orgId as string
+    const processId = params.processId as string
+
+    // Data state
+    const [allIssues, setAllIssues] = useState<Issue[]>([])
+    const [pendingIssues, setPendingIssues] = useState<Issue[]>([])
+    const [processUsers, setProcessUsers] = useState<Array<{ id: string; name: string; email: string }>>([])
+    const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
+    const [issueReview, setIssueReview] = useState<IssueReview | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [isLoadingReview, setIsLoadingReview] = useState(false)
+
+    // Filter/Sort state
     const [search, setSearch] = useState("")
     const [tag, setTag] = useState("all")
     const [status, setStatus] = useState("all")
     const [sortKey, setSortKey] = useState<string | null>(null)
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
+    // Pagination
     const [pageSize, setPageSize] = useState(10)
     const [pageAll, setPageAll] = useState(1)
     const [pagePending, setPagePending] = useState(1)
 
+    // Dialog state
     const [openFirst, setOpenFirst] = useState(false)
     const [openSubmit, setOpenSubmit] = useState(false)
     const [openNoSubmit, setOpenNoSubmit] = useState(false)
 
-    const [closeOutDate, setCloseOutDate] = useState(new Date())
-    const [verificationDate, setVerificationDate] = useState(new Date())
-
+    // Verification form state
+    const [closeOutDate, setCloseOutDate] = useState<Date | undefined>(new Date())
+    const [verificationDate, setVerificationDate] = useState<Date | undefined>(new Date())
     const [signature, setSignature] = useState("")
+    const [closureComments, setClosureComments] = useState("")
+    const [verificationFiles, setVerificationFiles] = useState<File[]>([])
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
-
+    // Reassignment state
+    const [selectedAssignee, setSelectedAssignee] = useState<string>("")
     const [dueDate, setDueDate] = useState<Date | undefined>()
-
+    const [reassignmentInstructions, setReassignmentInstructions] = useState("")
+    const [reassignmentFiles, setReassignmentFiles] = useState<File[]>([])
 
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const reassignmentFileInputRef = useRef<HTMLInputElement>(null)
 
     const handleClick = () => {
         fileInputRef.current?.click()
     }
 
+    // Fetch data on mount
+    useEffect(() => {
+        if (!orgId || !processId) return
+
+        const fetchData = async () => {
+            try {
+                setIsLoading(true)
+                const [issuesRes, usersRes] = await Promise.all([
+                    apiClient.getIssues(orgId, processId),
+                    apiClient.getProcessUsers(orgId, processId),
+                ])
+
+                const issues = issuesRes.issues || []
+                setAllIssues(issues)
+                
+                // Filter issues with status "in-review" for verification tab
+                const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
+                setPendingIssues(inReviewIssues)
+
+                setProcessUsers(usersRes.users || [])
+            } catch (error: any) {
+                console.error("Error fetching data:", error)
+                toast.error("Failed to load issues")
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchData()
+    }, [orgId, processId])
+
+    // Fetch issue review data when opening review dialog
+    const handleReviewClick = async (issue: Issue) => {
+        setSelectedIssue(issue)
+        setOpenFirst(true)
+        
+        try {
+            setIsLoadingReview(true)
+            const reviewRes = await apiClient.getIssueReview(orgId, processId, issue.id)
+            setIssueReview(reviewRes.review || null)
+        } catch (error: any) {
+            console.error("Error fetching review:", error)
+            toast.error("Failed to load issue review data")
+            setIssueReview(null)
+        } finally {
+            setIsLoadingReview(false)
+        }
+    }
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files) return
         const files = Array.from(e.target.files)
-        console.log("Selected files:", files)
+        setVerificationFiles(files)
+    }
+
+    const handleReassignmentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files) return
+        const files = Array.from(e.target.files)
+        setReassignmentFiles(files)
+    }
+
+    // Handle effective submission
+    const handleSubmitEffective = async () => {
+        console.log("[VerificationIssues] handleSubmitEffective called", {
+            selectedIssue: selectedIssue?.id,
+            closureComments: closureComments?.length,
+            closeOutDate,
+            verificationDate,
+            signature: signature?.length,
+            orgId,
+            processId,
+        })
+
+        if (!selectedIssue) {
+            toast.error("No issue selected")
+            return
+        }
+
+        if (!closureComments || !closureComments.trim()) {
+            toast.error("Please provide closure comments")
+            return
+        }
+
+        if (!closeOutDate) {
+            toast.error("Please select issue close out date")
+            return
+        }
+
+        if (!verificationDate) {
+            toast.error("Please select effectiveness verification date")
+            return
+        }
+
+        if (!signature || !signature.trim()) {
+            toast.error("Please provide your signature")
+            return
+        }
+
+        setIsSubmitting(true)
+        try {
+            console.log("[VerificationIssues] Starting submission...")
+            // Upload verification files to S3
+            const uploadedFiles: Array<{ name: string; size: number; type: string; key: string }> = []
+            for (const file of verificationFiles) {
+                try {
+                    const result = await apiClient.uploadFile(
+                        file,
+                        orgId,
+                        processId,
+                        selectedIssue.id,
+                        "actionPlan" // Using actionPlan type for verification files
+                    )
+                    uploadedFiles.push({
+                        name: result.file.name,
+                        size: result.file.size,
+                        type: result.file.type,
+                        key: result.file.key,
+                    })
+                } catch (error: any) {
+                    console.error("Error uploading file:", error)
+                    toast.error(`Failed to upload ${file.name}`)
+                }
+            }
+
+            // Submit verification
+            if (!closeOutDate || !verificationDate) {
+                toast.error("Please select both close out date and verification date")
+                setIsSubmitting(false)
+                return
+            }
+
+            console.log("[VerificationIssues] Submitting effective verification:", {
+                issueId: selectedIssue.id,
+                orgId,
+                processId,
+                closureComments,
+                closeOutDate: closeOutDate.toISOString(),
+                verificationDate: verificationDate.toISOString(),
+                signature,
+                filesCount: uploadedFiles.length,
+            })
+
+            const response = await apiClient.verifyIssue(orgId, processId, selectedIssue.id, {
+                verificationStatus: "effective",
+                closureComments,
+                verificationFiles: uploadedFiles,
+                closeOutDate: closeOutDate.toISOString(),
+                verificationDate: verificationDate.toISOString(),
+                signature,
+                kpiScore: 3, // Default KPI, can be calculated later
+            })
+
+            console.log("[VerificationIssues] Verification submitted successfully:", response)
+            toast.success("Issue marked as effective and closed")
+            
+            // Refresh data
+            const issuesRes = await apiClient.getIssues(orgId, processId)
+            setAllIssues(issuesRes.issues || [])
+            const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
+            setPendingIssues(inReviewIssues)
+
+            // Close dialogs and reset form
+            setOpenSubmit(false)
+            setOpenFirst(false)
+            setSelectedIssue(null)
+            setIssueReview(null)
+            setClosureComments("")
+            setVerificationFiles([])
+            setCloseOutDate(new Date())
+            setVerificationDate(new Date())
+            setSignature("")
+        } catch (error: any) {
+            console.error("Error submitting verification:", error)
+            toast.error(error.message || "Failed to submit verification")
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    // Handle ineffective submission
+    const handleSubmitIneffective = async () => {
+        if (!selectedIssue || !selectedAssignee || !dueDate || !reassignmentInstructions) {
+            toast.error("Please fill all required fields")
+            return
+        }
+
+        setIsSubmitting(true)
+        try {
+            // Upload reassignment files to S3
+            const uploadedFiles: Array<{ name: string; size: number; type: string; key: string }> = []
+            for (const file of reassignmentFiles) {
+                try {
+                    const result = await apiClient.uploadFile(
+                        file,
+                        orgId,
+                        processId,
+                        selectedIssue.id,
+                        "actionPlan" // Using actionPlan type for reassignment files
+                    )
+                    uploadedFiles.push({
+                        name: result.file.name,
+                        size: result.file.size,
+                        type: result.file.type,
+                        key: result.file.key,
+                    })
+                } catch (error: any) {
+                    console.error("Error uploading file:", error)
+                    toast.error(`Failed to upload ${file.name}`)
+                }
+            }
+
+            // Submit verification
+            await apiClient.verifyIssue(orgId, processId, selectedIssue.id, {
+                verificationStatus: "ineffective",
+                reassignedTo: selectedAssignee,
+                reassignmentInstructions,
+                reassignmentDueDate: dueDate.toISOString(),
+                reassignmentFiles: uploadedFiles,
+            })
+
+            toast.success("Issue marked as ineffective and reassigned")
+            
+            // Refresh data
+            const issuesRes = await apiClient.getIssues(orgId, processId)
+            setAllIssues(issuesRes.issues || [])
+            const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
+            setPendingIssues(inReviewIssues)
+
+            // Close dialogs and reset form
+            setOpenNoSubmit(false)
+            setOpenFirst(false)
+            setSelectedIssue(null)
+            setIssueReview(null)
+            setSelectedAssignee("")
+            setDueDate(undefined)
+            setReassignmentInstructions("")
+            setReassignmentFiles([])
+        } catch (error: any) {
+            console.error("Error submitting verification:", error)
+            toast.error(error.message || "Failed to submit verification")
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const sortBy = (key: string) => {
@@ -163,27 +439,42 @@ export default function IssuesDashboard() {
         })
     }
 
+    // Helper to get tag variant
+    const getTagVariant = (tagName: string): BadgeVariant => {
+        if (tagName?.toLowerCase().includes("risk")) return "destructive"
+        if (tagName?.toLowerCase().includes("quality")) return "default"
+        return "secondary"
+    }
+
     const filteredAll = useMemo(() => {
-        let data = allIssues
+        let data = allIssues.map(issue => ({
+            ...issue,
+            tag: issue.tags?.[0] || "Unknown",
+            tagVariant: getTagVariant(issue.tags?.[0] || ""),
+        }))
 
         if (search)
             data = data.filter(
                 (i) =>
                     i.title.toLowerCase().includes(search.toLowerCase()) ||
-                    i.ref.includes(search)
+                    i.id.includes(search)
             )
 
         if (tag !== "all") data = data.filter((i) => i.tag === tag)
         if (status !== "all")
             data = data.filter((i) =>
-                status === "success" ? i.status === "Success" : i.status === "Pending"
+                status === "success" ? i.status === "done" : i.status !== "done"
             )
 
         return applySorting(data)
-    }, [search, tag, status, sortKey, sortDir])
+    }, [allIssues, search, tag, status, sortKey, sortDir])
 
     const filteredPending = useMemo(() => {
-        let data = pendingIssues
+        let data = pendingIssues.map(issue => ({
+            ...issue,
+            tag: issue.tags?.[0] || "Unknown",
+            tagVariant: getTagVariant(issue.tags?.[0] || ""),
+        }))
 
         if (search)
             data = data.filter(
@@ -195,7 +486,7 @@ export default function IssuesDashboard() {
         if (tag !== "all") data = data.filter((i) => i.tag === tag)
 
         return applySorting(data)
-    }, [search, tag, sortKey, sortDir])
+    }, [pendingIssues, search, tag, sortKey, sortDir])
 
     // ---------------- PAGINATION ---------------- //
     const paginatedAll = useMemo(
@@ -271,6 +562,17 @@ export default function IssuesDashboard() {
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     </div>
+                </div>
+            </div>
+        )
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-sm text-muted-foreground">Loading issues...</p>
                 </div>
             </div>
         )
@@ -368,7 +670,7 @@ export default function IssuesDashboard() {
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Closed Issues</p>
                                         <p className="text-2xl font-bold mt-2">
-                                            {filteredAll.filter((i) => i.status === "Success").length}
+                                            {filteredAll.filter((i) => i.status === "done").length}
                                         </p>
                                     </div>
                                     <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -421,33 +723,27 @@ export default function IssuesDashboard() {
                                             </TableRow>
                                         ) : (
                                             paginatedAll.map((issue) => (
-                                                <TableRow key={issue.ref}>
-                                                    <TableCell className="font-mono text-sm">{issue.ref}</TableCell>
+                                                <TableRow key={issue.id}>
+                                                    <TableCell className="font-mono text-sm">{issue.id.substring(0, 8)}...</TableCell>
                                                     <TableCell className="font-medium max-w-md">{issue.title}</TableCell>
                                                     <TableCell>
                                                         <Badge variant={issue.tagVariant}>{issue.tag}</Badge>
                                                     </TableCell>
-                                                    <TableCell>{issue.source}</TableCell>
-                                                    <TableCell>{issue.issuer}</TableCell>
-                                                    <TableCell>{issue.assignee}</TableCell>
-                                                    <TableCell>{issue.planDate}</TableCell>
-                                                    <TableCell>{issue.actualDate}</TableCell>
-                                                    <TableCell>{issue.dueDate}</TableCell>
+                                                    <TableCell>{issue.source || "—"}</TableCell>
+                                                    <TableCell>—</TableCell> {/* Issuer not in DB */}
+                                                    <TableCell>{issue.assignee || "—"}</TableCell>
+                                                    <TableCell>—</TableCell> {/* Plan date not in DB */}
+                                                    <TableCell>—</TableCell> {/* Actual date not in DB */}
+                                                    <TableCell>—</TableCell> {/* Due date not in DB */}
                                                     <TableCell>
-                                                        <Badge variant={issue.status === "Success" ? "default" : "destructive"}>
+                                                        <Badge variant={issue.status === "done" ? "default" : issue.status === "in-review" ? "secondary" : "destructive"}>
                                                             {issue.status}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell>{issue.kpi}</TableCell>
+                                                    <TableCell>{issue.kpi || 0}</TableCell>
 
                                                     <TableCell>
-                                                        {issue.jira ? (
-                                                            <Badge variant="outline">
-                                                                <Link2 className="h-3 w-3 mr-1" /> Linked
-                                                            </Badge>
-                                                        ) : (
-                                                            "—"
-                                                        )}
+                                                        — {/* JIRA link not in DB */}
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
@@ -580,12 +876,12 @@ export default function IssuesDashboard() {
 
                                                     <TableCell className="text-center">
                                                         <div
-                                                            className={`inline-flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${issue.kpi > 0
+                                                            className={`inline-flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${(issue.kpi || 0) > 0
                                                                 ? "bg-green-100 text-green-800"
                                                                 : "bg-red-100 text-red-800"
                                                                 }`}
                                                         >
-                                                            {issue.kpi}
+                                                            {issue.kpi || 0}
                                                         </div>
                                                     </TableCell>
 
@@ -597,7 +893,7 @@ export default function IssuesDashboard() {
                                                         <Button
                                                             size="sm"
                                                             variant="default"
-                                                            onClick={() => setOpenFirst(true)}
+                                                            onClick={() => handleReviewClick(issue)}
                                                         >
                                                             <Eye className="mr-1 h-4 w-4" /> Review
                                                         </Button>
@@ -630,24 +926,30 @@ export default function IssuesDashboard() {
                     <div className="space-y-4">
                         <h3 className="font-semibold text-sm">Issue Summary</h3>
 
+                        {isLoadingReview ? (
+                            <div className="flex items-center justify-center py-8">
+                                <p className="text-sm text-muted-foreground">Loading issue review data...</p>
+                            </div>
+                        ) : (
+                            <>
                         <div className="space-y-2 text-sm">
                             <p>
                                 <span className="text-muted-foreground block">Issue ID</span>
-                                <span className="font-medium text-[#0A0A0A]">Issue/2025/S1/P1/QI/Issue#1</span>
+                                        <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
                             </p>
 
                             <p>
                                 <span className="text-muted-foreground block">Title</span>
                                 <span className="font-medium text-[#0A0A0A]">
-                                    Missing ISO documentation for compliance review
+                                            {selectedIssue?.title || "—"}
                                 </span>
                             </p>
 
                             <p>
                                 <span className="text-muted-foreground block mb-1">Tag Category</span>
-                                <span className="inline-block rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs">
-                                    Quality Issue
-                                </span>
+                                        <Badge variant={selectedIssue?.tagVariant || "default"}>
+                                            {selectedIssue?.tag || "—"}
+                                        </Badge>
                             </p>
                         </div>
 
@@ -655,49 +957,154 @@ export default function IssuesDashboard() {
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Description</p>
                             <p className="text-sm text-[#0A0A0A]">
-                                Critical ISO documentation missing from compliance folder
+                                        {selectedIssue?.description || "No description provided"}
                             </p>
                         </div>
 
                         {/* Root Cause */}
+                                {issueReview?.rootCauseText && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
                             <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
-                                Documentation process was not properly followed during Q3 review
+                                            {issueReview.rootCauseText}
                             </div>
                         </div>
+                                )}
 
                         {/* Containment Action */}
+                                {issueReview?.containmentText && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
                             <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
-                                Temporary workaround: Used backup documentation from previous quarter
+                                            {issueReview.containmentText}
                             </div>
                         </div>
+                                )}
 
-                        {/* Corrective Action */}
+                                {/* Corrective Action Plan */}
+                                {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
-                            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm">
-                                Created comprehensive documentation checklist and updated SOPs.
-                                Trained all team members on new process.
+                                        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
+                                            {issueReview.actionPlans.map((plan, idx) => (
+                                                <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
+                                                    <p className="font-medium">{plan.action}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Responsible: {plan.responsible} | 
+                                                        Planned: {plan.plannedDate || "—"} | 
+                                                        Actual: {plan.actualDate || "—"}
+                                                    </p>
                             </div>
+                                            ))}
                         </div>
+                                    </div>
+                                )}
 
                         {/* Attachments */}
+                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length || 
+                                  issueReview?.actionPlans?.some(p => p.files?.length)) ? (
                         <div>
                             <p className="text-sm text-muted-foreground mb-2">Attachments</p>
                             <div className="space-y-2">
-                                <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-                                    <div className="flex items-center gap-1.5"><NotebookText /> ISO_Documentation_Checklist_v2.pdf</div>
-                                    <span className="text-muted-foreground text-xs">245 KB</span>
+                                            {/* Containment files */}
+                                            {issueReview.containmentFiles?.map((file, idx) => (
+                                                <div key={`containment-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <NotebookText />
+                                                        {file.name}
+                                                        {file.key && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 px-2 text-xs ml-2"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                        window.open(result.url, "_blank")
+                                                                    } catch (error: any) {
+                                                                        toast.error("Failed to download file")
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Download
+                                                            </Button>
+                                                        )}
                                 </div>
-                                <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-                                    <div className="flex items-center gap-1.5"><NotebookText /> Training_Certificate_MaryC.pdf</div>
-                                    <span className="text-muted-foreground text-xs">128 KB</span>
+                                                    <span className="text-muted-foreground text-xs">
+                                                        {(file.size / 1024).toFixed(1)} KB
+                                                    </span>
                                 </div>
+                                            ))}
+                                            {/* Root cause files */}
+                                            {issueReview.rootCauseFiles?.map((file, idx) => (
+                                                <div key={`rootcause-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <NotebookText />
+                                                        {file.name}
+                                                        {file.key && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 px-2 text-xs ml-2"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                        window.open(result.url, "_blank")
+                                                                    } catch (error: any) {
+                                                                        toast.error("Failed to download file")
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Download
+                                                            </Button>
+                                                        )}
                             </div>
+                                                    <span className="text-muted-foreground text-xs">
+                                                        {(file.size / 1024).toFixed(1)} KB
+                                                    </span>
                         </div>
+                                            ))}
+                                            {/* Action plan files */}
+                                            {issueReview.actionPlans?.map((plan, planIdx) =>
+                                                plan.files?.map((file, fileIdx) => (
+                                                    <div key={`action-${planIdx}-${fileIdx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <NotebookText />
+                                                            {file.name}
+                                                            {file.key && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 px-2 text-xs ml-2"
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                            window.open(result.url, "_blank")
+                                                                        } catch (error: any) {
+                                                                            toast.error("Failed to download file")
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Download
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-muted-foreground text-xs">
+                                                            {(file.size / 1024).toFixed(1)} KB
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <p className="text-sm text-muted-foreground">No attachments</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
 
                         {/* Decision */}
                         <div className="pt-2">
@@ -713,6 +1120,7 @@ export default function IssuesDashboard() {
                                         setOpenFirst(false)
                                         setOpenSubmit(true)
                                     }}
+                                    disabled={!selectedIssue || isLoadingReview}
                                 >
                                     <CircleCheck />
                                     <div className="flex flex-col items-start">
@@ -729,6 +1137,7 @@ export default function IssuesDashboard() {
                                         setOpenFirst(false)
                                         setOpenNoSubmit(true)
                                     }}
+                                    disabled={!selectedIssue || isLoadingReview}
                                 >
                                     <CircleX />
                                     <div className="flex flex-col items-start">
@@ -760,20 +1169,25 @@ export default function IssuesDashboard() {
                         </div>
 
                         <div className="space-y-2 text-sm">
+                            {issueReview?.containmentText && (
                             <div>
                                 <p className="text-muted-foreground mb-1">
                                     Containment / Immediate Correction:
                                 </p>
-                                <div className="rounded-md border bg-white p-2">fhgnxv</div>
+                                    <div className="rounded-md border bg-white p-2">{issueReview.containmentText}</div>
                             </div>
+                            )}
 
+                            {issueReview?.rootCauseText && (
                             <div>
                                 <p className="text-muted-foreground mb-1">
                                     Root Cause of Problem:
                                 </p>
-                                <div className="rounded-md border bg-white p-2">fgxn</div>
+                                    <div className="rounded-md border bg-white p-2">{issueReview.rootCauseText}</div>
                             </div>
+                            )}
 
+                            {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                             <div>
                                 <p className="text-muted-foreground mb-1">Action Plan:</p>
                                 <div className="overflow-hidden rounded-md border bg-white">
@@ -786,15 +1200,18 @@ export default function IssuesDashboard() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr className="border-t">
-                                                <td className="px-3 py-2">gfxncb</td>
-                                                <td className="px-3 py-2">Mary Chen</td>
-                                                <td className="px-3 py-2">December 24th, 2025</td>
+                                                {issueReview.actionPlans.map((plan, idx) => (
+                                                    <tr key={idx} className="border-t">
+                                                        <td className="px-3 py-2">{plan.action}</td>
+                                                        <td className="px-3 py-2">{plan.responsible}</td>
+                                                        <td className="px-3 py-2">{plan.plannedDate ? format(new Date(plan.plannedDate), "MMMM do, yyyy") : "—"}</td>
                                             </tr>
+                                                ))}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
+                            )}
                         </div>
                     </div>
 
@@ -819,6 +1236,9 @@ export default function IssuesDashboard() {
                                 className="mt-1"
                                 rows={4}
                                 placeholder="Enter your effectiveness verification comments here..."
+                                value={closureComments}
+                                onChange={(e) => setClosureComments(e.target.value)}
+                                required
                             />
                         </div>
 
@@ -842,9 +1262,16 @@ export default function IssuesDashboard() {
                                     accept=".jpg,.jpeg,.png,.pdf"
                                 />
 
+                                <div className="flex items-center gap-2">
                                 <Button variant="outline" onClick={handleClick}>
                                     <Upload className="mr-2 h-4 w-4" /> Upload Attachments
                                 </Button>
+                                    {verificationFiles.length > 0 && (
+                                        <span className="text-sm text-muted-foreground">
+                                            {verificationFiles.length} file(s) selected
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -928,7 +1355,7 @@ export default function IssuesDashboard() {
                             </p>
 
                             <div className="rounded-md border bg-white p-2 text-sm font-semibold">
-                                {signature || "zxvvv"}  {/* show typed signature, fallback to default */}
+                                {signature || "Enter signature above"}
                             </div>
                         </div>
                     </div>
@@ -950,14 +1377,19 @@ export default function IssuesDashboard() {
                         </div>
 
                         <div className="flex justify-end gap-2">
-                            <Button className="bg-green-600 hover:bg-green-700 w-[80%]">
-                                Confirm & Close Issue
+                            <Button 
+                                className="bg-green-600 hover:bg-green-700 w-[80%]"
+                                onClick={handleSubmitEffective}
+                                disabled={isSubmitting || !closureComments || !closeOutDate || !verificationDate || !signature}
+                            >
+                                {isSubmitting ? "Submitting..." : "Confirm & Close Issue"}
                             </Button>
 
                             <Button
                                 className="w-[20%]"
                                 variant="outline"
                                 onClick={() => setOpenSubmit(false)}
+                                disabled={isSubmitting}
                             >
                                 Cancel
                             </Button>
@@ -980,67 +1412,176 @@ export default function IssuesDashboard() {
                     {/* Issue Summary */}
                     <div className="space-y-4">
                         <h3 className="font-semibold text-sm">Issue Summary</h3>
+                        {isLoadingReview ? (
+                            <div className="flex items-center justify-center py-8">
+                                <p className="text-sm text-muted-foreground">Loading issue review data...</p>
+                            </div>
+                        ) : (
+                            <>
                         <div className="space-y-2 text-sm">
                             <p>
                                 <span className="text-muted-foreground block">Issue ID</span>
-                                <span className="font-medium text-[#0A0A0A]">Issue/2025/S1/P1/QI/Issue#1</span>
+                                        <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
                             </p>
                             <p>
                                 <span className="text-muted-foreground block">Title</span>
                                 <span className="font-medium text-[#0A0A0A]">
-                                    Missing ISO documentation for compliance review
+                                            {selectedIssue?.title || "—"}
                                 </span>
                             </p>
                             <p>
                                 <span className="text-muted-foreground block mb-1">Tag Category</span>
-                                <span className="inline-block rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs">
-                                    Quality Issue
-                                </span>
+                                        <Badge variant={selectedIssue?.tagVariant || "default"}>
+                                            {selectedIssue?.tag || "—"}
+                                        </Badge>
                             </p>
                         </div>
                         {/* Description */}
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Description</p>
                             <p className="text-sm text-[#0A0A0A]">
-                                Critical ISO documentation missing from compliance folder
+                                        {selectedIssue?.description || "No description provided"}
                             </p>
                         </div>
                         {/* Root Cause */}
+                                {issueReview?.rootCauseText && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
                             <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
-                                Documentation process was not properly followed during Q3 review
+                                            {issueReview.rootCauseText}
                             </div>
                         </div>
+                                )}
                         {/* Containment Action */}
+                                {issueReview?.containmentText && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
                             <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
-                                Temporary workaround: Used backup documentation from previous quarter
+                                            {issueReview.containmentText}
                             </div>
                         </div>
-                        {/* Corrective Action */}
+                                )}
+                                {/* Corrective Action Plan */}
+                                {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
-                            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm">
-                                Created comprehensive documentation checklist and updated SOPs.
-                                Trained all team members on new process.
+                                        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
+                                            {issueReview.actionPlans.map((plan, idx) => (
+                                                <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
+                                                    <p className="font-medium">{plan.action}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Responsible: {plan.responsible} | 
+                                                        Planned: {plan.plannedDate || "—"} | 
+                                                        Actual: {plan.actualDate || "—"}
+                                                    </p>
                             </div>
+                                            ))}
                         </div>
+                                    </div>
+                                )}
                         {/* Attachments */}
+                                {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length || 
+                                  issueReview?.actionPlans?.some(p => p.files?.length)) ? (
                         <div>
                             <p className="text-sm text-muted-foreground mb-2">Attachments</p>
                             <div className="space-y-2">
-                                <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-                                    <div className="flex items-center gap-1.5"><NotebookText /> ISO_Documentation_Checklist_v2.pdf</div>
-                                    <span className="text-muted-foreground text-xs">245 KB</span>
+                                            {/* Show all files with download buttons */}
+                                            {issueReview.containmentFiles?.map((file, idx) => (
+                                                <div key={`containment-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <NotebookText />
+                                                        {file.name}
+                                                        {file.key && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 px-2 text-xs ml-2"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                        window.open(result.url, "_blank")
+                                                                    } catch (error: any) {
+                                                                        toast.error("Failed to download file")
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Download
+                                                            </Button>
+                                                        )}
                                 </div>
-                                <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-                                    <div className="flex items-center gap-1.5"><NotebookText /> Training_Certificate_MaryC.pdf</div>
-                                    <span className="text-muted-foreground text-xs">128 KB</span>
+                                                    <span className="text-muted-foreground text-xs">
+                                                        {(file.size / 1024).toFixed(1)} KB
+                                                    </span>
                                 </div>
+                                            ))}
+                                            {issueReview.rootCauseFiles?.map((file, idx) => (
+                                                <div key={`rootcause-${idx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <NotebookText />
+                                                        {file.name}
+                                                        {file.key && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 px-2 text-xs ml-2"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                        window.open(result.url, "_blank")
+                                                                    } catch (error: any) {
+                                                                        toast.error("Failed to download file")
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Download
+                                                            </Button>
+                                                        )}
                             </div>
+                                                    <span className="text-muted-foreground text-xs">
+                                                        {(file.size / 1024).toFixed(1)} KB
+                                                    </span>
                         </div>
+                                            ))}
+                                            {issueReview.actionPlans?.map((plan, planIdx) =>
+                                                plan.files?.map((file, fileIdx) => (
+                                                    <div key={`action-${planIdx}-${fileIdx}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <NotebookText />
+                                                            {file.name}
+                                                            {file.key && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 px-2 text-xs ml-2"
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const result = await apiClient.getFileDownloadUrl(file.key!)
+                                                                            window.open(result.url, "_blank")
+                                                                        } catch (error: any) {
+                                                                            toast.error("Failed to download file")
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Download
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-muted-foreground text-xs">
+                                                            {(file.size / 1024).toFixed(1)} KB
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <p className="text-sm text-muted-foreground">No attachments</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
                         <p className="text-sm font-semibold text-[#0A0A0A]">
                             Issuer Verification Decision
                         </p>
@@ -1076,56 +1617,18 @@ export default function IssuesDashboard() {
                                     New Assignee <span className="text-red-600">*</span>
                                 </Label>
 
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            role="combobox"
-                                            className={cn(
-                                                "w-full justify-between border-red-200 text-sm",
-                                                selectedAssignees.length === 0 && "text-muted-foreground"
-                                            )}
-                                        >
-                                            {selectedAssignees.length > 0
-                                                ? assignees
-                                                    .filter(a => selectedAssignees.includes(a.value))
-                                                    .map(a => a.label)
-                                                    .join(", ")
-                                                : "Select assignee(s)"}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                    </PopoverTrigger>
-
-                                    <PopoverContent className="w-full p-0" align="start">
-                                        <Command>
-                                            <CommandEmpty>No assignee found.</CommandEmpty>
-                                            <CommandGroup>
-                                                {assignees.map((assignee) => (
-                                                    <CommandItem
-                                                        key={assignee.value}
-                                                        onSelect={() => {
-                                                            setSelectedAssignees((prev) =>
-                                                                prev.includes(assignee.value)
-                                                                    ? prev.filter((v) => v !== assignee.value)
-                                                                    : [...prev, assignee.value]
-                                                            )
-                                                        }}
-                                                    >
-                                                        <Check
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                selectedAssignees.includes(assignee.value)
-                                                                    ? "opacity-100"
-                                                                    : "opacity-0"
-                                                            )}
-                                                        />
-                                                        {assignee.label}
-                                                    </CommandItem>
+                                <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
+                                    <SelectTrigger className="w-full border-red-200">
+                                        <SelectValue placeholder="Select assignee" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {processUsers.map((user) => (
+                                            <SelectItem key={user.id} value={user.id}>
+                                                {user.name} {user.email && `(${user.email})`}
+                                            </SelectItem>
                                                 ))}
-                                            </CommandGroup>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             {/* New Due Date */}
@@ -1164,24 +1667,45 @@ export default function IssuesDashboard() {
                                 <Label className="text-sm font-medium text-[#0A0A0A]">
                                     Attachment (Optional)
                                 </Label>
-                                <Input
+                                <input
                                     type="file"
-                                    className="w-full text-sm text-muted-foreground"
+                                    ref={reassignmentFileInputRef}
+                                    className="hidden"
+                                    multiple
+                                    onChange={handleReassignmentFileChange}
                                 />
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        type="button"
+                                        onClick={() => reassignmentFileInputRef.current?.click()}
+                                        className="border-red-200"
+                                    >
+                                        <Upload className="mr-2 h-4 w-4" /> Upload Files
+                                    </Button>
+                                    {reassignmentFiles.length > 0 && (
+                                        <span className="text-sm text-muted-foreground">
+                                            {reassignmentFiles.length} file(s) selected
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Actions */}
                             <div className="flex justify-end gap-2 pt-2">
                                 <Button
                                     className="bg-red-600 hover:bg-red-700 text-white w-[80%]"
+                                    onClick={handleSubmitIneffective}
+                                    disabled={isSubmitting || !selectedAssignee || !dueDate || !reassignmentInstructions}
                                 >
-                                    Reassign Issue
+                                    {isSubmitting ? "Submitting..." : "Reassign Issue"}
                                 </Button>
 
                                 <Button
                                     className="w-[20%]"
                                     variant="outline"
                                     onClick={() => setOpenNoSubmit(false)}
+                                    disabled={isSubmitting}
                                 >
                                     Cancel
                                 </Button>

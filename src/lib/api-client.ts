@@ -525,6 +525,63 @@ class ApiClient {
 
     return response.json();
   }
+
+  // ========== Verification Methods ==========
+
+  /**
+   * Verify an issue (mark as effective or ineffective)
+   * @param orgId - Organization ID
+   * @param processId - Process ID
+   * @param issueId - Issue ID
+   * @param data - Verification data (type: 'effective' | 'ineffective', and related fields)
+   */
+  verifyIssue(
+    orgId: string,
+    processId: string,
+    issueId: string,
+    data: {
+      verificationType: "effective" | "ineffective";
+      // Effective fields
+      closureComments?: string;
+      closeOutDate?: string;
+      verificationDate?: string;
+      signature?: string;
+      verificationFiles?: Array<{ name: string; size: number; type: string; key: string }>;
+      // Ineffective fields
+      newInstructions?: string;
+      newAssignee?: string | string[];
+      newDueDate?: string;
+      reassignmentFiles?: Array<{ name: string; size: number; type: string; key: string }>;
+    }
+  ) {
+    return this.post<{ success: boolean; message: string; verification: any }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}/verify`,
+      data
+    );
+  }
+
+  /**
+   * Get verification data for an issue
+   * @param orgId - Organization ID
+   * @param processId - Process ID
+   * @param issueId - Issue ID
+   */
+  getIssueVerification(orgId: string, processId: string, issueId: string) {
+    return this.get<{ verification: any | null }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}/verify`
+    );
+  }
+
+  /**
+   * Get all users for a process
+   * @param orgId - Organization ID
+   * @param processId - Process ID
+   */
+  getProcessUsers(orgId: string, processId: string) {
+    return this.get<{ users: Array<{ id: string; name: string; email: string; role: string }> }>(
+      `/organization/${orgId}/processes/${processId}/users`
+    );
+  }
 }
 
 export const apiClient = new ApiClient();

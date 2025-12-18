@@ -489,12 +489,12 @@ const Board = () => {
         processId={processId}
       />
       
-      <KanbanProvider
-        columns={columns}
+    <KanbanProvider
+      columns={columns}
         data={kanbanData}
         onDataChange={handleDataChange}
         onDragEnd={handleDragEnd}
-      >
+    >
       {(column) => {
         // Filter issues for this column
         const columnIssues = kanbanData.filter(
@@ -614,3 +614,4 @@ const Board = () => {
 };
 
 export default Board;
+

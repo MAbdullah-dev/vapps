@@ -160,24 +160,32 @@ export default function InvitePage() {
     try {
       setIsLoggingIn(true);
       
-      // Use accept-with-password endpoint (creates/updates user and accepts invite)
+      // Try to accept invite with password (ONLY works for NEW users)
+      // If user exists, this will return ACCOUNT_EXISTS error
       const result = await apiClient.acceptInviteWithPassword(token, password);
       
-      // Small delay to ensure database is updated
+      // If successful, user was created - now log them in
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Now login with the credentials
       await apiClient.login({ email, password });
       
       toast.success(`Successfully joined ${result.organizationName}!`);
-      
-      // Redirect to resolve page
       router.push(`/auth/resolve`);
     } catch (err: any) {
-      // More detailed error message
-      const errorMsg = err.message || "Failed to accept invitation";
-      toast.error(errorMsg);
-      console.error("Invite acceptance error:", err);
+      // Check if error is ACCOUNT_EXISTS (user already has account)
+      // The axios interceptor extracts error.response.data.error, so err.message will be "ACCOUNT_EXISTS"
+      const errorMessage = err.message || "";
+      
+      if (errorMessage === "ACCOUNT_EXISTS" || errorMessage.toLowerCase().includes("account with this email already exists") || errorMessage.toLowerCase().includes("please log in")) {
+        // User exists - they need to log in first, then accept invite
+        toast.error("An account with this email already exists. Please log in to accept this invitation.");
+        // Redirect to login page with invite token
+        router.push(`/auth?invite=${token}&email=${encodeURIComponent(email)}`);
+      } else {
+        // Other errors (invalid password, etc.)
+        const errorMsg = errorMessage || "Failed to accept invitation";
+        toast.error(errorMsg);
+        console.error("Invite acceptance error:", err);
+      }
     } finally {
       setIsLoggingIn(false);
     }

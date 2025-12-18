@@ -74,7 +74,13 @@ export async function sendInvitationEmail({
   }
 
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/auth/invite?token=${token}`;
-  const roleText = role === "admin" ? "Administrator" : role === "owner" ? "Owner" : "Member";
+  // Format role for display in email
+  const roleText = 
+    role?.toLowerCase() === "admin" || role?.toLowerCase() === "administrator" ? "Administrator" :
+    role?.toLowerCase() === "owner" ? "Owner" :
+    role?.toLowerCase() === "manager" ? "Manager" :
+    role?.toLowerCase() === "user" || role?.toLowerCase() === "member" ? "User" :
+    "Member";
   const fromEmail = process.env.SMTP_FROM || "noreply@vapps.com";
 
   await transporter.sendMail({
