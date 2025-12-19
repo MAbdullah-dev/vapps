@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 // import { zodResolver } from "@hookform/resolvers/zod";
 import { step7Schema, Step7Values } from "@/schemas/onboarding/step7Schema";
@@ -21,8 +21,7 @@ const Step7 = () => {
   const form = useForm<Step7Values>({
     defaultValues: saved || {
       activeTab: "customers",
-      customers: [{ name: "", email: "", phone: "", address: "" }],
-      vendors: [],
+      // customers and vendors will be added dynamically
     },
   });
 
@@ -37,16 +36,19 @@ const Step7 = () => {
   });
 
   const tab = form.watch("activeTab");
+  const ranRef = useRef({ customers: false, vendors: false });
 
-  // Ensure at least one field exists for the active tab only
   useEffect(() => {
-    // Only add a field if there are none AND there is no saved data
-    if (tab === "customers" && customerFields.length === 0 && (!saved || !saved.customers?.length)) {
+    if (tab === "customers" && customerFields.length === 0 && !ranRef.current.customers) {
       addCustomer({ name: "", email: "", phone: "", address: "" });
-    } else if (tab === "vendors" && vendorFields.length === 0 && (!saved || !saved.vendors?.length)) {
-      addVendor({ name: "", email: "", phone: "", address: "" });
+      ranRef.current.customers = true;
     }
-  }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor, saved]);
+
+    if (tab === "vendors" && vendorFields.length === 0 && !ranRef.current.vendors) {
+      addVendor({ name: "", email: "", phone: "", address: "" });
+      ranRef.current.vendors = true;
+    }
+  }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor]);
 
 
   const onSubmit = (values: Step7Values) => {
