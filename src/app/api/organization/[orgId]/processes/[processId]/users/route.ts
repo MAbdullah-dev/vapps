@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
+import { getRequestContext } from "@/lib/request-context";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/users
@@ -12,52 +12,18 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string; processId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
+    const { orgId, processId } = await params;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId, processId } = await params;
-
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
 
       // Get all users for this process from process_users table
       // Join with master DB User table to get user details (name, email)
@@ -78,7 +44,7 @@ export async function GET(
       const userIds = result.rows.map((row: any) => row.user_id);
       
       if (userIds.length === 0) {
-        await client.end();
+        client.release();
         return NextResponse.json({ users: [] });
       }
 
@@ -105,11 +71,11 @@ export async function GET(
         };
       });
 
-      await client.end();
+      client.release();
 
       return NextResponse.json({ users: usersWithRoles });
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Failed to fetch process users", message: dbError.message },
         { status: 500 }

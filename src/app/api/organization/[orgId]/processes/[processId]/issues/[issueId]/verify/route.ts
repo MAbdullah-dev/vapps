@@ -5,9 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { getTenantClient } from "@/lib/db/tenant";
+import { getRequestContext } from "@/lib/request-context";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
 
 export async function POST(
@@ -16,13 +15,14 @@ export async function POST(
 ) {
   let client;
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const resolvedParams = await params;
     const { orgId, processId, issueId } = resolvedParams;
+    
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!orgId || !processId || !issueId) {
       return NextResponse.json(
@@ -202,13 +202,14 @@ export async function GET(
 ) {
   let client;
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const resolvedParams = await params;
     const { orgId, issueId } = resolvedParams;
+    
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!orgId || !issueId) {
       return NextResponse.json(

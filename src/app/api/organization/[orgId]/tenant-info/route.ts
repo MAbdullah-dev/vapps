@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
+import { getRequestContext } from "@/lib/request-context";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 
 /**
  * GET /api/organization/[orgId]/tenant-info
@@ -12,53 +11,20 @@ export async function GET(
   { params }: { params: { orgId: string } }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const { orgId } = await params;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: params.orgId },
-      include: { 
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
+    const { tenant } = ctx;
 
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has access to this organization
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found for this organization" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
 
       // Get database information
       const [tablesResult, dbSizeResult, connectionCountResult] = await Promise.all([
@@ -75,14 +41,14 @@ export async function GET(
         // Get database size
         client.query(`
           SELECT pg_size_pretty(pg_database_size($1)) as size
-        `, [org.database.dbName]),
+        `, [tenant.dbName]),
         
         // Get connection count
         client.query(`
           SELECT count(*) as connections
           FROM pg_stat_activity 
           WHERE datname = $1
-        `, [org.database.dbName]),
+        `, [tenant.dbName]),
       ]);
 
       // Get row counts for each table

@@ -3,6 +3,9 @@
 -- 1. Sites endpoint (sites with processes)
 -- 2. Processes endpoint (filtered by siteId)
 
+-- NOTE: sites(id) is a PRIMARY KEY, so it's already indexed automatically
+-- No need to create an index on sites(id)
+
 -- Index on processes.siteId for JOIN and WHERE clause performance
 CREATE INDEX IF NOT EXISTS idx_processes_siteId ON processes("siteId");
 

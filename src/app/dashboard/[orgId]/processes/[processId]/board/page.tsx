@@ -89,6 +89,9 @@ const Board = () => {
     previousStatus: string;
   } | null>(null);
   const [issuesWithReviewData, setIssuesWithReviewData] = useState<Set<string>>(new Set()); // Track issues that have review data
+  
+  // Track if a drag is in progress to prevent clicks during drag
+  const [isDragging, setIsDragging] = useState(false);
 
   // Update queue and processing state (using refs to avoid stale closures)
   // NOTE: The update queue exists entirely on the client and is flushed to the backend asynchronously;
@@ -139,7 +142,7 @@ const Board = () => {
     }
   }, [orgId, processId, fetchData]);
 
-  // Listen for issue creation events to refresh board
+  // Listen for issue creation/update events to refresh board
   useEffect(() => {
     const handleIssueCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -148,9 +151,18 @@ const Board = () => {
       }
     };
 
+    const handleIssueUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.processId === processId && customEvent.detail.orgId === orgId) {
+        fetchData();
+      }
+    };
+
     window.addEventListener('issueCreated', handleIssueCreated);
+    window.addEventListener('issueUpdated', handleIssueUpdated);
     return () => {
       window.removeEventListener('issueCreated', handleIssueCreated);
+      window.removeEventListener('issueUpdated', handleIssueUpdated);
     };
   }, [orgId, processId, fetchData]);
 
@@ -267,6 +279,14 @@ const Board = () => {
         const newStatus = columnIdToStatus(item.column);
         const oldStatus = originalIssue.status;
 
+        // Prevent moving to "Done" status - tasks can only be marked as Done after review approval
+        if (newStatus === 'done' && oldStatus !== 'done') {
+          console.log('[handleDataChange] ⚠️ Cannot move task to Done - must be approved via review');
+          toast.error("Tasks can only be marked as Done after review approval");
+          // Revert to original status
+          return originalIssue;
+        }
+
         // Special handling: If moving from "in-progress" to "in-review", open dialog first
         if (oldStatus === 'in-progress' && newStatus === 'in-review') {
           // Check if there's already a pending review update for this issue
@@ -317,9 +337,20 @@ const Board = () => {
     setIssues(updatedIssues);
   }, [queueUpdate, pendingReviewUpdate]);
 
+  // Handle drag start - track that dragging has started
+  const handleDragStart = useCallback((event: any) => {
+    setIsDragging(true);
+    console.log(`[DragStart] Drag started for issue ${event.active.id}`);
+  }, []);
+
   // Handle drag end - no API calls here, handled by queue
   const handleDragEnd = useCallback((event: any) => {
     const { active, over } = event;
+    
+    // Reset dragging state after a short delay to allow click handlers to check
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 100);
     
     // Early return if invalid drop
     if (!over || active.id === over.id) {
@@ -528,7 +559,22 @@ const Board = () => {
                     key={issue.id}
                     name={issue.title}
               >
-                    <div className="space-y-2">
+                    <div 
+                      className="space-y-2 cursor-pointer"
+                      onClick={(e) => {
+                        // Only open dialog if not dragging
+                        // The activation constraint (5px) ensures clicks don't trigger drag
+                        if (!isDragging) {
+                          e.stopPropagation();
+                          // Open issue dialog in view/edit mode
+                          if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('openIssueDialog', {
+                              detail: { issueId: issue.id, orgId, processId }
+                            }));
+                          }
+                        }
+                      }}
+                    >
                       {/* Header: ID and Options */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500 font-mono">

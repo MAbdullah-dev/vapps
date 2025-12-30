@@ -123,7 +123,28 @@ export async function GET(
       return NextResponse.json({ review: null });
     }
 
-    return NextResponse.json({ review: result.rows[0] });
+    const review = result.rows[0];
+    
+    // Parse JSON strings back to arrays/objects
+    try {
+      if (review.containmentFiles && typeof review.containmentFiles === 'string') {
+        review.containmentFiles = JSON.parse(review.containmentFiles);
+      }
+      if (review.rootCauseFiles && typeof review.rootCauseFiles === 'string') {
+        review.rootCauseFiles = JSON.parse(review.rootCauseFiles);
+      }
+      if (review.actionPlans && typeof review.actionPlans === 'string') {
+        review.actionPlans = JSON.parse(review.actionPlans);
+      }
+    } catch (parseError) {
+      console.error("[Review GET] Error parsing JSON fields:", parseError);
+      // If parsing fails, set to empty arrays
+      review.containmentFiles = [];
+      review.rootCauseFiles = [];
+      review.actionPlans = [];
+    }
+
+    return NextResponse.json({ review });
   } catch (error: any) {
     console.error("Error fetching review data:", error);
     if (client) {

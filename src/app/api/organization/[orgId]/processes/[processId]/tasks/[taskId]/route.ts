@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
+import { getRequestContext } from "@/lib/request-context";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 
 /**
  * PUT /api/organization/[orgId]/processes/[processId]/tasks/[taskId]
@@ -12,11 +11,6 @@ export async function PUT(
   { params }: { params: Promise<{ orgId: string; processId: string; taskId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { orgId, processId, taskId } = await params;
     const body = await req.json();
     const {
@@ -31,44 +25,16 @@ export async function PUT(
       endDate,
     } = body;
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
 
       // Verify task exists and belongs to the process
       const taskResult = await client.query(
@@ -77,7 +43,7 @@ export async function PUT(
       );
 
       if (taskResult.rows.length === 0) {
-        await client.end();
+        client.release();
         return NextResponse.json(
           { error: "Task not found" },
           { status: 404 }
@@ -127,7 +93,7 @@ export async function PUT(
       }
 
       if (updateFields.length === 0) {
-        await client.end();
+        client.release();
         return NextResponse.json(
           { error: "No fields to update" },
           { status: 400 }
@@ -154,7 +120,7 @@ export async function PUT(
         [taskId]
       );
 
-      await client.end();
+      client.release();
 
       return NextResponse.json(
         {
@@ -164,7 +130,7 @@ export async function PUT(
         { status: 200 }
       );
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Failed to update task", message: dbError.message },
         { status: 500 }

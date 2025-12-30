@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
+import { getRequestContext } from "@/lib/request-context";
+import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
 
 /**
@@ -13,14 +12,15 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type"); // titles, tags, or sources
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!type || !["titles", "tags", "sources"].includes(type)) {
       return NextResponse.json(
@@ -29,58 +29,17 @@ export async function GET(
       );
     }
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
-
     try {
-      await client.connect();
-
       const tableName = `issue_${type}`;
-      const result = await client.query(
+      const result = await queryTenant(
+        orgId,
         `SELECT id, name, "createdAt" FROM ${tableName} ORDER BY name ASC`
       );
 
-      await client.end();
-
       return NextResponse.json({
-        [type]: result.rows.map((row: any) => row.name),
+        [type]: result.map((row: any) => row.name),
       });
     } catch (dbError: any) {
-      await client.end();
       return NextResponse.json(
         { error: `Failed to fetch ${type}`, message: dbError.message },
         { status: 500 }
@@ -104,16 +63,17 @@ export async function POST(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
     const body = await req.json();
     const { name } = body;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (!type || !["titles", "tags", "sources"].includes(type)) {
       return NextResponse.json(
@@ -129,46 +89,10 @@ export async function POST(
       );
     }
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
-
       const tableName = `issue_${type}`;
       const trimmedName = name.trim();
 
@@ -179,7 +103,7 @@ export async function POST(
       );
 
       if (existing.rows.length > 0) {
-        await client.end();
+        client.release();
         return NextResponse.json(
           {
             message: `${type.slice(0, -1)} already exists`,
@@ -197,7 +121,7 @@ export async function POST(
         [id, trimmedName]
       );
 
-      await client.end();
+      client.release();
 
       return NextResponse.json(
         {
@@ -207,7 +131,7 @@ export async function POST(
         { status: 201 }
       );
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: `Failed to add ${type}`, message: dbError.message },
         { status: 500 }

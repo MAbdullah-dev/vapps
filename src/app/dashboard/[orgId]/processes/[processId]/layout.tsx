@@ -44,9 +44,9 @@ import {
 import dynamic from "next/dynamic";
 const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
 
+// Only import CSS - JS plugins are loaded by react-froala-wysiwyg dynamically
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
-import 'froala-editor/js/plugins.pkgd.min.js';
 
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 
@@ -66,6 +66,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
+  const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false)
 
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
 
@@ -103,17 +104,61 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     }
   }, [orgId, processId]);
 
+  // Listen for openIssueDialog event from board
+  useEffect(() => {
+    const handleOpenIssueDialog = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { issueId, orgId: eventOrgId, processId: eventProcessId } = customEvent.detail;
+      
+      // Only handle if it's for this process
+      if (eventOrgId !== orgId || eventProcessId !== processId) return;
+
+      try {
+        setIsLoadingIssue(true);
+        const response = await apiClient.getIssue(orgId as string, processId as string, issueId);
+        const issue = response.issue;
+        
+        // Populate form with issue data
+        setEditingIssue(issue);
+        setTitle(issue.title || "");
+        setTag(issue.tags && issue.tags.length > 0 ? issue.tags[0] : "");
+        setSource(issue.source || "");
+        setSelectedPriority(issue.priority || "");
+        setSelectedStatus(issue.status || "");
+        setSelectedAssignees(issue.assignee ? [issue.assignee] : []);
+        setSelectedSprint(issue.sprintId || "__backlog__");
+        setPoints(issue.points || 0);
+        setEditorContent(issue.description || "");
+        setDate(undefined); // TODO: Add dueDate field if available
+        
+        // Open dialog
+        setIsCreateDialogOpen(true);
+      } catch (error: any) {
+        console.error("Error loading issue:", error);
+        toast.error("Failed to load issue details");
+      } finally {
+        setIsLoadingIssue(false);
+      }
+    };
+
+    window.addEventListener('openIssueDialog', handleOpenIssueDialog);
+    return () => {
+      window.removeEventListener('openIssueDialog', handleOpenIssueDialog);
+    };
+  }, [orgId, processId]);
+
   // Reset form when dialog closes
   const handleDialogOpenChange = (open: boolean) => {
     setIsCreateDialogOpen(open);
     if (!open) {
       // Reset form when dialog closes
+      setEditingIssue(null);
       setTitle("");
       setTag("");
       setSource("");
       setSelectedPriority("");
       setSelectedStatus("");
-      setSelectedAssignee("");
+      setSelectedAssignees([]);
       setSelectedSprint("__backlog__");
       setPoints(0);
       setEditorContent("");
@@ -179,6 +224,9 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [editingIssue, setEditingIssue] = useState<any>(null); // Issue being edited
+  const [isLoadingIssue, setIsLoadingIssue] = useState(false);
+  const [isUpdatingIssue, setIsUpdatingIssue] = useState(false);
 
   const handleAddCustomTitle = () => {
     setCustomTitleMode(true);
@@ -224,7 +272,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     }
   };
 
-  // Handle issue creation form submission
+  // Handle issue creation/update form submission
   const handleCreateIssue = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -244,6 +292,61 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       return;
     }
 
+    // Validate assignee is mandatory
+    if (!selectedAssignees || selectedAssignees.length === 0) {
+      toast.error("At least one assignee is required");
+      return;
+    }
+
+    // If editing, update the issue
+    if (editingIssue) {
+      setIsUpdatingIssue(true);
+      try {
+        const issueData: any = {
+          title: title.trim(),
+          description: editorContent || undefined,
+          priority: selectedPriority || undefined,
+          points: points || 0,
+          assignee: selectedAssignees.length > 0 ? selectedAssignees[0] : undefined,
+          tags: [tag.trim()],
+          sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
+          status: selectedStatus || undefined,
+        };
+
+        await apiClient.updateIssue(orgId as string, processId as string, editingIssue.id, issueData);
+
+        toast.success("Issue updated successfully!");
+
+        // Reset form and close dialog
+        setEditingIssue(null);
+        setTitle("");
+        setTag("");
+        setSource("");
+        setSelectedPriority("");
+        setSelectedStatus("");
+        setSelectedAssignees([]);
+        setSelectedSprint("__backlog__");
+        setPoints(0);
+        setEditorContent("");
+        setDate(undefined);
+        setIsCreateDialogOpen(false);
+
+        // Trigger refresh
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('issueUpdated', {
+            detail: { processId, orgId, issueId: editingIssue.id }
+          }));
+        }
+      } catch (error: any) {
+        console.error("Error updating issue:", error);
+        toast.error(error.message || "Failed to update issue");
+      } finally {
+        setIsUpdatingIssue(false);
+      }
+      return;
+    }
+
+    // Create new issue
     setIsCreatingIssue(true);
 
     try {
@@ -255,7 +358,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         description: editorContent || undefined,
         priority: selectedPriority || undefined,
         points: points || 0,
-        assignee: selectedAssignee || undefined,
+        assignee: selectedAssignees.length > 0 ? selectedAssignees[0] : undefined, // Use first assignee (API expects string)
         tags: [tag.trim()], // Store the selected tag in tags array
         sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
         // Note: Status will be set automatically by API based on sprintId
@@ -271,7 +374,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       setSource("");
       setSelectedPriority("");
       setSelectedStatus("");
-      setSelectedAssignee("");
+      setSelectedAssignees([]);
       setSelectedSprint("__backlog__");
       setPoints(0);
       setEditorContent("");
@@ -344,6 +447,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
       toast.success("Invitation sent successfully!");
 
+      // Refresh process users list
+      try {
+        const usersRes = await apiClient.getProcessUsers(orgId as string, processId as string);
+        setProcessUsers(usersRes.users || []);
+      } catch (error) {
+        console.error("Error refreshing users:", error);
+        // Don't show error toast, invitation was successful
+      }
+
       // Reset form and close dialog
       setEmail("");
       setRole("member");
@@ -388,8 +500,10 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
           <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Issue</DialogTitle>
-              <DialogDescription>Fill the details to create a new issue.</DialogDescription>
+              <DialogTitle>{editingIssue ? "Edit Issue" : "Create Issue"}</DialogTitle>
+              <DialogDescription>
+                {editingIssue ? "Update the issue details." : "Fill the details to create a new issue."}
+              </DialogDescription>
             </DialogHeader>
 
             {/* FORM */}
@@ -447,7 +561,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={title}
                       onValueChange={setTitle}
                       required
-                      disabled={isCreatingIssue || isLoadingMetadata}
+                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading titles..." : "Select a title *"} />
@@ -600,7 +714,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={source}
                       onValueChange={setSource}
                       required
-                      disabled={isCreatingIssue || isLoadingMetadata}
+                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading sources..." : "Select a source *"} />
@@ -631,7 +745,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <div className="flex items-center gap-4">
                 <div className="w-1/2">
                   <Label className="mb-2">Priority</Label>
-                  <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isCreatingIssue}>
+                  <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Medium (default)" />
                     </SelectTrigger>
@@ -649,7 +763,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   <Select
                     onValueChange={setSelectedStatus}
                     value={selectedStatus}
-                    disabled={(selectedSprint && selectedSprint !== "__backlog__") || isCreatingIssue} // Disable if sprint is selected (will be auto-set to in-progress)
+                    disabled={(selectedSprint && selectedSprint !== "__backlog__") || isCreatingIssue || isUpdatingIssue || isLoadingIssue} // Disable if sprint is selected (will be auto-set to in-progress)
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder={(selectedSprint && selectedSprint !== "__backlog__") ? "In Progress (auto)" : "To Do (default)"} />
@@ -671,7 +785,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               {/* Assignee & Sprint */}
               <div className="flex items-center gap-4">
                 <div className="w-1/2 space-y-2">
-                  <Label>Assignee</Label>
+                  <Label>Assignee*</Label>
 
                   {/* Selected Pills */}
                   {selectedAssignees.length > 0 && (
@@ -705,7 +819,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   )}
 
                   {/* Selector */}
-                  <Popover>
+                  <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -758,6 +872,19 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                               </div>
                             </CommandItem>
                           ))}
+                          {/* Add User Button */}
+                          <CommandItem
+                            onSelect={() => {
+                              // Close the assignee popover
+                              setAssigneePopoverOpen(false);
+                              // Open the invitation dialog
+                              setDialogOpen(true);
+                            }}
+                            className="border-t mt-1 pt-2 font-medium cursor-pointer"
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            <span>Add User</span>
+                          </CommandItem>
                         </CommandGroup>
                       </Command>
                     </PopoverContent>
@@ -810,7 +937,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       variant="outline"
                       id="date"
                       className="w-full justify-between"
-                      disabled={isCreatingIssue}
+                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}
                     >
                       {date ? date.toLocaleDateString() : "Select date"}
                       <ChevronDownIcon className="text-muted" />
@@ -853,12 +980,20 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button type="button" variant="outline" disabled={isCreatingIssue}>
+                  <Button type="button" variant="outline" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button type="submit" disabled={isCreatingIssue}>
-                  {isCreatingIssue ? "Creating..." : "Create Issue"}
+                <Button type="submit" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
+                  {isLoadingIssue 
+                    ? "Loading..." 
+                    : isUpdatingIssue 
+                      ? "Updating..." 
+                      : isCreatingIssue 
+                        ? "Creating..." 
+                        : editingIssue 
+                          ? "Update Issue" 
+                          : "Create Issue"}
                 </Button>
               </DialogFooter>
             </form>

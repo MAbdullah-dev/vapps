@@ -191,57 +191,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Create organization in master database (transaction)
+    // 5. Create organization in master database using transaction
+    // OPTIMIZED: Wrap all master DB operations in a transaction for atomicity
+    // This ensures organization, orgDatabaseInstance, and userOrganization are created together
+    // or all rolled back if any step fails
     let organization;
     let dbInstance;
+    let tenantDb;
 
     try {
-      // Start transaction: Create organization and database instance
-      organization = await prisma.organization.create({
-        data: {
-          name: data.step1.companyName.trim(),
-          ownerId: user.id,
-        },
-      });
+      // Use transaction for all master DB operations
+      const result = await prisma.$transaction(async (tx) => {
+        // Create organization first
+        const org = await tx.organization.create({
+          data: {
+            name: data.step1.companyName.trim(),
+            ownerId: user.id,
+          },
+        });
 
-      // 6. Create tenant database
-      let tenantDb;
-      try {
-        tenantDb = await createTenantDatabase(organization.id);
-      } catch (dbError: any) {
-        // If database creation fails, delete the organization
+        // Create tenant database (external operation, but we need org.id)
+        // If this fails, transaction will rollback organization creation
         try {
-          await prisma.organization.delete({
-            where: { id: organization.id },
-          });
-        } catch (deleteError: any) {
-          // Organization might not exist or already deleted, log and continue
-          console.warn("Could not delete organization during cleanup:", deleteError);
+          tenantDb = await createTenantDatabase(org.id);
+        } catch (dbError: any) {
+          throw new Error(`Failed to create tenant database: ${dbError.message}`);
         }
-        throw new Error(`Failed to create tenant database: ${dbError.message}`);
-      }
 
-      // 7. Store database instance information in master DB
-      dbInstance = await prisma.orgDatabaseInstance.create({
-        data: {
-          organizationId: organization.id,
-          dbHost: tenantDb.dbHost,
-          dbPort: tenantDb.dbPort,
-          dbUser: tenantDb.dbUser,
-          dbPassword: tenantDb.dbPassword,
-          dbName: tenantDb.dbName,
-          connectionString: tenantDb.connectionString,
-        },
+        // Store database instance information
+        const dbInst = await tx.orgDatabaseInstance.create({
+          data: {
+            organizationId: org.id,
+            dbHost: tenantDb.dbHost,
+            dbPort: tenantDb.dbPort,
+            dbUser: tenantDb.dbUser,
+            dbPassword: tenantDb.dbPassword,
+            dbName: tenantDb.dbName,
+            connectionString: tenantDb.connectionString,
+          },
+        });
+
+        // Create UserOrganization relationship (owner is automatically a member)
+        await tx.userOrganization.create({
+          data: {
+            userId: user.id,
+            organizationId: org.id,
+            role: "owner",
+          },
+        });
+
+        return { organization: org, dbInstance: dbInst };
       });
 
-      // 8. Create UserOrganization relationship (owner is automatically a member)
-      await prisma.userOrganization.create({
-        data: {
-          userId: user.id,
-          organizationId: organization.id,
-          role: "owner",
-        },
-      });
+      organization = result.organization;
+      dbInstance = result.dbInstance;
 
       // 9. Run migrations on tenant database to create tables
       try {
@@ -270,24 +273,9 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
       console.error("Error creating organization:", error);
 
-      // Cleanup: If organization was created but something else failed
-      if (organization && !dbInstance) {
-        try {
-          // Check if organization still exists before trying to delete
-          const orgExists = await prisma.organization.findUnique({
-            where: { id: organization.id },
-          });
-          
-          if (orgExists) {
-            await prisma.organization.delete({
-              where: { id: organization.id },
-            });
-          }
-        } catch (cleanupError: any) {
-          // Log but don't throw - cleanup errors shouldn't mask original error
-          console.warn("Error during cleanup (non-critical):", cleanupError.message);
-        }
-      }
+      // OPTIMIZED: No manual cleanup needed - transaction automatically rolls back
+      // all master DB operations (organization, orgDatabaseInstance, userOrganization)
+      // if any step fails. Tenant database creation failure also triggers rollback.
 
       return NextResponse.json(
         {

@@ -1,72 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
+import { getRequestContext } from "@/lib/request-context";
+import { queryTenant, getTenantPool } from "@/lib/db/tenant-pool";
+import { cache, cacheKeys } from "@/lib/cache";
 import crypto from "crypto";
 
 /**
  * GET /api/organization/[orgId]/sites
  * Get all sites and their processes for an organization
+ * 
+ * OPTIMIZED: Uses request context to eliminate redundant master DB queries
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
-    
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
+    const { orgId } = await params;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
+    const { tenant, user } = ctx;
+    const userRole = tenant.userRole;
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+    // Check cache first (60s TTL)
+    const cacheKey = cacheKeys.orgSites(orgId);
+    const cached = cache.get<{ sites: any[]; userRole: string; organization: { id: string; name: string } }>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
     }
-
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Get user role
-    const userRole = org.ownerId === user.id ? "owner" : org.users[0]?.role || "member";
-
-    // Connect to tenant database using optimized connection
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
 
     try {
-      await client.connect();
-
-      // OPTIMIZED: Single query with LEFT JOIN to get all sites and their processes
+      // OPTIMIZED: Single query with LEFT JOIN using pooled connection
       // This eliminates N+1 query problem (was making 1 + N queries, now just 1)
-      const result = await client.query(`
+      const rows = await queryTenant<any>(orgId, `
         SELECT 
           s.id,
           s.name,
@@ -80,12 +50,15 @@ export async function GET(
         FROM sites s
         LEFT JOIN processes p ON p."siteId" = s.id
         ORDER BY s."createdAt" ASC, p.name ASC
-      `);
+      `).catch((error) => {
+        console.error("[Sites API] Database query error:", error);
+        throw error;
+      });
 
       // Group processes by site
       const sitesMap = new Map<string, any>();
       
-      result.rows.forEach((row: any) => {
+      rows.forEach((row: any) => {
         const siteId = row.id;
         
         if (!sitesMap.has(siteId)) {
@@ -112,20 +85,42 @@ export async function GET(
 
       const sitesWithProcesses = Array.from(sitesMap.values());
 
-      await client.end();
-
-      return NextResponse.json({
+      const response = {
         sites: sitesWithProcesses,
         userRole,
         organization: {
-          id: org.id,
-          name: org.name,
+          id: tenant.orgId,
+          name: tenant.orgName,
         },
-      });
+      };
+
+      // Cache the response for 60 seconds
+      cache.set(cacheKey, response, 60 * 1000);
+
+      return NextResponse.json(response);
     } catch (dbError: any) {
-      await client.end();
+      console.error("[Sites API] Database error details:", {
+        message: dbError.message,
+        code: dbError.code,
+        stack: dbError.stack,
+        orgId,
+        hasDatabase: !!tenant.connectionString,
+        databaseName: tenant.dbName,
+      });
+      
+      // Return detailed error in development, generic in production
       return NextResponse.json(
-        { error: "Failed to fetch sites", message: dbError.message },
+        { 
+          error: "Failed to fetch sites", 
+          message: dbError.message,
+          ...(process.env.NODE_ENV === "development" && {
+            details: {
+              code: dbError.code,
+              stack: dbError.stack,
+              orgId,
+            },
+          }),
+        },
         { status: 500 }
       );
     }
@@ -147,15 +142,25 @@ export async function POST(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
+    const { orgId } = await params;
+    const body = await req.json();
+    const { siteName, location } = body;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { orgId } = await params;
+    const { tenant } = ctx;
 
-    const body = await req.json();
-    const { siteName, location } = body;
+    // Only owners can create sites
+    if (tenant.userRole !== "owner") {
+      return NextResponse.json(
+        { error: "Only organization owners can create sites" },
+        { status: 403 }
+      );
+    }
 
     if (!siteName || !location) {
       return NextResponse.json(
@@ -164,88 +169,58 @@ export async function POST(
       );
     }
 
-    // Get organization and verify user is owner
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: { database: true },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if user is owner
-    if (org.ownerId !== user.id) {
-      return NextResponse.json(
-        { error: "Only organization owners can create sites" },
-        { status: 403 }
-      );
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
-
     try {
-      await client.connect();
+      // Use pooled connection
+      const pool = await getTenantPool(orgId);
+      const client = await pool.connect();
 
-      // Auto-generate site code: Get count of existing sites for this organization
-      // Each organization has its own tenant database, so count starts from 1 for each org
-      const countResult = await client.query(`SELECT COUNT(*) as count FROM sites`);
-      const count = parseInt(countResult.rows[0].count) + 1;
-      const finalSiteCode = `S${String(count).padStart(3, '0')}`;
+      try {
+        // Auto-generate site code: Get count of existing sites for this organization
+        const countResult = await client.query(`SELECT COUNT(*) as count FROM sites`);
+        const count = parseInt(countResult.rows[0].count) + 1;
+        const finalSiteCode = `S${String(count).padStart(3, '0')}`;
 
-      // Check if site code already exists (shouldn't happen, but safety check)
-      const existingSite = await client.query(
-        `SELECT id FROM sites WHERE code = $1`,
-        [finalSiteCode]
-      );
-
-      if (existingSite.rows.length > 0) {
-        await client.end();
-        return NextResponse.json(
-          { error: "Site code already exists" },
-          { status: 409 }
+        // Check if site code already exists (shouldn't happen, but safety check)
+        const existingSite = await client.query(
+          `SELECT id FROM sites WHERE code = $1`,
+          [finalSiteCode]
         );
-      }
 
-      // Insert new site
-      const siteId = crypto.randomUUID();
-      await client.query(
-        `INSERT INTO sites (id, name, code, location, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-        [siteId, siteName, finalSiteCode, location]
-      );
+        if (existingSite.rows.length > 0) {
+          return NextResponse.json(
+            { error: "Site code already exists" },
+            { status: 409 }
+          );
+        }
 
-      await client.end();
+        // Insert new site
+        const siteId = crypto.randomUUID();
+        await client.query(
+          `INSERT INTO sites (id, name, code, location, "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+          [siteId, siteName, finalSiteCode, location]
+        );
 
-      return NextResponse.json(
-        {
-          message: "Site created successfully",
-          site: {
-            id: siteId,
-            name: siteName,
-            code: finalSiteCode,
-            location,
-            processes: [],
+        // Clear cache after mutation
+        cache.delete(cacheKeys.orgSites(orgId));
+
+        return NextResponse.json(
+          {
+            message: "Site created successfully",
+            site: {
+              id: siteId,
+              name: siteName,
+              code: finalSiteCode,
+              location,
+              processes: [],
+            },
           },
-        },
-        { status: 201 }
-      );
+          { status: 201 }
+        );
+      } finally {
+        client.release(); // CRITICAL: Always release connection back to pool
+      }
     } catch (dbError: any) {
-      await client.end();
       return NextResponse.json(
         { error: "Failed to create site", message: dbError.message },
         { status: 500 }

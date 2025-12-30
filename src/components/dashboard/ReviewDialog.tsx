@@ -90,18 +90,59 @@ export default function ReviewDialog({
 
   const handleFiles = (
     files: FileList | null,
-    setter: React.Dispatch<React.SetStateAction<UploadedFile[]>>
+    setter: React.Dispatch<React.SetStateAction<UploadedFile[]>>,
+    inputRef?: React.RefObject<HTMLInputElement | null>
   ) => {
     if (!files) return;
-    const newFiles: UploadedFile[] = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-    }));
+    
+    // Validate file size (max 10MB per file)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const invalidFiles: File[] = [];
+    
+    Array.from(files).forEach((file) => {
+      if (file.size > maxSize) {
+        invalidFiles.push(file);
+      }
+    });
+    
+    if (invalidFiles.length > 0) {
+      toast.error(`Some files exceed the 10MB limit: ${invalidFiles.map(f => f.name).join(', ')}`);
+      return;
+    }
+    
+    const newFiles: UploadedFile[] = Array.from(files)
+      .filter((file) => file.size <= maxSize)
+      .map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+      }));
+    
     setter((prev) => [...prev, ...newFiles]);
+    
+    // Reset file input so same file can be selected again
+    if (inputRef?.current) {
+      inputRef.current.value = '';
+    }
   };
 
-  const handleActionFileUpload = (rowId: string, files: FileList | null) => {
+  const handleActionFileUpload = (rowId: string, files: FileList | null, inputElement?: HTMLInputElement) => {
     if (!files) return;
+    
+    // Validate file size (max 10MB per file)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const invalidFiles: File[] = [];
+    
+    Array.from(files).forEach((file) => {
+      if (file.size > maxSize) {
+        invalidFiles.push(file);
+      }
+    });
+    
+    if (invalidFiles.length > 0) {
+      toast.error(`Some files exceed the 10MB limit: ${invalidFiles.map(f => f.name).join(', ')}`);
+      return;
+    }
+    
     setActionPlans((prev) =>
       prev.map((row) =>
         row.id === rowId
@@ -109,15 +150,22 @@ export default function ReviewDialog({
               ...row,
               files: [
                 ...row.files,
-                ...Array.from(files).map((file) => ({
-                  id: crypto.randomUUID(),
-                  file,
-                })),
+                ...Array.from(files)
+                  .filter((file) => file.size <= maxSize)
+                  .map((file) => ({
+                    id: crypto.randomUUID(),
+                    file,
+                  })),
               ],
             }
           : row
       )
     );
+    
+    // Reset file input so same file can be selected again
+    if (inputElement) {
+      inputElement.value = '';
+    }
   };
 
   const removeFile = (
@@ -282,16 +330,31 @@ export default function ReviewDialog({
     }
 
     // Validate that containment text is provided (required field)
-    if (!containmentText.trim()) {
+    const trimmedContainmentText = containmentText?.trim() || "";
+    if (!trimmedContainmentText) {
       toast.error("Please provide containment/immediate correction details");
+      // Focus on the textarea to help user
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea[placeholder*="immediate corrective action"]') as HTMLTextAreaElement;
+        if (textarea) {
+          textarea.focus();
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      setUploadingFiles(true);
-      setUploadProgress({});
+      // Check if there are any files to upload
+      const hasFilesToUpload = containmentFiles.length > 0 || rootCauseFiles.length > 0 || 
+        actionPlans.some(plan => plan.files.length > 0);
+
+      if (hasFilesToUpload) {
+        setUploadingFiles(true);
+        setUploadProgress({});
+      }
 
       // Upload new files to S3
       const uploadPromises: Promise<any>[] = [];
@@ -343,27 +406,90 @@ export default function ReviewDialog({
         });
       });
 
-      // Wait for all uploads to complete
-      const uploadResults = await Promise.all(uploadPromises);
+      // Wait for all uploads to complete with better error handling
+      // Use Promise.allSettled to continue even if some uploads fail
+      let successfulResults: any[] = [];
+      
+      if (uploadPromises.length > 0) {
+        const uploadResults = await Promise.allSettled(uploadPromises);
+        
+        // Check for failed uploads
+        const failedUploads = uploadResults.filter((result) => result.status === 'rejected');
+        if (failedUploads.length > 0) {
+          console.error('[ReviewDialog] Some file uploads failed:', failedUploads);
+          const failedFileNames = failedUploads.map((result) => {
+            if (result.status === 'rejected') {
+              return result.reason?.message || 'Unknown file';
+            }
+            return 'Unknown file';
+          });
+          toast.error(`Failed to upload ${failedUploads.length} file(s): ${failedFileNames.join(', ')}`);
+          setUploadingFiles(false);
+          setUploadProgress({});
+          setIsSubmitting(false);
+          return;
+        }
+        
+        // Extract successful results (all are fulfilled at this point)
+        successfulResults = uploadResults
+          .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
+          .map((result) => result.value);
+      }
 
       // Map upload results to file metadata
-      const containmentUploads = uploadResults
-        .filter((r) => !r.planId && containmentFiles.some((f) => f.id === r.id))
-        .map((r) => r.result.file);
+      // Add safety checks to ensure result and file exist
+      console.log('[ReviewDialog] Processing upload results:', successfulResults.length, 'successful uploads');
+      
+      const containmentUploads = successfulResults
+        .filter((r) => {
+          const isValid = r && !r.planId && r.result && r.result.file && containmentFiles.some((f) => f.id === r.id);
+          if (!isValid && r) {
+            console.warn('[ReviewDialog] Invalid containment upload result:', r);
+          }
+          return isValid;
+        })
+        .map((r) => {
+          const file = r.result.file;
+          if (!file || !file.name) {
+            console.error('[ReviewDialog] Missing file data in result:', r);
+            return null;
+          }
+          return file;
+        })
+        .filter((file): file is NonNullable<typeof file> => file !== null && file.name !== undefined);
 
-      const rootCauseUploads = uploadResults
-        .filter((r) => !r.planId && rootCauseFiles.some((f) => f.id === r.id))
-        .map((r) => r.result.file);
+      const rootCauseUploads = successfulResults
+        .filter((r) => {
+          const isValid = r && !r.planId && r.result && r.result.file && rootCauseFiles.some((f) => f.id === r.id);
+          if (!isValid && r) {
+            console.warn('[ReviewDialog] Invalid root cause upload result:', r);
+          }
+          return isValid;
+        })
+        .map((r) => {
+          const file = r.result.file;
+          if (!file || !file.name) {
+            console.error('[ReviewDialog] Missing file data in result:', r);
+            return null;
+          }
+          return file;
+        })
+        .filter((file): file is NonNullable<typeof file> => file !== null && file.name !== undefined);
 
       // Group action plan uploads by plan ID
       const actionPlanUploadsMap: { [planId: string]: any[] } = {};
-      uploadResults
-        .filter((r) => r.planId)
+      successfulResults
+        .filter((r) => r && r.planId && r.result && r.result.file)
         .forEach((r) => {
           if (!actionPlanUploadsMap[r.planId]) {
             actionPlanUploadsMap[r.planId] = [];
           }
-          actionPlanUploadsMap[r.planId].push(r.result.file);
+          const file = r.result.file;
+          if (file && file.name) {
+            actionPlanUploadsMap[r.planId].push(file);
+          } else {
+            console.error('[ReviewDialog] Missing file data in action plan result:', r);
+          }
         });
 
       // Prepare file metadata - merge existing files with newly uploaded files
@@ -407,8 +533,8 @@ export default function ReviewDialog({
 
       // Save review data to database
       await apiClient.saveIssueReview(finalOrgId, finalProcessId, issueId, {
-        containmentText,
-        rootCauseText,
+        containmentText: trimmedContainmentText,
+        rootCauseText: rootCauseText && rootCauseText.trim() ? rootCauseText.trim() : undefined,
         containmentFiles: containmentFilesData,
         rootCauseFiles: rootCauseFilesData,
         actionPlans: actionPlansData,
@@ -487,18 +613,32 @@ export default function ReviewDialog({
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Containment Section */}
         <div className="space-y-4">
-          <Textarea
-            placeholder="Describe the immediate corrective action taken..."
-            value={containmentText}
-            onChange={(e) => setContainmentText(e.target.value)}
-          />
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Containment / Immediate Correction <span className="text-red-500">*</span>
+            </label>
+            <Textarea
+              placeholder="Describe the immediate corrective action taken to control the issue and prevent further impact..."
+              value={containmentText}
+              onChange={(e) => setContainmentText(e.target.value)}
+              className="min-h-[120px]"
+              required
+            />
+            {!containmentText.trim() && (
+              <p className="text-xs text-muted-foreground mt-1">
+                This field is required. Please describe the immediate actions taken.
+              </p>
+            )}
+          </div>
 
           <input
             type="file"
             multiple
             hidden
             ref={fileInputRef1}
-            onChange={(e) => handleFiles(e.target.files, setContainmentFiles)}
+            onChange={(e) => {
+              handleFiles(e.target.files, setContainmentFiles, fileInputRef1);
+            }}
           />
 
           <div
@@ -571,7 +711,9 @@ export default function ReviewDialog({
             multiple
             hidden
             ref={fileInputRef2}
-            onChange={(e) => handleFiles(e.target.files, setRootCauseFiles)}
+            onChange={(e) => {
+              handleFiles(e.target.files, setRootCauseFiles, fileInputRef2);
+            }}
           />
 
           <div
@@ -664,7 +806,7 @@ export default function ReviewDialog({
                     type="file"
                     multiple
                     hidden
-                    onChange={(e) => handleActionFileUpload(row.id, e.target.files)}
+                    onChange={(e) => handleActionFileUpload(row.id, e.target.files, e.target)}
                   />
                 </label>
 

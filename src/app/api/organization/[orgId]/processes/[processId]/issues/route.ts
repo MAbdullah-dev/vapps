@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/get-server-session";
-import { prisma } from "@/lib/prisma";
-import { Client } from "pg";
+import { getRequestContext } from "@/lib/request-context";
+import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
 
 /**
@@ -13,11 +12,6 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string; processId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { orgId, processId } = await params;
     const { searchParams } = new URL(req.url);
     const sprintIdParam = searchParams.get("sprintId");
@@ -25,45 +19,16 @@ export async function GET(
     // null means explicitly requesting backlog, undefined means get all
     const sprintId = searchParams.has("sprintId") ? sprintIdParam : undefined;
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
 
       // Verify process exists
       const processResult = await client.query(
@@ -72,7 +37,7 @@ export async function GET(
       );
 
       if (processResult.rows.length === 0) {
-        await client.end();
+        client.release();
         return NextResponse.json(
           { error: "Process not found" },
           { status: 404 }
@@ -122,13 +87,13 @@ export async function GET(
         queryParams.length > 1 ? queryParams : [queryParams[0]]
       );
 
-      await client.end();
+      client.release();
 
       return NextResponse.json({
         issues: issuesResult.rows,
       });
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Failed to fetch issues", message: dbError.message },
         { status: 500 }
@@ -152,14 +117,15 @@ export async function POST(
   { params }: { params: Promise<{ orgId: string; processId: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { orgId, processId } = await params;
     const body = await req.json();
     const { title, tag, source, description, priority, status, points, assignee, tags, sprintId, order } = body;
+
+    // Get request context (user + tenant) - single call, cached
+    const ctx = await getRequestContext(req, orgId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // Validate mandatory fields
     if (!title || !title.trim()) {
@@ -183,45 +149,18 @@ export async function POST(
       );
     }
 
-    // Get organization and verify user has access
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: {
-        database: true,
-        users: {
-          where: { userId: user.id },
-        },
-      },
-    });
-
-    if (!org) {
+    // Validate assignee is mandatory
+    if (!assignee || !assignee.trim()) {
       return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
+        { error: "Assignee is required" },
+        { status: 400 }
       );
     }
 
-    // Check if user has access
-    const hasAccess = org.ownerId === user.id || org.users.length > 0;
-    if (!hasAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!org.database) {
-      return NextResponse.json(
-        { error: "Tenant database not found" },
-        { status: 404 }
-      );
-    }
-
-    // Connect to tenant database
-    const client = new Client({
-      connectionString: org.database.connectionString,
-      ssl: { rejectUnauthorized: false },
-    });
+    // Use tenant pool instead of new Client()
+    const client = await getTenantClient(orgId);
 
     try {
-      await client.connect();
 
       // Verify process exists
       const processResult = await client.query(
@@ -230,7 +169,7 @@ export async function POST(
       );
 
       if (processResult.rows.length === 0) {
-        await client.end();
+        client.release();
         return NextResponse.json(
           { error: "Process not found" },
           { status: 404 }
@@ -250,7 +189,7 @@ export async function POST(
         );
 
         if (sprintResult.rows.length === 0) {
-          await client.end();
+          client.release();
           return NextResponse.json(
             { error: "Sprint not found or doesn't belong to this process" },
             { status: 404 }
@@ -311,7 +250,7 @@ export async function POST(
         [issueId]
       );
 
-      await client.end();
+      client.release();
 
       return NextResponse.json(
         {
@@ -321,7 +260,7 @@ export async function POST(
         { status: 201 }
       );
     } catch (dbError: any) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Failed to create issue", message: dbError.message },
         { status: 500 }

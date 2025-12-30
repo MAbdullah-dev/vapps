@@ -243,6 +243,15 @@ class ApiClient {
   }
 
   /**
+   * Get a single issue by ID
+   */
+  getIssue(orgId: string, processId: string, issueId: string) {
+    return this.get<{ issue: any }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}`
+    );
+  }
+
+  /**
    * Create a new issue
    */
   createIssue(orgId: string, processId: string, data: {

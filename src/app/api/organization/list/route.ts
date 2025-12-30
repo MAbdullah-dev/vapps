@@ -16,17 +16,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get all organizations where user is a member
+    // OPTIMIZED: Use _count instead of include to reduce payload size
+    // This avoids fetching all user IDs when we only need the count
     const userOrgs = await prisma.userOrganization.findMany({
       where: {
         userId: user.id,
       },
-      include: {
+      select: {
+        role: true,
         organization: {
-          include: {
-            users: {
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+            _count: {
               select: {
-                userId: true,
+                users: true,
               },
             },
           },
@@ -45,7 +50,7 @@ export async function GET(req: NextRequest) {
       name: userOrg.organization.name,
       role: userOrg.role, // owner, admin, or member
       createdAt: userOrg.organization.createdAt,
-      memberCount: userOrg.organization.users.length,
+      memberCount: userOrg.organization._count.users,
     }));
 
     return NextResponse.json({ organizations }, { status: 200 });
