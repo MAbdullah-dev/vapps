@@ -1,8 +1,8 @@
 "use client";
 
-import { useForm, SubmitHandler, Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
+import { useRouter } from "next/navigation";
 import { step8Schema, Step8Values } from "@/schemas/onboarding/step8Schema";
 
 import {
@@ -14,223 +14,111 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { useRouter } from "next/navigation";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { useOnboardingStore } from "@/store/onboardingStore";
 import { Button } from "@/components/ui/button";
-const step8 = () => {
+
+export default function Step8() {
     const router = useRouter();
     const saved = useOnboardingStore((s) => s.data.step8);
     const updateStep = useOnboardingStore((s) => s.updateStep);
+
     const form = useForm<Step8Values>({
-        resolver: zodResolver(step8Schema) as unknown as Resolver<Step8Values>,
-        defaultValues: {
-            multiLevelApprovals: false,
-            automaticTaskAssignment: false,
-
-            criticalSLA: "",
-            highPrioritySLA: "",
-            mediumPrioritySLA: "",
-            lowPrioritySLA: "",
-
-            emailNotifications: true,
-            inAppNotifications: true,
-            smsNotifications: false,
-
-            escalationRules: "",
+        resolver: zodResolver(step8Schema),
+        defaultValues: saved || {
+            widgets: {
+                tasksCompleted: false,
+                complianceScore: false,
+                workloadByUser: false,
+                overdueTasks: false,
+                issueDistribution: false,
+                auditTrend: false,
+                projectProgress: false,
+                documentVersion: false,
+            },
+            reportFrequency: "",
         },
     });
+
+    const selectedCount = Object.values(form.watch("widgets")).filter(Boolean).length;
 
     const onSubmit = (values: Step8Values) => {
         updateStep("step8", values);
         router.push("/organization-setup/step9");
     };
+
     return (
         <>
-            <h1 className="text-2xl font-bold mb-2">Operational Parameters</h1>
-            <p className="text-gray-600 mb-8">
-                Configure your operational parameters settings
-            </p>
+            <h1 className="text-2xl font-bold mb-2">KPI & Reporting</h1>
+            <p className="text-gray-600 mb-8">Configure your KPI & reporting settings</p>
 
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
 
-                    {/* Workflow Configuration */}
+                    {/* --- Widget Selection --- */}
                     <section>
-                        <h3 className="text-xl font-semibold mb-5">Workflow Configuration</h3>
+                        <h3 className="text-xl font-semibold mb-1">Select Dashboard Widgets</h3>
+                        <p className="text-gray-600 mb-5">
+                            Choose the KPIs and metrics to display on your dashboard
+                        </p>
 
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* LEFT COLUMN */}
+                            <div className="space-y-4">
+                                {renderCheckboxField(form, "widgets.tasksCompleted", "Tasks Completed Over Time")}
+                                {renderCheckboxField(form, "widgets.complianceScore", "Compliance Health Score")}
+                                {renderCheckboxField(form, "widgets.workloadByUser", "Workload by User")}
+                                {renderCheckboxField(form, "widgets.overdueTasks", "Overdue Tasks Alert")}
+                            </div>
 
-                            {/* Multi Level Approvals */}
-                            <FormField
-                                control={form.control}
-                                name="multiLevelApprovals"
-                                render={({ field }) => (
-                                    <div className="flex justify-between items-center ">
-                                        <FormLabel>Multi-level Approvals</FormLabel>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-
-                            {/* Automatic Task Assignment */}
-                            <FormField
-                                control={form.control}
-                                name="automaticTaskAssignment"
-                                render={({ field }) => (
-                                    <div className="flex justify-between items-center ">
-                                        <FormLabel>Automatic Task Assignment</FormLabel>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-
+                            {/* RIGHT COLUMN */}
+                            <div className="space-y-4">
+                                {renderCheckboxField(form, "widgets.issueDistribution", "Issue Distribution by Status")}
+                                {renderCheckboxField(form, "widgets.auditTrend", "Audit Completion Trend")}
+                                {renderCheckboxField(form, "widgets.projectProgress", "Project Progress Overview")}
+                                {renderCheckboxField(form, "widgets.documentVersion", "Document Version Control")}
+                            </div>
                         </div>
                     </section>
 
-                    {/* SLA Configuration */}
+                    {/* --- Report Frequency --- */}
                     <section>
-                        <h3 className="text-xl font-semibold mb-5">SLA Configuration</h3>
+                        <h3 className="text-lg font-semibold mb-3">Report Generation Frequency</h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                            <FormField
-                                control={form.control}
-                                name="criticalSLA"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Critical Issue SLA (hours)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="4" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="highPrioritySLA"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>High Priority SLA (hours)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="24" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="mediumPrioritySLA"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Medium Priority SLA (hours)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="72" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="lowPrioritySLA"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Low Priority SLA (hours)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="168" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                        </div>
+                        <FormField
+                            control={form.control}
+                            name="reportFrequency"
+                            render={({ field }) => (
+                                <FormItem className="space-y-2">
+                                    <FormLabel>Automated Report Schedule</FormLabel>
+                                    <FormControl>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select frequency" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="weekly">Weekly</SelectItem>
+                                                <SelectItem value="monthly">Monthly</SelectItem>
+                                                <SelectItem value="quarterly">Quarterly</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                     </section>
 
-                    {/* Notification Preferences */}
+                    {/* Summary */}
                     <section>
-                        <h3 className="text-xl font-semibold mb-5">Notification Preferences</h3>
-
-                        <div className="space-y-4">
-
-                            {/* Email Notifications */}
-                            <FormField
-                                control={form.control}
-                                name="emailNotifications"
-                                render={({ field }) => (
-                                    <div className="flex justify-between items-center ">
-                                        <FormLabel>Email Notifications</FormLabel>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-
-                            {/* In-App Notifications */}
-                            <FormField
-                                control={form.control}
-                                name="inAppNotifications"
-                                render={({ field }) => (
-                                    <div className="flex justify-between items-center ">
-                                        <FormLabel>In-App Notifications</FormLabel>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-
-                            {/* SMS Notifications (Critical Only) */}
-                            <FormField
-                                control={form.control}
-                                name="smsNotifications"
-                                render={({ field }) => (
-                                    <div className="flex justify-between items-center ">
-                                        <FormLabel>SMS Notifications (Critical Only)</FormLabel>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-
-                            {/* Escalation Rules */}
-                            <FormField
-                                control={form.control}
-                                name="escalationRules"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Escalation Rules</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                placeholder="Define escalation rules for overdue tasks and unresolved issues..."
-                                                className="min-h-[130px]"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
+                        <div className="bg-[#EFF6FF] p-4 rounded-2xl">
+                            <p className="text-base font-medium mb-4">
+                                Selected Widgets: {selectedCount}
+                            </p>
+                            <p className="text-gray-500 text-sm">
+                                You can add or customize widgets later from Dashboard settings.
+                            </p>
                         </div>
                     </section>
 
@@ -264,4 +152,20 @@ const step8 = () => {
     );
 }
 
-export default step8
+/** Helper for Checkbox Fields */
+function renderCheckboxField(form: any, name: any, label: string) {
+    return (
+        <FormField
+            control={form.control}
+            name={name}
+            render={({ field }) => (
+                <FormItem className="flex items-center space-x-3">
+                    <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel>{label}</FormLabel>
+                </FormItem>
+            )}
+        />
+    );
+}

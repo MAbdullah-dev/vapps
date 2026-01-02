@@ -76,11 +76,6 @@ const Step11 = () => {
           </div>
 
           <div className="flex justify-between items-center">
-            <span>Users & Roles</span>
-            <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step4.teamMembers.length} users</span>
-          </div>
-
-          <div className="flex justify-between items-center">
             <span>Products & Inventory</span>
             <span className="text-[#432DD7] bg-[#E0E7FF] px-2 py-1 rounded-full text-sm">{data.step6.products.length} products</span>
           </div>

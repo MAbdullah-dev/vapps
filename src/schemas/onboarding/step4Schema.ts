@@ -1,15 +1,15 @@
 import * as z from "zod";
 
-export const teamMemberSchema = z.object({
-  fullName: z.string().min(1, "Full Name is required"),
-  email: z.string().email("Invalid email").min(1, "Email is required"),
-  role: z.string().min(1, "Role is required"),
-  ssoMethod: z.string(),
+export const Step4Schema = z.object({
+  baseCurrency: z.string().min(1, "Base currency is required"),
+  fiscalYearStart: z.string().min(1, "Fiscal year start is required"),
+  defaultTaxRate: z.string().min(1, "Tax rate is required"),
+  paymentTerms: z.string().min(1, "Payment terms are required"),
+  chartOfAccountsTemplate: z.string().min(1, "COA template required"),
+  defaultAssetAccount: z.string().min(1, "Asset account required"),
+  defaultRevenueAccount: z.string().min(1, "Revenue account required"),
+  defaultExpenseAccount: z.string().min(1, "Expense account required"),
 });
 
-export const step4Schema = z.object({
-  teamMembers: z.array(teamMemberSchema).min(1, "Add at least one team member"),
-});
+export type Step4SchemaType = z.infer<typeof Step4Schema>;
 
-export type TeamMember = z.infer<typeof teamMemberSchema>;
-export type Step4Values = z.infer<typeof step4Schema>;

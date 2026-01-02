@@ -41,16 +41,6 @@ const createOrganizationSchema = z.object({
     ).optional().default([]),
   }),
   step4: z.object({
-    teamMembers: z.array(
-      z.object({
-        fullName: z.string(),
-        email: z.string().email(),
-        role: z.string(),
-        ssoMethod: z.string().optional(),
-      })
-    ).optional().default([]),
-  }),
-  step5: z.object({
     baseCurrency: z.string().optional(),
     fiscalYearStart: z.string().optional(),
     defaultTaxRate: z.string().optional(),
@@ -60,7 +50,7 @@ const createOrganizationSchema = z.object({
     defaultRevenueAccount: z.string().optional(),
     defaultExpenseAccount: z.string().optional(),
   }),
-  step6: z.object({
+  step5: z.object({
     products: z.array(
       z.object({
         sku: z.string().optional(),
@@ -72,7 +62,7 @@ const createOrganizationSchema = z.object({
       })
     ).optional().default([]),
   }),
-  step7: z.object({
+  step6: z.object({
     activeTab: z.enum(["customers", "vendors"]).optional(),
     customers: z.array(
       z.object({
@@ -91,7 +81,7 @@ const createOrganizationSchema = z.object({
       })
     ).optional().default([]),
   }),
-  step8: z.object({
+  step7: z.object({
     multiLevelApprovals: z.boolean().optional(),
     automaticTaskAssignment: z.boolean().optional(),
     criticalSLA: z.string().optional(),
@@ -103,7 +93,7 @@ const createOrganizationSchema = z.object({
     smsNotifications: z.boolean().optional(),
     escalationRules: z.string().optional(),
   }),
-  step9: z.object({
+  step8: z.object({
     widgets: z.object({
       tasksCompleted: z.boolean().optional(),
       complianceScore: z.boolean().optional(),
@@ -116,7 +106,7 @@ const createOrganizationSchema = z.object({
     }),
     reportFrequency: z.string().optional(),
   }),
-  step10: z.object({
+  step9: z.object({
     require2FA: z.boolean().optional(),
     ipWhitelisting: z.boolean().optional(),
     sessionTimeout: z.boolean().optional(),

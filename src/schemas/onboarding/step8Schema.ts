@@ -1,20 +1,19 @@
-import * as z from "zod";
+import { z } from "zod";
 
 export const step8Schema = z.object({
-  multiLevelApprovals: z.boolean().default(false),
-  automaticTaskAssignment: z.boolean().default(false),
+  widgets: z.object({
+    tasksCompleted: z.boolean(),
+    complianceScore: z.boolean(),
+    workloadByUser: z.boolean(),
+    overdueTasks: z.boolean(),
 
-  criticalSLA: z.string().min(1, "Required"),
-  highPrioritySLA: z.string().min(1, "Required"),
-  mediumPrioritySLA: z.string().min(1, "Required"),
-  lowPrioritySLA: z.string().min(1, "Required"),
+    issueDistribution: z.boolean(),
+    auditTrend: z.boolean(),
+    projectProgress: z.boolean(),
+    documentVersion: z.boolean(),
+  }),
 
-  emailNotifications: z.boolean().default(true),
-  inAppNotifications: z.boolean().default(true),
-  smsNotifications: z.boolean().default(false),
-  
-
-  escalationRules: z.string().optional(),
+  reportFrequency: z.string().min(1, "Please select a frequency"),
 });
 
 export type Step8Values = z.infer<typeof step8Schema>;

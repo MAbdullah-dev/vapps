@@ -1,195 +1,221 @@
 "use client";
 
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { step4Schema, Step4Values, TeamMember } from "@/schemas/onboarding/step4Schema";
 
-import {
-    Form,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormControl,
-    FormMessage,
-} from "@/components/ui/form";
+import { Step4Schema, Step4SchemaType } from "@/schemas/onboarding/step4Schema";
 
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step4 = () => {
-    const router = useRouter();
-    const saved = useOnboardingStore((s) => s.data.step4);
-    const updateStep = useOnboardingStore((s) => s.updateStep);
+  const router = useRouter();
 
-    const form = useForm<Step4Values>({
-        resolver: zodResolver(step4Schema),
-        defaultValues: {
-            teamMembers: saved.teamMembers?.length
-                ? saved.teamMembers
-                : [
-                    {
-                        fullName: "John Doe",
-                        email: "john@acme.com",
-                        role: "",
-                        ssoMethod: "Email/Password",
-                    },
-                ],
-        },
-    });
+  const saved = useOnboardingStore((s) => s.data.step4);
+  const updateStep = useOnboardingStore((s) => s.updateStep);
 
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: "teamMembers",
-    });
+  const form = useForm<Step4SchemaType>({
+    resolver: zodResolver(Step4Schema),
+    defaultValues: saved || {
+      baseCurrency: "",
+      fiscalYearStart: "",
+      defaultTaxRate: "",
+      paymentTerms: "",
+      chartOfAccountsTemplate: "",
+      defaultAssetAccount: "",
+      defaultRevenueAccount: "",
+      defaultExpenseAccount: "",
+    },
+  });
 
-    const onSubmit = (values: Step4Values) => {
-        // Filter out empty entries (entries with no name or email)
-        const filteredMembers = values.teamMembers.filter(
-            m => m.fullName && m.fullName.trim().length > 0 && m.email && m.email.trim().length > 0
-        );
-        updateStep("step4", { teamMembers: filteredMembers.length > 0 ? filteredMembers : [] });
-        router.push("/organization-setup/step5");
-    };
+  const onSubmit = (values: Step4SchemaType) => {
+    updateStep("step4", values);
+    router.push("/organization-setup/step5");
+  };
 
-    return (
-        <>
-            <h1 className="text-2xl font-bold mb-2">User & Role Management</h1>
-            <p className="text-gray-600 mb-8">Configure your user & role management settings</p>
+  return (
+    <Form {...form}>
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-semibold">Financial Setup</h1>
+          <p className="text-sm text-muted-foreground">Configure your financial setup settings</p>
+        </div>
 
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                    <h3 className="text-xl font-semibold mb-4">Add Team Members</h3>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                    {fields.map((field, index) => (
-                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4">
-                            {/* Full Name */}
-                            <FormField
-                                control={form.control}
-                                name={`teamMembers.${index}.fullName`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Full Name *</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="John Doe" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+            {/* Base Currency */}
+            <FormField
+              control={form.control}
+              name="baseCurrency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Base Currency</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="USD - US Dollar" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="usd">USD - US Dollar</SelectItem>
+                        <SelectItem value="eur">EUR - Euro</SelectItem>
+                        <SelectItem value="gbp">GBP - British Pound</SelectItem>
+                        <SelectItem value="pkr">PKR - Pakistani Rupee</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                            {/* Email */}
-                            <FormField
-                                control={form.control}
-                                name={`teamMembers.${index}.email`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email *</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="john@acme.com" type="email" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+            {/* Fiscal Year */}
+            <FormField
+              control={form.control}
+              name="fiscalYearStart"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fiscal Year Start</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="January" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="january">January</SelectItem>
+                        <SelectItem value="april">April</SelectItem>
+                        <SelectItem value="july">July</SelectItem>
+                        <SelectItem value="october">October</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                            {/* Role */}
-                            <FormField
-                                control={form.control}
-                                name={`teamMembers.${index}.role`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Role *</FormLabel>
-                                        <FormControl>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Select role" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="Admin">Admin</SelectItem>
-                                                    <SelectItem value="Manager">Manager</SelectItem>
-                                                    <SelectItem value="User">User</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+            {/* Tax Rate */}
+            <FormField
+              control={form.control}
+              name="defaultTaxRate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Tax Rate (%)</FormLabel>
+                  <FormControl><Input placeholder="30" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                            {/* SSO Method */}
-                            <FormField
-                                control={form.control}
-                                name={`teamMembers.${index}.ssoMethod`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>SSO Method</FormLabel>
-                                        <FormControl>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Email/Password" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="Email/Password">Email/Password</SelectItem>
-                                                    <SelectItem value="SSO">SSO</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+            {/* Payment Terms */}
+            <FormField
+              control={form.control}
+              name="paymentTerms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Payment Terms (days)</FormLabel>
+                  <FormControl><Input placeholder="30" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                            {/* Remove */}
-                            {fields.length > 1 && (
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => remove(index)}
-                                    className="mt-2"
-                                >
-                                    Remove
-                                </Button>
-                            )}
-                        </div>
-                    ))}
+          </div>
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                            append({
-                                fullName: "",
-                                email: "",
-                                role: "",
-                                ssoMethod: "Email/Password",
-                            } as TeamMember)
-                        }
-                    >
-                        Add User
-                    </Button>
+          {/* Chart of Accounts */}
+          <div>
+            <FormField
+              control={form.control}
+              name="chartOfAccountsTemplate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Chart of Accounts Template</FormLabel>
+                  <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Standard Business" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">Standard Business</SelectItem>
+                        <SelectItem value="nonprofit">Nonprofit</SelectItem>
+                        <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-                    <div className="flex justify-between gap-3">
-                               <Button
-                                 type="button"
-                                 variant="outline"
-                                 onClick={() => router.push("/organization-setup/step3")}
-                               >
-                                 Previous
-                               </Button>
-                   
-                               <Button type="submit" variant="default">
-                                 Next
-                               </Button>
-                             </div>
-                </form>
-            </Form>
-        </>
-    );
+          {/* Accounts */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <FormField
+              control={form.control}
+              name="defaultAssetAccount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Asset Account</FormLabel>
+                  <FormControl><Input placeholder="1000 - Cash" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="defaultRevenueAccount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Revenue Account</FormLabel>
+                  <FormControl><Input placeholder="4000 - Sales" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="defaultExpenseAccount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Expense Account</FormLabel>
+                  <FormControl><Input placeholder="5000 - Operating Expense" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+          </div>
+
+          <div className="flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/organization-setup/step3")}
+            >
+              Previous
+            </Button>
+
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/organization-setup/step5")}
+              >
+                Skip Step
+              </Button>
+
+              <Button type="submit" variant="default">
+                Next
+              </Button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </Form>
+  );
 };
 
 export default Step4;
+

@@ -10,7 +10,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const match = pathname.match(/step(\d+)/);
   const currentStep = match ? Number(match[1]) : 1;
-  const totalSteps = 11;
+  const totalSteps = 10;
 
   return (
     <>
