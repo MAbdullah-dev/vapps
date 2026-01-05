@@ -149,6 +149,25 @@ class ApiClient {
   }
 
   /**
+   * Update a site
+   */
+  updateSite(orgId: string, siteId: string, data: { siteName: string; location: string }) {
+    return this.put<{ site: any; message: string }>(
+      `/organization/${orgId}/sites/${siteId}`,
+      data
+    );
+  }
+
+  /**
+   * Delete a site
+   */
+  deleteSite(orgId: string, siteId: string) {
+    return this.delete<{ message: string; deletedProcesses: number }>(
+      `/organization/${orgId}/sites/${siteId}`
+    );
+  }
+
+  /**
    * Get processes for an organization (optionally filtered by siteId)
    */
   getProcesses(orgId: string, siteId?: string) {
@@ -589,6 +608,75 @@ class ApiClient {
   getProcessUsers(orgId: string, processId: string) {
     return this.get<{ users: Array<{ id: string; name: string; email: string; role: string }> }>(
       `/organization/${orgId}/processes/${processId}/users`
+    );
+  }
+
+  // ========== Activity Log Methods ==========
+
+  /**
+   * Get activity log for a process
+   */
+  getActivityLog(orgId: string, processId: string, limit?: number) {
+    return this.get<{ activities: any[] }>(
+      `/organization/${orgId}/processes/${processId}/activity`,
+      limit ? { limit: limit.toString() } : undefined
+    );
+  }
+
+  /**
+   * Log an activity
+   */
+  logActivity(
+    orgId: string,
+    processId: string,
+    data: {
+      action: string;
+      entityType: string;
+      entityId?: string;
+      entityTitle?: string;
+      details?: Record<string, any>;
+    }
+  ) {
+    return this.post<{ message: string; activityId: string }>(
+      `/organization/${orgId}/processes/${processId}/activity`,
+      data
+    );
+  }
+
+  // ========== Organization Info Methods ==========
+
+  /**
+   * Get organization info from tenant database
+   */
+  getOrganizationInfo(orgId: string) {
+    return this.get<{ organizationInfo: any | null }>(
+      `/organization/${orgId}/organization-info`
+    );
+  }
+
+  /**
+   * Update organization info in tenant database
+   */
+  updateOrganizationInfo(orgId: string, data: {
+    name?: string;
+    legalName?: string;
+    registrationId?: string;
+    taxId?: string;
+    industry?: string;
+    companySize?: string;
+    foundedDate?: string;
+    website?: string;
+    primaryEmail?: string;
+    supportEmail?: string;
+    phone?: string;
+    fax?: string;
+    address?: string;
+    contactName?: string;
+    contactEmail?: string;
+  }) {
+    return this.put<{ message: string; organizationInfo: any }>(
+      `/organization/${orgId}/organization-info`,
+      data
     );
   }
 }

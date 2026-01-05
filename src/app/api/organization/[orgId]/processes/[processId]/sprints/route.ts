@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
+import { logActivity } from "@/lib/activity-logger";
 import crypto from "crypto";
 
 /**
@@ -183,13 +184,28 @@ export async function POST(
         [sprintId]
       );
 
+      const createdSprint = sprintResult.rows[0];
       client.release();
+
+      // Log activity (non-blocking)
+      if (ctx.user?.id) {
+        logActivity(orgId, processId, ctx.user.id, {
+          action: "sprint.created",
+          entityType: "sprint",
+          entityId: createdSprint.id,
+          entityTitle: createdSprint.name,
+          details: {
+            startDate: createdSprint.startDate,
+            endDate: createdSprint.endDate,
+          },
+        }).catch((err) => console.error("[Sprint Create] Failed to log activity:", err));
+      }
 
       return NextResponse.json(
         {
           message: "Sprint created successfully",
           sprint: {
-            ...sprintResult.rows[0],
+            ...createdSprint,
             issues: [],
           },
         },

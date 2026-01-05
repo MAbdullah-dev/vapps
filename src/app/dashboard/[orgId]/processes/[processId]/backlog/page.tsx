@@ -70,8 +70,14 @@ export default function SprintAndBacklogList() {
       setSprints(sprintsData);
 
       // Fetch backlog issues (sprintId is null)
+      // Filter out issues with status "in-progress" - they should not appear in backlog
       const backlogResponse = await apiClient.getIssues(orgId, processId, null);
-      setBacklogIssues(backlogResponse.issues || []);
+      const allBacklogIssues = backlogResponse.issues || [];
+      // Only show issues that are not "in-progress" and have no sprint assigned
+      const filteredBacklog = allBacklogIssues.filter(
+        (issue: Issue) => issue.status !== "in-progress" && !issue.sprintId
+      );
+      setBacklogIssues(filteredBacklog);
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load sprints and issues");
@@ -84,7 +90,7 @@ export default function SprintAndBacklogList() {
     fetchData();
   }, [fetchData]);
 
-  // Listen for issue creation events to refresh
+  // Listen for issue creation and status update events to refresh
   useEffect(() => {
     const handleIssueCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -93,9 +99,21 @@ export default function SprintAndBacklogList() {
       }
     };
 
+    const handleIssueUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.processId === processId && customEvent.detail.orgId === orgId) {
+        // If issue status changed to "in-progress", refresh to remove it from backlog
+        if (customEvent.detail.status === "in-progress") {
+          fetchData();
+        }
+      }
+    };
+
     window.addEventListener('issueCreated', handleIssueCreated);
+    window.addEventListener('issueUpdated', handleIssueUpdated);
     return () => {
       window.removeEventListener('issueCreated', handleIssueCreated);
+      window.removeEventListener('issueUpdated', handleIssueUpdated);
     };
   }, [orgId, processId, fetchData]);
 
@@ -229,6 +247,11 @@ export default function SprintAndBacklogList() {
     const destId = result.destination.droppableId;
     const issueId = result.draggableId;
 
+    // If dropped in the same position, do nothing
+    if (sourceId === destId && result.source.index === result.destination.index) {
+      return;
+    }
+
     const getList = (id: string) => {
       if (id === "backlog") return backlogIssues;
       const sprint = sprints.find((s) => s.id === id);
@@ -241,26 +264,44 @@ export default function SprintAndBacklogList() {
 
     if (!movedIssue) return;
 
-    // Optimistic update
-    const newSourceList = sourceList.filter((i) => i.id !== issueId);
-    const newDestList = [...destList];
-    newDestList.splice(result.destination.index, 0, movedIssue);
+    // Check if moving within the same list (reordering) or between different lists
+    if (sourceId === destId) {
+      // Same list: just reorder
+      const newList = [...sourceList];
+      const [removed] = newList.splice(result.source.index, 1);
+      newList.splice(result.destination.index, 0, removed);
 
-    // Update state optimistically
-    if (sourceId === "backlog") {
-      setBacklogIssues(newSourceList);
+      // Update the single list
+      if (sourceId === "backlog") {
+        setBacklogIssues(newList);
+      } else {
+        setSprints((prev) =>
+          prev.map((s) => (s.id === sourceId ? { ...s, issues: newList } : s))
+        );
+      }
     } else {
-      setSprints((prev) =>
-        prev.map((s) => (s.id === sourceId ? { ...s, issues: newSourceList } : s))
-      );
-    }
+      // Different lists: move between lists
+      const newSourceList = sourceList.filter((i) => i.id !== issueId);
+      const newDestList = [...destList];
+      newDestList.splice(result.destination.index, 0, movedIssue);
 
-    if (destId === "backlog") {
-      setBacklogIssues(newDestList);
-    } else {
-      setSprints((prev) =>
-        prev.map((s) => (s.id === destId ? { ...s, issues: newDestList } : s))
-      );
+      // Update source list
+      if (sourceId === "backlog") {
+        setBacklogIssues(newSourceList);
+      } else {
+        setSprints((prev) =>
+          prev.map((s) => (s.id === sourceId ? { ...s, issues: newSourceList } : s))
+        );
+      }
+
+      // Update destination list
+      if (destId === "backlog") {
+        setBacklogIssues(newDestList);
+      } else {
+        setSprints((prev) =>
+          prev.map((s) => (s.id === destId ? { ...s, issues: newDestList } : s))
+        );
+      }
     }
 
     // Update in database

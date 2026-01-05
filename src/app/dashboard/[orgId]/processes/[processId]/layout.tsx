@@ -53,7 +53,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/u
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
   const { orgId, processId } = useParams();
   const pathname = usePathname();
-
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "member">("member");
@@ -182,7 +182,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setTitles([...titles, title.trim()]);
       }
       setTitle(title.trim());
-      setCustomTitleMode(false);
+    setCustomTitleMode(false);
       toast.success("Title added successfully");
     } catch (error: any) {
       console.error("Error adding title:", error);
@@ -244,7 +244,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setTags([...tags, tag.trim()]);
       }
       setTag(tag.trim());
-      setCustomTagMode(false);
+    setCustomTagMode(false);
       toast.success("Tag added successfully");
     } catch (error: any) {
       console.error("Error adding tag:", error);
@@ -264,7 +264,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setSources([...sources, source.trim()]);
       }
       setSource(source.trim());
-      setCustomSourceMode(false);
+    setCustomSourceMode(false);
       toast.success("Source added successfully");
     } catch (error: any) {
       console.error("Error adding source:", error);
@@ -331,10 +331,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setDate(undefined);
         setIsCreateDialogOpen(false);
 
-        // Trigger refresh
+        // Trigger refresh - include status to help backlog filter out "in-progress" issues
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('issueUpdated', {
-            detail: { processId, orgId, issueId: editingIssue.id }
+            detail: { 
+              processId, 
+              orgId, 
+              issueId: editingIssue.id,
+              status: issueData.status || selectedStatus || undefined
+            }
           }));
         }
       } catch (error: any) {
@@ -403,7 +408,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   useEffect(() => {
     const fetchProcess = async () => {
       if (!orgId || !processId) return;
-
+      
       try {
         setIsLoadingProcess(true);
         const process = await apiClient.getProcess(orgId as string, processId as string);
@@ -422,7 +427,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!orgId || !processId || !processData) {
       toast.error("Missing required information");
       return;
@@ -1040,26 +1045,26 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 {/* Select Role */}
-                <div className="grid gap-3">
+              <div className="grid gap-3">
                   <Label htmlFor="role">Select Role</Label>
                   <Select
                     value={role}
                     onValueChange={(value) => setRole(value as "admin" | "manager" | "member")}
                     disabled={isSubmitting}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="member">Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
                 {/* Invitation Email */}
-                <div className="grid gap-3">
+              <div className="grid gap-3">
                   <Label htmlFor="invitation-mail">Invitation Email</Label>
                   <Input
                     id="invitation-mail"
@@ -1070,11 +1075,11 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     disabled={isSubmitting}
                     required
                   />
-                </div>
               </div>
+            </div>
 
-              <DialogFooter>
-                <DialogClose asChild>
+            <DialogFooter>
+              <DialogClose asChild>
                   <Button
                     type="button"
                     variant="outline"
@@ -1082,14 +1087,14 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   >
                     Cancel
                   </Button>
-                </DialogClose>
+              </DialogClose>
                 <Button
                   type="submit"
                   disabled={isSubmitting || !email || !processData}
                 >
                   {isSubmitting ? "Sending..." : "Send Invitation"}
                 </Button>
-              </DialogFooter>
+            </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>

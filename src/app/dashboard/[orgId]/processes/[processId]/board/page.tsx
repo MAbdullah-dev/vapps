@@ -192,6 +192,19 @@ const Board = () => {
         results.push({ issueId: update.issueId, success: true });
         failedUpdatesRef.current.delete(update.issueId);
         console.log(`[UpdateQueue] ✅ Updated issue ${update.issueId}: ${update.previousStatus} → ${update.newStatus}`);
+        
+        // Dispatch event to notify other components (e.g., backlog) of status change
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('issueUpdated', {
+            detail: {
+              processId,
+              orgId,
+              issueId: update.issueId,
+              status: update.newStatus,
+              previousStatus: update.previousStatus
+            }
+          }));
+        }
       } catch (error: any) {
         console.error(`[UpdateQueue] ❌ Failed to update issue ${update.issueId}:`, error);
         results.push({ issueId: update.issueId, success: false });

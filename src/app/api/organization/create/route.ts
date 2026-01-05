@@ -201,47 +201,54 @@ export async function POST(req: NextRequest) {
 
     try {
       // Use transaction for all master DB operations
-      const result = await prisma.$transaction(async (tx) => {
-        // Create organization first
-        const org = await tx.organization.create({
-          data: {
-            name: data.step1.companyName.trim(),
-            ownerId: user.id,
-          },
-        });
+      // Increased timeout to 30 seconds to handle database creation which can take time
+      // especially when database is reset or under load
+      const result = await prisma.$transaction(
+        async (tx) => {
+          // Create organization first
+          const org = await tx.organization.create({
+            data: {
+              name: data.step1.companyName.trim(),
+              ownerId: user.id,
+            },
+          });
 
-        // Create tenant database (external operation, but we need org.id)
-        // If this fails, transaction will rollback organization creation
-        try {
-          tenantDb = await createTenantDatabase(org.id);
-        } catch (dbError: any) {
-          throw new Error(`Failed to create tenant database: ${dbError.message}`);
+          // Create tenant database (external operation, but we need org.id)
+          // If this fails, transaction will rollback organization creation
+          try {
+            tenantDb = await createTenantDatabase(org.id);
+          } catch (dbError: any) {
+            throw new Error(`Failed to create tenant database: ${dbError.message}`);
+          }
+
+          // Store database instance information
+          const dbInst = await tx.orgDatabaseInstance.create({
+            data: {
+              organizationId: org.id,
+              dbHost: tenantDb.dbHost,
+              dbPort: tenantDb.dbPort,
+              dbUser: tenantDb.dbUser,
+              dbPassword: tenantDb.dbPassword,
+              dbName: tenantDb.dbName,
+              connectionString: tenantDb.connectionString,
+            },
+          });
+
+          // Create UserOrganization relationship (owner is automatically a member)
+          await tx.userOrganization.create({
+            data: {
+              userId: user.id,
+              organizationId: org.id,
+              role: "owner",
+            },
+          });
+
+          return { organization: org, dbInstance: dbInst };
+        },
+        {
+          timeout: 30000, // 30 seconds - enough time for database creation
         }
-
-        // Store database instance information
-        const dbInst = await tx.orgDatabaseInstance.create({
-          data: {
-            organizationId: org.id,
-            dbHost: tenantDb.dbHost,
-            dbPort: tenantDb.dbPort,
-            dbUser: tenantDb.dbUser,
-            dbPassword: tenantDb.dbPassword,
-            dbName: tenantDb.dbName,
-            connectionString: tenantDb.connectionString,
-          },
-        });
-
-        // Create UserOrganization relationship (owner is automatically a member)
-        await tx.userOrganization.create({
-          data: {
-            userId: user.id,
-            organizationId: org.id,
-            role: "owner",
-          },
-        });
-
-        return { organization: org, dbInstance: dbInst };
-      });
+      );
 
       organization = result.organization;
       dbInstance = result.dbInstance;

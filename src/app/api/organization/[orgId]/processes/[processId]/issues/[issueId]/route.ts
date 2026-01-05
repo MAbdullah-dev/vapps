@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
+import { logActivity } from "@/lib/activity-logger";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/issues/[issueId]
@@ -242,6 +243,37 @@ export async function PUT(
       cache.clearPattern(`org:${orgId}:processes:*`); // Invalidate process issues list cache
       
       client.release();
+
+      // Log activity (non-blocking)
+      if (ctx.user?.id) {
+        const activityDetails: Record<string, any> = {};
+        
+        // Track what changed
+        if (status !== undefined) {
+          activityDetails.newStatus = status;
+          activityDetails.previousStatus = body.previousStatus || "unknown";
+        }
+        if (assignee !== undefined) {
+          activityDetails.assignee = assignee;
+        }
+        if (sprintId !== undefined) {
+          activityDetails.sprintId = sprintId;
+        }
+
+        const action = status !== undefined && body.previousStatus && status !== body.previousStatus
+          ? "issue.status_changed"
+          : assignee !== undefined
+          ? "issue.assigned"
+          : "issue.updated";
+
+        logActivity(orgId, processId, ctx.user.id, {
+          action,
+          entityType: "issue",
+          entityId: updatedIssue.id,
+          entityTitle: updatedIssue.title,
+          details: activityDetails,
+        }).catch((err) => console.error("[Issue Update] Failed to log activity:", err));
+      }
 
       return NextResponse.json(
         {

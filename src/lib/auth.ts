@@ -101,17 +101,45 @@ export const authOptions: NextAuthOptions = {
     },
 
     async signIn({ user, account, profile }) {
-      // Auto-verify OAuth users
-      if (account?.provider !== "credentials" && user.email) {
+      // Handle OAuth account linking for existing users
+      if (account?.provider !== "credentials" && user.email && account) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email },
+          include: { accounts: true },
         });
         
-        if (dbUser && !dbUser.emailVerified) {
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: { emailVerified: new Date() },
-          });
+        if (dbUser) {
+          // User exists - check if account is already linked
+          const existingAccount = dbUser.accounts.find(
+            (acc) => acc.provider === account.provider && acc.providerAccountId === account.providerAccountId
+          );
+
+          if (!existingAccount) {
+            // Account not linked - link it now
+            await prisma.account.create({
+              data: {
+                userId: dbUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                refresh_token: account.refresh_token,
+                access_token: account.access_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+                session_state: account.session_state,
+              },
+            });
+          }
+
+          // Auto-verify email if not verified
+          if (!dbUser.emailVerified) {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { emailVerified: new Date() },
+            });
+          }
         }
       }
       return true;

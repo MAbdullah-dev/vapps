@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
+import { logActivity } from "@/lib/activity-logger";
 import crypto from "crypto";
 
 /**
@@ -250,12 +251,28 @@ export async function POST(
         [issueId]
       );
 
+      const createdIssue = issueResult.rows[0];
       client.release();
+
+      // Log activity (non-blocking)
+      if (ctx.user?.id) {
+        logActivity(orgId, processId, ctx.user.id, {
+          action: "issue.created",
+          entityType: "issue",
+          entityId: createdIssue.id,
+          entityTitle: createdIssue.title,
+          details: {
+            priority: createdIssue.priority,
+            status: createdIssue.status,
+            sprintId: createdIssue.sprintId,
+          },
+        }).catch((err) => console.error("[Issue Create] Failed to log activity:", err));
+      }
 
       return NextResponse.json(
         {
           message: "Issue created successfully",
-          issue: issueResult.rows[0],
+          issue: createdIssue,
         },
         { status: 201 }
       );
