@@ -38,17 +38,7 @@ export interface Step3Data {
   leaders: LeaderData[];
 }
 
-export interface TeamMember {
-  fullName: string;
-  email: string;
-  role: string;
-  ssoMethod?: string;
-}
 export interface Step4Data {
-  teamMembers: TeamMember[];
-}
-
-export interface Step5Data {
   baseCurrency: string;
   fiscalYearStart: string;
   defaultTaxRate: string;
@@ -67,7 +57,7 @@ export interface Product {
   cost?: string;
   reorder?: string;
 }
-export interface Step6Data {
+export interface Step5Data {
   products: Product[];
 }
 
@@ -83,13 +73,13 @@ export interface Vendor {
   phone?: string;
   address?: string;
 }
-export interface Step7Data {
+export interface Step6Data {
   activeTab: "customers" | "vendors";
   customers: Customer[];
   vendors: Vendor[];
 }
 
-export interface Step8Data {
+export interface Step7Data {
   multiLevelApprovals: boolean;
   automaticTaskAssignment: boolean;
   criticalSLA: string;
@@ -102,7 +92,7 @@ export interface Step8Data {
   escalationRules?: string;
 }
 
-export interface Step9Data {
+export interface Step8Data {
   widgets: {
     tasksCompleted: boolean;
     complianceScore: boolean;
@@ -116,7 +106,7 @@ export interface Step9Data {
   reportFrequency: string;
 }
 
-export interface Step10Data {
+export interface Step9Data {
   require2FA: boolean;
   ipWhitelisting: boolean;
   sessionTimeout: boolean;
@@ -139,7 +129,6 @@ export interface OnboardingData {
   step7: Step7Data;
   step8: Step8Data;
   step9: Step9Data;
-  step10: Step10Data;
 }
 
 /** Store API */
@@ -158,9 +147,6 @@ export interface OnboardingStore {
   addLeader: (leader: LeaderData) => void;
   removeLeader: (index: number) => void;
 
-  addTeamMember: (member: TeamMember) => void;
-  removeTeamMember: (index: number) => void;
-
   addProduct: (product: Product) => void;
   removeProduct: (index: number) => void;
 
@@ -175,8 +161,7 @@ const initialData: OnboardingData = {
   step1: {},
   step2: { sites: [] },
   step3: { leaders: [] },
-  step4: { teamMembers: [] },
-  step5: {
+  step4: {
     baseCurrency: "",
     fiscalYearStart: "",
     defaultTaxRate: "",
@@ -186,9 +171,9 @@ const initialData: OnboardingData = {
     defaultRevenueAccount: "",
     defaultExpenseAccount: "",
   },
-  step6: { products: [] },
-  step7: { activeTab: "customers", customers: [], vendors: [] },
-  step8: {
+  step5: { products: [] },
+  step6: { activeTab: "customers", customers: [], vendors: [] },
+  step7: {
     multiLevelApprovals: false,
     automaticTaskAssignment: false,
     criticalSLA: "",
@@ -200,7 +185,7 @@ const initialData: OnboardingData = {
     smsNotifications: false,
     escalationRules: "",
   },
-  step9: {
+  step8: {
     widgets: {
       tasksCompleted: false,
       complianceScore: false,
@@ -213,7 +198,7 @@ const initialData: OnboardingData = {
     },
     reportFrequency: "",
   },
-  step10: {
+  step9: {
     require2FA: false,
     ipWhitelisting: false,
     sessionTimeout: false,
@@ -264,29 +249,23 @@ export const useOnboardingStore = create<OnboardingStore>()(
       removeLeader: (index) =>
         set((state) => ({ data: { ...state.data, step3: { leaders: state.data.step3.leaders.filter((_, i) => i !== index) } } })),
 
-      addTeamMember: (member) =>
-        set((state) => ({ data: { ...state.data, step4: { teamMembers: [...state.data.step4.teamMembers, member] } } })),
-
-      removeTeamMember: (index) =>
-        set((state) => ({ data: { ...state.data, step4: { teamMembers: state.data.step4.teamMembers.filter((_, i) => i !== index) } } })),
-
       addProduct: (product) =>
-        set((state) => ({ data: { ...state.data, step6: { products: [...state.data.step6.products, product] } } })),
+        set((state) => ({ data: { ...state.data, step5: { products: [...state.data.step5.products, product] } } })),
 
       removeProduct: (index) =>
-        set((state) => ({ data: { ...state.data, step6: { products: state.data.step6.products.filter((_, i) => i !== index) } } })),
+        set((state) => ({ data: { ...state.data, step5: { products: state.data.step5.products.filter((_, i) => i !== index) } } })),
 
       addCustomer: (c) =>
-        set((state) => ({ data: { ...state.data, step7: { ...state.data.step7, customers: [...state.data.step7.customers, c] } } })),
+        set((state) => ({ data: { ...state.data, step6: { ...state.data.step6, customers: [...state.data.step6.customers, c] } } })),
 
       removeCustomer: (index) =>
-        set((state) => ({ data: { ...state.data, step7: { ...state.data.step7, customers: state.data.step7.customers.filter((_, i) => i !== index) } } })),
+        set((state) => ({ data: { ...state.data, step6: { ...state.data.step6, customers: state.data.step6.customers.filter((_, i) => i !== index) } } })),
 
       addVendor: (v) =>
-        set((state) => ({ data: { ...state.data, step7: { ...state.data.step7, vendors: [...state.data.step7.vendors, v] } } })),
+        set((state) => ({ data: { ...state.data, step6: { ...state.data.step6, vendors: [...state.data.step6.vendors, v] } } })),
 
       removeVendor: (index) =>
-        set((state) => ({ data: { ...state.data, step7: { ...state.data.step7, vendors: state.data.step7.vendors.filter((_, i) => i !== index) } } })),
+        set((state) => ({ data: { ...state.data, step6: { ...state.data.step6, vendors: state.data.step6.vendors.filter((_, i) => i !== index) } } })),
     }),
     {
       name: "onboarding_v1", // localStorage key

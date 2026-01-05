@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X } from "lucide-react";
+import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 
@@ -41,6 +41,12 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 import dynamic from "next/dynamic";
 const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
 
@@ -49,6 +55,8 @@ import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Textarea } from "@/components/ui/textarea";
+import Image from "next/image";
 
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
   const { orgId, processId } = useParams();
@@ -70,6 +78,30 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
 
+  type Comment = {
+    id: number
+    author: string
+    text: string
+    createdAt: string
+  }
+
+  const [commentText, setCommentText] = useState("")
+  const [comments, setComments] = useState<Comment[]>([])
+
+
+  const handleAddComment = () => {
+    if (!commentText.trim()) return
+
+    const newComment: Comment = {
+      id: Date.now(),
+      author: "John Doe", // later replace with logged-in user
+      text: commentText,
+      createdAt: "Just now",
+    }
+
+    setComments((prev) => [newComment, ...prev])
+    setCommentText("")
+  }
 
   // Fetch metadata, sprints, and process users on mount
   useEffect(() => {
@@ -109,7 +141,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     const handleOpenIssueDialog = async (event: Event) => {
       const customEvent = event as CustomEvent;
       const { issueId, orgId: eventOrgId, processId: eventProcessId } = customEvent.detail;
-      
+
       // Only handle if it's for this process
       if (eventOrgId !== orgId || eventProcessId !== processId) return;
 
@@ -117,7 +149,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setIsLoadingIssue(true);
         const response = await apiClient.getIssue(orgId as string, processId as string, issueId);
         const issue = response.issue;
-        
+
         // Populate form with issue data
         setEditingIssue(issue);
         setTitle(issue.title || "");
@@ -130,7 +162,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setPoints(issue.points || 0);
         setEditorContent(issue.description || "");
         setDate(undefined); // TODO: Add dueDate field if available
-        
+
         // Open dialog
         setIsCreateDialogOpen(true);
       } catch (error: any) {
@@ -581,6 +613,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       </SelectContent>
                     </Select>
 
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info size={24} />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add to library</p>
+                      </TooltipContent>
+                    </Tooltip>
+
                     <Button
                       type="button"
                       className="w-40"
@@ -654,6 +695,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                         ))}
                       </SelectContent>
                     </Select>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info size={24} />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add to library</p>
+                      </TooltipContent>
+                    </Tooltip>
 
                     <Button
                       type="button"
@@ -733,6 +783,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                         ))}
                       </SelectContent>
                     </Select>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info size={24} />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add to library</p>
+                      </TooltipContent>
+                    </Tooltip>
 
                     <Button
                       type="button"
@@ -983,6 +1042,61 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                 />
               </div>
 
+              {/* Comments Section */}
+              <div className="space-y-1 border p-4 rounded-2xl">
+                <div className="mb-3">
+                  <Label className="mb-4 flex items-center gap-2">
+                    <MessageSquare size={20} /> Comments
+                  </Label>
+
+                  <div className="pl-5">
+                    <Textarea
+                      placeholder="Add a comment..."
+                      className="bg-[#F3F3F5] mb-3"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="dark"
+                      className="mb-6"
+                      onClick={handleAddComment}
+                    >
+                      <Send size={16} /> Comment
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Comments List */}
+                {comments.length === 0 && (
+                  <p className="text-sm text-gray-500 pl-5">No comments yet</p>
+                )}
+
+                {comments.map((comment) => (
+                  <div
+                    key={comment.id}
+                    className="border p-3 rounded-2xl bg-white flex gap-3 mb-3"
+                  >
+                    <Image
+                      src="/svgs/apple.svg"
+                      alt="User avatar"
+                      width={24}
+                      height={24}
+                      className="rounded-full h-6 w-6"
+                    />
+
+                    <div className="flex flex-col flex-1">
+                      <h6 className="font-medium">{comment.author}</h6>
+                      <p>{comment.text}</p>
+                    </div>
+
+                    <small className="text-gray-500 ml-auto">
+                      {comment.createdAt}
+                    </small>
+                  </div>
+                ))}
+              </div>
+
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
@@ -990,14 +1104,14 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   </Button>
                 </DialogClose>
                 <Button type="submit" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
-                  {isLoadingIssue 
-                    ? "Loading..." 
-                    : isUpdatingIssue 
-                      ? "Updating..." 
-                      : isCreatingIssue 
-                        ? "Creating..." 
-                        : editingIssue 
-                          ? "Update Issue" 
+                  {isLoadingIssue
+                    ? "Loading..."
+                    : isUpdatingIssue
+                      ? "Updating..."
+                      : isCreatingIssue
+                        ? "Creating..."
+                        : editingIssue
+                          ? "Update Issue"
                           : "Create Issue"}
                 </Button>
               </DialogFooter>

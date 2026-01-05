@@ -7,7 +7,6 @@ const steps = [
   "Company Information",
   "Sites & Processes",
   "Leadership Structure",
-  "User & Role Management",
   "Financial Setup",
   "Product & Inventory",
   "Customers & Vendors",
@@ -25,7 +24,7 @@ export default function StepTabs({ currentStep }: StepTabsProps) {
   return (
     <div className="w-full py-6">
       <div className="container mx-auto px-5 overflow-x-auto">
-        <div className="min-w-max grid grid-cols-11 gap-8 sm:gap-12">
+        <div className="min-w-max grid grid-cols-10 gap-8 sm:gap-12">
           {steps.map((label, index) => {
             const step = index + 1;
             const isActive = currentStep === step;

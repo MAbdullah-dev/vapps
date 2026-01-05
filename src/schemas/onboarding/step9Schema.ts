@@ -1,19 +1,18 @@
 import { z } from "zod";
 
 export const step9Schema = z.object({
-  widgets: z.object({
-    tasksCompleted: z.boolean(),
-    complianceScore: z.boolean(),
-    workloadByUser: z.boolean(),
-    overdueTasks: z.boolean(),
+  require2FA: z.boolean(),
+  ipWhitelisting: z.boolean(),
+  sessionTimeout: z.boolean(),
 
-    issueDistribution: z.boolean(),
-    auditTrend: z.boolean(),
-    projectProgress: z.boolean(),
-    documentVersion: z.boolean(),
-  }),
+  passwordPolicy: z.string().min(1, "Password policy is required"),
+  sessionDuration: z.string().min(1, "Session duration is required"),
 
-  reportFrequency: z.string().min(1, "Please select a frequency"),
+  logAllActions: z.boolean(),
+  logRetention: z.string().min(1, "Log retention period is required"),
+
+  backupFrequency: z.string().min(1, "Backup frequency is required"),
+  backupRetention: z.string().min(1, "Backup retention is required"),
 });
 
 export type Step9Values = z.infer<typeof step9Schema>;

@@ -1,24 +1,20 @@
-import { z } from "zod";
+import * as z from "zod";
 
-export const customerSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-});
-
-export const vendorSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-});
-
-// Base schema - arrays are optional, validation happens conditionally
 export const step7Schema = z.object({
-  activeTab: z.enum(["customers", "vendors"]).optional().default("customers"),
-  customers: z.array(customerSchema).optional().default([]),
-  vendors: z.array(vendorSchema).optional().default([]),
+  multiLevelApprovals: z.boolean().default(false),
+  automaticTaskAssignment: z.boolean().default(false),
+
+  criticalSLA: z.string().min(1, "Required"),
+  highPrioritySLA: z.string().min(1, "Required"),
+  mediumPrioritySLA: z.string().min(1, "Required"),
+  lowPrioritySLA: z.string().min(1, "Required"),
+
+  emailNotifications: z.boolean().default(true),
+  inAppNotifications: z.boolean().default(true),
+  smsNotifications: z.boolean().default(false),
+  
+
+  escalationRules: z.string().optional(),
 });
 
 export type Step7Values = z.infer<typeof step7Schema>;
