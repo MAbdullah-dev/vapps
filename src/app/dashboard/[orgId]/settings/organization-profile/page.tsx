@@ -1,15 +1,35 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Info } from "lucide-react";
+import { Info, Save } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+
+import { Calendar } from "@/components/ui/calendar";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 export default function OrganizationProfilePage() {
   const params = useParams();
@@ -18,6 +38,11 @@ export default function OrganizationProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -93,7 +118,7 @@ export default function OrganizationProfilePage() {
       const address = [formData.addressLine1, formData.addressLine2]
         .filter(Boolean)
         .join('\n');
-      
+
       await apiClient.updateOrganizationInfo(orgId, {
         name: formData.name,
         legalName: formData.legalName,
@@ -111,7 +136,7 @@ export default function OrganizationProfilePage() {
         contactName: formData.primaryEmail ? "Primary Contact" : undefined,
         contactEmail: formData.primaryEmail || undefined,
       });
-      
+
       toast.success("Organization profile updated successfully");
       setIsEditing(false);
       fetchOrganizationInfo();
@@ -152,6 +177,15 @@ export default function OrganizationProfilePage() {
     );
   }
 
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -187,6 +221,7 @@ export default function OrganizationProfilePage() {
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={isSaving} variant="dark">
+              <Save className="size-4 mr-2" />
                 {isSaving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -204,19 +239,40 @@ export default function OrganizationProfilePage() {
           {/* Company Logo */}
           <div className="space-y-2">
             <Label>Company Logo</Label>
+
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
-                <AvatarFallback className="bg-gray-800 text-white text-xl">
-                  {formData.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
+                {logoPreview ? (
+                  <AvatarImage src={logoPreview} alt="Company Logo" />
+                ) : (
+                  <AvatarFallback className="bg-gray-800 text-white text-xl">
+                    {formData.name.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                )}
               </Avatar>
+
               {isEditing && (
-                <Button variant="outline" size="sm">
-                  Upload Logo
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload Logo
+                  </Button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                  />
+                </>
               )}
             </div>
           </div>
+
 
           {/* Primary Brand Color */}
           <div className="space-y-2">
@@ -244,24 +300,31 @@ export default function OrganizationProfilePage() {
           {/* Brand Font */}
           <div className="space-y-2">
             <Label>Brand Font</Label>
+
             {isEditing ? (
-              <select
+              <Select
                 value={formData.brandFont}
-                onChange={(e) =>
-                  setFormData({ ...formData, brandFont: e.target.value })
+                onValueChange={(value) =>
+                  setFormData({ ...formData, brandFont: value })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
               >
-                <option value="Arial">Arial</option>
-                <option value="Helvetica">Helvetica</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Roboto">Roboto</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select font" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value="Arial">Arial</SelectItem>
+                  <SelectItem value="Helvetica">Helvetica</SelectItem>
+                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+                  <SelectItem value="Georgia">Georgia</SelectItem>
+                  <SelectItem value="Roboto">Roboto</SelectItem>
+                </SelectContent>
+              </Select>
             ) : (
-              <Input value={formData.brandFont} disabled />
+              <Input value={formData.brandFont || ""} disabled />
             )}
           </div>
+
         </CardContent>
       </Card>
 
@@ -300,7 +363,7 @@ export default function OrganizationProfilePage() {
             <div className="space-y-2">
               <Label className="flex items-center gap-1">
                 Registration Number
-                <Info className="h-3 w-3 text-gray-400" />
+                <Info size={16} />
               </Label>
               <Input
                 value={formData.registrationId}
@@ -324,64 +387,111 @@ export default function OrganizationProfilePage() {
             </div>
             <div className="space-y-2">
               <Label>Industry</Label>
+
               {isEditing ? (
-                <select
+                <Select
                   value={formData.industry}
-                  onChange={(e) =>
-                    setFormData({ ...formData, industry: e.target.value })
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, industry: value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
-                  <option value="">Select industry</option>
-                  <option value="Technology & Software">Technology & Software</option>
-                  <option value="Healthcare">Healthcare</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Manufacturing">Manufacturing</option>
-                  <option value="Retail">Retail</option>
-                  <option value="Education">Education</option>
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select industry" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="Technology & Software">
+                      Technology & Software
+                    </SelectItem>
+                    <SelectItem value="Healthcare">Healthcare</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="Retail">Retail</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                  </SelectContent>
+                </Select>
               ) : (
-                <Input value={formData.industry} disabled />
+                <Input value={formData.industry || ""} disabled />
               )}
             </div>
+
             <div className="space-y-2">
               <Label>Company Size</Label>
+
               {isEditing ? (
-                <select
+                <Select
                   value={formData.companySize}
-                  onChange={(e) =>
-                    setFormData({ ...formData, companySize: e.target.value })
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, companySize: value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
-                  <option value="">Select size</option>
-                  <option value="1-10 employees">1-10 employees</option>
-                  <option value="1-100 employees">1-100 employees</option>
-                  <option value="101-500 employees">101-500 employees</option>
-                  <option value="501-1000 employees">501-1000 employees</option>
-                  <option value="1000+ employees">1000+ employees</option>
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="1-10 employees">1–10 employees</SelectItem>
+                    <SelectItem value="1-100 employees">1–100 employees</SelectItem>
+                    <SelectItem value="101-500 employees">101–500 employees</SelectItem>
+                    <SelectItem value="501-1000 employees">501–1000 employees</SelectItem>
+                    <SelectItem value="1000+ employees">1000+ employees</SelectItem>
+                  </SelectContent>
+                </Select>
               ) : (
-                <Input value={formData.companySize} disabled />
+                <Input value={formData.companySize || ""} disabled />
               )}
             </div>
+
             <div className="space-y-2">
               <Label>Founded Date</Label>
+
               {isEditing ? (
-                <Input
-                  type="date"
-                  value={formData.foundedDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, foundedDate: e.target.value })
-                  }
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.foundedDate
+                        ? format(new Date(formData.foundedDate), "PPP")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={
+                        formData.foundedDate
+                          ? new Date(formData.foundedDate)
+                          : undefined
+                      }
+                      onSelect={(date) => {
+                        if (!date) return;
+
+                        setFormData({
+                          ...formData,
+                          foundedDate: `${date.getFullYear()}-${String(
+                            date.getMonth() + 1
+                          ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+                        });
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <Input value={formData.foundedDate} disabled />
-                </div>
+                <Input
+                  value={
+                    formData.foundedDate
+                      ? format(new Date(formData.foundedDate), "PPP")
+                      : ""
+                  }
+                  disabled
+                />
               )}
             </div>
+
             <div className="space-y-2">
               <Label>Website URL</Label>
               <Input
@@ -437,7 +547,7 @@ export default function OrganizationProfilePage() {
                   setFormData({ ...formData, phone: e.target.value })
                 }
                 disabled={!isEditing}
-                placeholder="+1 (555) 123-4567"
+                placeholder="+92 (555) 123-4567"
               />
             </div>
             <div className="space-y-2">
@@ -448,7 +558,7 @@ export default function OrganizationProfilePage() {
                   setFormData({ ...formData, fax: e.target.value })
                 }
                 disabled={!isEditing}
-                placeholder="+1 (555) 123-4568"
+                placeholder="+92 (555) 123-4568"
               />
             </div>
           </div>

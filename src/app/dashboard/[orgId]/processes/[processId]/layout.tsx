@@ -939,9 +939,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                           {/* Add User Button */}
                           <CommandItem
                             onSelect={() => {
-                              // Close the assignee popover
                               setAssigneePopoverOpen(false);
-                              // Open the invitation dialog
                               setDialogOpen(true);
                             }}
                             className="border-t mt-1 pt-2 font-medium cursor-pointer"
@@ -1169,7 +1167,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent> 
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="member">Member</SelectItem>

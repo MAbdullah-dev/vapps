@@ -92,7 +92,7 @@ const SettingSidebar = () => {
           return (
             <Link key={index} href={item.path}>
               <li
-                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
                   isActive ? 'bg-green-50 text-green-600' : 'hover:bg-gray-100 text-gray-700'
                 }`}
               >
