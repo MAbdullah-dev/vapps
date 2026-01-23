@@ -9,6 +9,7 @@ import {
   FolderKanban,
   House,
   Plus,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -410,6 +411,20 @@ export default function Sidebar({ orgId }: { orgId: string }) {
             )}
           </CollapsibleContent>
         </Collapsible>
+        <div className="">
+          <Link
+            href={link("audit")}
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
+              ${pathname.includes("/audit")
+                ? "bg-gray-100 font-medium text-gray-900"
+                : "text-gray-600 hover:bg-gray-50"
+              }
+            `}
+          >
+            <ClipboardList size={18} />
+            Audit
+          </Link>
+        </div>
 
       </nav>
 
