@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import crypto from "crypto";
+import { getSSLConfig, getSSLModeForConnectionString } from "@/lib/db/ssl-config";
 
 /**
  * Database creation result with connection details
@@ -31,9 +32,7 @@ export async function createTenantDatabase(orgId: string): Promise<TenantDatabas
 
   const client = new Client({
     connectionString: adminUrl,
-    ssl: {
-      rejectUnauthorized: false, // Required for AWS RDS
-    },
+    ssl: getSSLConfig(adminUrl),
   });
 
   try {
@@ -87,9 +86,7 @@ export async function createTenantDatabase(orgId: string): Promise<TenantDatabas
     // Connect to the new database to grant schema privileges
     const tenantClient = new Client({
       connectionString: adminUrl.replace(/\/[^/]+$/, `/${dbName}`),
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: getSSLConfig(adminUrl),
     });
 
     try {
@@ -106,8 +103,9 @@ export async function createTenantDatabase(orgId: string): Promise<TenantDatabas
       console.warn(`Warning: Could not grant schema privileges: ${error}`);
     }
 
-    // Construct connection string
-    const connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}?schema=public&sslmode=require`;
+    // Construct connection string; sslmode derived from host (local vs AWS)
+    const sslmode = getSSLModeForConnectionString(dbHost);
+    const connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}?schema=public&sslmode=${sslmode}`;
 
     return {
       dbName,
@@ -138,9 +136,7 @@ export async function runTenantMigrations(connectionString: string): Promise<boo
   try {
     const client = new Client({
       connectionString,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: getSSLConfig(connectionString),
     });
 
     await client.connect();

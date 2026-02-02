@@ -9,6 +9,7 @@
 
 import { Pool, PoolClient } from "pg";
 import { prisma } from "@/lib/prisma";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 // In-memory cache of connection pools per organization
 const tenantPools = new Map<string, Pool>();
@@ -32,16 +33,13 @@ const poolMetadata = new Map<string, PoolMetadata>();
 const HEALTH_CHECK_INTERVAL = 60000; // Only check health every 60 seconds (reduced frequency)
 const HEALTH_CHECK_TIMEOUT = 3000; // 3 second timeout (reduced from 5s for faster failure detection)
 
-// Pool configuration
+// Pool configuration (ssl is set per-pool from connection string in getTenantPool)
 const POOL_CONFIG = {
   max: 10, // Maximum 10 connections per tenant
   min: 1, // Keep at least 1 connection alive (faster health checks)
   idleTimeoutMillis: 60000, // Close idle connections after 60s (increased to keep connections longer)
   connectionTimeoutMillis: 15000, // Timeout after 15s (increased for slow RDS connections)
-  ssl: { rejectUnauthorized: false },
-  // Allow pool to close idle connections completely
   allowExitOnIdle: false,
-  // Keep connections alive longer
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 };
@@ -169,10 +167,11 @@ export async function getTenantPool(orgId: string): Promise<Pool> {
     });
   }
 
-  // Create new pool for this tenant
+  // Create new pool for this tenant; SSL derived from connection string (local vs AWS)
   const pool = new Pool({
     ...POOL_CONFIG,
     connectionString,
+    ssl: getSSLConfig(connectionString),
   });
 
   // Handle pool errors (log but don't crash)

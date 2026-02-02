@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { OnboardingData } from "@/store/onboardingStore";
 import crypto from "crypto";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 /**
  * Stores onboarding data in the tenant database
@@ -15,9 +16,7 @@ export async function storeTenantData(
 ): Promise<void> {
   const client = new Client({
     connectionString,
-    ssl: {
-      rejectUnauthorized: false,
-    },
+    ssl: getSSLConfig(connectionString),
   });
 
   try {

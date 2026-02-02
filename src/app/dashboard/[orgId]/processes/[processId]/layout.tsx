@@ -223,16 +223,16 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   };
 
   const tabs = [
-    { name: "Manage Issues", href: "manage-issues" },
     { name: "Summary", href: "summary" },
+    { name: "Manage Issues", href: "manage-issues" },
     { name: "Backlog", href: "backlog" },
     { name: "Board", href: "board" },
     { name: "Calendar", href: "calendar" },
     { name: "Timeline", href: "timeline" },
-    { name: "Documents", href: "documents" },
-    { name: "Audits", href: "audits" },
-    { name: "Reports", href: "reports" },
-    { name: "Settings", href: "settings" },
+    // { name: "Documents", href: "documents" },
+    // { name: "Audits", href: "audits" },
+    // { name: "Reports", href: "reports" },
+    // { name: "Settings", href: "settings" },
   ];
   const [titles, setTitles] = useState<string[]>([]);
   const [title, setTitle] = useState("");
@@ -1124,7 +1124,9 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           {tabs.map((tab) => {
             const fullPath = `${base}/${tab.href}`;
             const isActive =
-              pathname === fullPath || pathname.startsWith(fullPath + "/");
+              pathname === fullPath ||
+              pathname.startsWith(fullPath + "/") ||
+              (tab.href === "summary" && pathname === base);
 
             return (
               <Link
