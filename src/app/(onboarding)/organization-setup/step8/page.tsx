@@ -24,24 +24,26 @@ export default function Step8() {
     const saved = useOnboardingStore((s) => s.data.step8);
     const updateStep = useOnboardingStore((s) => s.updateStep);
 
+    const defaultWidgets = {
+        tasksCompleted: false,
+        complianceScore: false,
+        workloadByUser: false,
+        overdueTasks: false,
+        issueDistribution: false,
+        auditTrend: false,
+        projectProgress: false,
+        documentVersion: false,
+    };
+
     const form = useForm<Step8Values>({
         resolver: zodResolver(step8Schema),
-        defaultValues: saved || {
-            widgets: {
-                tasksCompleted: false,
-                complianceScore: false,
-                workloadByUser: false,
-                overdueTasks: false,
-                issueDistribution: false,
-                auditTrend: false,
-                projectProgress: false,
-                documentVersion: false,
-            },
-            reportFrequency: "",
-        },
+        defaultValues: saved?.widgets
+            ? { widgets: { ...defaultWidgets, ...saved.widgets }, reportFrequency: saved.reportFrequency ?? "" }
+            : { widgets: defaultWidgets, reportFrequency: "" },
     });
 
-    const selectedCount = Object.values(form.watch("widgets")).filter(Boolean).length;
+    const widgets = form.watch("widgets");
+    const selectedCount = Object.values(widgets ?? {}).filter(Boolean).length;
 
     const onSubmit = (values: Step8Values) => {
         updateStep("step8", values);

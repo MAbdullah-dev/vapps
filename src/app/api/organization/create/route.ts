@@ -9,114 +9,152 @@ import { z } from "zod";
 /**
  * Validation schema for organization creation
  */
+const defaultWidgets = {
+  tasksCompleted: false,
+  complianceScore: false,
+  workloadByUser: false,
+  overdueTasks: false,
+  issueDistribution: false,
+  auditTrend: false,
+  projectProgress: false,
+  documentVersion: false,
+};
+
 const createOrganizationSchema = z.object({
-  step1: z.object({
-    companyName: z.string().min(1, "Company name is required"),
-    registrationId: z.string().optional(),
-    address: z.string().optional(),
-    contactName: z.string().optional(),
-    contactEmail: z.string().email().optional(),
-    phone: z.string().optional(),
-    website: z.string().optional(),
-    industry: z.string().optional(),
-  }),
-  step2: z.object({
-    sites: z.array(
-      z.object({
-        siteName: z.string(),
-        siteCode: z.string().optional(), // Auto-generated if not provided
-        location: z.string(),
-        processes: z.array(z.string()).optional(),
-      })
-    ).optional().default([]),
-  }),
-  step3: z.object({
-    leaders: z.array(
-      z.object({
-        name: z.string(),
-        role: z.string(),
-        level: z.string(),
-        email: z.string().email().optional(),
-      })
-    ).optional().default([]),
-  }),
-  step4: z.object({
-    baseCurrency: z.string().optional(),
-    fiscalYearStart: z.string().optional(),
-    defaultTaxRate: z.string().optional(),
-    paymentTerms: z.string().optional(),
-    chartOfAccountsTemplate: z.string().optional(),
-    defaultAssetAccount: z.string().optional(),
-    defaultRevenueAccount: z.string().optional(),
-    defaultExpenseAccount: z.string().optional(),
-  }),
-  step5: z.object({
-    products: z.array(
-      z.object({
-        sku: z.string().optional(),
-        name: z.string(),
-        category: z.string().optional(),
-        unit: z.string().optional(),
-        cost: z.string().optional(),
-        reorder: z.string().optional(),
-      })
-    ).optional().default([]),
-  }),
-  step6: z.object({
-    activeTab: z.enum(["customers", "vendors"]).optional(),
-    customers: z.array(
-      z.object({
-        name: z.string(),
-        email: z.string().email().optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-      })
-    ).optional().default([]),
-    vendors: z.array(
-      z.object({
-        name: z.string(),
-        email: z.string().email().optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-      })
-    ).optional().default([]),
-  }),
-  step7: z.object({
-    multiLevelApprovals: z.boolean().optional(),
-    automaticTaskAssignment: z.boolean().optional(),
-    criticalSLA: z.string().optional(),
-    highPrioritySLA: z.string().optional(),
-    mediumPrioritySLA: z.string().optional(),
-    lowPrioritySLA: z.string().optional(),
-    emailNotifications: z.boolean().optional(),
-    inAppNotifications: z.boolean().optional(),
-    smsNotifications: z.boolean().optional(),
-    escalationRules: z.string().optional(),
-  }),
-  step8: z.object({
-    widgets: z.object({
-      tasksCompleted: z.boolean().optional(),
-      complianceScore: z.boolean().optional(),
-      workloadByUser: z.boolean().optional(),
-      overdueTasks: z.boolean().optional(),
-      issueDistribution: z.boolean().optional(),
-      auditTrend: z.boolean().optional(),
-      projectProgress: z.boolean().optional(),
-      documentVersion: z.boolean().optional(),
-    }),
-    reportFrequency: z.string().optional(),
-  }),
-  step9: z.object({
-    require2FA: z.boolean().optional(),
-    ipWhitelisting: z.boolean().optional(),
-    sessionTimeout: z.boolean().optional(),
-    passwordPolicy: z.string().optional(),
-    sessionDuration: z.string().optional(),
-    logAllActions: z.boolean().optional(),
-    logRetention: z.string().optional(),
-    backupFrequency: z.string().optional(),
-    backupRetention: z.string().optional(),
-  }),
+  step1: z
+    .object({
+      companyName: z.string().optional(),
+      registrationId: z.string().optional(),
+      address: z.string().optional(),
+      contactName: z.string().optional(),
+      contactEmail: z.string().email().optional().or(z.literal("")),
+      phone: z.string().optional(),
+      website: z.string().optional(),
+      industry: z.string().optional(),
+    })
+    .optional()
+    .default({}),
+  step2: z
+    .object({
+      sites: z.array(
+        z.object({
+          siteName: z.string(),
+          siteCode: z.string().optional(),
+          location: z.string(),
+          processes: z.array(z.string()).optional(),
+        })
+      ).optional().default([]),
+    })
+    .optional()
+    .default({ sites: [] }),
+  step3: z
+    .object({
+      leaders: z.array(
+        z.object({
+          name: z.string(),
+          role: z.string(),
+          level: z.string(),
+          email: z.string().email().optional(),
+        })
+      ).optional().default([]),
+    })
+    .optional()
+    .default({ leaders: [] }),
+  step4: z
+    .object({
+      baseCurrency: z.string().optional(),
+      fiscalYearStart: z.string().optional(),
+      defaultTaxRate: z.string().optional(),
+      paymentTerms: z.string().optional(),
+      chartOfAccountsTemplate: z.string().optional(),
+      defaultAssetAccount: z.string().optional(),
+      defaultRevenueAccount: z.string().optional(),
+      defaultExpenseAccount: z.string().optional(),
+    })
+    .optional()
+    .default({}),
+  step5: z
+    .object({
+      products: z.array(
+        z.object({
+          sku: z.string().optional(),
+          name: z.string(),
+          category: z.string().optional(),
+          unit: z.string().optional(),
+          cost: z.string().optional(),
+          reorder: z.string().optional(),
+        })
+      ).optional().default([]),
+    })
+    .optional()
+    .default({ products: [] }),
+  step6: z
+    .object({
+      activeTab: z.enum(["customers", "vendors"]).optional(),
+      customers: z.array(
+        z.object({
+          name: z.string(),
+          email: z.string().email().optional(),
+          phone: z.string().optional(),
+          address: z.string().optional(),
+        })
+      ).optional().default([]),
+      vendors: z.array(
+        z.object({
+          name: z.string(),
+          email: z.string().email().optional(),
+          phone: z.string().optional(),
+          address: z.string().optional(),
+        })
+      ).optional().default([]),
+    })
+    .optional()
+    .default({ activeTab: "customers", customers: [], vendors: [] }),
+  step7: z
+    .object({
+      multiLevelApprovals: z.boolean().optional(),
+      automaticTaskAssignment: z.boolean().optional(),
+      criticalSLA: z.string().optional(),
+      highPrioritySLA: z.string().optional(),
+      mediumPrioritySLA: z.string().optional(),
+      lowPrioritySLA: z.string().optional(),
+      emailNotifications: z.boolean().optional(),
+      inAppNotifications: z.boolean().optional(),
+      smsNotifications: z.boolean().optional(),
+      escalationRules: z.string().optional(),
+    })
+    .optional()
+    .default({}),
+  step8: z
+    .object({
+      widgets: z.object({
+        tasksCompleted: z.boolean().optional(),
+        complianceScore: z.boolean().optional(),
+        workloadByUser: z.boolean().optional(),
+        overdueTasks: z.boolean().optional(),
+        issueDistribution: z.boolean().optional(),
+        auditTrend: z.boolean().optional(),
+        projectProgress: z.boolean().optional(),
+        documentVersion: z.boolean().optional(),
+      }).optional().default(defaultWidgets),
+      reportFrequency: z.string().optional(),
+    })
+    .optional()
+    .default({ widgets: defaultWidgets, reportFrequency: "" }),
+  step9: z
+    .object({
+      require2FA: z.boolean().optional(),
+      ipWhitelisting: z.boolean().optional(),
+      sessionTimeout: z.boolean().optional(),
+      passwordPolicy: z.string().optional(),
+      sessionDuration: z.string().optional(),
+      logAllActions: z.boolean().optional(),
+      logRetention: z.string().optional(),
+      backupFrequency: z.string().optional(),
+      backupRetention: z.string().optional(),
+    })
+    .optional()
+    .default({}),
 });
 
 /**
@@ -135,7 +173,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Parse and validate request body
-    let body: OnboardingData;
+    let body: unknown;
     try {
       body = await req.json();
     } catch (error) {
@@ -145,8 +183,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate data structure
-    const validationResult = createOrganizationSchema.safeParse(body);
+    // Validate data structure (accept partial store data; defaults fill missing steps)
+    const validationResult = createOrganizationSchema.safeParse(body ?? {});
     if (!validationResult.success) {
       return NextResponse.json(
         {

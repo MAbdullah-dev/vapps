@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 /**
  * Test endpoint to check database connection health
@@ -7,14 +8,13 @@ import { Pool } from "pg";
  */
 export async function GET(req: NextRequest) {
   const start = Date.now();
-  
+  const connectionString = process.env.DATABASE_URL!;
+
   try {
-    // Create a test pool connection
+    // Create a test pool connection; SSL derived from connection string (local vs AWS)
     const testPool = new Pool({
-      connectionString: process.env.DATABASE_URL!,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      connectionString,
+      ssl: getSSLConfig(connectionString),
       max: 1,
       connectionTimeoutMillis: 10000, // 10 seconds
     });

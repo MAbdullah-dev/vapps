@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 /**
  * Safely execute a function with a database connection, ensuring it's always closed
@@ -12,7 +13,7 @@ export async function withTenantConnection<T>(
 ): Promise<T> {
   const client = new Client({
     connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl: getSSLConfig(connectionString),
   });
 
   try {

@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { prisma } from "@/lib/prisma";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 /**
  * Get a PostgreSQL client connected to a tenant database
@@ -18,7 +19,7 @@ export async function getTenantClient(orgId: string): Promise<Client> {
 
   const client = new Client({
     connectionString: org.database.connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl: getSSLConfig(org.database.connectionString),
   });
 
   await client.connect();

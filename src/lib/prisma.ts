@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { getSSLConfig } from "@/lib/db/ssl-config";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -65,9 +66,7 @@ const pool =
   global.__pgPool ??
   new Pool({
     connectionString: getConnectionStringWithTimeouts(),
-    ssl: {
-      rejectUnauthorized: false, // ✅ REQUIRED for AWS RDS
-    },
+    ssl: getSSLConfig(getConnectionStringWithTimeouts()),
     max: 5, // Max connections in pool
     min: 0, // Don't pre-create connections
     idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
