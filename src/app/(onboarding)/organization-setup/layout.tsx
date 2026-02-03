@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Header from "@/components/common/Header";
 import StepProgress from "@/components/multistepform/StepProgress";
@@ -11,6 +12,17 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   const match = pathname.match(/step(\d+)/);
   const currentStep = match ? Number(match[1]) : 1;
   const totalSteps = 10;
+
+  // Update proxy cookie when user lands on a step (highest step reached; allows /complete after step10)
+  useEffect(() => {
+    if (currentStep >= 2 && currentStep <= 10) {
+      fetch("/api/organization-setup/complete-step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: currentStep }),
+      }).catch(() => {});
+    }
+  }, [currentStep]);
 
   return (
     <>

@@ -11,10 +11,19 @@ import {
 } from '@/components/ui/shadcn-io/kanban';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Clock } from 'lucide-react';
+import { MoreVertical, Clock, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import ReviewDialog from '@/components/dashboard/ReviewDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 // Define columns for the board
 const columns = [
@@ -93,6 +102,11 @@ const Board = () => {
   // Track if a drag is in progress to prevent clicks during drag
   const [isDragging, setIsDragging] = useState(false);
 
+  // Delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Update queue and processing state (using refs to avoid stale closures)
   // NOTE: The update queue exists entirely on the client and is flushed to the backend asynchronously;
   // the backend does not maintain queue state.
@@ -153,7 +167,10 @@ const Board = () => {
 
     const handleIssueUpdated = (event: Event) => {
       const customEvent = event as CustomEvent;
-      if (customEvent.detail.processId === processId && customEvent.detail.orgId === orgId) {
+      const detail = customEvent.detail || {};
+      // Skip refetch when we triggered the update (prevents board blink after drag)
+      if (detail.source === 'board') return;
+      if (detail.processId === processId && detail.orgId === orgId) {
         fetchData();
       }
     };
@@ -201,7 +218,8 @@ const Board = () => {
               orgId,
               issueId: update.issueId,
               status: update.newStatus,
-              previousStatus: update.previousStatus
+              previousStatus: update.previousStatus,
+              source: 'board', // so board skips refetch and avoids blink
             }
           }));
         }
@@ -428,13 +446,7 @@ const Board = () => {
     );
 
     console.log('[handleReviewSubmit] ✅ Status update queued successfully for issue:', update.issueId, 'newStatus:', update.newStatus);
-    
-    // Refresh data after a short delay to ensure status is synced with backend
-    setTimeout(() => {
-      console.log('[handleReviewSubmit] Refreshing data to ensure status sync');
-      fetchData();
-    }, 500);
-  }, [pendingReviewUpdate, queueUpdate, fetchData]);
+  }, [pendingReviewUpdate, queueUpdate]);
 
   // Handle review dialog cancellation - revert the status
   const handleReviewCancel = useCallback(() => {
@@ -593,8 +605,16 @@ const Board = () => {
                         <span className="text-xs text-gray-500 font-mono">
                           {issueId}
                         </span>
-                        <button className="text-gray-400 hover:text-gray-600">
-                          <MoreVertical size={14} />
+                        <button
+                          type="button"
+                          className="text-gray-400 hover:text-gray-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIssueToDelete(issue);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="text-red-500 hover:text-red-700" size={14} />
                         </button>
                       </div>
 
@@ -668,6 +688,59 @@ const Board = () => {
         );
       }}
     </KanbanProvider>
+
+      {/* Delete issue confirmation dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setIssueToDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Delete issue</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{issueToDelete?.title ?? 'this issue'}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setIssueToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!issueToDelete) return;
+                setIsDeleting(true);
+                try {
+                  await apiClient.deleteIssue(orgId, processId, issueToDelete.id);
+                  setIssues((prev) => prev.filter((i) => i.id !== issueToDelete.id));
+                  setDeleteDialogOpen(false);
+                  setIssueToDelete(null);
+                  toast.success('Issue deleted');
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.error ?? err?.message ?? 'Failed to delete issue');
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
