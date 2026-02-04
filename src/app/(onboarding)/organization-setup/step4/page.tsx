@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 
 const Step4 = () => {
   const router = useRouter();
@@ -33,8 +34,9 @@ const Step4 = () => {
     },
   });
 
-  const onSubmit = (values: Step4SchemaType) => {
+  const onSubmit = async (values: Step4SchemaType) => {
     updateStep("step4", values);
+    await setOnboardingStepReached(5);
     router.push("/organization-setup/step5");
   };
 
@@ -201,7 +203,7 @@ const Step4 = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/organization-setup/step5")}
+                onClick={async () => { await setOnboardingStepReached(5); router.push("/organization-setup/step5"); }}
               >
                 Skip Step
               </Button>

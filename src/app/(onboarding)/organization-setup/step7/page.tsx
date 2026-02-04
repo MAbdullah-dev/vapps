@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 import { Button } from "@/components/ui/button";
 const Step7 = () => {
     const router = useRouter();
@@ -43,8 +44,9 @@ const Step7 = () => {
         },
     });
 
-    const onSubmit = (values: Step7Values) => {
+    const onSubmit = async (values: Step7Values) => {
         updateStep("step7", values);
+        await setOnboardingStepReached(8);
         router.push("/organization-setup/step8");
     };
     return (
@@ -247,7 +249,7 @@ const Step7 = () => {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => router.push("/organization-setup/step8")}
+                                onClick={async () => { await setOnboardingStepReached(8); router.push("/organization-setup/step8"); }}
                             >
                                 Skip Step
                             </Button>

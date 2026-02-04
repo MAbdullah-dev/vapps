@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 
 export default function OnboardingFooter({
   currentStep,
@@ -12,8 +13,9 @@ export default function OnboardingFooter({
 }) {
   const router = useRouter();
 
-  const goNext = () => {
+  const goNext = async () => {
     if (currentStep < totalSteps) {
+      await setOnboardingStepReached(currentStep + 1);
       router.push(`/organization-setup/step${currentStep + 1}`);
     }
   };
@@ -24,13 +26,15 @@ export default function OnboardingFooter({
     }
   };
 
-  const skip = () => {
+  const skip = async () => {
     if (currentStep < totalSteps) {
+      await setOnboardingStepReached(currentStep + 1);
       router.push(`/organization-setup/step${currentStep + 1}`);
     }
   };
 
-  const finish = () => {
+  const finish = async () => {
+    await setOnboardingStepReached(10);
     router.push("/organization-setup/complete");
   };
 

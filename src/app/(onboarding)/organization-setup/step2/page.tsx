@@ -29,6 +29,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { useOnboardingStore } from "@/store/onboardingStore";
 import { useRouter } from "next/navigation";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 
 import {
   Select,
@@ -70,7 +71,7 @@ export default function Step2() {
     name: "sites",
   });
 
-  const onSubmit = (values: Step2Values) => {
+  const onSubmit = async (values: Step2Values) => {
     // Filter out empty entries (entries with no site name)
     const validSites = values.sites.filter(
       s => s.siteName && s.siteName.trim().length > 0 && s.location && s.location.trim().length > 0
@@ -84,6 +85,7 @@ export default function Step2() {
     });
     
     updateStep("step2", { sites: sitesWithCodes.length > 0 ? sitesWithCodes : [] });
+    await setOnboardingStepReached(3);
     router.push("/organization-setup/step3");
   };
 
@@ -287,7 +289,7 @@ export default function Step2() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/organization-setup/step3")}
+                onClick={async () => { await setOnboardingStepReached(3); router.push("/organization-setup/step3"); }}
               >
                 Skip Step
               </Button>

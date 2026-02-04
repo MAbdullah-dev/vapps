@@ -27,6 +27,7 @@ import { Trash2 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/store/onboardingStore";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 
 export default function Step3Page() {
   const router = useRouter();
@@ -51,12 +52,13 @@ export default function Step3Page() {
   const addLeader = () =>
     append({ name: "", role: "", level: "Executive", email: "" });
 
-  const onSubmit = (values: Step3Values) => {
+  const onSubmit = async (values: Step3Values) => {
     // Filter out empty entries (entries with no name)
     const filteredLeaders = values.leaders.filter(
       l => l.name && l.name.trim().length > 0 && l.role && l.role.trim().length > 0
     );
     updateStep("step3", { leaders: filteredLeaders.length > 0 ? filteredLeaders : [] });
+    await setOnboardingStepReached(4);
     router.push("/organization-setup/step4");
   };
 
@@ -174,7 +176,7 @@ export default function Step3Page() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/organization-setup/step4")}
+                onClick={async () => { await setOnboardingStepReached(4); router.push("/organization-setup/step4"); }}
               >
                 Skip Step
               </Button>
