@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 import { useOnboardingStore } from "@/store/onboardingStore";
 import { useRouter } from "next/navigation";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 
 import {
   Select,
@@ -54,8 +55,9 @@ export default function Step1Form() {
 
 
 
-  const onSubmit = (values: Step1Values) => {
+  const onSubmit = async (values: Step1Values) => {
     updateStep("step1", values);
+    await setOnboardingStepReached(2);
     router.push("/organization-setup/step2");
   };
 

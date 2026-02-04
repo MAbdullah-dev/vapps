@@ -6,12 +6,10 @@ const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 /**
  * POST /api/organization-setup/complete-step
- * Sets the highest completed onboarding step in an HTTP-only cookie.
- * Call this when the user completes a step (e.g. when they land on the next step)
- * so the proxy can allow access to the current step and block future steps.
+ * Sets the highest reached onboarding step in an HTTP-only cookie (org_setup_step).
+ * Called by the client helper before forward navigation so the proxy allows the next step.
  *
- * Body: { step: number } — the step just completed (1–10).
- * Cookie is only updated if the new step is greater than the current value.
+ * Body: { step: number } — step number reached (1–10). Cookie is set to max(current, step).
  */
 export async function POST(request: NextRequest) {
   try {

@@ -17,6 +17,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { useOnboardingStore } from "@/store/onboardingStore";
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 import { Button } from "@/components/ui/button";
 
 export default function Step8() {
@@ -45,8 +46,9 @@ export default function Step8() {
     const widgets = form.watch("widgets");
     const selectedCount = Object.values(widgets ?? {}).filter(Boolean).length;
 
-    const onSubmit = (values: Step8Values) => {
+    const onSubmit = async (values: Step8Values) => {
         updateStep("step8", values);
+        await setOnboardingStepReached(9);
         router.push("/organization-setup/step9");
     };
 
@@ -137,7 +139,7 @@ export default function Step8() {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => router.push("/organization-setup/step9")}
+                                onClick={async () => { await setOnboardingStepReached(9); router.push("/organization-setup/step9"); }}
                             >
                                 Skip Step
                             </Button>

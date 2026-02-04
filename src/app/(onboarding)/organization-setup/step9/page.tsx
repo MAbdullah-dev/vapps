@@ -13,7 +13,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
-
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step9 = () => {
@@ -36,8 +36,9 @@ const Step9 = () => {
     },
   });
 
-  const onSubmit = (values: Step9Values) => {
+  const onSubmit = async (values: Step9Values) => {
     updateStep("step9", values);
+    await setOnboardingStepReached(10);
     router.push("/organization-setup/step10");
   };
 
@@ -148,7 +149,7 @@ const Step9 = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/organization-setup/step10")}
+                onClick={async () => { await setOnboardingStepReached(10); router.push("/organization-setup/step10"); }}
               >
                 Skip Step
               </Button>

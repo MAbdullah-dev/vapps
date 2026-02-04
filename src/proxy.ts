@@ -6,10 +6,10 @@ const BASE = '/organization-setup';
 
 /**
  * Proxy: URL security for multi-step onboarding.
- * - Tracks highest step reached in HTTP-only cookie (org_setup_step); client sets it when landing on a step.
- * - User may visit stepN only if highestReached >= N.
- * - Invalid steps (e.g. step0, step99) redirect to step1.
- * - Going backward is allowed.
+ * - Tracks highest step reached in HTTP-only cookie (org_setup_step).
+ * - Client must call the complete-step API before forward navigation so this cookie is set.
+ * - User may visit stepN only if highestReached >= N. Step 1 always allowed.
+ * - Invalid steps (e.g. step0, step99) redirect to step1. Backward navigation allowed.
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

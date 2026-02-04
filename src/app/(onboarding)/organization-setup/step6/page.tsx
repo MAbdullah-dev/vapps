@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
-
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step6 = () => {
@@ -49,7 +49,7 @@ const Step6 = () => {
   }, [tab, customerFields.length, vendorFields.length, addCustomer, addVendor]);
 
 
-  const onSubmit = (values: Step6Values) => {
+  const onSubmit = async (values: Step6Values) => {
     const activeTab = values.activeTab || "customers";
 
     if (activeTab === "customers") {
@@ -88,6 +88,7 @@ const Step6 = () => {
       customers: filteredCustomers as any,
       vendors: filteredVendors as any,
     });
+    await setOnboardingStepReached(7);
     router.push("/organization-setup/step7");
   };
 
@@ -283,7 +284,7 @@ const Step6 = () => {
             </Button>
 
             <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => router.push("/organization-setup/step7")}>
+              <Button type="button" variant="outline" onClick={async () => { await setOnboardingStepReached(7); router.push("/organization-setup/step7"); }}>
                 Skip Step
               </Button>
 

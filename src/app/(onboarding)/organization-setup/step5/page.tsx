@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import { useRouter } from "next/navigation";
-
+import { setOnboardingStepReached } from "@/lib/onboarding-proxy";
 import { useOnboardingStore } from "@/store/onboardingStore";
 
 const Step5 = () => {
@@ -25,12 +25,13 @@ const Step5 = () => {
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "products" });
 
-  const onSubmit = (values: Step5Values) => {
+  const onSubmit = async (values: Step5Values) => {
     // Filter out empty entries (entries with no name)
     const filteredProducts = values.products.filter(
       p => p.name && p.name.trim().length > 0
     );
     updateStep("step5", { products: filteredProducts.length > 0 ? filteredProducts : [] });
+    await setOnboardingStepReached(6);
     router.push("/organization-setup/step6");
   };
 
@@ -91,7 +92,7 @@ const Step5 = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/organization-setup/step6")}
+                onClick={async () => { await setOnboardingStepReached(6); router.push("/organization-setup/step6"); }}
               >
                 Skip Step
               </Button>
