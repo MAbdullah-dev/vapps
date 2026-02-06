@@ -62,7 +62,8 @@ export async function GET(
           i."processId",
           i."order",
           i."createdAt",
-          i."updatedAt"
+          i."updatedAt",
+          i."deadline"
         FROM issues i
         WHERE i."processId" = $1
       `;
@@ -83,10 +84,24 @@ export async function GET(
 
       issuesQuery += ` ORDER BY i."order" ASC, i."createdAt" ASC`;
 
-      const issuesResult = await client.query(
-        issuesQuery,
-        queryParams.length > 1 ? queryParams : [queryParams[0]]
-      );
+      let issuesResult;
+      try {
+        issuesResult = await client.query(
+          issuesQuery,
+          queryParams.length > 1 ? queryParams : [queryParams[0]]
+        );
+      } catch (queryErr: any) {
+        if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline"))) {
+          const fallbackQuery = issuesQuery.replace(/,?\s*i\."deadline"\s*/i, " ");
+          issuesResult = await client.query(
+            fallbackQuery,
+            queryParams.length > 1 ? queryParams : [queryParams[0]]
+          );
+          issuesResult.rows = issuesResult.rows.map((r: any) => ({ ...r, deadline: null }));
+        } else {
+          throw queryErr;
+        }
+      }
 
       client.release();
 
@@ -120,7 +135,7 @@ export async function POST(
   try {
     const { orgId, processId } = await params;
     const body = await req.json();
-    const { title, tag, source, description, priority, status, points, assignee, tags, sprintId, order } = body;
+    const { title, tag, source, description, priority, status, points, assignee, tags, sprintId, order, deadline } = body;
 
     // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
@@ -208,48 +223,105 @@ export async function POST(
       // Prepare tags array (tag is mandatory, but tags array can have multiple)
       const tagsArray = tags && Array.isArray(tags) ? tags : [tag.trim()];
 
-      // Insert new issue
+      // Insert new issue (deadline optional; column may not exist in older tenant DBs)
       const issueId = crypto.randomUUID();
-      await client.query(
-        `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
-        [
-          issueId,
-          title.trim(),
-          description?.trim() || null,
-          priority || "medium",
-          finalStatus,
-          points || 0,
-          assignee || null,
-          tagsArray,
-          source.trim(),
-          finalSprintId,
-          processId,
-          order || 0,
-        ]
-      );
+      const deadlineVal = deadline != null && deadline !== "" ? new Date(deadline).toISOString() : null;
+      try {
+        await client.query(
+          `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+          [
+            issueId,
+            title.trim(),
+            description?.trim() || null,
+            priority || "medium",
+            finalStatus,
+            points || 0,
+            assignee || null,
+            tagsArray,
+            source.trim(),
+            finalSprintId,
+            processId,
+            order || 0,
+            deadlineVal,
+          ]
+        );
+      } catch (insertErr: any) {
+        if (insertErr?.code === "42703" || (insertErr?.message && String(insertErr.message).includes("deadline"))) {
+          await client.query(
+            `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
+            [
+              issueId,
+              title.trim(),
+              description?.trim() || null,
+              priority || "medium",
+              finalStatus,
+              points || 0,
+              assignee || null,
+              tagsArray,
+              source.trim(),
+              finalSprintId,
+              processId,
+              order || 0,
+            ]
+          );
+        } else {
+          throw insertErr;
+        }
+      }
 
-      // Fetch the created issue
-      const issueResult = await client.query(
-        `SELECT 
-          i.id,
-          i.title,
-          i.description,
-          i.priority,
-          i.status,
-          i.points,
-          i.assignee,
-          i.tags,
-          i.source,
-          i."sprintId",
-          i."processId",
-          i."order",
-          i."createdAt",
-          i."updatedAt"
-        FROM issues i
-        WHERE i.id = $1`,
-        [issueId]
-      );
+      // Fetch the created issue (include deadline if column exists)
+      let issueResult;
+      try {
+        issueResult = await client.query(
+          `SELECT 
+            i.id,
+            i.title,
+            i.description,
+            i.priority,
+            i.status,
+            i.points,
+            i.assignee,
+            i.tags,
+            i.source,
+            i."sprintId",
+            i."processId",
+            i."order",
+            i."createdAt",
+            i."updatedAt",
+            i."deadline"
+          FROM issues i
+          WHERE i.id = $1`,
+          [issueId]
+        );
+      } catch (selectErr: any) {
+        if (selectErr?.code === "42703" || (selectErr?.message && String(selectErr.message).includes("deadline"))) {
+          issueResult = await client.query(
+            `SELECT 
+              i.id,
+              i.title,
+              i.description,
+              i.priority,
+              i.status,
+              i.points,
+              i.assignee,
+              i.tags,
+              i.source,
+              i."sprintId",
+              i."processId",
+              i."order",
+              i."createdAt",
+              i."updatedAt"
+            FROM issues i
+            WHERE i.id = $1`,
+            [issueId]
+          );
+          if (issueResult.rows[0]) issueResult.rows[0].deadline = null;
+        } else {
+          throw selectErr;
+        }
+      }
 
       const createdIssue = issueResult.rows[0];
       client.release();

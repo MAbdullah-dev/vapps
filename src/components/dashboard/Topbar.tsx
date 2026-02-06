@@ -7,6 +7,9 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 
+import { Field, FieldGroup } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
+
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -14,6 +17,17 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
 
 
 
@@ -26,16 +40,49 @@ export default function Topbar() {
     };
 
     return (
-        <header className="h-14 border-b bg-[#FCFCFC] px-4 flex items-center justify-between">
+        <header className="h-14 border-b bg-[#FCFCFC] px-4 flex items-center justify-between gap-3">
             {/* Center - Search */}
             <div className="flex-1 flex">
                 <div className="relative w-full max-w-md">
-                    <Search size={18} className="absolute top-[50%] transform -translate-y-1/2 left-3 text-gray-500" />
-                    <Input
-                        className="pl-10 border-none bg-[#F3F3F5]"
-                        placeholder="Search tasks, docs, processes..."
-                    />
+                    <div className="md:block hidden">
+                        <Search size={18} className="absolute top-[50%] transform -translate-y-1/2 left-3 text-gray-500" />
+                        <Input
+                            className="pl-10 border-none bg-[#F3F3F5]"
+                            placeholder="Search tasks, docs, processes..."
+                        />
+                    </div>
+                    <div className="md:hidden block bg-[#F3F3F5] p-4 rounded-lg w-5 h-5">
+                        <Dialog>
+                            <form>
+                                <DialogTrigger asChild>
+                                    <Search size={18} className="absolute top-[50%] transform -translate-y-1/2 left-2 text-gray-500" />
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-sm">
+                                    <DialogHeader>
+                                        <DialogTitle>Edit profile</DialogTitle>
+                                        <DialogDescription>
+                                            Make changes to your profile here. Click save when you&apos;re
+                                            done.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <FieldGroup>
+                                        <Field>
+                                            <Label htmlFor="search-1">Search</Label>
+                                            <Input id="search-1" name="search" defaultValue="Pedro Duarte" />
+                                        </Field>
+                                    </FieldGroup>
+                                    <DialogFooter>
+                                        <DialogClose asChild>
+                                            <Button variant="outline">Cancel</Button>
+                                        </DialogClose>
+                                        <Button type="submit">Search</Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </form>
+                        </Dialog>
+                    </div>
                 </div>
+
             </div>
 
             {/* Right */}

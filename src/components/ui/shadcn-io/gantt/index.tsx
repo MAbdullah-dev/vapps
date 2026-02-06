@@ -934,46 +934,54 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({
           left: Math.round(offset),
         }}
       >
-        {onMove && (
-          <DndContext
-            modifiers={[restrictToHorizontalAxis]}
-            onDragEnd={onDragEnd}
-            onDragMove={handleLeftDragMove}
-            sensors={[mouseSensor]}
-          >
-            <GanttFeatureDragHelper
-              date={startAt}
-              direction="left"
-              featureId={feature.id}
-            />
-          </DndContext>
-        )}
-        <DndContext
-          modifiers={[restrictToHorizontalAxis]}
-          onDragEnd={onDragEnd}
-          onDragMove={handleItemDragMove}
-          onDragStart={handleItemDragStart}
-          sensors={[mouseSensor]}
-        >
-          <GanttFeatureItemCard id={feature.id}>
-            {children ?? (
-              <p className="flex-1 truncate text-xs">{feature.name}</p>
-            )}
-          </GanttFeatureItemCard>
-        </DndContext>
-        {onMove && (
-          <DndContext
-            modifiers={[restrictToHorizontalAxis]}
-            onDragEnd={onDragEnd}
-            onDragMove={handleRightDragMove}
-            sensors={[mouseSensor]}
-          >
-            <GanttFeatureDragHelper
-              date={endAt ?? addRange(startAt, 2)}
-              direction="right"
-              featureId={feature.id}
-            />
-          </DndContext>
+        {onMove ? (
+          <>
+            <DndContext
+              modifiers={[restrictToHorizontalAxis]}
+              onDragEnd={onDragEnd}
+              onDragMove={handleLeftDragMove}
+              sensors={[mouseSensor]}
+            >
+              <GanttFeatureDragHelper
+                date={startAt}
+                direction="left"
+                featureId={feature.id}
+              />
+            </DndContext>
+            <DndContext
+              modifiers={[restrictToHorizontalAxis]}
+              onDragEnd={onDragEnd}
+              onDragMove={handleItemDragMove}
+              onDragStart={handleItemDragStart}
+              sensors={[mouseSensor]}
+            >
+              <GanttFeatureItemCard id={feature.id}>
+                {children ?? (
+                  <p className="flex-1 truncate text-xs">{feature.name}</p>
+                )}
+              </GanttFeatureItemCard>
+            </DndContext>
+            <DndContext
+              modifiers={[restrictToHorizontalAxis]}
+              onDragEnd={onDragEnd}
+              onDragMove={handleRightDragMove}
+              sensors={[mouseSensor]}
+            >
+              <GanttFeatureDragHelper
+                date={endAt ?? addRange(startAt, 2)}
+                direction="right"
+                featureId={feature.id}
+              />
+            </DndContext>
+          </>
+        ) : (
+          <Card className="h-full w-full rounded-md bg-background p-2 text-xs shadow-sm cursor-default">
+            <div className="flex h-full w-full items-center justify-between gap-2 text-left">
+              {children ?? (
+                <p className="flex-1 truncate text-xs">{feature.name}</p>
+              )}
+            </div>
+          </Card>
         )}
       </div>
     </div>

@@ -6,13 +6,29 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  Info,
   MoreVertical,
+  Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
@@ -53,6 +69,9 @@ export default function SprintAndBacklogList() {
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [backlogIssues, setBacklogIssues] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [sprintDetail, setSprintDetail] = useState<Sprint | null>(null);
 
   // ---------------------- FETCH DATA FROM API -------------------------
   const fetchData = useCallback(async () => {
@@ -318,7 +337,29 @@ export default function SprintAndBacklogList() {
     }
   };
 
-  // ---------------------- Issue Card ----------------------------------
+  const handleConfirmDelete = async () => {
+    if (!issueToDelete) return;
+    try {
+      setIsDeleting(true);
+      await apiClient.deleteIssue(orgId, processId, issueToDelete.id);
+      setIssueToDelete(null);
+      toast.success("Issue deleted");
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete issue");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openUpdateForm = (issueId: string) => {
+    window.dispatchEvent(
+      new CustomEvent("openIssueDialog", {
+        detail: { issueId, orgId, processId },
+      })
+    );
+  };
+
   const renderIssueCard = (issue: Issue, index: number) => (
     <Draggable draggableId={issue.id} index={index} key={issue.id}>
       {(provided, snapshot) => (
@@ -331,23 +372,47 @@ export default function SprintAndBacklogList() {
           }}
           className="flex items-center justify-between p-4 border-b bg-white"
         >
-          <div className="flex items-start gap-4">
-            <div {...provided.dragHandleProps} className="cursor-grab text-gray-400">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <div {...provided.dragHandleProps} className="cursor-grab text-gray-400 shrink-0">
               <GripVertical />
             </div>
 
-            <div>
+            <button
+              type="button"
+              onClick={() => openUpdateForm(issue.id)}
+              className="text-left flex-1 min-w-0 rounded-md hover:bg-muted/50 transition-colors -m-2 p-2 cursor-pointer"
+            >
               <div className="flex items-center gap-2">
-                <span className="font-medium">{issue.id}</span>
+                <span className="font-medium text-muted-foreground">{issue.id}</span>
                 <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
                   {issue.priority}
                 </span>
               </div>
-              <p className="text-sm mt-1">{issue.title}</p>
-            </div>
+              <p className="text-sm mt-1 font-medium">{issue.title}</p>
+            </button>
           </div>
 
-          <MoreVertical />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => openUpdateForm(issue.id)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Update
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setIssueToDelete(issue)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </Draggable>
@@ -357,7 +422,6 @@ export default function SprintAndBacklogList() {
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="space-y-6 mt-6">
 
-        {/* ---------------------- SPRINT SECTIONS ---------------------- */}
         {sprints.map((sprint) => (
           <div
             key={sprint.id}
@@ -366,19 +430,23 @@ export default function SprintAndBacklogList() {
             <div className="flex items-center justify-between p-4">
 
               {/* Toggle & Title */}
-              <div
-                className="flex items-center gap-2 cursor-pointer"
-                onClick={() =>
-                  setSprints((prev) =>
-                    prev.map((s) =>
-                      s.id === sprint.id ? { ...s, isOpen: !s.isOpen } : s
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSprints((prev) =>
+                      prev.map((s) =>
+                        s.id === sprint.id ? { ...s, isOpen: !s.isOpen } : s
+                      )
                     )
-                  )
-                }
-              >
-                {sprint.isOpen ? <ChevronDown /> : <ChevronRight />}
+                  }
+                  className="p-0.5 rounded hover:bg-muted"
+                  aria-label={sprint.isOpen ? "Collapse" : "Expand"}
+                >
+                  {sprint.isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                </button>
 
-                {/* SPRINT NAME (editable) */}
+                {/* Sprint name: click to open full detail; double-click to rename */}
                 {sprint.isRenaming ? (
                   <input
                     autoFocus
@@ -392,8 +460,9 @@ export default function SprintAndBacklogList() {
                   />
                 ) : (
                   <h2
-                    className="text-lg font-medium"
-                    onClick={(e) => {
+                    className="text-lg font-medium cursor-pointer hover:underline"
+                    onClick={() => setSprintDetail(sprint)}
+                    onDoubleClick={(e) => {
                       e.stopPropagation();
                       startRenaming(sprint.id);
                     }}
@@ -405,6 +474,18 @@ export default function SprintAndBacklogList() {
 
               {/* Right side controls */}
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSprintDetail(sprint);
+                  }}
+                >
+                  <Info className="h-4 w-4 mr-1" />
+                  View details
+                </Button>
                 <Badge variant="secondary">
                   {sprint.issues.length} issues
                 </Badge>
@@ -414,7 +495,10 @@ export default function SprintAndBacklogList() {
 
                 {/* Delete Sprint */}
                 <button
-                  onClick={() => deleteSprint(sprint.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSprint(sprint.id);
+                  }}
                   className="text-red-500 hover:text-red-700"
                 >
                   <Trash2 size={18}/>
@@ -472,6 +556,80 @@ export default function SprintAndBacklogList() {
         >
           Create Sprint <Plus />
         </Button>
+
+        <Dialog open={!!issueToDelete} onOpenChange={(open) => !open && setIssueToDelete(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete issue</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{issueToDelete?.title}&quot;? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIssueToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sprint detail dialog */}
+        <Dialog open={!!sprintDetail} onOpenChange={(open) => !open && setSprintDetail(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{sprintDetail?.name}</DialogTitle>
+              <DialogDescription>
+                Sprint from {sprintDetail && formatDate(sprintDetail.startDate)} to{" "}
+                {sprintDetail && formatDate(sprintDetail.endDate)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Badge variant="secondary">{sprintDetail?.issues.length ?? 0} issues</Badge>
+              </div>
+              <div className="border rounded-lg divide-y max-h-[280px] overflow-y-auto">
+                {sprintDetail?.issues.length ? (
+                  sprintDetail.issues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="flex items-center justify-between px-4 py-3 text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">{issue.title}</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          {issue.id} · {issue.priority}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {issue.priority}
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+                    No issues in this sprint
+                  </p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSprintDetail(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DragDropContext>
   );

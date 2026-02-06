@@ -32,27 +32,58 @@ export async function GET(
     }
 
     // Fetch the issue using tenant pool (much faster than new Client())
-    const issues = await queryTenant(
-      orgId,
-      `SELECT 
-        i.id,
-        i.title,
-        i.description,
-        i.priority,
-        i.status,
-        i.points,
-        i.assignee,
-        i.tags,
-        i.source,
-        i."sprintId",
-        i."processId",
-        i."order",
-        i."createdAt",
-        i."updatedAt"
-      FROM issues i
-      WHERE i.id = $1 AND i."processId" = $2`,
-      [issueId, processId]
-    );
+    let issues: any[];
+    try {
+      issues = await queryTenant(
+        orgId,
+        `SELECT 
+          i.id,
+          i.title,
+          i.description,
+          i.priority,
+          i.status,
+          i.points,
+          i.assignee,
+          i.tags,
+          i.source,
+          i."sprintId",
+          i."processId",
+          i."order",
+          i."createdAt",
+          i."updatedAt",
+          i."deadline"
+        FROM issues i
+        WHERE i.id = $1 AND i."processId" = $2`,
+        [issueId, processId]
+      );
+    } catch (queryErr: any) {
+      if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline"))) {
+        issues = await queryTenant(
+          orgId,
+          `SELECT 
+            i.id,
+            i.title,
+            i.description,
+            i.priority,
+            i.status,
+            i.points,
+            i.assignee,
+            i.tags,
+            i.source,
+            i."sprintId",
+            i."processId",
+            i."order",
+            i."createdAt",
+            i."updatedAt"
+          FROM issues i
+          WHERE i.id = $1 AND i."processId" = $2`,
+          [issueId, processId]
+        );
+        if (issues[0]) issues[0].deadline = null;
+      } else {
+        throw queryErr;
+      }
+    }
 
     if (issues.length === 0) {
       return NextResponse.json(
@@ -103,7 +134,7 @@ export async function PUT(
     cache.delete(cacheKey);
     
     const body = await req.json();
-    const { title, description, priority, status, points, assignee, tags, sprintId, order } = body;
+    const { title, description, priority, status, points, assignee, tags, sprintId, order, deadline } = body;
 
     // Use tenant pool instead of new Client() for better performance
     const client = await getTenantClient(orgId);
@@ -195,6 +226,10 @@ export async function PUT(
         updates.push(`"order" = $${paramIndex++}`);
         values.push(order);
       }
+      if (deadline !== undefined) {
+        updates.push(`"deadline" = $${paramIndex++}`);
+        values.push(deadline === null || deadline === "" ? null : new Date(deadline).toISOString());
+      }
 
       if (updates.length === 0) {
         client.release();
@@ -207,15 +242,38 @@ export async function PUT(
       updates.push(`"updatedAt" = NOW()`);
       values.push(issueId, processId);
 
-      await client.query(
-        `UPDATE issues 
-         SET ${updates.join(", ")}
-         WHERE id = $${paramIndex++} AND "processId" = $${paramIndex++}`,
-        values
-      );
+      try {
+        await client.query(
+          `UPDATE issues 
+           SET ${updates.join(", ")}
+           WHERE id = $${paramIndex} AND "processId" = $${paramIndex + 1}`,
+          values
+        );
+      } catch (updateErr: any) {
+        if ((updateErr?.code === "42703" || (updateErr?.message && String(updateErr.message).includes("deadline"))) && deadline !== undefined) {
+          const deadlineIdx = updates.findIndex((u) => u.includes("deadline"));
+          if (deadlineIdx >= 0) {
+            const updatesNoDeadline = updates.filter((_, i) => i !== deadlineIdx);
+            const valuesNoDeadline = values.filter((_, i) => i !== deadlineIdx);
+            const renumbered = updatesNoDeadline.map((u, i) => u.replace(/\$\d+/, `$${i + 1}`));
+            await client.query(
+              `UPDATE issues 
+               SET ${renumbered.join(", ")}
+               WHERE id = $${renumbered.length + 1} AND "processId" = $${renumbered.length + 2}`,
+              valuesNoDeadline
+            );
+          } else {
+            throw updateErr;
+          }
+        } else {
+          throw updateErr;
+        }
+      }
 
       // Fetch the updated issue
-      const updatedIssueResult = await client.query(
+      let updatedIssueResult;
+      try {
+        updatedIssueResult = await client.query(
         `SELECT 
           i.id,
           i.title,
@@ -230,11 +288,39 @@ export async function PUT(
           i."processId",
           i."order",
           i."createdAt",
-          i."updatedAt"
+          i."updatedAt",
+          i."deadline"
         FROM issues i
         WHERE i.id = $1`,
         [issueId]
       );
+      } catch (selectErr: any) {
+        if (selectErr?.code === "42703" || (selectErr?.message && String(selectErr.message).includes("deadline"))) {
+          updatedIssueResult = await client.query(
+            `SELECT 
+              i.id,
+              i.title,
+              i.description,
+              i.priority,
+              i.status,
+              i.points,
+              i.assignee,
+              i.tags,
+              i.source,
+              i."sprintId",
+              i."processId",
+              i."order",
+              i."createdAt",
+              i."updatedAt"
+            FROM issues i
+            WHERE i.id = $1`,
+            [issueId]
+          );
+          if (updatedIssueResult.rows[0]) updatedIssueResult.rows[0].deadline = null;
+        } else {
+          throw selectErr;
+        }
+      }
 
       const updatedIssue = updatedIssueResult.rows[0];
       
