@@ -1,142 +1,204 @@
 'use client';
-import { faker } from '@faker-js/faker';
+
 import {
-  GanttCreateMarkerTrigger,
   GanttFeatureItem,
   GanttFeatureList,
   GanttFeatureListGroup,
   GanttHeader,
-  GanttMarker,
   GanttProvider,
   GanttSidebar,
   GanttSidebarGroup,
   GanttSidebarItem,
   GanttTimeline,
   GanttToday,
+  type GanttFeature,
+  type GanttStatus,
 } from '@/components/ui/shadcn-io/gantt';
-import groupBy from 'lodash.groupby';
-import { EyeIcon, LinkIcon, TrashIcon } from 'lucide-react';
-import { useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
-const statuses = [
-  { id: faker.string.uuid(), name: 'Planned', color: '#6B7280' },
-  { id: faker.string.uuid(), name: 'In Progress', color: '#F59E0B' },
-  { id: faker.string.uuid(), name: 'Done', color: '#10B981' },
-];
-const users = Array.from({ length: 4 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: faker.person.fullName(),
-    image: faker.image.avatar(),
-  }));
-const exampleGroups = Array.from({ length: 6 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-  }));
-const exampleProducts = Array.from({ length: 4 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-  }));
-const exampleInitiatives = Array.from({ length: 2 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-  }));
-const exampleReleases = Array.from({ length: 3 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-  }));
-const exampleFeatures = Array.from({ length: 20 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    name: capitalize(faker.company.buzzPhrase()),
-    startAt: faker.date.past({ years: 0.5, refDate: new Date() }),
-    endAt: faker.date.future({ years: 0.5, refDate: new Date() }),
-    status: faker.helpers.arrayElement(statuses),
-    owner: faker.helpers.arrayElement(users),
-    group: faker.helpers.arrayElement(exampleGroups),
-    product: faker.helpers.arrayElement(exampleProducts),
-    initiative: faker.helpers.arrayElement(exampleInitiatives),
-    release: faker.helpers.arrayElement(exampleReleases),
-  }));
-const exampleMarkers = Array.from({ length: 6 })
-  .fill(null)
-  .map(() => ({
-    id: faker.string.uuid(),
-    date: faker.date.past({ years: 0.5, refDate: new Date() }),
-    label: capitalize(faker.company.buzzPhrase()),
-    className: faker.helpers.arrayElement([
-      'bg-blue-100 text-blue-900',
-      'bg-green-100 text-green-900',
-      'bg-purple-100 text-purple-900',
-      'bg-red-100 text-red-900',
-      'bg-orange-100 text-orange-900',
-      'bg-teal-100 text-teal-900',
-    ]),
-  }));
+import { apiClient } from '@/lib/api-client';
+import { EyeIcon, LinkIcon, TrashIcon } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
+import groupBy from 'lodash.groupby';
+import { addDays, endOfDay } from 'date-fns';
+import { toast } from 'sonner';
 
-const Timeline = () => {
-  const [features, setFeatures] = useState(exampleFeatures);
-  const groupedFeatures = groupBy(features, 'group.name');
-  const sortedGroupedFeatures = Object.fromEntries(
-    Object.entries(groupedFeatures).sort(([nameA], [nameB]) =>
-      nameA.localeCompare(nameB)
-    )
-  );
-  const handleViewFeature = (id: string) =>
-    console.log(`Feature selected: ${id}`);
-  const handleCopyLink = (id: string) => console.log(`Copy link: ${id}`);
-  const handleRemoveFeature = (id: string) =>
-    setFeatures((prev) => prev.filter((feature) => feature.id !== id));
-  const handleRemoveMarker = (id: string) =>
-    console.log(`Remove marker: ${id}`);
-  const handleCreateMarker = (date: Date) =>
-    console.log(`Create marker: ${date.toISOString()}`);
-  const handleMoveFeature = (id: string, startAt: Date, endAt: Date | null) => {
-    if (!endAt) {
-      return;
-    }
-    setFeatures((prev) =>
-      prev.map((feature) =>
-        feature.id === id ? { ...feature, startAt, endAt } : feature
-      )
-    );
-    console.log(`Move feature: ${id} from ${startAt} to ${endAt}`);
+const STATUS_CONFIG: Record<string, GanttStatus> = {
+  'to-do': { id: 'to-do', name: 'To Do', color: '#6B7280' },
+  'in-progress': { id: 'in-progress', name: 'In Progress', color: '#F59E0B' },
+  'in-review': { id: 'in-review', name: 'In Review', color: '#8B5CF6' },
+  done: { id: 'done', name: 'Done', color: '#10B981' },
+};
+
+type Issue = {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  deadline?: string | null;
+};
+
+function issueToFeature(issue: Issue): GanttFeature {
+  const startAt = new Date(issue.createdAt);
+  let endAt: Date;
+  if (issue.deadline) {
+    const d = new Date(issue.deadline);
+    endAt = endOfDay(d);
+  } else {
+    endAt = addDays(startAt, 1);
+  }
+  const status = STATUS_CONFIG[issue.status] ?? STATUS_CONFIG['to-do'];
+  return {
+    id: issue.id,
+    name: issue.title || 'Untitled',
+    startAt,
+    endAt,
+    status,
   };
-  const handleAddFeature = (date: Date) =>
-    console.log(`Add feature: ${date.toISOString()}`);
+}
+
+export default function TimelinePage() {
+  const params = useParams();
+  const orgId = params?.orgId as string;
+  const processId = params?.processId as string;
+
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchIssues = useCallback(async () => {
+    if (!orgId || !processId) return;
+    try {
+      setLoading(true);
+      const res = await apiClient.getIssues(orgId, processId);
+      setIssues(res.issues ?? []);
+    } catch (err: any) {
+      console.error('Failed to fetch issues:', err);
+      toast.error(err?.message ?? 'Failed to load issues');
+      setIssues([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgId, processId]);
+
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
+
+  useEffect(() => {
+    const onCreated = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.orgId === orgId && ev.detail?.processId === processId) fetchIssues();
+    };
+    const onUpdated = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.orgId === orgId && ev.detail?.processId === processId) fetchIssues();
+    };
+    window.addEventListener('issueCreated', onCreated);
+    window.addEventListener('issueUpdated', onUpdated);
+    return () => {
+      window.removeEventListener('issueCreated', onCreated);
+      window.removeEventListener('issueUpdated', onUpdated);
+    };
+  }, [orgId, processId, fetchIssues]);
+
+  const features = useMemo(() => issues.map(issueToFeature), [issues]);
+  const groupedByStatus = useMemo(() => {
+    const g = groupBy(features, (f) => f.status.name);
+    return Object.fromEntries(
+      Object.entries(g).sort(([a], [b]) => a.localeCompare(b))
+    );
+  }, [features]);
+
+  const openIssueDialog = useCallback(
+    (issueId: string) => {
+      window.dispatchEvent(
+        new CustomEvent('openIssueDialog', {
+          detail: { issueId, orgId, processId },
+        })
+      );
+    },
+    [orgId, processId]
+  );
+
+  const handleCopyLink = useCallback(
+    (issueId: string) => {
+      const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/${orgId}/processes/${processId}?issueId=${issueId}`;
+      navigator.clipboard.writeText(url).then(
+        () => toast.success('Link copied'),
+        () => toast.error('Failed to copy')
+      );
+    },
+    [orgId, processId]
+  );
+
+  const handleRemove = useCallback(
+    async (issueId: string) => {
+      if (!orgId || !processId) return;
+      try {
+        await apiClient.deleteIssue(orgId, processId, issueId);
+        toast.success('Issue removed');
+        fetchIssues();
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Failed to remove issue');
+      }
+    },
+    [orgId, processId, fetchIssues]
+  );
+
+  const handleAddItem = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent('openIssueDialog', {
+        detail: { orgId, processId },
+      })
+    );
+  }, [orgId, processId]);
+
+  if (!orgId || !processId) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        Invalid context
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        Loading timeline...
+      </div>
+    );
+  }
+
+  if (features.length === 0) {
+    return (
+      <div className="flex h-[400px] flex-col items-center justify-center gap-2 text-muted-foreground">
+        <p>No issues to show on the timeline.</p>
+        <p className="text-sm">Create an issue to see it from created date to deadline.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className='h-[600px] w-[1600px]'>
+    <div className="h-[600px] w-full">
       <GanttProvider
         className="border"
-        onAddItem={handleAddFeature}
+        onAddItem={handleAddItem}
         range="monthly"
         zoom={100}
       >
         <GanttSidebar>
-          {Object.entries(sortedGroupedFeatures).map(([group, features]) => (
-            <GanttSidebarGroup key={group} name={group}>
-              {features.map((feature) => (
+          {Object.entries(groupedByStatus).map(([groupName, groupFeatures]) => (
+            <GanttSidebarGroup key={groupName} name={groupName}>
+              {groupFeatures.map((feature) => (
                 <GanttSidebarItem
-                  feature={feature}
                   key={feature.id}
-                  onSelectItem={handleViewFeature}
+                  feature={feature}
+                  onSelectItem={() => openIssueDialog(feature.id)}
                 />
               ))}
             </GanttSidebarGroup>
@@ -145,41 +207,29 @@ const Timeline = () => {
         <GanttTimeline>
           <GanttHeader />
           <GanttFeatureList>
-            {Object.entries(sortedGroupedFeatures).map(([group, features]) => (
-              <GanttFeatureListGroup key={group}>
-                {features.map((feature) => (
+            {Object.entries(groupedByStatus).map(([groupName, groupFeatures]) => (
+              <GanttFeatureListGroup key={groupName}>
+                {groupFeatures.map((feature) => (
                   <div className="flex" key={feature.id}>
                     <ContextMenu>
                       <ContextMenuTrigger asChild>
                         <button
-                          onClick={() => handleViewFeature(feature.id)}
                           type="button"
+                          onClick={() => openIssueDialog(feature.id)}
+                          className="w-full text-left"
                         >
-                          <GanttFeatureItem
-                            onMove={handleMoveFeature}
-                            {...feature}
-                          >
-                            <p className="flex-1 truncate text-xs">
-                              {feature.name}
-                            </p>
-                            {feature.owner && (
-                              <Avatar className="h-4 w-4">
-                                <AvatarImage src={feature.owner.image} />
-                                <AvatarFallback>
-                                  {feature.owner.name?.slice(0, 2)}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
+                          <GanttFeatureItem {...feature}>
+                            <p className="flex-1 truncate text-xs">{feature.name}</p>
                           </GanttFeatureItem>
                         </button>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
                         <ContextMenuItem
                           className="flex items-center gap-2"
-                          onClick={() => handleViewFeature(feature.id)}
+                          onClick={() => openIssueDialog(feature.id)}
                         >
                           <EyeIcon className="text-muted-foreground" size={16} />
-                          View feature
+                          View issue
                         </ContextMenuItem>
                         <ContextMenuItem
                           className="flex items-center gap-2"
@@ -190,10 +240,10 @@ const Timeline = () => {
                         </ContextMenuItem>
                         <ContextMenuItem
                           className="flex items-center gap-2 text-destructive"
-                          onClick={() => handleRemoveFeature(feature.id)}
+                          onClick={() => handleRemove(feature.id)}
                         >
                           <TrashIcon size={16} />
-                          Remove from roadmap
+                          Remove from timeline
                         </ContextMenuItem>
                       </ContextMenuContent>
                     </ContextMenu>
@@ -202,20 +252,9 @@ const Timeline = () => {
               </GanttFeatureListGroup>
             ))}
           </GanttFeatureList>
-          {exampleMarkers.map((marker) => (
-            <GanttMarker
-              key={marker.id}
-              {...marker}
-              onRemove={handleRemoveMarker}
-            />
-          ))}
           <GanttToday />
-          <GanttCreateMarkerTrigger onCreateMarker={handleCreateMarker} />
         </GanttTimeline>
       </GanttProvider>
     </div>
   );
-};
-
-
-export default Timeline
+}

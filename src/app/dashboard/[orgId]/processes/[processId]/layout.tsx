@@ -145,6 +145,23 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       // Only handle if it's for this process
       if (eventOrgId !== orgId || eventProcessId !== processId) return;
 
+      // Open in create mode when no issueId (e.g. from timeline "add")
+      if (!issueId) {
+        setEditingIssue(null);
+        setTitle("");
+        setTag("");
+        setSource("");
+        setSelectedPriority("");
+        setSelectedStatus("");
+        setSelectedAssignees([]);
+        setSelectedSprint("__backlog__");
+        setPoints(0);
+        setEditorContent("");
+        setDate(undefined);
+        setIsCreateDialogOpen(true);
+        return;
+      }
+
       try {
         setIsLoadingIssue(true);
         const response = await apiClient.getIssue(orgId as string, processId as string, issueId);
@@ -161,7 +178,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         setSelectedSprint(issue.sprintId || "__backlog__");
         setPoints(issue.points || 0);
         setEditorContent(issue.description || "");
-        setDate(undefined); // TODO: Add dueDate field if available
+        setDate(issue.deadline ? new Date(issue.deadline) : undefined);
 
         // Open dialog
         setIsCreateDialogOpen(true);
@@ -343,6 +360,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           tags: [tag.trim()],
           sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
           status: selectedStatus || undefined,
+          deadline: date ? date.toISOString() : null,
         };
 
         await apiClient.updateIssue(orgId as string, processId as string, editingIssue.id, issueData);
@@ -398,7 +416,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         assignee: selectedAssignees.length > 0 ? selectedAssignees[0] : undefined, // Use first assignee (API expects string)
         tags: [tag.trim()], // Store the selected tag in tags array
         sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
-        // Note: Status will be set automatically by API based on sprintId
+        status: selectedStatus || "to-do", // Use selected status when creating (API may override to in-progress if sprint is set)
+        deadline: date ? date.toISOString() : undefined,
       };
 
       await apiClient.createIssue(orgId as string, processId as string, issueData);
@@ -827,10 +846,24 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   <Select
                     onValueChange={setSelectedStatus}
                     value={selectedStatus}
-                    disabled={(selectedSprint && selectedSprint !== "__backlog__") || isCreatingIssue || isUpdatingIssue || isLoadingIssue} // Disable if sprint is selected (will be auto-set to in-progress)
+                    disabled={
+                      !!editingIssue ||
+                      (selectedSprint && selectedSprint !== "__backlog__") ||
+                      isCreatingIssue ||
+                      isUpdatingIssue ||
+                      isLoadingIssue
+                    }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder={(selectedSprint && selectedSprint !== "__backlog__") ? "In Progress (auto)" : "To Do (default)"} />
+                      <SelectValue
+                        placeholder={
+                          editingIssue
+                            ? undefined
+                            : (selectedSprint && selectedSprint !== "__backlog__")
+                              ? "In Progress (auto)"
+                              : "To Do (default)"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="to-do">To Do</SelectItem>
@@ -838,7 +871,12 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       <SelectItem value="done">Done</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedSprint && selectedSprint !== "__backlog__" && (
+                  {editingIssue && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Status cannot be changed when editing. Create a new issue to set a different status.
+                    </p>
+                  )}
+                  {!editingIssue && selectedSprint && selectedSprint !== "__backlog__" && (
                     <p className="text-xs text-gray-500 mt-1">
                       Status will be set to "In Progress" when sprint is selected
                     </p>
