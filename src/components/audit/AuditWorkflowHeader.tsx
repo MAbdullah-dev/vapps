@@ -117,15 +117,6 @@ export default function AuditWorkflowHeader({
           </div>
         </div>
       </div>
-
-      {/* Info */}
-      <div className="mt-6 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-        <Info className="h-5 w-5 shrink-0 text-gray-500" />
-        <p className="text-sm text-gray-600">
-          Strategic Framework That Defines The Full Audit Universe, Priorities,
-          And Timing.
-        </p>
-      </div>
     </>
   );
 }
