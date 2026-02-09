@@ -38,7 +38,7 @@ export default function AuditWorkflowHeader({
     <>
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">
             Audit Workflow Management
           </h2>
