@@ -60,6 +60,7 @@
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.11",
     "pg": "^8.16.3",
+    "radix-ui": "^1.4.3",
     "react": "19.2.0",
     "react-day-picker": "^9.12.0",
     "react-dom": "19.2.0",

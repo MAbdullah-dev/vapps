@@ -283,6 +283,7 @@ class ApiClient {
     tags?: string[];
     sprintId?: string | null;
     order?: number;
+    deadline?: string | null;
   }) {
     return this.post<{ issue: any; message: string }>(
       `/organization/${orgId}/processes/${processId}/issues`,
@@ -339,6 +340,7 @@ class ApiClient {
     tags?: string[];
     sprintId?: string | null;
     order?: number;
+    deadline?: string | null;
   }) {
     return this.put<{ issue: any; message: string }>(
       `/organization/${orgId}/processes/${processId}/issues/${issueId}`,

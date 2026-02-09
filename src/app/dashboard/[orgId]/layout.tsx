@@ -15,7 +15,7 @@ export default async function OrgDashboardLayout({
 
             <Sidebar orgId={orgId} />
 
-            <div className="w-[80%]">
+            <div className="md:w-[80%] w-full">
 
                 <Topbar />
 
