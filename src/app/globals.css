@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Explicitly register source paths for Tailwind v4 content detection (fixes Next.js class scanning) */
+@source "../**/*.{ts,tsx,js,jsx}";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
