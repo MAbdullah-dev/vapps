@@ -249,14 +249,14 @@ export default function OrgDashboardPage({ params }: any) {
                     </CardContent>
                 </Card>
             </div>
-            <div className="mt-5 p-5 rounded-lg bg-[#E8F1FF] border border-[#C3D9FF] flex items-center justify-between">
-                <div className="description">
+            <div className="mt-5 p-5 rounded-lg bg-[#E8F1FF] border border-[#C3D9FF] flex sm:flex-row flex-col sm:items-center justify-between">
+                <div className="description mb-3.5 sm:mb-0">
                     <h3 className="font-semibold text-sm mb-1">Need Help? Ask VApps AI</h3>
                     <p className="text-xs text-gray-600 leading-relaxed">
                         Get instant insights, generate reports, or find information quickly.
                     </p>
                 </div>
-                <Button variant="dark" size="lg">Ask VApps AI</Button>
+                <Button variant="dark" size="lg" className="w-full sm:w-auto">Ask VApps AI</Button>
             </div>
         </>
     );
