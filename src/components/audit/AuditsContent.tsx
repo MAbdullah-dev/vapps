@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,217 +21,295 @@ import {
   Cloud,
   Folder,
   Upload,
+  History,
+  Pencil,
 } from "lucide-react";
-import CreateAuditDialog from "./CreateAuditDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import AuditHistoryDialog from "./AuditHistoryDialog";
 
 type Audit = {
   id: string;
-  auditType: string;
-  auditCriteria: string;
-  clause: string;
-  ncClassification: string;
-  riskLevel: string;
-  processArea: string;
+  standard: string;
   scopeMethodBoundaries: string;
+  auditType: string;
+  site: string;
+  process: string;
+  clause: string;
+  subclauses: string;
+  ncClassification: "Major" | "Minor";
+  riskLevel: string;
   plannedDate: string;
   actualDate: string;
   dueDate: string;
-  kpiScore: "red" | "yellow" | "grey";
+  kpiScore: "Consistent" | "Inconsistent" | null;
   auditStatus: string;
 };
 
 const audits: Audit[] = [
   {
     id: "AUD/2025/S1/P1/FPA/NC1",
+    standard: "ISO 9001",
+    scopeMethodBoundaries: "On-Site",
     auditType: "FPA",
-    auditCriteria: "ISO 9001",
-    clause: "4.2",
+    site: "S1",
+    process: "P1",
+    clause: "4.0 Context",
+    subclauses: "4.2 Interested Parties",
     ncClassification: "Major",
     riskLevel: "High",
-    processArea: "P1 QMS Control",
-    scopeMethodBoundaries: "On-Site Remote",
-    plannedDate: "01-03-2025",
-    actualDate: "11-09-2025",
+    plannedDate: "01-09-2025",
+    actualDate: "",
     dueDate: "01-10-2025",
-    kpiScore: "red",
-    auditStatus: "Pending",
+    kpiScore: null,
+    auditStatus: "In-Progress",
   },
   {
     id: "AUD/2025/S1/P1/FPA/NC2",
+    standard: "ISO 9001",
+    scopeMethodBoundaries: "On-Site",
     auditType: "FPA",
-    auditCriteria: "ISO 9001",
-    clause: "5.2",
+    site: "S1",
+    process: "P1",
+    clause: "5.0 Leadership",
+    subclauses: "5.2 Policy",
     ncClassification: "Minor",
     riskLevel: "Medium",
-    processArea: "P3 QMS Control",
-    scopeMethodBoundaries: "On-Site",
-    plannedDate: "01-03-2025",
-    actualDate: "—",
+    plannedDate: "01-09-2025",
+    actualDate: "11-09-2025",
     dueDate: "01-10-2025",
-    kpiScore: "yellow",
-    auditStatus: "Pending",
+    kpiScore: "Consistent",
+    auditStatus: "Success",
   },
   {
     id: "AUD/2025/S1/P1/FPA/NC3",
+    standard: "ISO 9001",
+    scopeMethodBoundaries: "On-Site",
     auditType: "FPA",
-    auditCriteria: "ISO 9001",
-    clause: "6.2",
+    site: "S1",
+    process: "P1",
+    clause: "6.0 Planning",
+    subclauses: "6.2 Objectives",
     ncClassification: "Minor",
     riskLevel: "Low",
-    processArea: "P3 QMS Control",
-    scopeMethodBoundaries: "On-Site",
     plannedDate: "20-09-2025",
-    actualDate: "18-09-2025",
+    actualDate: "15-09-2025",
     dueDate: "01-10-2025",
-    kpiScore: "yellow",
+    kpiScore: null,
     auditStatus: "Pending",
   },
   {
     id: "AUD/2025/S1/P1/FPA/NC4",
+    standard: "ISO 9001",
+    scopeMethodBoundaries: "On-Site",
     auditType: "FPA",
-    auditCriteria: "ISO 9001",
-    clause: "9.2",
+    site: "S1",
+    process: "P1",
+    clause: "9.0 Improvement",
+    subclauses: "9.2 Internal Audit",
     ncClassification: "Minor",
     riskLevel: "Low",
-    processArea: "P1 QMS Control",
-    scopeMethodBoundaries: "On-Site",
     plannedDate: "20-08-2025",
-    actualDate: "—",
+    actualDate: "",
     dueDate: "20-09-2025",
-    kpiScore: "grey",
+    kpiScore: "Inconsistent",
     auditStatus: "Fail",
   },
 ];
 
+function TableHeader({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-semibold text-gray-800">{title}</span>
+      {sub && <span className="text-xs font-normal text-gray-500">{sub}</span>}
+    </div>
+  );
+}
+
 const getClassificationColor = (classification: string) => {
-  if (classification === "Major") {
-    return "bg-red-500 text-white";
-  }
+  if (classification === "Major") return "bg-red-500 text-white";
   return "bg-yellow-100 text-yellow-800";
 };
 
 const getRiskLevelColor = (riskLevel: string) => {
-  if (riskLevel === "High") {
-    return "bg-red-500 text-white";
-  }
-  if (riskLevel === "Medium") {
-    return "bg-yellow-100 text-yellow-800";
-  }
+  if (riskLevel === "High") return "bg-red-500 text-white";
+  if (riskLevel === "Medium") return "bg-yellow-100 text-yellow-800";
   return "bg-blue-100 text-blue-800";
 };
 
 const getStatusColor = (status: string) => {
-  if (status === "Fail") {
-    return "bg-red-100 text-red-600";
-  }
-  return "bg-yellow-100 text-yellow-800";
+  if (status === "Success") return "bg-green-100 text-green-800";
+  if (status === "In-Progress") return "bg-yellow-100 text-yellow-800";
+  if (status === "Fail") return "bg-red-100 text-red-700";
+  return ""; // Pending: no badge
 };
 
-const getKPIColor = (score: string) => {
-  if (score === "red") {
-    return "bg-red-500";
-  }
-  if (score === "yellow") {
-    return "bg-yellow-500";
-  }
-  return "bg-gray-400";
-};
-
-const columns: ColumnDef<Audit>[] = [
+function getColumns(handleViewHistory: (audit: Audit) => void, handleEditAudit: (audit: Audit) => void): ColumnDef<Audit>[] {
+  return [
   {
     accessorKey: "id",
-    header: "Audit Nonconformity Ref.",
-    cell: ({ row }) => (
-      <span className="font-medium">{row.original.id}</span>
-    ),
+    header: () => <TableHeader title="Audit Program Ref." sub="(Audit/Year/Site/Process/Audit Type/NC#)" />,
+    cell: ({ row }) => <span className="font-medium text-gray-900">{row.original.id}</span>,
+  },
+  {
+    accessorKey: "standard",
+    header: () => <TableHeader title="Standard" sub="(e.g., ISO 9001, ESG & Sustainability)" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.standard}</span>,
+  },
+  {
+    accessorKey: "scopeMethodBoundaries",
+    header: () => <TableHeader title="Scope, Method & Boundaries" sub="(On-Site/Remote/Hybrid)" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.scopeMethodBoundaries}</span>,
   },
   {
     accessorKey: "auditType",
-    header: "Audit Type",
+    header: () => <TableHeader title="Audit Type" sub="FPA/SPA/TPA" />,
     cell: ({ row }) => (
-      <span className="bg-gray-100 text-gray-600 py-1 px-2 rounded-full text-xs">
+      <span className="bg-gray-100 text-gray-700 py-1 px-2 rounded-full text-xs font-medium">
         {row.original.auditType}
       </span>
     ),
   },
   {
-    accessorKey: "auditCriteria",
-    header: "Audit Criteria",
+    accessorKey: "site",
+    header: () => <TableHeader title="Site" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.site}</span>,
+  },
+  {
+    accessorKey: "process",
+    header: () => <TableHeader title="Process" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.process}</span>,
   },
   {
     accessorKey: "clause",
-    header: "Clause",
+    header: () => <TableHeader title="Clause" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.clause}</span>,
+  },
+  {
+    accessorKey: "subclauses",
+    header: () => <TableHeader title="Subclauses" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.subclauses}</span>,
   },
   {
     accessorKey: "ncClassification",
-    header: "NC Classification",
-    cell: ({ row }) => (
-      <span className={`${getClassificationColor(row.original.ncClassification)} py-1 px-2 rounded-full text-xs`}>
-        {row.original.ncClassification}
-      </span>
-    ),
+    header: () => <TableHeader title="NC Classification" sub="(Major/Minor)" />,
+    cell: ({ row }) => {
+      const label = row.original.ncClassification === "Major" ? "MA" : "mi";
+      return (
+        <span className={`${getClassificationColor(row.original.ncClassification)} py-1 px-2 rounded-full text-xs font-medium`}>
+          {label}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "riskLevel",
-    header: "Risk Level",
+    header: () => <TableHeader title="Risk Level" sub="(High/Medium/Low)" />,
     cell: ({ row }) => (
-      <span className={`${getRiskLevelColor(row.original.riskLevel)} py-1 px-2 rounded-full text-xs`}>
+      <span className={`${getRiskLevelColor(row.original.riskLevel)} py-1 px-2 rounded-full text-xs font-medium`}>
         {row.original.riskLevel}
       </span>
     ),
   },
   {
-    accessorKey: "processArea",
-    header: "Process/Area",
-  },
-  {
-    accessorKey: "scopeMethodBoundaries",
-    header: "Scope, Method & Boundaries",
-  },
-  {
     accessorKey: "plannedDate",
-    header: "Planned Date",
+    header: () => <TableHeader title="Planned Date" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.plannedDate}</span>,
   },
   {
     accessorKey: "actualDate",
-    header: "Actual Date",
+    header: () => <TableHeader title="Actual Date" />,
     cell: ({ row }) => (
-      <span className={row.original.actualDate === "—" ? "text-gray-400" : ""}>
-        {row.original.actualDate}
-      </span>
+      <span className="text-gray-700">{row.original.actualDate || ""}</span>
     ),
   },
   {
     accessorKey: "dueDate",
-    header: "Due Date (30 days)",
+    header: () => <TableHeader title="Due Date (30 days)" />,
+    cell: ({ row }) => <span className="text-gray-700">{row.original.dueDate}</span>,
   },
   {
     accessorKey: "kpiScore",
-    header: "KPI (Score)",
-    cell: ({ row }) => (
-      <div className={`${getKPIColor(row.original.kpiScore)} w-3 h-3 rounded-full`} />
-    ),
+    header: () => <TableHeader title="KPI (Score)" />,
+    cell: ({ row }) => {
+      const score = row.original.kpiScore;
+      if (!score) return <span className="text-gray-400">—</span>;
+      if (score === "Consistent") return <span className="font-medium text-green-600">Consistent</span>;
+      return <span className="font-medium text-red-600">Inconsistent</span>;
+    },
   },
   {
     accessorKey: "auditStatus",
-    header: "Audit Status",
-    cell: ({ row }) => (
-      <span className={`${getStatusColor(row.original.auditStatus)} py-1 px-2 rounded-full text-xs`}>
-        {row.original.auditStatus}
-      </span>
+    header: () => (
+      <TableHeader
+        title="Audit Status"
+        sub={"Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days"}
+      />
     ),
+    cell: ({ row }) => {
+      const status = row.original.auditStatus;
+      const badgeClass = getStatusColor(status);
+      if (!badgeClass) return <span className="text-gray-700">{status}</span>;
+      return (
+        <span className={`${badgeClass} py-1 px-2 rounded-full text-xs font-medium`}>
+          {status}
+        </span>
+      );
+    },
   },
   {
     id: "actions",
-    header: "Actions",
-    cell: () => (
-      <EllipsisVertical className="cursor-pointer text-gray-500 hover:text-gray-700" size={18} />
-    ),
+    header: () => <TableHeader title="Actions" sub="View Share Download PDF" />,
+    cell: ({ row }) => {
+      const audit = row.original;
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <EllipsisVertical size={18} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => handleViewHistory(audit)}>
+              <History className="mr-2 h-4 w-4" />
+              View History
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleEditAudit(audit)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Audit
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
   },
-];
+  ];
+}
 
 export default function AuditsContent() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const pathname = usePathname();
+  const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
+  const createAuditHref = `${pathname}/create/1`;
+
+  const handleViewHistory = (audit: Audit) => {
+    setHistoryAudit(audit);
+  };
+
+  const handleEditAudit = (audit: Audit) => {
+    // TODO: open edit audit dialog
+    console.log("Edit audit", audit.id);
+  };
+
+  const columns = getColumns(handleViewHistory, handleEditAudit);
+
   const table = useReactTable({
     data: audits,
     columns,
@@ -244,12 +324,10 @@ export default function AuditsContent() {
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Audits</h1>
           <p className="text-sm text-gray-600">Internal checks, reviews, and compliance status</p>
         </div>
-        <Button
-          variant="dark"
-          className="flex items-center gap-2"
-          onClick={() => setDialogOpen(true)}
-        >
-          <Plus size={18} /> Create Audit
+        <Button variant="dark" className="flex items-center gap-2" asChild>
+          <Link href={createAuditHref}>
+            <Plus size={18} /> Create Audit
+          </Link>
         </Button>
       </div>
 
@@ -386,10 +464,11 @@ export default function AuditsContent() {
         </CardContent>
       </Card>
 
-      {/* Create Audit Dialog */}
-      <CreateAuditDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+      {/* Audit History Dialog */}
+      <AuditHistoryDialog
+        open={!!historyAudit}
+        onOpenChange={(open) => !open && setHistoryAudit(null)}
+        traceabilityId={historyAudit?.id ?? ""}
       />
     </>
   );
