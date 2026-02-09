@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowRight, ArrowUpRight, CalendarIcon, Check, Info, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Plus, Search, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -142,12 +142,13 @@ export default function CreateAuditStep1Page() {
                 STRATEGIC LEVEL
               </span>
             </div>
-            <Button variant="outline" size="sm" asChild className="shrink-0 gap-1.5 rounded-md border-blue-800 bg-transparent text-blue-800 hover:bg-blue-50 hover:text-blue-900">
-              <Link href="#" target="_blank" rel="noopener noreferrer">
-                Learn More
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            <Link
+              href="#"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Learn More
+              <ExternalLink className="h-4 w-4" />
+            </Link>
           </div>
           {/* Organization Details */}
           {isLoading ? (
@@ -795,7 +796,7 @@ export default function CreateAuditStep1Page() {
           }}
         >
           Save & Continue
-          <ArrowRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
