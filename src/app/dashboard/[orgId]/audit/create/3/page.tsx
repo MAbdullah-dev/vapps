@@ -448,7 +448,7 @@ export default function CreateAuditStep3Page() {
           <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">RISK SEVERITY (CURRENT STATUS)</h2>
           <div className="flex flex-wrap gap-6">
             {(["high", "medium", "low"] as const).map((level) => (
-              <label
+              <Label
                 key={level}
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-6 py-4 transition-colors",
@@ -478,7 +478,7 @@ export default function CreateAuditStep3Page() {
                 <span className={cn("font-semibold uppercase text-gray-900", riskSeverity === level && "font-bold")}>
                   {level}
                 </span>
-              </label>
+              </Label>
             ))}
           </div>
           <div className="mt-8 space-y-2">
@@ -774,7 +774,7 @@ export default function CreateAuditStep3Page() {
                           <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
                             LINKED MEDIA / UPLOAD
                           </Label>
-                          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
+                          <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
                             <FileText className="h-4 w-4 shrink-0 text-gray-500" />
                             <span className="truncate">
                               {item.fileName || "Select file"}
@@ -787,14 +787,14 @@ export default function CreateAuditStep3Page() {
                                 if (file) updateEvidenceItem(item.id, "fileName", file.name);
                               }}
                             />
-                          </label>
+                          </Label>
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
                             EFFECTIVENESS SELECTOR
                           </Label>
                           <div className="flex gap-4">
-                            <label
+                            <Label
                               className={cn(
                                 "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "effective"
@@ -813,8 +813,8 @@ export default function CreateAuditStep3Page() {
                                 {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-white" />}
                               </span>
                               EFFECTIVE
-                            </label>
-                            <label
+                            </Label>
+                            <Label
                               className={cn(
                                 "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "ineffective"
@@ -833,7 +833,7 @@ export default function CreateAuditStep3Page() {
                                 {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-white" />}
                               </span>
                               INEFFECTIVE
-                            </label>
+                            </Label>
                           </div>
                         </div>
                       </div>
@@ -946,30 +946,34 @@ export default function CreateAuditStep3Page() {
                     </TableCell>
                     <TableCell className="p-2">
                       <div className="flex gap-1">
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setOfiPa(row.id, "ofi")}
                           className={cn(
-                            "rounded-md px-2 py-1 text-xs font-medium",
+                            "h-auto rounded-md px-2 py-1 text-xs font-medium",
                             row.ofiPa === "ofi"
-                              ? "bg-blue-100 text-blue-700"
+                              ? "bg-blue-100 text-blue-700 border-blue-200"
                               : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                           )}
                         >
                           OFI
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setOfiPa(row.id, "pa")}
                           className={cn(
-                            "rounded-md px-2 py-1 text-xs font-medium",
+                            "h-auto rounded-md px-2 py-1 text-xs font-medium",
                             row.ofiPa === "pa"
-                              ? "bg-green-100 text-green-700"
+                              ? "bg-green-100 text-green-700 border-green-200"
                               : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                           )}
                         >
                           PA
-                        </button>
+                        </Button>
                       </div>
                     </TableCell>
                     <TableCell className="p-2">

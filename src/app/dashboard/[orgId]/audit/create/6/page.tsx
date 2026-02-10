@@ -14,6 +14,7 @@ import {
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
@@ -52,21 +53,22 @@ export default function CreateAuditStep6Page() {
               MANAGEMENT FINAL DECISION
             </h2>
             <div className="space-y-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setFinalDecision("effective")}
-                className={`flex w-full items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors ${
+                className={cn(
+                  "h-auto w-full flex items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors",
                   finalDecision === "effective"
-                    ? "border-green-500 bg-green-50"
+                    ? "border-green-500 bg-green-50 hover:bg-green-100"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                )}
               >
                 <Square
-                  className={`mt-0.5 h-5 w-5 shrink-0 ${
-                    finalDecision === "effective"
-                      ? "text-green-600"
-                      : "text-gray-400"
-                  }`}
+                  className={cn(
+                    "mt-0.5 h-5 w-5 shrink-0",
+                    finalDecision === "effective" ? "text-green-600" : "text-gray-400"
+                  )}
                 />
                 <div>
                   <p className="font-bold text-gray-900">
@@ -76,22 +78,23 @@ export default function CreateAuditStep6Page() {
                     Confirming all findings are addressed and system is stable.
                   </p>
                 </div>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setFinalDecision("ineffective")}
-                className={`flex w-full items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors ${
+                className={cn(
+                  "h-auto w-full flex items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors",
                   finalDecision === "ineffective"
-                    ? "border-green-500 bg-green-50"
+                    ? "border-green-500 bg-green-50 hover:bg-green-100"
                     : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
+                )}
               >
                 <Square
-                  className={`mt-0.5 h-5 w-5 shrink-0 ${
-                    finalDecision === "ineffective"
-                      ? "text-green-600"
-                      : "text-gray-400"
-                  }`}
+                  className={cn(
+                    "mt-0.5 h-5 w-5 shrink-0",
+                    finalDecision === "ineffective" ? "text-green-600" : "text-gray-400"
+                  )}
                 />
                 <div>
                   <p className="font-bold text-gray-900">
@@ -102,7 +105,7 @@ export default function CreateAuditStep6Page() {
                     required.
                   </p>
                 </div>
-              </button>
+              </Button>
             </div>
           </div>
 

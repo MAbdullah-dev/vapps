@@ -160,33 +160,33 @@ export default function CreateAuditStep1Page() {
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
                   ORGANIZATION NAME
-                </label>
+                </Label>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
                   {orgInfo?.name || "—"}
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
                   ORGANIZATION UIN
-                </label>
+                </Label>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
                   {formatUIN(orgInfo?.registrationId)}
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
                   NAICS INDUSTRY CODE
-                </label>
+                </Label>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
                   {orgInfo?.industry || "—"}
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
                   SUB-INDUSTRY
-                </label>
+                </Label>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
                   {orgInfo?.subIndustry || orgInfo?.industry || "—"}
                 </div>
@@ -367,7 +367,7 @@ export default function CreateAuditStep1Page() {
                 sub: "Identifying vulnerabilities in system",
               },
             ].map((opt) => (
-              <label
+              <Label
                 key={opt.id}
                 className={cn(
                   "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
@@ -387,7 +387,7 @@ export default function CreateAuditStep1Page() {
                   <div className="font-medium text-gray-900">{opt.title}</div>
                   <div className="text-sm text-gray-500">{opt.sub}</div>
                 </div>
-              </label>
+              </Label>
             ))}
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function CreateAuditStep1Page() {
                   { id: "management", label: "Management Systems" },
                   { id: "esg", label: "ESG Sustainability" },
                 ].map((opt) => (
-                  <label
+                  <Label
                     key={opt.id}
                     className={cn(
                       "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
@@ -425,7 +425,7 @@ export default function CreateAuditStep1Page() {
                       className="shrink-0 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
                     />
                     <span className="font-medium text-gray-900">{opt.label}</span>
-                  </label>
+                  </Label>
                 ))}
               </div>
             </div>
@@ -478,7 +478,7 @@ export default function CreateAuditStep1Page() {
                   sub: "Audits conducted by independent auditing organizations, such as those providing certification of conformity or regulatory bodies.",
                 },
               ].map((opt) => (
-                <label
+                <Label
                   key={opt.id}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
@@ -498,7 +498,7 @@ export default function CreateAuditStep1Page() {
                     <div className="font-medium text-gray-900">{opt.label}</div>
                     <div className="mt-1 text-sm text-gray-500">{opt.sub}</div>
                   </div>
-                </label>
+                </Label>
               ))}
             </div>
           </div>
@@ -514,7 +514,7 @@ export default function CreateAuditStep1Page() {
               { id: "esg", label: "ESG frameworks" },
               { id: "legal", label: "Legal & regulatory" },
             ].map((opt) => (
-              <label
+              <Label
                 key={opt.id}
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
@@ -531,7 +531,7 @@ export default function CreateAuditStep1Page() {
                   className="border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
                 />
                 <span className="font-medium text-gray-900">{opt.label}</span>
-              </label>
+              </Label>
             ))}
           </div>
           <div className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
@@ -740,9 +740,9 @@ export default function CreateAuditStep1Page() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <button type="button" className="text-left font-medium text-green-600 hover:underline">
+                      <Button type="button" variant="ghost" className="text-left font-medium text-green-600 hover:underline h-auto p-0">
                         {r.action || "—"}
-                      </button>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeReview(r.id)}>

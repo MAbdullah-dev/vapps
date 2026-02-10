@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Info, Paperclip, Save, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,28 +167,32 @@ export default function CreateAuditStep4Page() {
             processes in the list.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:justify-start">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setSimilarProcessesImpacted("yes")}
-              className={`rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              className={cn(
+                "rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors",
                 similarProcessesImpacted === "yes"
-                  ? "border-gray-900 bg-gray-900 text-white"
+                  ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-800"
                   : "border-gray-300 bg-white text-gray-900 hover:border-gray-400 hover:bg-gray-50"
-              }`}
+              )}
             >
               YES
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setSimilarProcessesImpacted("no")}
-              className={`rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              className={cn(
+                "rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors",
                 similarProcessesImpacted === "no"
-                  ? "border-gray-900 bg-gray-900 text-white"
+                  ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-800"
                   : "border-gray-300 bg-white text-gray-900 hover:border-gray-400 hover:bg-gray-50"
-              }`}
+              )}
             >
               NO
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -230,18 +235,20 @@ export default function CreateAuditStep4Page() {
           </p>
           <div className="flex flex-wrap gap-4">
             {(["high", "medium", "low"] as const).map((level) => (
-              <button
+              <Button
                 key={level}
                 type="button"
+                variant="outline"
                 onClick={() => setRiskSeverity(level)}
-                className={`rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+                className={cn(
+                  "rounded-lg border-2 px-6 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors",
                   riskSeverity === level
-                    ? "border-gray-900 bg-gray-900 text-white"
+                    ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-800"
                     : "border-gray-300 bg-gray-100 text-gray-900 hover:border-gray-400 hover:bg-gray-200"
-                }`}
+                )}
               >
                 {level}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -286,13 +293,14 @@ export default function CreateAuditStep4Page() {
                   {attachedFiles.length} file(s) selected
                 </p>
               )}
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                className="rounded-lg border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
               >
                 BROWSE FILES
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -333,20 +341,21 @@ export default function CreateAuditStep4Page() {
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-            <button
+            <Button
               type="button"
+              variant="outline"
               className="inline-flex items-center gap-2 rounded-lg border-2 border-green-500 bg-slate-800 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700"
             >
               <Save className="h-4 w-4" />
               SAVE
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-green-500"
             >
               <Send className="h-4 w-4" />
               SUBMIT TO AUDITOR
-            </button>
+            </Button>
           </div>
         </div>
       </div>
