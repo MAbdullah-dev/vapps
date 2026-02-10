@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export default function CreateAuditStep5Page() {
   const params = useParams();
@@ -64,46 +65,48 @@ export default function CreateAuditStep5Page() {
             VERIFICATION OUTCOME
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setVerificationOutcome("effective")}
-              className={`flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors ${
+              className={cn(
+                "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
                 verificationOutcome === "effective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700"
+                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
                   : "border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-              }`}
+              )}
             >
               <CheckCircle
-                className={`h-14 w-14 ${
-                  verificationOutcome === "effective"
-                    ? "text-green-600"
-                    : "text-gray-400"
-                }`}
+                className={cn(
+                  "h-14 w-14",
+                  verificationOutcome === "effective" ? "text-green-600" : "text-gray-400"
+                )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
                 EFFECTIVE
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setVerificationOutcome("ineffective")}
-              className={`flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors ${
+              className={cn(
+                "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
                 verificationOutcome === "ineffective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700"
+                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
                   : "border border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-              }`}
+              )}
             >
               <XCircle
-                className={`h-14 w-14 ${
-                  verificationOutcome === "ineffective"
-                    ? "text-green-600"
-                    : "text-gray-500"
-                }`}
+                className={cn(
+                  "h-14 w-14",
+                  verificationOutcome === "ineffective" ? "text-green-600" : "text-gray-500"
+                )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
                 INEFFECTIVE
               </span>
-            </button>
+            </Button>
           </div>
           <div className="flex gap-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-green-300 bg-green-100 text-green-600">
@@ -184,15 +187,17 @@ export default function CreateAuditStep5Page() {
             <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
               VERIFICATION AUDIT TRAIL
             </h2>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={handleCopyAuditTrail}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="h-8 w-8 shrink-0 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               title="Copy audit trail"
               aria-label="Copy audit trail"
             >
               <ClipboardCheck className="h-5 w-5" />
-            </button>
+            </Button>
           </div>
           <div className="space-y-0">
             {/* First entry: solid green vertical bar alongside */}

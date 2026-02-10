@@ -18,7 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Info,
   ExternalLink,
@@ -424,45 +434,45 @@ export default function CreateAuditStep2Page() {
           <div className="border-t border-gray-200 px-6 py-5">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Audit Plan Title*
-                </label>
+                </Label>
                 <Input
                   placeholder="e.g., Quarterly 2026 QMS & ESG Audit Plan"
                   className="h-10 rounded-lg border-gray-300"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Audit #*
-                </label>
+                </Label>
                 <Input
                   defaultValue="001"
                   className="h-10 rounded-lg border-gray-300"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Parent Program*
-                </label>
+                </Label>
                 <Input
                   defaultValue="2026-2027 ISO & ESG Audit Program"
                   className="h-10 rounded-lg border-gray-300"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Prepared By*
-                </label>
+                </Label>
                 <Input
                   placeholder="Audit team leader"
                   className="h-10 rounded-lg border-gray-300"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-700">
+                <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Date Prepared*
-                </label>
+                </Label>
                 <Input
                   type="date"
                   className="h-10 rounded-lg border-gray-300"
@@ -507,30 +517,30 @@ export default function CreateAuditStep2Page() {
                 </p>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
+                <Label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
                   <Checkbox />
                   <span className="text-sm text-gray-800">
                     Verify management system conformity (ISO clauses)
                   </span>
-                </label>
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
+                </Label>
+                <Label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
                   <Checkbox />
                   <span className="text-sm text-gray-800">
                     Evaluate system effectiveness & performance
                   </span>
-                </label>
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
+                </Label>
+                <Label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
                   <Checkbox />
                   <span className="text-sm text-gray-800">
                     Assess ESG practices (E / S / G factors)
                   </span>
-                </label>
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
+                </Label>
+                <Label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 cursor-pointer hover:bg-gray-50/80 transition-colors">
                   <Checkbox />
                   <span className="text-sm text-gray-800">
                     Support risk-based decision-making
                   </span>
-                </label>
+                </Label>
               </div>
             </div>
 
@@ -578,15 +588,17 @@ export default function CreateAuditStep2Page() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {AUDIT_TYPES.map((type) => (
-                  <button
+                  <Button
                     key={type.id}
                     type="button"
+                    variant="ghost"
                     onClick={() => setSelectedAuditType(type.id)}
-                    className={`flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80 ${
+                    className={cn(
+                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80",
                       selectedAuditType === type.id
                         ? "border-green-500 bg-green-50/30"
                         : "border-gray-200 bg-white"
-                    }`}
+                    )}
                   >
                     <Checkbox
                       checked={selectedAuditType === type.id}
@@ -615,7 +627,7 @@ export default function CreateAuditStep2Page() {
                         {type.description}
                       </p>
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -633,10 +645,10 @@ export default function CreateAuditStep2Page() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
+                  <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                     <User className="h-4 w-4 text-gray-500" />
                     Search Registered Outsourced Process
-                  </label>
+                  </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <Input
@@ -647,10 +659,10 @@ export default function CreateAuditStep2Page() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
+                  <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                     <FileText className="h-4 w-4 text-gray-500" />
                     Search Third-Party Audit Reference
-                  </label>
+                  </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <Input
@@ -711,15 +723,17 @@ export default function CreateAuditStep2Page() {
                   { id: "remote" as const, label: "REMOTE", icon: Video },
                   { id: "hybrid" as const, label: "HYBRID", icon: RefreshCw },
                 ].map(({ id, label, icon: Icon }) => (
-                  <button
+                  <Button
                     key={id}
                     type="button"
+                    variant="ghost"
                     onClick={() => setMethodology(id)}
-                    className={`relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-5 transition-colors ${
+                    className={cn(
+                      "h-auto relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-5 transition-colors",
                       methodology === id
                         ? "border-green-500 bg-green-50/30"
                         : "border-gray-200 bg-white hover:bg-gray-50/80"
-                    }`}
+                    )}
                   >
                     {methodology === id && (
                       <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-green-500" />
@@ -728,7 +742,7 @@ export default function CreateAuditStep2Page() {
                     <span className="text-sm font-bold uppercase tracking-wide text-gray-900">
                       {label}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
@@ -750,7 +764,7 @@ export default function CreateAuditStep2Page() {
                 </h4>
                 <div className="space-y-2">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <label
+                    <Label
                       key={n}
                       className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50/80 transition-colors"
                     >
@@ -767,7 +781,7 @@ export default function CreateAuditStep2Page() {
                           Associated processes will be system-populated.
                         </p>
                       </div>
-                    </label>
+                    </Label>
                   ))}
                 </div>
               </div>
@@ -820,9 +834,9 @@ export default function CreateAuditStep2Page() {
                   </div>
                 </div>
                 <div className="min-w-[220px] flex-1 space-y-1">
-                  <label className="block text-xs font-medium uppercase text-gray-500">
+                  <Label className="block text-xs font-medium uppercase text-gray-500">
                     Process Selection
-                  </label>
+                  </Label>
                   <Input
                     placeholder="Process selection"
                     className="h-10 rounded-lg border-gray-300"
@@ -853,104 +867,108 @@ export default function CreateAuditStep2Page() {
         <CollapsibleContent>
           <div className="border-t border-gray-200">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/80">
-                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-200 bg-gray-50/80">
+                    <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Field
-                    </th>
-                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Requirement / Input
-                    </th>
-                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Condition & Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  <tr>
-                    <td className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
                       Planned Date
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <Input
                         type="date"
                         className="h-10 w-full max-w-xs rounded-lg border-gray-300"
                       />
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">
                         Required
                       </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
                       Actual Date
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <Input
                         type="text"
                         readOnly
                         defaultValue="03-02-2026"
                         className="h-10 w-full max-w-xs rounded-lg border-gray-300 bg-gray-100"
                       />
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-xs text-gray-600">
                       System Login Date
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
                       Reschedule Audit Plan
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <div className="flex gap-4">
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           onClick={() => setRescheduleAuditPlan("yes")}
-                          className={`text-sm font-medium uppercase ${
+                          className={cn(
+                            "h-auto p-0 text-sm font-medium uppercase",
                             rescheduleAuditPlan === "yes"
                               ? "font-bold text-gray-900 underline"
                               : "text-gray-500 hover:text-gray-700"
-                          }`}
+                          )}
                         >
                           Yes
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="ghost"
                           onClick={() => setRescheduleAuditPlan("no")}
-                          className={`text-sm font-medium uppercase ${
+                          className={cn(
+                            "h-auto p-0 text-sm font-medium uppercase",
                             rescheduleAuditPlan === "no"
                               ? "font-bold text-gray-900 underline"
                               : "text-gray-500 hover:text-gray-700"
-                          }`}
+                          )}
                         >
                           No
-                        </button>
+                        </Button>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-xs text-gray-600">
                       Conditional Field
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
                       Lead Auditor Comments
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
                       <Textarea
                         placeholder="Enter detailed comments regarding scheduling, justification..."
                         className="min-h-20 w-full max-w-xl rounded-lg border-gray-300"
                         rows={3}
                       />
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-600">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-xs text-gray-600">
                       Conditional Log
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
             <div className="flex items-center gap-2 rounded-b-lg border-t border-green-200 bg-green-50 px-6 py-3">
               <Lock className="h-5 w-5 shrink-0 text-green-700" />
@@ -983,13 +1001,14 @@ export default function CreateAuditStep2Page() {
           <div className="border-t border-gray-200 px-6 py-5 space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {AUDIT_CRITERIA.map((criterion) => (
-                <label
+                <Label
                   key={criterion}
-                  className={`flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors",
                     selectedCriteria === criterion
                       ? "border-green-500 bg-green-50/30"
                       : "border-gray-200 bg-white hover:bg-gray-50/80"
-                  }`}
+                  )}
                 >
                   <Checkbox
                     checked={selectedCriteria === criterion}
@@ -1001,7 +1020,7 @@ export default function CreateAuditStep2Page() {
                   <span className="text-sm font-medium uppercase tracking-wide text-gray-800">
                     {criterion}
                   </span>
-                </label>
+                </Label>
               ))}
             </div>
             <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
@@ -1035,33 +1054,33 @@ export default function CreateAuditStep2Page() {
         <CollapsibleContent>
           <div className="border-t border-gray-200">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50/80">
-                    <th className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-200 bg-gray-50/80">
+                    <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       AMRC#
-                    </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Review Category
-                    </th>
-                    <th className="min-w-[200px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="min-w-[200px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Auditor Comments & Scope Notes
-                    </th>
-                    <th className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Priority
-                    </th>
-                    <th className="min-w-[140px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    </TableHead>
+                    <TableHead className="min-w-[140px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Action (If Any)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {amrcRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">
+                    <TableRow key={row.id}>
+                      <TableCell className="whitespace-nowrap px-4 py-3 font-medium text-gray-800">
                         {String(index + 1).padStart(2, "0")}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-4 py-3">
                         <Input
                           value={row.reviewCategory}
                           onChange={(e) =>
@@ -1070,8 +1089,8 @@ export default function CreateAuditStep2Page() {
                           placeholder="Review category"
                           className="h-9 min-w-[180px] rounded-lg border-gray-300 text-sm"
                         />
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         <Input
                           value={row.comments}
                           onChange={(e) =>
@@ -1080,8 +1099,8 @@ export default function CreateAuditStep2Page() {
                           placeholder="Auditor perspective..."
                           className="h-9 w-full rounded-lg border-gray-300 text-sm"
                         />
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         <Select
                           value={row.priority}
                           onValueChange={(value) =>
@@ -1100,8 +1119,8 @@ export default function CreateAuditStep2Page() {
                             <SelectItem value="LOW">Low</SelectItem>
                           </SelectContent>
                         </Select>
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         <Input
                           value={row.action}
                           onChange={(e) =>
@@ -1110,11 +1129,11 @@ export default function CreateAuditStep2Page() {
                           placeholder="Next step..."
                           className="h-9 w-full rounded-lg border-gray-300 text-sm"
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
             <div className="flex justify-center border-t border-gray-200 px-6 py-4">
               <Button
@@ -1165,7 +1184,7 @@ export default function CreateAuditStep2Page() {
                 </div>
                 <div className="mt-4 space-y-2">
                   {CORE_AUDITOR_COMPETENCIES.map((item) => (
-                    <label
+                    <Label
                       key={item}
                       className="flex items-center gap-3 rounded border border-gray-100 bg-gray-50/50 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
                     >
@@ -1176,7 +1195,7 @@ export default function CreateAuditStep2Page() {
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-800">
                         {item}
                       </span>
-                    </label>
+                    </Label>
                   ))}
                 </div>
               </div>
@@ -1194,7 +1213,7 @@ export default function CreateAuditStep2Page() {
                 </p>
                 <div className="mt-4 space-y-2 relative">
                   {LEAD_AUDITOR_SELF_EVAL_ITEMS.map((item) => (
-                    <label
+                    <Label
                       key={item}
                       className="flex items-center gap-3 rounded border border-green-200/50 bg-white/60 px-3 py-2 cursor-pointer hover:bg-white/80 transition-colors"
                     >
@@ -1206,7 +1225,7 @@ export default function CreateAuditStep2Page() {
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-800">
                         {item}
                       </span>
-                    </label>
+                    </Label>
                   ))}
                 </div>
               </div>
@@ -1256,10 +1275,10 @@ export default function CreateAuditStep2Page() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
+                      <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                         <Search className="h-4 w-4 text-gray-500" />
                         Auditor Search
-                      </label>
+                      </Label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <Input
@@ -1273,10 +1292,10 @@ export default function CreateAuditStep2Page() {
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
+                      <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                         <RefreshCw className="h-4 w-4 text-gray-500" />
                         Auditor UIN
-                      </label>
+                      </Label>
                       <Input
                         placeholder="UIN"
                         className="h-10 rounded-lg border-gray-300 bg-gray-50"
@@ -1287,10 +1306,10 @@ export default function CreateAuditStep2Page() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
+                      <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                         <User className="h-4 w-4 text-gray-500" />
                         Role Assignment
-                      </label>
+                      </Label>
                       <Input
                         placeholder="Role"
                         className="h-10 rounded-lg border-gray-300"
@@ -1308,9 +1327,9 @@ export default function CreateAuditStep2Page() {
                     </h5>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div className="space-y-1">
-                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
+                        <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
                           Technical Expert Name
-                        </label>
+                        </Label>
                         <Input
                           placeholder="Name"
                           className="h-10 rounded-lg border-gray-300"
@@ -1321,9 +1340,9 @@ export default function CreateAuditStep2Page() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
+                        <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
                           Observer Name
-                        </label>
+                        </Label>
                         <Input
                           placeholder="Name"
                           className="h-10 rounded-lg border-gray-300"
@@ -1334,9 +1353,9 @@ export default function CreateAuditStep2Page() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
+                        <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
                           Trainee Name
-                        </label>
+                        </Label>
                         <Input
                           placeholder="Name"
                           className="h-10 rounded-lg border-gray-300"
