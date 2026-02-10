@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
@@ -100,6 +102,9 @@ const LEGEND_ITEMS: { key: ComplianceStatus; label: string; className: string; i
 ];
 
 export default function CreateAuditStep3Page() {
+  const params = useParams();
+  const orgId = params?.orgId as string;
+
   const [rows, setRows] = useState<ChecklistRow[]>(DEFAULT_ROWS);
 
   const addRow = () => {
@@ -493,7 +498,7 @@ export default function CreateAuditStep3Page() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
                 <Check className="h-4 w-4" />
               </div>
-              <h3 className="text-lg font-bold uppercase">RISK EVALUATION GUIDELINE</h3>
+              <h3 className="text-lg font-bold uppercase text-green-300">RISK EVALUATION GUIDELINE</h3>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
@@ -503,7 +508,7 @@ export default function CreateAuditStep3Page() {
                 </p>
               </div>
               <div>
-                <div className="mb-2 font-semibold uppercase text-green-300">MEDIUM SEVERITY</div>
+                <div className="mb-2 font-semibold uppercase text-orange-300">MEDIUM SEVERITY</div>
                 <p className="text-sm text-slate-200">
                   Partial failure of core process. May impact customer satisfaction or operational efficiency if not addressed.
                 </p>
@@ -1118,14 +1123,31 @@ export default function CreateAuditStep3Page() {
       </div>
 
       {/* Bottom navigation */}
-      <div className="flex items-center justify-between  py-4">
-        <Button type="button" variant="outline" className="text-gray-600 hover:text-gray-900">
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Previous Step
+      <div className="flex items-center justify-between py-4">
+        <Button
+          variant="outline"
+          className="border-gray-300 text-gray-600 hover:bg-gray-50"
+          asChild
+        >
+          <Link
+            href={`/dashboard/${orgId}/audit/create/2`}
+            className="inline-flex items-center gap-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous Step
+          </Link>
         </Button>
-        <Button type="button" className="bg-green-600 text-white hover:bg-green-700">
-          Save & Continue
-          <ChevronRight className="ml-1 h-4 w-4" />
+        <Button
+          className="bg-green-600 text-white hover:bg-green-700"
+          asChild
+        >
+          <Link
+            href={`/dashboard/${orgId}/audit/create/4`}
+            className="inline-flex items-center gap-2"
+          >
+            Save & Continue
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
     </div>
