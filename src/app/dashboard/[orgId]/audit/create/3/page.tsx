@@ -1125,7 +1125,6 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
       </div>
-
       {/* Bottom navigation */}
       <div className="flex items-center justify-between py-4">
         <Button
