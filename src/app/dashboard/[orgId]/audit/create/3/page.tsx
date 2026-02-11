@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,6 +26,7 @@ import {
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowRight,
   Bold,
   Check,
   ChevronLeft,
@@ -26,6 +34,7 @@ import {
   Circle,
   Clock,
   Code,
+  Download,
   FileText,
   Italic,
   Lock,
@@ -260,84 +269,114 @@ export default function CreateAuditStep3Page() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-100">
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-900">Standard (System)</TableHead>
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-900">Clause</TableHead>
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-900">Subclauses</TableHead>
-                  <TableHead className="min-w-[180px] font-semibold uppercase text-gray-900">Compliance Requirement</TableHead>
-                  <TableHead className="min-w-[220px] font-semibold uppercase text-gray-900">Audit Question</TableHead>
-                  <TableHead className="min-w-[180px] font-semibold uppercase text-gray-900">Typical Example of Evidence</TableHead>
-                  <TableHead className="min-w-[140px] font-semibold uppercase text-gray-900">Evidence</TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">STANDARD (SYSTEM)</TableHead>
+                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">CLAUSE</TableHead>
+                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">SUBCLAUSES</TableHead>
+                  <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
+                  <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">AUDIT QUESTION</TableHead>
+                  <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
+                  <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">EVIDENCE SEEN</TableHead>
+                  <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
+                  <TableHead className="w-[120px] font-semibold uppercase text-gray-700">ACTION</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id} className="align-top">
-                    <TableCell className="align-top">
+                {rows.map((row, index) => (
+                  <TableRow key={row.id} className="align-top bg-white">
+                    <TableCell className="align-top py-3">
                       <Input
                         value={row.standard}
                         onChange={(e) => updateRow(row.id, "standard", e.target.value)}
                         placeholder="e.g. ISO 9001:2015"
-                        className="h-9 border-gray-200 text-sm"
+                        className="h-9 min-w-[100px] rounded-md border-gray-200 bg-gray-50/50 text-sm text-gray-600"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
+                    <TableCell className="align-top py-3">
                       <Input
                         value={row.clause}
                         onChange={(e) => updateRow(row.id, "clause", e.target.value)}
                         placeholder="e.g. 4.1"
-                        className="h-9 w-20 border-gray-200 font-medium text-sm"
+                        className="h-9 w-20 rounded-md border-gray-200 text-sm font-bold text-gray-900"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
+                    <TableCell className="align-top py-3">
                       <Input
                         value={row.subclauses}
                         onChange={(e) => updateRow(row.id, "subclauses", e.target.value)}
                         placeholder="e.g. 4.1.1"
-                        className="h-9 w-24 border-gray-200 text-sm"
+                        className="h-9 w-24 rounded-md border-gray-200 text-sm text-gray-600"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
-                      <Input
+                    <TableCell className="align-top py-3">
+                      <Textarea
                         value={row.requirement}
                         onChange={(e) => updateRow(row.id, "requirement", e.target.value)}
                         placeholder="Compliance requirement"
-                        className="h-9 min-w-[160px] border-gray-200 text-sm"
+                        rows={2}
+                        className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
-                      <Input
+                    <TableCell className="align-top py-3">
+                      <Textarea
                         value={row.question}
                         onChange={(e) => updateRow(row.id, "question", e.target.value)}
                         placeholder="Audit question"
-                        className="h-9 min-w-[200px] border-gray-200 font-medium text-sm"
+                        rows={2}
+                        className="min-w-[180px] resize-none rounded-md border-gray-200 text-sm font-medium text-gray-900"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
-                      <Input
+                    <TableCell className="align-top py-3">
+                      <Textarea
                         value={row.evidenceExample}
                         onChange={(e) => updateRow(row.id, "evidenceExample", e.target.value)}
                         placeholder="Typical evidence"
-                        className="h-9 min-w-[160px] border-gray-200 text-sm"
+                        rows={2}
+                        className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
+                    <TableCell className="align-top py-3">
                       <Input
                         value={row.evidence}
                         onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
-                        placeholder="Enter evidence..."
-                        className="h-9 min-w-[120px] border-gray-200 text-sm text-muted-foreground"
+                        placeholder="Enter evidence details..."
+                        className="min-w-[120px] rounded-md border-gray-200 bg-gray-50/80 text-sm italic text-muted-foreground placeholder:italic"
                       />
                     </TableCell>
-                    <TableCell className="align-top">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                        onClick={() => removeRow(row.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="align-top py-3">
+                      <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
+                        <SelectTrigger className="h-9 min-w-[100px] rounded-md border-gray-200">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LEGEND_ITEMS.map((item) => (
+                            <SelectItem key={item.key} value={item.key}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="align-top py-3">
+                      {index === rows.length - 1 ? (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 rounded-md bg-orange-500 px-3 text-xs font-semibold uppercase text-white hover:bg-orange-600"
+                          onClick={() => {}}
+                        >
+                          <ArrowRight className="h-3.5 w-3.5" />
+                          NEXT CA
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 rounded-md border-blue-400 px-3 text-xs font-semibold uppercase text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                          onClick={() => {}}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          DOWNLOAD
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

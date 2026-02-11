@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Plus, Search, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -57,6 +57,7 @@ function formatUIN(registrationId: string | undefined): string {
 
 export default function CreateAuditStep1Page() {
   const params = useParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -828,7 +829,7 @@ export default function CreateAuditStep1Page() {
           size="lg"
           className="gap-2 bg-green-600 hover:bg-green-700"
           onClick={() => {
-            window.location.pathname = `/dashboard/${orgId}/audit/create/2`;
+            router.push(`/dashboard/${orgId}/audit/create/2`);
           }}
         >
           Save & Continue
