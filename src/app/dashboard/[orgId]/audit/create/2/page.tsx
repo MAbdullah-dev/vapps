@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { format } from "date-fns";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
@@ -11,6 +13,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -34,6 +41,7 @@ import {
   ExternalLink,
   Search,
   AlertTriangle,
+  Calendar as CalendarIcon,
   Clock,
   ShieldCheck,
   ChevronUp,
@@ -188,6 +196,8 @@ export default function CreateAuditStep2Page() {
   const [amrcRows, setAmrcRows] = useState<AmrcRow[]>(INITIAL_AMRC_ROWS);
   const [selectedCriteria, setSelectedCriteria] = useState<string | null>(null);
   const [rescheduleAuditPlan, setRescheduleAuditPlan] = useState<"yes" | "no">("yes");
+  const [datePrepared, setDatePrepared] = useState<Date | undefined>(undefined);
+  const [plannedDate, setPlannedDate] = useState<Date | undefined>(undefined);
 
   const addMethodologyRow = () => {
     setAmrcRows((prev) => [
@@ -473,10 +483,28 @@ export default function CreateAuditStep2Page() {
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Date Prepared*
                 </Label>
-                <Input
-                  type="date"
-                  className="h-10 rounded-lg border-gray-300"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-10 w-full justify-start rounded-lg border-gray-300 text-left font-normal",
+                        !datePrepared && "text-gray-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {datePrepared ? format(datePrepared, "MM-dd-yyyy") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={datePrepared}
+                      onSelect={setDatePrepared}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
@@ -594,7 +622,7 @@ export default function CreateAuditStep2Page() {
                     variant="ghost"
                     onClick={() => setSelectedAuditType(type.id)}
                     className={cn(
-                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80",
+                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80 whitespace-normal",
                       selectedAuditType === type.id
                         ? "border-green-500 bg-green-50/30"
                         : "border-gray-200 bg-white"
@@ -887,10 +915,28 @@ export default function CreateAuditStep2Page() {
                       Planned Date
                     </TableCell>
                     <TableCell className="px-6 py-4">
-                      <Input
-                        type="date"
-                        className="h-10 w-full max-w-xs rounded-lg border-gray-300"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "h-10 w-full max-w-xs justify-start rounded-lg border-gray-300 text-left font-normal",
+                              !plannedDate && "text-gray-500"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {plannedDate ? format(plannedDate, "MM-dd-yyyy") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={plannedDate}
+                            onSelect={setPlannedDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">

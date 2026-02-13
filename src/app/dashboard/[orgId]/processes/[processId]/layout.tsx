@@ -526,9 +526,12 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   return (
     <div className="w-full">
       {/* Header */}
-      <p className="flex items-center gap-2 mb-5 cursor-pointer">
+      <Link
+        href={`/dashboard/${orgId}/processes`}
+        className="flex items-center gap-2 mb-5 cursor-pointer w-fit hover:opacity-80 transition-opacity"
+      >
         <ArrowLeft /> Processes
-      </p>
+      </Link>
 
       <div className="flex justify-between items-center mb-5">
         <div>
