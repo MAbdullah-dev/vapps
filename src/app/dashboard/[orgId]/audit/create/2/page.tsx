@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+<<<<<<< HEAD
 import { format } from "date-fns";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+=======
+import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
+import { Button } from "@/components/ui/button";
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
@@ -14,11 +19,14 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
+<<<<<<< HEAD
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+=======
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
   Select,
   SelectContent,
   SelectItem,
@@ -41,7 +49,10 @@ import {
   ExternalLink,
   Search,
   AlertTriangle,
+<<<<<<< HEAD
   Calendar as CalendarIcon,
+=======
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
   Clock,
   ShieldCheck,
   ChevronUp,
@@ -196,8 +207,11 @@ export default function CreateAuditStep2Page() {
   const [amrcRows, setAmrcRows] = useState<AmrcRow[]>(INITIAL_AMRC_ROWS);
   const [selectedCriteria, setSelectedCriteria] = useState<string | null>(null);
   const [rescheduleAuditPlan, setRescheduleAuditPlan] = useState<"yes" | "no">("yes");
+<<<<<<< HEAD
   const [datePrepared, setDatePrepared] = useState<Date | undefined>(undefined);
   const [plannedDate, setPlannedDate] = useState<Date | undefined>(undefined);
+=======
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
 
   const addMethodologyRow = () => {
     setAmrcRows((prev) => [
@@ -483,6 +497,7 @@ export default function CreateAuditStep2Page() {
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   Date Prepared*
                 </Label>
+<<<<<<< HEAD
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -505,6 +520,12 @@ export default function CreateAuditStep2Page() {
                     />
                   </PopoverContent>
                 </Popover>
+=======
+                <Input
+                  type="date"
+                  className="h-10 rounded-lg border-gray-300"
+                />
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
               </div>
             </div>
           </div>
@@ -622,7 +643,11 @@ export default function CreateAuditStep2Page() {
                     variant="ghost"
                     onClick={() => setSelectedAuditType(type.id)}
                     className={cn(
+<<<<<<< HEAD
                       "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80 whitespace-normal",
+=======
+                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80",
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
                       selectedAuditType === type.id
                         ? "border-green-500 bg-green-50/30"
                         : "border-gray-200 bg-white"
@@ -915,6 +940,7 @@ export default function CreateAuditStep2Page() {
                       Planned Date
                     </TableCell>
                     <TableCell className="px-6 py-4">
+<<<<<<< HEAD
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -937,6 +963,12 @@ export default function CreateAuditStep2Page() {
                           />
                         </PopoverContent>
                       </Popover>
+=======
+                      <Input
+                        type="date"
+                        className="h-10 w-full max-w-xs rounded-lg border-gray-300"
+                      />
+>>>>>>> 6fb37c247437f28df4253a1d5c1c814c71a627e5
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">

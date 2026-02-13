@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Plus, Search, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -10,12 +10,28 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -41,6 +57,7 @@ function formatUIN(registrationId: string | undefined): string {
 
 export default function CreateAuditStep1Page() {
   const params = useParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -73,24 +90,45 @@ export default function CreateAuditStep1Page() {
     { id: "k2", kpi: "002", description: "ESG performance insights", impact: "Medium", score: "2", priority: "2", comments: "" },
   ]);
 
+  const [riskDialogOpen, setRiskDialogOpen] = useState(false);
+  const [riskForm, setRiskForm] = useState<{ rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }>({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
   const addRisk = () => {
-    setRisks((prev) => [...prev, { id: `r${Date.now()}`, rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" }]);
+    setRiskForm({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
+    setRiskDialogOpen(true);
+  };
+  const submitRisk = () => {
+    setRisks((prev) => [...prev, { id: `r${Date.now()}`, ...riskForm }]);
+    setRiskDialogOpen(false);
   };
   const removeRisk = (id: string) => setRisks((prev) => prev.filter((r) => r.id !== id));
 
+  const [kpiDialogOpen, setKpiDialogOpen] = useState(false);
+  const [kpiForm, setKpiForm] = useState({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
   const addKpi = () => {
-    setKpis((prev) => [...prev, { id: `k${Date.now()}`, kpi: "", description: "", impact: "", score: "", priority: "", comments: "" }]);
+    setKpiForm({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
+    setKpiDialogOpen(true);
+  };
+  const submitKpi = () => {
+    setKpis((prev) => [...prev, { id: `k${Date.now()}`, ...kpiForm }]);
+    setKpiDialogOpen(false);
   };
   const removeKpi = (id: string) => setKpis((prev) => prev.filter((k) => k.id !== id));
 
-  const [reviewRows, setReviewRows] = useState([
-    { id: "p1", pri: "PRI-01", type: "Scheduled Review", comments: "Overall performance aligned with 2024 targets.", priority: "Medium", priorityClass: "gray", action: "Update site list for S2 expansion" },
-    { id: "p2", pri: "PRI-02", type: "Feedback", comments: "Audit teams report high efficiency with new digital tool.", priority: "Low", priorityClass: "gray", action: "Standardize evidence upload format" },
-    { id: "p3", pri: "PRI-03", type: "Business Risk Changes", comments: "New regulatory requirements for ESG disclosure.", priority: "High", priorityClass: "red", action: "Incorporate IFRS S2 criteria" },
-  ]);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewForm, setReviewForm] = useState<{ pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }>({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
   const addReview = () => {
-    setReviewRows((prev) => [...prev, { id: `p${Date.now()}`, pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" }]);
+    setReviewForm({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
+    setReviewDialogOpen(true);
   };
+  const submitReview = () => {
+    setReviewRows((prev) => [...prev, { id: `p${Date.now()}`, ...reviewForm }]);
+    setReviewDialogOpen(false);
+  };
+  const [reviewRows, setReviewRows] = useState([
+    { id: "p1", pri: "PRI-01", type: "Scheduled Review", comments: "Overall performance aligned with 2024 targets.", priority: "Medium", priorityClass: "gray" as const, action: "Update site list for S2 expansion" },
+    { id: "p2", pri: "PRI-02", type: "Feedback", comments: "Audit teams report high efficiency with new digital tool.", priority: "Low", priorityClass: "gray" as const, action: "Standardize evidence upload format" },
+    { id: "p3", pri: "PRI-03", type: "Business Risk Changes", comments: "New regulatory requirements for ESG disclosure.", priority: "High", priorityClass: "red" as const, action: "Incorporate IFRS S2 criteria" },
+  ]);
   const removeReview = (id: string) => setReviewRows((prev) => prev.filter((r) => r.id !== id));
 
   const toggleSite = (site: string) => {
@@ -791,14 +829,189 @@ export default function CreateAuditStep1Page() {
           size="lg"
           className="gap-2 bg-green-600 hover:bg-green-700"
           onClick={() => {
-            // For Next.js navigate to the next page in the app router
-            window.location.pathname = `/dashboard/${orgId}/audit/create/2`;
+            router.push(`/dashboard/${orgId}/audit/create/2`);
           }}
         >
           Save & Continue
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Add Risk Dialog */}
+      <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Risk</DialogTitle>
+            <DialogDescription>Add a new risk or opportunity to the audit program.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="risk-rop">ROP#</Label>
+                <Input id="risk-rop" value={riskForm.rop} onChange={(e) => setRiskForm((f) => ({ ...f, rop: e.target.value }))} placeholder="e.g. R-001" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-category">Category</Label>
+                <Input id="risk-category" value={riskForm.category} onChange={(e) => setRiskForm((f) => ({ ...f, category: e.target.value }))} placeholder="e.g. Resource Availability" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk-description">Description</Label>
+              <Textarea id="risk-description" value={riskForm.description} onChange={(e) => setRiskForm((f) => ({ ...f, description: e.target.value }))} placeholder="Enter description" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Impact (1-5)</Label>
+                <Select value={riskForm.impact} onValueChange={(v) => setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select impact" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="01 (Low)">01 (Low)</SelectItem>
+                    <SelectItem value="02 (Low)">02 (Low)</SelectItem>
+                    <SelectItem value="03 (Medium)">03 (Medium)</SelectItem>
+                    <SelectItem value="04 (High)">04 (High)</SelectItem>
+                    <SelectItem value="05 (V.High)">05 (V.High)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="risk-frequency">Frequency</Label>
+                <Input id="risk-frequency" value={riskForm.frequency} onChange={(e) => setRiskForm((f) => ({ ...f, frequency: e.target.value }))} placeholder="e.g. Annual, Ongoing" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Select value={riskForm.priority} onValueChange={(v) => setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="Strategic">Strategic</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRiskDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>Add Risk</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add KPI Dialog */}
+      <Dialog open={kpiDialogOpen} onOpenChange={setKpiDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add KPI</DialogTitle>
+            <DialogDescription>Add a new KPI for monitoring and measurement.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="kpi-num">KPI#</Label>
+                <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => setKpiForm((f) => ({ ...f, kpi: e.target.value }))} placeholder="e.g. 001" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="kpi-impact">Impact</Label>
+                <Select value={kpiForm.impact} onValueChange={(v) => setKpiForm((f) => ({ ...f, impact: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select impact" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="kpi-description">Description</Label>
+              <Textarea id="kpi-description" value={kpiForm.description} onChange={(e) => setKpiForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. % audit completed vs planned" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="kpi-score">Score</Label>
+                <Input id="kpi-score" value={kpiForm.score} onChange={(e) => setKpiForm((f) => ({ ...f, score: e.target.value }))} placeholder="e.g. 1-5" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="kpi-priority">Priority</Label>
+                <Input id="kpi-priority" value={kpiForm.priority} onChange={(e) => setKpiForm((f) => ({ ...f, priority: e.target.value }))} placeholder="e.g. 1, 2, 3" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="kpi-comments">Comments</Label>
+              <Textarea id="kpi-comments" value={kpiForm.comments} onChange={(e) => setKpiForm((f) => ({ ...f, comments: e.target.value }))} placeholder="Optional comments" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKpiDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>Add KPI</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Review Dialog */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Review</DialogTitle>
+            <DialogDescription>Add a program review or improvement item.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="review-pri">PRI#</Label>
+                <Input id="review-pri" value={reviewForm.pri} onChange={(e) => setReviewForm((f) => ({ ...f, pri: e.target.value }))} placeholder="e.g. PRI-01" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="review-type">Review Type</Label>
+                <Select value={reviewForm.type} onValueChange={(v) => setReviewForm((f) => ({ ...f, type: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Scheduled Review">Scheduled Review</SelectItem>
+                    <SelectItem value="Feedback">Feedback</SelectItem>
+                    <SelectItem value="Business Risk Changes">Business Risk Changes</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="review-comments">Program Leader Comments</Label>
+              <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => setReviewForm((f) => ({ ...f, comments: e.target.value }))} placeholder="Enter comments" rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Select value={reviewForm.priority} onValueChange={(v) => setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="review-action">Action for Improvement</Label>
+              <Input id="review-action" value={reviewForm.action} onChange={(e) => setReviewForm((f) => ({ ...f, action: e.target.value }))} placeholder="e.g. Update site list for S2 expansion" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>Add Review</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
