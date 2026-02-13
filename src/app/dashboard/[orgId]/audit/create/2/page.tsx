@@ -57,6 +57,7 @@ import {
   Check,
   Lock,
   Plus,
+  Trash2,
   Users2,
   FileCheck,
 } from "lucide-react";
@@ -216,6 +217,9 @@ export default function CreateAuditStep2Page() {
     setAmrcRows((prev) =>
       prev.map((row) => (row.id === id ? { ...row, [field]: value } : row))
     );
+  };
+  const removeMethodologyRow = (id: string) => {
+    setAmrcRows((prev) => (prev.length > 1 ? prev.filter((row) => row.id !== id) : prev));
   };
   const [selectedAuditType, setSelectedAuditType] = useState<string>("FPA");
   const [methodology, setMethodology] = useState<"on-site" | "remote" | "hybrid">("on-site");
@@ -1118,6 +1122,9 @@ export default function CreateAuditStep2Page() {
                     <TableHead className="min-w-[140px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       Action (If Any)
                     </TableHead>
+                    <TableHead className="w-12 px-4 py-3 text-center text-gray-700">
+                      <span className="sr-only">Delete</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1175,6 +1182,20 @@ export default function CreateAuditStep2Page() {
                           placeholder="Next step..."
                           className="h-9 w-full rounded-lg border-gray-300 text-sm"
                         />
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-center">
+                        {amrcRows.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => removeMethodologyRow(row.id)}
+                            aria-label="Delete methodology row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

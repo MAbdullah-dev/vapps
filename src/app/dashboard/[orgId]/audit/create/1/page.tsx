@@ -71,7 +71,7 @@ export default function CreateAuditStep1Page() {
 
   const [programPurpose, setProgramPurpose] = useState<string | null>(null);
   const [auditScope, setAuditScope] = useState<string | null>(null);
-  const [selectedSites, setSelectedSites] = useState<string[]>(["S1"]);
+  const [selectedSites, setSelectedSites] = useState<string | null>("S1");
   const [auditType, setAuditType] = useState<string | null>(null);
   const [auditCriteria, setAuditCriteria] = useState<string | null>(null);
 
@@ -132,9 +132,7 @@ export default function CreateAuditStep1Page() {
   const removeReview = (id: string) => setReviewRows((prev) => prev.filter((r) => r.id !== id));
 
   const toggleSite = (site: string) => {
-    setSelectedSites((prev) =>
-      prev.includes(site) ? prev.filter((s) => s !== site) : [...prev, site]
-    );
+    setSelectedSites((prev) => (prev === site ? null : site));
   };
 
   useEffect(() => {
@@ -470,7 +468,7 @@ export default function CreateAuditStep1Page() {
             {/* Right half: Organizational Sites / Units */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
-                ORGANIZATIONAL SITES / UNITS (SELECT ONE OR MULTIPLE)
+                ORGANIZATIONAL SITES / UNITS (SELECT ONE)
               </h3>
               <div className="flex flex-wrap gap-2">
                 {["S1", "S2", "S3", "S4", "S5"].map((site) => (
@@ -482,7 +480,7 @@ export default function CreateAuditStep1Page() {
                     onClick={() => toggleSite(site)}
                     className={cn(
                       "min-w-[100px] rounded-md border py-4 transition-colors",
-                      selectedSites.includes(site)
+                      selectedSites === site
                         ? "border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white"
                         : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     )}
@@ -863,7 +861,7 @@ export default function CreateAuditStep1Page() {
               <div className="space-y-2">
                 <Label>Impact (1-5)</Label>
                 <Select value={riskForm.impact} onValueChange={(v) => setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select impact" />
                   </SelectTrigger>
                   <SelectContent>
@@ -883,7 +881,7 @@ export default function CreateAuditStep1Page() {
             <div className="space-y-2">
               <Label>Priority</Label>
               <Select value={riskForm.priority} onValueChange={(v) => setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" }))}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -919,7 +917,7 @@ export default function CreateAuditStep1Page() {
               <div className="space-y-2">
                 <Label htmlFor="kpi-impact">Impact</Label>
                 <Select value={kpiForm.impact} onValueChange={(v) => setKpiForm((f) => ({ ...f, impact: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select impact" />
                   </SelectTrigger>
                   <SelectContent>
@@ -972,7 +970,7 @@ export default function CreateAuditStep1Page() {
               <div className="space-y-2">
                 <Label htmlFor="review-type">Review Type</Label>
                 <Select value={reviewForm.type} onValueChange={(v) => setReviewForm((f) => ({ ...f, type: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -991,7 +989,7 @@ export default function CreateAuditStep1Page() {
             <div className="space-y-2">
               <Label>Priority</Label>
               <Select value={reviewForm.priority} onValueChange={(v) => setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" }))}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>

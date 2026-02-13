@@ -3,13 +3,20 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { format } from "date-fns";
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Info, Paperclip, Save, Send } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Info, Paperclip, Save, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 
 import "froala-editor/css/froala_editor.pkgd.min.css";
@@ -25,7 +32,7 @@ export default function CreateAuditStep4Page() {
 
   const [containmentDescription, setContainmentDescription] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
-  const [targetCompletionDate, setTargetCompletionDate] = useState("");
+  const [targetCompletionDate, setTargetCompletionDate] = useState<Date | undefined>(undefined);
   const [rootCauseNarrative, setRootCauseNarrative] = useState("");
   const [similarProcessesImpacted, setSimilarProcessesImpacted] = useState<
     "yes" | "no" | null
@@ -116,12 +123,30 @@ export default function CreateAuditStep4Page() {
               <Label className="text-sm font-bold uppercase tracking-wide text-gray-900">
                 TARGET COMPLETION DATE
               </Label>
-              <Input
-                type="date"
-                className="rounded-lg border-gray-300"
-                value={targetCompletionDate}
-                onChange={(e) => setTargetCompletionDate(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start rounded-lg border-gray-300 text-left font-normal",
+                      !targetCompletionDate && "text-gray-500"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {targetCompletionDate
+                      ? format(targetCompletionDate, "MM-dd-yyyy")
+                      : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={targetCompletionDate}
+                    onSelect={setTargetCompletionDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>

@@ -58,7 +58,7 @@ export default function CreateAuditStep6Page() {
                 variant="outline"
                 onClick={() => setFinalDecision("effective")}
                 className={cn(
-                  "h-auto w-full flex items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors",
+                  "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "effective"
                     ? "border-green-500 bg-green-50 hover:bg-green-100"
                     : "border-gray-200 bg-white hover:border-gray-300"
@@ -84,7 +84,7 @@ export default function CreateAuditStep6Page() {
                 variant="outline"
                 onClick={() => setFinalDecision("ineffective")}
                 className={cn(
-                  "h-auto w-full flex items-start gap-4 rounded-lg border-2 p-4 text-left transition-colors",
+                  "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "ineffective"
                     ? "border-green-500 bg-green-50 hover:bg-green-100"
                     : "border-gray-200 bg-white hover:border-gray-300"
