@@ -244,7 +244,7 @@ export default function CreateAuditStep3Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={3} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={3} orgId={orgId} exitHref="../.." />
 
       <div className="rounded-lg border border-gray-200 bg-white p-8">
         {/* Step 3 Header */}

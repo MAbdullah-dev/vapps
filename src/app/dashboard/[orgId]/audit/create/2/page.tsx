@@ -224,6 +224,7 @@ export default function CreateAuditStep2Page() {
   const [selectedAuditType, setSelectedAuditType] = useState<string>("FPA");
   const [methodology, setMethodology] = useState<"on-site" | "remote" | "hybrid">("on-site");
   const [selectedSites, setSelectedSites] = useState<number[]>([1]);
+  const [selectedPlanOption, setSelectedPlanOption] = useState<"A" | "B" | "C" | null>(null);
   const toggleSite = (n: number) => {
     setSelectedSites((prev) =>
       prev.includes(n) ? prev.filter((s) => s !== n) : [...prev, n].sort((a, b) => a - b)
@@ -265,7 +266,7 @@ export default function CreateAuditStep2Page() {
   };
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={2} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={2} orgId={orgId} exitHref="../.." />
 
 <div className="rounded-lg bg-white px-5 py-8">
 
@@ -321,19 +322,37 @@ export default function CreateAuditStep2Page() {
       </div>
 
       {/* Audit Plan Entry Selection */}
-      <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700">
+      <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700 mb-3">
         Audit Plan Entry Selection
       </h2>
 
       <div className="space-y-6 mb-6">
         {/* Option A: Continue With Existing Audit Program */}
-        <div className="rounded-lg border-2 border-green-300 bg-white p-6 shadow-sm">
-          <h3 className="text-base font-bold text-gray-900">
-            OPTION A: CONTINUE WITH EXISTING AUDIT PROGRAM
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            System-link individual audit plan to established program goals.
-          </p>
+        <div
+          onClick={() => setSelectedPlanOption("A")}
+          className={cn(
+            "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
+            "hover:shadow-md",
+            selectedPlanOption === "A"
+              ? "border-green-600 bg-green-50/30"
+              : "border-gray-200 hover:border-gray-300"
+          )}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-gray-900">
+                OPTION A: CONTINUE WITH EXISTING AUDIT PROGRAM
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                System-link individual audit plan to established program goals.
+              </p>
+            </div>
+            {selectedPlanOption === "A" && (
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
+                <Check className="h-4 w-4 text-white" />
+              </div>
+            )}
+          </div>
           <div className="mt-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -341,6 +360,7 @@ export default function CreateAuditStep2Page() {
                 type="search"
                 placeholder="Search Audit Program"
                 className="h-10 rounded-lg border-gray-300 pl-9"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -348,6 +368,7 @@ export default function CreateAuditStep2Page() {
                 type="button"
                 variant="outline"
                 className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                onClick={(e) => e.stopPropagation()}
               >
                 AUTO-POPULATE: AUDIT OBJECTIVES
               </Button>
@@ -355,6 +376,7 @@ export default function CreateAuditStep2Page() {
                 type="button"
                 variant="outline"
                 className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                onClick={(e) => e.stopPropagation()}
               >
                 AUTO-POPULATE: AUDIT TYPE
               </Button>
@@ -362,6 +384,7 @@ export default function CreateAuditStep2Page() {
                 type="button"
                 variant="outline"
                 className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                onClick={(e) => e.stopPropagation()}
               >
                 AUTO-POPULATE: AUDIT CRITERIA
               </Button>
@@ -370,13 +393,31 @@ export default function CreateAuditStep2Page() {
         </div>
 
         {/* Option B: New Audit Plan */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="text-base font-bold text-gray-900">
-            OPTION B: NEW AUDIT PLAN
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            START AN INSTANT AUDIT PLAN
-          </p>
+        <div
+          onClick={() => setSelectedPlanOption("B")}
+          className={cn(
+            "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
+            "hover:shadow-md",
+            selectedPlanOption === "B"
+              ? "border-green-600 bg-green-50/30"
+              : "border-gray-200 hover:border-gray-300"
+          )}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-gray-900">
+                OPTION B: NEW AUDIT PLAN
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                START AN INSTANT AUDIT PLAN
+              </p>
+            </div>
+            {selectedPlanOption === "B" && (
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
+                <Check className="h-4 w-4 text-white" />
+              </div>
+            )}
+          </div>
           <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50/80 p-4">
             <div className="flex gap-3">
               <AlertTriangle className="h-6 w-6 shrink-0 text-amber-600" />
@@ -405,10 +446,28 @@ export default function CreateAuditStep2Page() {
         </div>
 
         {/* Option C: Schedule New Audit Program */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <h3 className="text-base font-bold text-gray-900">
-            OPTION C: SCHEDULE NEW AUDIT PROGRAM
-          </h3>
+        <div
+          onClick={() => setSelectedPlanOption("C")}
+          className={cn(
+            "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
+            "hover:shadow-md",
+            selectedPlanOption === "C"
+              ? "border-green-600 bg-green-50/30"
+              : "border-gray-200 hover:border-gray-300"
+          )}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-gray-900">
+                OPTION C: SCHEDULE NEW AUDIT PROGRAM
+              </h3>
+            </div>
+            {selectedPlanOption === "C" && (
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
+                <Check className="h-4 w-4 text-white" />
+              </div>
+            )}
+          </div>
           <div className="mt-4 rounded-lg border border-gray-300 bg-gray-100/80 p-4">
             <div className="flex gap-3">
               <Clock className="h-5 w-5 shrink-0 text-gray-500" />

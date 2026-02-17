@@ -64,7 +64,7 @@ export default function CreateAuditStep4Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={4} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={4} orgId={orgId} exitHref="../.." />
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-red-600">
           TO BE RESPONDED BY THE AUDITEE

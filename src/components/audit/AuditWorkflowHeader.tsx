@@ -11,8 +11,8 @@ import {
   CheckCircle,
   Check,
   Save,
-  Info,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   { step: 1, label: "Managing Audit Program", icon: FileText },
@@ -25,15 +25,22 @@ const STEPS = [
 
 interface AuditWorkflowHeaderProps {
   currentStep: number;
+  orgId?: string;
   saveDraftHref?: string;
   exitHref?: string;
 }
 
 export default function AuditWorkflowHeader({
   currentStep,
+  orgId,
   saveDraftHref = "#",
   exitHref = "../..",
 }: AuditWorkflowHeaderProps) {
+  const getStepHref = (step: number) => {
+    if (!orgId) return "#";
+    return `/dashboard/${orgId}/audit/create/${step}`;
+  };
+
   return (
     <>
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -57,64 +64,106 @@ export default function AuditWorkflowHeader({
           </div>
         </div>
 
-        {/* Progress */}
-        <div className="relative pt-4 pb-2">
-          {/* Track */}
-          <div className="absolute left-0 right-0 top-[33px] h-2 rounded-full bg-gray-200 z-0" 
-          style={{ top: "33px" }}
-          />
+        {/* Tabs */}
+        <div className="flex gap-2">
+          {STEPS.map(({ step, label, icon: Icon }) => {
+            const isFirstStep = step === 1;
+            const isSecondStep = step === 2;
+            const isLastStep = step === STEPS.length; // Last step (step 6)
+            
+            // Only steps 1, 2, and 6 are accessible
+            const isAccessible = isFirstStep || isSecondStep || isLastStep;
+            
+            // Only accessible steps can be marked as completed (locked tabs never show as completed)
+            const isCompleted = isAccessible && currentStep > step;
+            const isCurrent = currentStep === step;
+            
+            // Determine if unlocked (for accessible steps only)
+            const isUnlocked = isAccessible && (
+              isCompleted || 
+              isCurrent || 
+              (isSecondStep && currentStep === 1) || // Step 2 unlocked when on step 1
+              (isLastStep && currentStep !== STEPS.length && !isCompleted) // Step 6 unlocked unless it's current
+            );
 
-          {/* Filled progress */}
-          <div
-            className="absolute left-0 top-[33px] h-2 rounded-full bg-green-500 z-0 transition-all duration-300"
-            style={{
-              width: `${((currentStep - 0.5) / STEPS.length) * 100}%`,
-              top: "33px",
-            }}
-          />
-
-          {/* Steps */}
-          <div className="relative z-10 grid grid-cols-6 gap-2">
-            {STEPS.map(({ step, label, icon: Icon }) => {
-              const isCompleted = currentStep > step;
-              const isCurrent = currentStep === step;
-
-              const circleClasses = isCompleted
-                ? "bg-green-500 border-green-600 text-white"
+            // Tab container classes - rounded rectangular tabs
+            const tabClasses = cn(
+              "flex-1 rounded-lg border-2 transition-all duration-200",
+              "flex flex-col items-center justify-center py-4 px-2 min-h-[100px]",
+              !isAccessible
+                ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60" // Always disabled for steps 3, 4, 5
+                : isCompleted
+                ? "bg-green-50 border-green-600 hover:bg-green-100 cursor-pointer"
                 : isCurrent
-                ? "bg-white border-green-600 text-green-600"
-                : "bg-gray-50 border-gray-300 text-gray-400";
+                ? "bg-green-600 border-green-600 cursor-pointer" // Solid green, border matches background
+                : isUnlocked
+                ? "bg-white border-green-600 hover:bg-green-50 cursor-pointer" // White with green border
+                : "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60" // Disabled
+            );
 
-              const IconComponent = isCompleted || isCurrent ? Check : Icon;
+            // Icon circle classes
+            const iconCircleClasses = cn(
+              "flex h-10 w-10 items-center justify-center rounded-full border-2 mb-2",
+              isCompleted
+                ? "bg-green-500 border-green-600"
+                : "bg-white border-gray-300" // White circle for current, unlocked, and disabled
+            );
 
+            // Icon component - completed shows checkmark, others show original icon
+            const IconComponent = isCompleted ? Check : Icon;
+
+            // Icon color classes
+            const iconColorClasses = cn(
+              "h-5 w-5",
+              isCompleted
+                ? "text-white"
+                : isCurrent || isUnlocked
+                ? "text-gray-600" // Gray icon for current and unlocked tabs
+                : "text-gray-400" // Light gray for disabled tabs
+            );
+
+            // Text classes
+            const textClasses = cn(
+              "text-xs font-semibold text-center leading-tight px-1",
+              isCompleted
+                ? "text-green-700"
+                : isCurrent
+                ? "text-white"
+                : isUnlocked
+                ? "text-gray-700" // Dark gray for unlocked
+                : "text-gray-400" // Light gray for disabled
+            );
+
+            const stepHref = getStepHref(step);
+
+            const tabContent = (
+              <>
+                <div className={iconCircleClasses}>
+                  <IconComponent className={iconColorClasses} strokeWidth={2.5} />
+                </div>
+                <div className={textClasses}>{label}</div>
+              </>
+            );
+
+            // Only allow navigation to accessible steps that are completed, current, or unlocked
+            if (!isAccessible || (!isCompleted && !isCurrent && !isUnlocked)) {
               return (
-                <div key={step} className="flex flex-col items-center">
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ring-4 ring-white shadow-sm ${circleClasses}`}
-                  >
-                    <IconComponent className="h-5 w-5" strokeWidth={2.5} />
-                  </div>
-
-                  <div className="mt-3 text-center">
-                    <div className="text-xs uppercase tracking-wide text-gray-500">
-                      Step {step}
-                    </div>
-                    <div
-                      className={`mt-1 text-xs leading-tight ${
-                        isCurrent
-                          ? "font-semibold text-green-700 bg-green-50 rounded px-1"
-                          : isCompleted
-                          ? "font-semibold text-green-600"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      {label}
-                    </div>
-                  </div>
+                <div key={step} className={tabClasses}>
+                  {tabContent}
                 </div>
               );
-            })}
-          </div>
+            }
+
+            return (
+              <Link
+                key={step}
+                href={stepHref}
+                className={tabClasses}
+              >
+                {tabContent}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </>

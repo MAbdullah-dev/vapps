@@ -161,7 +161,7 @@ export default function CreateAuditStep1Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={1} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={1} orgId={orgId} exitHref="../.." />
 
       <div className="rounded-lg border border-gray-200 bg-white  shadow-sm">
         {/* Organization Context Section */}
@@ -322,111 +322,7 @@ export default function CreateAuditStep1Page() {
             </p>
           </div>
         </div>
-        {/* Audit Program Owner & Delegation Section */}
-        <div className="rounded-lg border border-gray-200 bg-green-50/50 p-8 shadow-sm mx-8 my-8">
-          <div className="mb-6 flex items-center gap-2">
-            <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
-              <Info className="h-3 w-3" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                PROCESS / DEPARTMENT SELECTOR
-              </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={processSearch}
-                  onChange={(e) => setProcessSearch(e.target.value)}
-                  placeholder="Search Process"
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                RESPONSIBLE PERSON (OWNER)
-              </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={ownerSearch}
-                  onChange={(e) => setOwnerSearch(e.target.value)}
-                  placeholder="Search Person"
-                  className="pl-8"
-                />
-              </div>
-            </div>
-          </div>
-          <p className="mt-4 text-sm italic text-gray-600">
-            Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.
-          </p>
-        </div>
-        {/* Objectives Info Box */}
-        <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mx-8 my-8">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
-            <Info className="h-4 w-4" />
-          </div>
-          <p className="text-sm text-gray-700">
-            <span className="font-medium">Define Audit Objectives</span> Aligned With ISO And ESG Requirements.{" "}
-            <em>Verify Management System Conformity</em> And Evaluate Effectiveness, Performance, And ESG Practices.{" "}
-            <span className="font-medium">Support Risk-Based Decision-Making</span> And Continual Improvement.
-          </p>
-        </div>
-        {/* Program Purpose & Objectives */}
-        <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">
-            PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[
-              {
-                id: "conformity",
-                title: "Management system conformity with standards",
-                sub: "ISO 9001, 14001, 45001",
-              },
-              {
-                id: "effectiveness",
-                title: "Evaluation of system effectiveness",
-                sub: "Process performance and outcomes",
-              },
-              {
-                id: "esg",
-                title: "Assessment of ESG practices & disclosures",
-                sub: "GRI, IFRS S1/S2 Alignment",
-              },
-              {
-                id: "risk",
-                title: "Risk-based decision making support",
-                sub: "Identifying vulnerabilities in system",
-              },
-            ].map((opt) => (
-              <Label
-                key={opt.id}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
-                  programPurpose === opt.id
-                    ? "border-green-500 bg-green-50/50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                )}
-              >
-                <Checkbox
-                  checked={programPurpose === opt.id}
-                  onCheckedChange={(checked) =>
-                    setProgramPurpose(checked ? opt.id : null)
-                  }
-                  className="mt-0.5 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">{opt.title}</div>
-                  <div className="text-sm text-gray-500">{opt.sub}</div>
-                </div>
-              </Label>
-            ))}
-          </div>
-        </div>
+
         {/* Context, Scope, Type & Criteria */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-gray-900">
@@ -539,6 +435,113 @@ export default function CreateAuditStep1Page() {
             </div>
           </div>
         </div>
+
+        {/* Audit Program Owner & Delegation Section */}
+        <div className="rounded-lg border border-gray-200 bg-green-50/50 p-8 shadow-sm mx-8 my-8">
+          <div className="mb-6 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+              <Info className="h-3 w-3" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                PROCESS / DEPARTMENT SELECTOR
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={processSearch}
+                  onChange={(e) => setProcessSearch(e.target.value)}
+                  placeholder="Search Process"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                RESPONSIBLE PERSON (OWNER)
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={ownerSearch}
+                  onChange={(e) => setOwnerSearch(e.target.value)}
+                  placeholder="Search Person"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 text-sm italic text-gray-600">
+            Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.
+          </p>
+        </div>
+        {/* Objectives Info Box */}
+        <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mx-8 my-8">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+            <Info className="h-4 w-4" />
+          </div>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Define Audit Objectives</span> Aligned With ISO And ESG Requirements.{" "}
+            <em>Verify Management System Conformity</em> And Evaluate Effectiveness, Performance, And ESG Practices.{" "}
+            <span className="font-medium">Support Risk-Based Decision-Making</span> And Continual Improvement.
+          </p>
+        </div>
+        {/* Program Purpose & Objectives */}
+        <div className="p-8">
+          <h2 className="mb-6 text-xl font-bold text-gray-900">
+            PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {[
+              {
+                id: "conformity",
+                title: "Management system conformity with standards",
+                sub: "ISO 9001, 14001, 45001",
+              },
+              {
+                id: "effectiveness",
+                title: "Evaluation of system effectiveness",
+                sub: "Process performance and outcomes",
+              },
+              {
+                id: "esg",
+                title: "Assessment of ESG practices & disclosures",
+                sub: "GRI, IFRS S1/S2 Alignment",
+              },
+              {
+                id: "risk",
+                title: "Risk-based decision making support",
+                sub: "Identifying vulnerabilities in system",
+              },
+            ].map((opt) => (
+              <Label
+                key={opt.id}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+                  programPurpose === opt.id
+                    ? "border-green-500 bg-green-50/50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                )}
+              >
+                <Checkbox
+                  checked={programPurpose === opt.id}
+                  onCheckedChange={(checked) =>
+                    setProgramPurpose(checked ? opt.id : null)
+                  }
+                  className="mt-0.5 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                />
+                <div>
+                  <div className="font-medium text-gray-900">{opt.title}</div>
+                  <div className="text-sm text-gray-500">{opt.sub}</div>
+                </div>
+              </Label>
+            ))}
+          </div>
+        </div>
+
         {/* Audit Program Criteria */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-gray-900">
@@ -732,7 +735,7 @@ export default function CreateAuditStep1Page() {
           ].map((kpi) => (
             <div key={kpi.label} className="rounded-lg border border-gray-200 bg-gray-50 p-6">
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{kpi.label}</div>
-              <div className="mt-2 flex items-baseline gap-2">
+              <div className="mt-2 flex items-baseline justify-between gap-2">
                 <span className="text-2xl font-bold text-gray-900">{kpi.value}</span>
                 <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", kpi.badgeClass)}>{kpi.badge}</span>
               </div>

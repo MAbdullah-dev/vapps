@@ -27,7 +27,7 @@ export default function CreateAuditStep6Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={6} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={6} orgId={orgId} exitHref="../.." />
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">

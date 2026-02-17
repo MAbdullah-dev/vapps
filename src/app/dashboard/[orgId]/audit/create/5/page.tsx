@@ -49,7 +49,7 @@ export default function CreateAuditStep5Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={5} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={5} orgId={orgId} exitHref="../.." />
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         {/* Main title with thick green vertical bar to the left */}
         <div className="flex items-center">
