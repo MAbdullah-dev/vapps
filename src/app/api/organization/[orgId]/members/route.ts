@@ -20,11 +20,23 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get organization to identify owner
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+
     // Fetch members (UserOrganization + User)
-    // Use minimal select so this works before migration: avoid lastActive/leadershipTier if not in client
+    // Explicitly select jobTitle to ensure it's included
     const memberships = await prisma.userOrganization.findMany({
       where: { organizationId: orgId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        organizationId: true,
+        role: true,
+        leadershipTier: true,
+        jobTitle: true, // Explicitly select jobTitle
         user: {
           select: { id: true, name: true, email: true, image: true },
         },
@@ -34,7 +46,7 @@ export async function GET(
     // Fetch pending invitations; role comes from tenant (or master if migrated)
     const pendingInvites = await prisma.invitation.findMany({
       where: { organizationId: orgId, status: "pending" },
-      select: { id: true, email: true, token: true },
+      select: { id: true, email: true, token: true, jobTitle: true },
     });
 
     let inviteRoles: Record<string, string> = {};
@@ -65,6 +77,8 @@ export async function GET(
 
     const siteAssignments: Record<string, { siteId: string; siteName: string }[]> = {};
     const processAssignments: Record<string, { processId: string; processName: string; siteId: string; siteName: string }[]> = {};
+    const siteIdMap: Record<string, string> = {}; // Map user_id to first siteId
+    const processIdMap: Record<string, string> = {}; // Map user_id to first processId
 
     if (operationalAndSupportUserIds.length > 0 && ctx.tenant?.connectionString) {
       try {
@@ -90,6 +104,10 @@ export async function GET(
               siteId: row.site_id,
               siteName: row.site_name,
             });
+            // Store first siteId for editing
+            if (!siteIdMap[row.user_id]) {
+              siteIdMap[row.user_id] = row.site_id;
+            }
           });
 
           // Get process assignments for Support users (includes site info)
@@ -119,6 +137,14 @@ export async function GET(
               siteId: row.site_id,
               siteName: row.site_name,
             });
+            // Store first processId for editing
+            if (!processIdMap[row.user_id]) {
+              processIdMap[row.user_id] = row.process_id;
+            }
+            // Also store siteId from process if not already set
+            if (!siteIdMap[row.user_id]) {
+              siteIdMap[row.user_id] = row.site_id;
+            }
           });
         });
       } catch (e) {
@@ -126,10 +152,13 @@ export async function GET(
       }
     }
 
+    const ownerId = organization?.ownerId;
+
     const activeMembers = memberships.map((m) => {
       const tier = roleToLeadershipTier(m.role);
       const sites = siteAssignments[m.user.id] || [];
       const processes = processAssignments[m.user.id] || [];
+      const isOwner = m.user.id === ownerId;
 
       return {
         id: m.user.id,
@@ -137,17 +166,24 @@ export async function GET(
         email: m.user.email || "",
         leadershipTier: tier,
         systemRole: roleToSystemRoleDisplay(m.role),
+        jobTitle: m.jobTitle ?? (isOwner ? "Owner" : undefined),
+        isOwner: isOwner,
         status: "Active" as const,
         lastActive: "—",
         avatar: m.user.image ?? undefined,
         // Add site/process info for Operational and Support
         ...(tier === "Operational" && sites.length > 0
-          ? { siteName: sites.map((s) => s.siteName).join(", ") }
+          ? { 
+              siteName: sites.map((s) => s.siteName).join(", "),
+              siteId: siteIdMap[m.user.id],
+            }
           : {}),
         ...(tier === "Support" && processes.length > 0
           ? {
               siteName: processes[0]?.siteName || "",
               processName: processes.map((p) => p.processName).join(", "),
+              siteId: siteIdMap[m.user.id],
+              processId: processIdMap[m.user.id],
             }
           : {}),
       };
@@ -204,6 +240,8 @@ export async function GET(
           email: inv.email,
           leadershipTier: tier,
           systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
+          jobTitle: inv.jobTitle ?? undefined,
+          isOwner: false,
           status: "Invited" as const,
           lastActive: "Never",
           avatar: undefined,

@@ -19,7 +19,19 @@ export async function POST(req: NextRequest) {
     // 1️⃣ Validate invite in master DB
     const masterInvite = await prisma.invitation.findUnique({
       where: { token },
-      include: {
+      select: {
+        id: true,
+        token: true,
+        organizationId: true,
+        email: true,
+        name: true, // Select name from invitation
+        role: true,
+        jobTitle: true,
+        siteId: true,
+        processId: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
         organization: {
           include: { database: true },
         },
@@ -125,6 +137,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({
       data: {
         email: masterInvite.email,
+        name: masterInvite.name || null, // Save name from invitation
         password: hashed,
         emailVerified: new Date(), // invited users are auto-verified
       },
@@ -155,12 +168,15 @@ export async function POST(req: NextRequest) {
         const leadershipTier = roleToLeadershipTier(inviteRole);
         
         if (!existingMembership) {
+          const jobTitleToSave = masterInvite.jobTitle ?? null;
+          
           await prisma.userOrganization.create({
             data: {
               userId: user.id,
               organizationId: orgId,
               role: inviteRole,
               leadershipTier: leadershipTier, // Store leadership tier explicitly
+              jobTitle: jobTitleToSave, // Store jobTitle from invitation
             },
           });
 

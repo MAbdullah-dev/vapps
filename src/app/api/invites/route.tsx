@@ -18,7 +18,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     bodyData = body; // Store for error logging
-    const { orgId, siteId, processId, email, role = "member" } = body;
+    const { orgId, siteId, processId, email, fullName, role = "member", jobTitle } = body;
+    
+    // Log jobTitle for debugging
+    logger.info("Creating invitation with jobTitle", {
+      email,
+      jobTitle: jobTitle || "null/undefined",
+      jobTitleType: typeof jobTitle,
+    });
 
     // Validation: orgId and email always required
     if (!orgId || !email) {
@@ -87,12 +94,24 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
 
     // Create new invitation in master DB
+    // Ensure jobTitle is a string or null (not undefined or empty string)
+    const jobTitleValue = jobTitle && typeof jobTitle === "string" && jobTitle.trim() !== "" 
+      ? jobTitle.trim() 
+      : null;
+    
+    // Ensure name is a string or null
+    const nameValue = fullName && typeof fullName === "string" && fullName.trim() !== ""
+      ? fullName.trim()
+      : null;
+    
     const masterInvite = await prisma.invitation.create({
       data: {
         token,
         organizationId: orgId,
         email,
+        name: nameValue, // Store user's name in invitation
         role: normalizedRole, // Store role in master DB for easier listing
+        jobTitle: jobTitleValue, // Store jobTitle in master DB
         siteId: siteId ?? null, // Store siteId in master DB
         processId: processId ?? null, // Store processId in master DB
         status: "pending",
@@ -100,8 +119,15 @@ export async function POST(req: NextRequest) {
         invitedBy: user.id,
       },
     });
+    
+    logger.info("Invitation created with jobTitle", {
+      inviteId: masterInvite.id,
+      email,
+      jobTitle: masterInvite.jobTitle || "null",
+    });
 
     // Store tenant-specific invitation
+    // Note: jobTitle is stored in master DB only, read from masterInvite when accepting
     await withTenantConnection(org.database.connectionString, async (client) => {
       await client.query(
         `

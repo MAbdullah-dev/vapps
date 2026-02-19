@@ -85,12 +85,14 @@ export default function InvitePage() {
   // Only runs if invite is still pending (not already accepted)
   useEffect(() => {
     const autoAccept = async () => {
+      // Double-check conditions before accepting
       if (
         status === "authenticated" &&
         session?.user?.email &&
         inviteData &&
         token &&
         session.user.email.toLowerCase() === inviteData.email.toLowerCase() &&
+        inviteData.status === "pending" &&
         !isAccepting
       ) {
         setIsAccepting(true);
@@ -100,7 +102,9 @@ export default function InvitePage() {
           router.push(`/auth/resolve`);
         } catch (err: any) {
           // If invite was already accepted, just redirect (don't show error)
-          if (err.message?.includes("already been accepted") || err.message?.includes("already used") || err.message?.includes("already been")) {
+          if (err.message?.includes("already been accepted") || 
+              err.message?.includes("already used") || 
+              err.message?.includes("already been")) {
             // Invite already accepted, just redirect
             router.push(`/auth/resolve`);
           } else {
@@ -111,20 +115,32 @@ export default function InvitePage() {
       }
     };
 
-    // Only try to auto-accept if user is authenticated and invite data is loaded
-    // Don't auto-accept if invite is already accepted, or if there's an error
+    // Only try to auto-accept if:
+    // 1. User is authenticated
+    // 2. Session email matches invite email
+    // 3. Invite data is loaded
+    // 4. Invite is still pending
+    // 5. Not already accepting
+    // 6. No errors
     if (
       status === "authenticated" && 
+      session?.user?.email &&
       inviteData && 
       token && 
       !isAccepting && 
       !error &&
-      inviteData.status !== "accepted" // Don't auto-accept if already accepted
+      inviteData.status === "pending" &&
+      session.user.email.toLowerCase() === inviteData.email.toLowerCase()
     ) {
-      autoAccept();
+      // Small delay to ensure session is fully loaded
+      const timer = setTimeout(() => {
+        autoAccept();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, session?.user?.email, inviteData?.email, token]);
+  }, [status, session?.user?.email, inviteData?.email, inviteData?.status, token, isAccepting, error]);
 
   const handleAcceptInvite = async () => {
     if (!token) return;
