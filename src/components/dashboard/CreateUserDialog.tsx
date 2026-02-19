@@ -394,7 +394,7 @@ export default function CreateUserDialog({
             <Select value={jobTitle} onValueChange={handleJobTitleChange}>
               <SelectTrigger
                 id="jobTitle"
-                className={errors.jobTitle ? "border-red-500" : ""}
+                className={`w-full ${errors.jobTitle ? "border-red-500" : ""}`}
               >
                 <SelectValue placeholder="Select job title" />
               </SelectTrigger>
