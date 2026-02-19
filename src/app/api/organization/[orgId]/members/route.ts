@@ -20,11 +20,28 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get organization to identify owner
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+
+    if (!organization) {
+      return NextResponse.json(
+        { error: "Organization not found" },
+        { status: 404 }
+      );
+    }
+
     // Fetch members (UserOrganization + User)
-    // Use minimal select so this works before migration: avoid lastActive/leadershipTier if not in client
+    // Only select fields that exist in DB (jobTitle/leadershipTier may be missing until migration is run)
     const memberships = await prisma.userOrganization.findMany({
       where: { organizationId: orgId },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        organizationId: true,
+        role: true,
         user: {
           select: { id: true, name: true, email: true, image: true },
         },
@@ -65,6 +82,8 @@ export async function GET(
 
     const siteAssignments: Record<string, { siteId: string; siteName: string }[]> = {};
     const processAssignments: Record<string, { processId: string; processName: string; siteId: string; siteName: string }[]> = {};
+    const siteIdMap: Record<string, string> = {}; // Map user_id to first siteId
+    const processIdMap: Record<string, string> = {}; // Map user_id to first processId
 
     if (operationalAndSupportUserIds.length > 0 && ctx.tenant?.connectionString) {
       try {
@@ -90,6 +109,10 @@ export async function GET(
               siteId: row.site_id,
               siteName: row.site_name,
             });
+            // Store first siteId for editing
+            if (!siteIdMap[row.user_id]) {
+              siteIdMap[row.user_id] = row.site_id;
+            }
           });
 
           // Get process assignments for Support users (includes site info)
@@ -119,6 +142,14 @@ export async function GET(
               siteId: row.site_id,
               siteName: row.site_name,
             });
+            // Store first processId for editing
+            if (!processIdMap[row.user_id]) {
+              processIdMap[row.user_id] = row.process_id;
+            }
+            // Also store siteId from process if not already set
+            if (!siteIdMap[row.user_id]) {
+              siteIdMap[row.user_id] = row.site_id;
+            }
           });
         });
       } catch (e) {
@@ -126,10 +157,13 @@ export async function GET(
       }
     }
 
+    const ownerId = organization.ownerId;
+
     const activeMembers = memberships.map((m) => {
       const tier = roleToLeadershipTier(m.role);
       const sites = siteAssignments[m.user.id] || [];
       const processes = processAssignments[m.user.id] || [];
+      const isOwner = m.user.id === ownerId;
 
       return {
         id: m.user.id,
@@ -137,17 +171,24 @@ export async function GET(
         email: m.user.email || "",
         leadershipTier: tier,
         systemRole: roleToSystemRoleDisplay(m.role),
+        jobTitle: (m as { jobTitle?: string }).jobTitle ?? (isOwner ? "Owner" : undefined),
+        isOwner: isOwner,
         status: "Active" as const,
         lastActive: "—",
         avatar: m.user.image ?? undefined,
         // Add site/process info for Operational and Support
         ...(tier === "Operational" && sites.length > 0
-          ? { siteName: sites.map((s) => s.siteName).join(", ") }
+          ? { 
+              siteName: sites.map((s) => s.siteName).join(", "),
+              siteId: siteIdMap[m.user.id],
+            }
           : {}),
         ...(tier === "Support" && processes.length > 0
           ? {
               siteName: processes[0]?.siteName || "",
               processName: processes.map((p) => p.processName).join(", "),
+              siteId: siteIdMap[m.user.id],
+              processId: processIdMap[m.user.id],
             }
           : {}),
       };
@@ -204,6 +245,8 @@ export async function GET(
           email: inv.email,
           leadershipTier: tier,
           systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
+          jobTitle: (inv as { jobTitle?: string }).jobTitle ?? undefined,
+          isOwner: false,
           status: "Invited" as const,
           lastActive: "Never",
           avatar: undefined,
@@ -220,8 +263,13 @@ export async function GET(
     return NextResponse.json({ teamMembers });
   } catch (error: any) {
     console.error("Error fetching organization members:", error);
+    const message = error?.message || "Unknown error";
+    // Return actual error so client toast can show it (e.g. DB connection, missing table)
     return NextResponse.json(
-      { error: "Failed to fetch members", message: error.message },
+      {
+        error: message,
+        code: "FETCH_MEMBERS_FAILED",
+      },
       { status: 500 }
     );
   }

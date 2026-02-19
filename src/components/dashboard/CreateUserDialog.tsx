@@ -265,12 +265,19 @@ export default function CreateUserDialog({
           ? null
           : process || null;
 
+      // Ensure jobTitle is sent as a string when provided
+      const jobTitleToSend = jobTitle && jobTitle.trim() !== "" ? String(jobTitle).trim() : null;
+      
+      console.log("Sending invitation with jobTitle:", jobTitleToSend, "original:", jobTitle);
+      
       await apiClient.post("/invites", {
         orgId,
         email: email.trim(),
+        fullName: fullName.trim(),
         siteId,
         processId,
         role: systemRole.toLowerCase(),
+        jobTitle: jobTitleToSend,
       });
 
       setFullName("");

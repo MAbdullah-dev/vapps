@@ -68,6 +68,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processData, setProcessData] = useState<{ siteId: string } | null>(null);
   const [isLoadingProcess, setIsLoadingProcess] = useState(true);
+  const [userRole, setUserRole] = useState<string>("member");
 
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [editorContent, setEditorContent] = useState("");
@@ -102,6 +103,19 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     setComments((prev) => [newComment, ...prev])
     setCommentText("")
   }
+
+  // Fetch current user role (Level 1 = owner/admin, Level 2 = manager, Level 3 = member)
+  useEffect(() => {
+    if (!orgId) return;
+    apiClient
+      .getSites(orgId as string)
+      .then((data) => setUserRole(data.userRole || "member"))
+      .catch(() => setUserRole("member"));
+  }, [orgId]);
+
+  // Create/Edit Issue form: only Level 1 (owner, admin) and Level 2 (manager) can access
+  const canAccessIssueForm =
+    userRole === "owner" || userRole === "admin" || userRole === "manager";
 
   // Fetch metadata, sprints, and process users on mount
   useEffect(() => {
@@ -144,6 +158,12 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
       // Only handle if it's for this process
       if (eventOrgId !== orgId || eventProcessId !== processId) return;
+
+      // Level 3 (member) cannot create or edit issues
+      if (!canAccessIssueForm) {
+        toast.error("Create and edit issues is available for Level 1 and Level 2 only.");
+        return;
+      }
 
       // Open in create mode when no issueId (e.g. from timeline "add")
       if (!issueId) {
@@ -194,10 +214,14 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     return () => {
       window.removeEventListener('openIssueDialog', handleOpenIssueDialog);
     };
-  }, [orgId, processId]);
+  }, [orgId, processId, canAccessIssueForm]);
 
   // Reset form when dialog closes
   const handleDialogOpenChange = (open: boolean) => {
+    if (open && !canAccessIssueForm) {
+      toast.error("Create and edit issues is available for Level 1 and Level 2 only.");
+      return;
+    }
     setIsCreateDialogOpen(open);
     if (!open) {
       // Reset form when dialog closes
@@ -549,13 +573,28 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           </p>
         </div>
 
-        {/* Create Issue Dialog */}
+        {/* Create Issue Dialog - only Level 1 & 2 can access */}
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
-          <DialogTrigger asChild>
-            <Button variant="default">
-              <Plus size={16} /> New Issue
-            </Button>
-          </DialogTrigger>
+          {canAccessIssueForm ? (
+            <DialogTrigger asChild>
+              <Button variant="default">
+                <Plus size={16} /> New Issue
+              </Button>
+            </DialogTrigger>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button variant="default" disabled className="cursor-not-allowed opacity-60">
+                    <Plus size={16} /> New Issue
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create and edit issues is available for Level 1 and Level 2 only.</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
           <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
             <DialogHeader>

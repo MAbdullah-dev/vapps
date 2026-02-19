@@ -23,9 +23,24 @@ export async function POST(req: NextRequest) {
     }
 
     // O(1) lookup: Find invitation in master DB by token
+    // Explicitly select jobTitle and name to ensure they're included even if Prisma client is outdated
     const masterInvite = await prisma.invitation.findUnique({
       where: { token },
-      include: {
+      select: {
+        id: true,
+        token: true,
+        organizationId: true,
+        email: true,
+        name: true, // Explicitly select name
+        role: true,
+        jobTitle: true, // Explicitly select jobTitle
+        siteId: true,
+        processId: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+        acceptedAt: true,
+        invitedBy: true,
         organization: {
           include: { database: true },
         },
@@ -129,16 +144,71 @@ export async function POST(req: NextRequest) {
         // Handle organization membership
         const leadershipTier = roleToLeadershipTier(inviteRole);
         
+        // Update user's name if provided in invitation and user's name is empty
+        if (masterInvite.name && (!user.name || user.name.trim() === "")) {
+          try {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { name: masterInvite.name },
+            });
+            logger.info("Updated user name from invitation", {
+              userId: user.id,
+              name: masterInvite.name,
+            });
+          } catch (updateError: any) {
+            // Log but don't fail - name update is not critical
+            logger.warn("Failed to update user name from invitation", updateError, {
+              userId: user.id,
+              name: masterInvite.name,
+            });
+          }
+        }
+        
         if (!existingMembership) {
           // Create new membership
-          await prisma.userOrganization.create({
-            data: {
-              userId: user.id,
-              organizationId: orgId,
-              role: inviteRole,
-              leadershipTier: leadershipTier, // Store leadership tier explicitly
-            },
+          const jobTitleToSave = masterInvite.jobTitle ?? null;
+          
+          logger.info("Creating UserOrganization with jobTitle", {
+            userId: user.id,
+            orgId,
+            inviteJobTitle: masterInvite.jobTitle || "null",
+            jobTitleToSave: jobTitleToSave || "null",
           });
+          
+          // Create UserOrganization with jobTitle
+          // Use try-catch to handle case where Prisma client doesn't recognize jobTitle field yet
+          try {
+            await prisma.userOrganization.create({
+              data: {
+                userId: user.id,
+                organizationId: orgId,
+                role: inviteRole,
+                leadershipTier: leadershipTier, // Store leadership tier explicitly
+                jobTitle: jobTitleToSave, // Store jobTitle from invitation
+              },
+            });
+          } catch (prismaError: any) {
+            // If jobTitle field doesn't exist in Prisma client, create without it and log warning
+            if (prismaError.message?.includes("Unknown argument `jobTitle`") || 
+                prismaError.message?.includes("jobTitle")) {
+              logger.warn("Prisma client doesn't recognize jobTitle field, creating without it", {
+                userId: user.id,
+                orgId,
+                error: prismaError.message,
+              });
+              await prisma.userOrganization.create({
+                data: {
+                  userId: user.id,
+                  organizationId: orgId,
+                  role: inviteRole,
+                  leadershipTier: leadershipTier,
+                  // jobTitle omitted - will be null until Prisma client is regenerated
+                },
+              });
+            } else {
+              throw prismaError; // Re-throw if it's a different error
+            }
+          }
 
           logger.info("User added to organization", {
             userId: user.id,
@@ -150,18 +220,57 @@ export async function POST(req: NextRequest) {
           // User already a member - upgrade role if invite role is higher
           const currentRole = normalizeRole(existingMembership.role);
           if (isRoleHigher(inviteRole, currentRole)) {
-            await prisma.userOrganization.update({
-              where: {
-                userId_organizationId: {
-                  userId: user.id,
-                  organizationId: orgId,
-                },
-              },
-              data: { 
-                role: inviteRole,
-                leadershipTier: leadershipTier, // Update leadership tier when role changes
-              },
+            const jobTitleToUpdate = masterInvite.jobTitle ?? null;
+            
+            logger.info("Updating UserOrganization with jobTitle", {
+              userId: user.id,
+              orgId,
+              inviteJobTitle: masterInvite.jobTitle || "null",
+              jobTitleToUpdate: jobTitleToUpdate || "null",
             });
+            
+            // Update UserOrganization with jobTitle
+            // Use try-catch to handle case where Prisma client doesn't recognize jobTitle field yet
+            try {
+              await prisma.userOrganization.update({
+                where: {
+                  userId_organizationId: {
+                    userId: user.id,
+                    organizationId: orgId,
+                  },
+                },
+                data: { 
+                  role: inviteRole,
+                  leadershipTier: leadershipTier, // Update leadership tier when role changes
+                  jobTitle: jobTitleToUpdate, // Update jobTitle from invitation
+                },
+              });
+            } catch (prismaError: any) {
+              // If jobTitle field doesn't exist in Prisma client, update without it and log warning
+              if (prismaError.message?.includes("Unknown argument `jobTitle`") || 
+                  prismaError.message?.includes("jobTitle")) {
+                logger.warn("Prisma client doesn't recognize jobTitle field, updating without it", {
+                  userId: user.id,
+                  orgId,
+                  error: prismaError.message,
+                });
+                await prisma.userOrganization.update({
+                  where: {
+                    userId_organizationId: {
+                      userId: user.id,
+                      organizationId: orgId,
+                    },
+                  },
+                  data: { 
+                    role: inviteRole,
+                    leadershipTier: leadershipTier,
+                    // jobTitle omitted - will remain null until Prisma client is regenerated
+                  },
+                });
+              } else {
+                throw prismaError; // Re-throw if it's a different error
+              }
+            }
 
             logger.info("User role upgraded", {
               userId: user.id,

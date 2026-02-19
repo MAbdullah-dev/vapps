@@ -86,8 +86,10 @@ export async function GET(
           );
         }
       } else if (isSupportLeadership) {
+        // For Support, check if they have access to this process
+        // processes.id is TEXT, process_users.process_id is UUID - cast UUID to TEXT for comparison
         const processAccessResult = await client.query(
-          `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id = $2::text::uuid`,
+          `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
           [ctx.user.id, processId]
         );
         if (processAccessResult.rows.length === 0) {
