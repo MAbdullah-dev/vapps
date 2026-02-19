@@ -74,11 +74,13 @@ model UserOrganization {
   organizationId String
   role           String       @default("member")
   leadershipTier String?      // Top, Operational, Support - derived from role but stored for easier querying
+  jobTitle       String?      // Job title: CEO, CTO, VP, Director, Manager, Supervisor, Team Lead, etc.
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
   @@index([leadershipTier])
+  @@index([jobTitle])
 }
 
 model OrgDatabaseInstance {
@@ -98,7 +100,9 @@ model Invitation {
   token          String       @unique
   organizationId String
   email          String
+  name           String?      // User's full name (for display when they accept)
   role           String?      // Role for the invitation (owner, admin, manager, member)
+  jobTitle       String?      // Job title: CEO, CTO, VP, Director, Manager, Supervisor, Team Lead, etc.
   siteId         String?      // Site assignment (for Operational/Support leadership)
   processId      String?      // Process assignment (for Operational/Support leadership)
   status         String       @default("pending") // pending, accepted, expired, cancelled

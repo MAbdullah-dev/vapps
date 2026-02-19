@@ -19,9 +19,11 @@ import { loginSchema, LoginInput } from "@/schemas/auth/auth.schema";
 import { apiClient } from "@/lib/api-client";
 type LoginProps = {
   onSwitch: () => void;
+  inviteToken?: string;
+  inviteEmail?: string;
 };
 
-const Login = ({ onSwitch }: LoginProps) => {
+const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -33,6 +35,9 @@ const Login = ({ onSwitch }: LoginProps) => {
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: inviteEmail || "",
+    },
   });
 
   const onSubmit = async (data: LoginInput) => {
@@ -43,8 +48,14 @@ const Login = ({ onSwitch }: LoginProps) => {
 
       toast.success("Logged in successfully");
 
-      // ✅ NO RELOAD
-      router.push("/");
+      // ✅ Redirect based on invite token
+      if (inviteToken) {
+        // If there's an invite token, redirect to invite page to auto-accept
+        router.push(`/auth/invite?token=${inviteToken}`);
+      } else {
+        // Normal login flow
+        router.push("/");
+      }
       router.refresh(); // optional but recommended for auth state update
     } catch (error: any) {
       toast.error(error.message || "Login failed");
@@ -58,8 +69,13 @@ const Login = ({ onSwitch }: LoginProps) => {
     provider: "google" | "github" | "apple" | "atlassian"
   ) => {
     try {
+      // Preserve invite token in callback URL if present
+      const callbackUrl = inviteToken 
+        ? `/auth/invite?token=${inviteToken}`
+        : "/";
+      
       await signIn(provider, {
-        callbackUrl: "/", // ✅ redirect here
+        callbackUrl,
       });
     } catch {
       toast.error("SSO login failed");
@@ -71,7 +87,11 @@ const Login = ({ onSwitch }: LoginProps) => {
       {/* Heading */}
       <div className="text-center mb-8">
         <h1 className="text-xl mb-2">Welcome Back</h1>
-        <p className="text-base text-[#4A5565]">Login to your account</p>
+        {inviteToken ? (
+          <p className="text-base text-[#4A5565]">Log in to accept your invitation</p>
+        ) : (
+          <p className="text-base text-[#4A5565]">Login to your account</p>
+        )}
       </div>
 
       {/* FORM */}
@@ -79,7 +99,12 @@ const Login = ({ onSwitch }: LoginProps) => {
         {/* Email */}
         <div className="mb-4">
           <Label className="text-sm mb-2">Email</Label>
-          <Input type="email" placeholder="Email" {...register("email")} />
+          <Input 
+            type="email" 
+            placeholder="Email" 
+            defaultValue={inviteEmail || ""}
+            {...register("email")} 
+          />
           {errors.email && (
             <p className="text-red-500 text-xs mt-1">
               {errors.email.message}

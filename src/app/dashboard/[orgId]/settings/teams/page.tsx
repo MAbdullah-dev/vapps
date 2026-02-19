@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Search, Filter, Edit, Trash2, Mail, Info, UserPlus, ChevronRight } from "lucide-react";
 import CreateUserDialog from "@/components/dashboard/CreateUserDialog";
+import EditUserDialog from "@/components/dashboard/EditUserDialog";
+import DeleteUserDialog from "@/components/dashboard/DeleteUserDialog";
 
 // Leadership to System Role mapping (single source of truth)
 const leadershipToRoleMap = {
@@ -69,6 +71,10 @@ interface TeamMember {
   avatar?: string;
   siteName?: string; // For Operational and Support: site they're assigned to
   processName?: string; // For Support: process they're assigned to
+  jobTitle?: string; // Job title: CEO, CTO, VP, Director, etc.
+  isOwner?: boolean; // Whether this user is the organization owner
+  siteId?: string; // Site ID for editing
+  processId?: string; // Process ID for editing
 }
 
 // Helper function to derive system role from leadership tier
@@ -90,6 +96,8 @@ export default function TeamsPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
+  const [deletingUser, setDeletingUser] = useState<TeamMember | null>(null);
 
   // TODO: Replace with actual current user role from auth context
   const currentUserRole: SystemRole = "Admin";
@@ -101,7 +109,7 @@ export default function TeamsPage() {
   const fetchMembers = async () => {
     try {
       setIsLoading(true);
-      const res = await apiClient.get<{ teamMembers: Array<{ id: string; name: string; email: string; leadershipTier: string; systemRole: string; status: "Active" | "Invited"; lastActive: string; avatar?: string; siteName?: string; processName?: string }> }>(`/organization/${orgId}/members`);
+      const res = await apiClient.get<{ teamMembers: Array<{ id: string; name: string; email: string; leadershipTier: string; systemRole: string; status: "Active" | "Invited"; lastActive: string; avatar?: string; siteName?: string; processName?: string; jobTitle?: string; isOwner?: boolean; siteId?: string; processId?: string }> }>(`/organization/${orgId}/members`);
       const list = (res.teamMembers || []).map((m) => ({
         id: m.id,
         name: m.name,
@@ -112,6 +120,10 @@ export default function TeamsPage() {
         avatar: m.avatar,
         siteName: m.siteName,
         processName: m.processName,
+        jobTitle: m.jobTitle,
+        isOwner: m.isOwner ?? false,
+        siteId: m.siteId,
+        processId: m.processId,
       }));
       setTeamMembers(list);
     } catch (e: any) {
@@ -300,6 +312,19 @@ export default function TeamsPage() {
                 <TableHead>User</TableHead>
                 <TableHead>
                   <div className="flex items-center gap-2">
+                    <span>Job Title</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>User's job title or role designation</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-2">
                     <span>Leadership Tier</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -359,13 +384,13 @@ export default function TeamsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={9} className="text-center text-gray-500 py-8">
                     Loading team members…
                   </TableCell>
                 </TableRow>
               ) : filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={9} className="text-center text-gray-500 py-8">
                     No team members found.
                   </TableCell>
                 </TableRow>
@@ -387,6 +412,17 @@ export default function TeamsPage() {
                           <div className="text-sm text-gray-500">{member.email}</div>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {member.isOwner ? (
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                          Owner
+                        </Badge>
+                      ) : member.jobTitle ? (
+                        <span className="text-sm font-medium text-gray-700">{member.jobTitle}</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -432,26 +468,45 @@ export default function TeamsPage() {
                     </TableCell>
                     <TableCell className="text-gray-500">{member.lastActive}</TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                      {!member.isOwner && (
+                        <div className="flex items-center justify-end gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => setEditingUser(member)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Edit user details and leadership tier (role updates automatically)</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          {member.status === "Invited" && (
                             <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Edit className="h-4 w-4" />
+                              <Mail className="h-4 w-4" />
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Edit user details and leadership tier (role updates automatically)</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        {member.status === "Invited" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-red-500 hover:text-red-700"
+                                onClick={() => setDeletingUser(member)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remove user from organization</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -470,6 +525,42 @@ export default function TeamsPage() {
         currentUserRole={currentUserRole}
         onUserCreated={fetchMembers}
       />
+
+      {/* Edit User Dialog */}
+      {editingUser && (
+        <EditUserDialog
+          open={!!editingUser}
+          onOpenChange={(open) => !open && setEditingUser(null)}
+          orgId={orgId}
+          userId={editingUser.id}
+          userName={editingUser.name}
+          userEmail={editingUser.email}
+          currentJobTitle={editingUser.jobTitle}
+          currentLeadershipTier={editingUser.leadershipTier}
+          currentSiteId={editingUser.siteId}
+          currentProcessId={editingUser.processId}
+          onUserUpdated={() => {
+            setEditingUser(null);
+            fetchMembers();
+          }}
+        />
+      )}
+
+      {/* Delete User Dialog */}
+      {deletingUser && (
+        <DeleteUserDialog
+          open={!!deletingUser}
+          onOpenChange={(open) => !open && setDeletingUser(null)}
+          orgId={orgId}
+          userId={deletingUser.id}
+          userName={deletingUser.name}
+          userEmail={deletingUser.email}
+          onUserDeleted={() => {
+            setDeletingUser(null);
+            fetchMembers();
+          }}
+        />
+      )}
     </div>
   );
 }

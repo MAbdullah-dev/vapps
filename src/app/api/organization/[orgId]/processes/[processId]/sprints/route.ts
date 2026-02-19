@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import { logActivity } from "@/lib/activity-logger";
+import { prisma } from "@/lib/prisma";
+import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 
 /**
@@ -25,10 +27,9 @@ export async function GET(
     const client = await getTenantClient(orgId);
 
     try {
-
-      // Verify process exists
+      // Verify process exists and get siteId for access check
       const processResult = await client.query(
-        `SELECT id FROM processes WHERE id = $1`,
+        `SELECT id, "siteId" FROM processes WHERE id = $1`,
         [processId]
       );
 
@@ -38,6 +39,62 @@ export async function GET(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const processSiteId = processResult.rows[0].siteId;
+
+      // Access control by leadership tier
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { ownerId: true },
+      });
+      const userOrg = await prisma.userOrganization.findUnique({
+        where: {
+          userId_organizationId: {
+            userId: ctx.user.id,
+            organizationId: orgId,
+          },
+        },
+        select: { role: true, leadershipTier: true },
+      });
+      const isOwner = org?.ownerId === ctx.user.id;
+      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+      const isTopLeadership = leadershipTier === "Top" || isOwner;
+      const isOperationalLeadership = leadershipTier === "Operational";
+      const isSupportLeadership = leadershipTier === "Support";
+
+      if (!isTopLeadership) {
+        if (isOperationalLeadership) {
+          const siteAccessResult = await client.query(
+            `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+            [ctx.user.id, processSiteId]
+          );
+          if (siteAccessResult.rows.length === 0) {
+            client.release();
+            return NextResponse.json(
+              { error: "You can only view sprints for sites you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else if (isSupportLeadership) {
+          // For Support, check if they have access to this process
+          // processes.id is TEXT, process_users.process_id is UUID - cast UUID to TEXT for comparison
+          const processAccessResult = await client.query(
+            `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
+            [ctx.user.id, processId]
+          );
+          if (processAccessResult.rows.length === 0) {
+            client.release();
+            return NextResponse.json(
+              { error: "You can only view sprints for the process you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else {
+          client.release();
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
       }
 
       // Get all sprints for this process with their issues
