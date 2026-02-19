@@ -1166,7 +1166,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
         </div>
 
         {/* Add Member Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        
+        {/* <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" className="mb-2" disabled={isLoadingProcess}>
               <UserPlus size={18} /> Add Member
@@ -1182,7 +1183,6 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
-                {/* Select Role */}
               <div className="grid gap-3">
                   <Label htmlFor="role">Select Role</Label>
                   <Select
@@ -1201,7 +1201,6 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                 </Select>
               </div>
 
-                {/* Invitation Email */}
               <div className="grid gap-3">
                   <Label htmlFor="invitation-mail">Invitation Email</Label>
                   <Input
@@ -1235,7 +1234,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
             </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
+        
       </div>
 
       <div className="mt-6">{children}</div>
