@@ -67,6 +67,16 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid email or password");
         }
 
+        // Update lastActive on successful login (ignore if column not yet migrated)
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastActive: new Date() } as { lastActive: Date },
+          });
+        } catch {
+          // Ignore: lastActive column may not exist yet or Prisma client may be stale
+        }
+
         return {
           id: user.id,
           name: user.name ?? undefined,
@@ -84,7 +94,20 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.sub = user.id;
+      if (user) {
+        token.sub = user.id;
+        // Update lastActive when JWT is created/refreshed (on login)
+        if (user.id) {
+          try {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastActive: new Date() } as { lastActive: Date },
+            });
+          } catch {
+            // Ignore: lastActive column may not exist yet or Prisma client may be stale
+          }
+        }
+      }
       return token;
     },
 
@@ -139,6 +162,25 @@ export const authOptions: NextAuthOptions = {
               where: { id: dbUser.id },
               data: { emailVerified: new Date() },
             });
+          }
+
+          // Update lastActive on OAuth sign-in (ignore if column not yet migrated)
+          try {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { lastActive: new Date() } as { lastActive: Date },
+            });
+          } catch {
+            // Ignore
+          }
+        } else if (user.id) {
+          try {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastActive: new Date() } as { lastActive: Date },
+            });
+          } catch {
+            // Ignore
           }
         }
       }

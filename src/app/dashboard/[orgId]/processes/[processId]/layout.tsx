@@ -977,27 +977,10 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                               </div>
                             </CommandItem>
                           ))}
-                          {/* Add User Button */}
-                          <CommandItem
-                            onSelect={() => {
-                              setAssigneePopoverOpen(false);
-                              setDialogOpen(true);
-                            }}
-                            className="border-t mt-1 pt-2 font-medium cursor-pointer"
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            <span>Add User</span>
-                          </CommandItem>
                         </CommandGroup>
                       </Command>
                     </PopoverContent>
                   </Popover>
-
-                  {processUsers.length === 0 && !isLoadingUsers && (
-                    <p className="text-xs text-gray-500">
-                      Invite users to this process to assign tasks
-                    </p>
-                  )}
                 </div>
 
 

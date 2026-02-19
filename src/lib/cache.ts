@@ -89,6 +89,7 @@ export const cacheKeys = {
   orgProcesses: (orgId: string, siteId?: string) => `org:${orgId}:processes:${siteId || "all"}`,
   orgMetadata: (orgId: string, type: string) => `org:${orgId}:metadata:${type}`,
   orgIssue: (orgId: string, processId: string, issueId: string) => `org:${orgId}:process:${processId}:issue:${issueId}`,
+  orgRoles: (orgId: string) => `org:${orgId}:roles`,
   tenantContext: (orgId: string, userId: string) => `tenant:${orgId}:${userId}`,
   connectionString: (orgId: string) => `conn:${orgId}`,
 };

@@ -1,8 +1,16 @@
 /**
- * Role hierarchy and permission utilities
+ * Role hierarchy and permission utilities.
+ *
+ * Single source of truth for:
+ * - DB role (UserOrganization.role, tenant invitations.role): owner | admin | manager | member
+ * - Leadership tier (UI): Top | Operational | Support
+ * - System role (UI): Admin | Manager | Member
  */
 
 export type Role = "owner" | "admin" | "manager" | "member";
+
+export type LeadershipTier = "Top" | "Operational" | "Support";
+export type SystemRoleDisplay = "Admin" | "Manager" | "Member";
 
 const ROLE_HIERARCHY: Record<Role, number> = {
   owner: 4,
@@ -10,6 +18,22 @@ const ROLE_HIERARCHY: Record<Role, number> = {
   manager: 2,
   member: 1,
 };
+
+/** Map DB role to leadership tier for display and scope (Top = org-wide, Operational = 1 site + processes, Support = 1 site + 1 process). */
+export function roleToLeadershipTier(role: string): LeadershipTier {
+  const r = role?.toLowerCase();
+  if (r === "owner" || r === "admin") return "Top";
+  if (r === "manager") return "Operational";
+  return "Support";
+}
+
+/** Map DB role to system role label for UI. */
+export function roleToSystemRoleDisplay(role: string): SystemRoleDisplay {
+  const r = role?.toLowerCase();
+  if (r === "owner" || r === "admin") return "Admin";
+  if (r === "manager") return "Manager";
+  return "Member";
+}
 
 /**
  * Compare two roles and determine if the first role is higher than the second

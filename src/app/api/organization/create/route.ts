@@ -268,6 +268,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
               organizationId: org.id,
               role: "owner",
+              leadershipTier: "Top", // Owner is Top leadership tier
             },
           });
 

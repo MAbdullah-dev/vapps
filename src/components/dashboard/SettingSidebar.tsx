@@ -11,7 +11,8 @@ import {
   CreditCard,
   Plug,
   Bell,
-  BarChart
+  BarChart,
+  UserCog
 } from 'lucide-react';
 
 const SettingSidebar = () => {
@@ -33,10 +34,22 @@ const SettingSidebar = () => {
       path: `/dashboard/${orgId}/settings/sites-departments`,
     },
     {
-      title: 'Teams & Roles',
-      subtitle: 'Users and permissions',
+      title: 'Roles',
+      subtitle: 'Leadership role definitions',
+      icon: UserCog,
+      path: `/dashboard/${orgId}/settings/roles`,
+    },
+    {
+      title: 'Teams',
+      subtitle: 'Organization users',
       icon: Users,
-      path: `/dashboard/${orgId}/settings/teams-roles`,
+      path: `/dashboard/${orgId}/settings/teams`,
+    },
+    {
+      title: 'Permissions',
+      subtitle: 'Role-based access control',
+      icon: Shield,
+      path: `/dashboard/${orgId}/settings/permissions`,
     },
     {
       title: 'Authentication & Access',

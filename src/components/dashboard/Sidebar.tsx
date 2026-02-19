@@ -10,6 +10,7 @@ import {
   House,
   Plus,
   ClipboardList,
+  Users,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -62,7 +63,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
       setSites(data.sites || []);
       setOrganization(data.organization);
       setUserRole(data.userRole || "member");
-      
+
       // Preserve selected site if it still exists, otherwise select first site
       if (data.sites && data.sites.length > 0) {
         // Always check localStorage first to get the currently selected site ID
@@ -78,7 +79,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
             }
           }
         }
-        
+
         // If we have a site ID to preserve, try to find it in the fetched sites
         if (siteIdToPreserve) {
           const preservedSite = data.sites.find((s: Site) => s.id === siteIdToPreserve);
@@ -91,7 +92,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
             return; // Exit early, site preserved
           }
         }
-        
+
         // If no site ID to preserve or preserved site not found, use first site
         // Only set first site if we don't have a preserved site ID (to avoid changing selection)
         if (!siteIdToPreserve) {
@@ -192,7 +193,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
         siteName,
         location,
       });
-      
+
       // Add the new site to local state immediately (optimistic update)
       const newSite: Site = {
         id: data.site.id,
@@ -201,23 +202,23 @@ export default function Sidebar({ orgId }: { orgId: string }) {
         location: data.site.location,
         processes: data.site.processes || [],
       };
-      
+
       setSites(prev => [...prev, newSite]);
       setSelectedSite(newSite);
-      
+
       // Store selected site in localStorage and dispatch event
       if (typeof window !== 'undefined') {
         localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(newSite));
         window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: newSite.id, orgId } }));
       }
-      
+
       // Reset form before closing dialog
       if (form) {
         form.reset();
       }
-      
+
       setDialogOpen(false);
-      
+
       // Refresh in background (don't wait or show errors)
       fetchSites().catch(err => {
         console.error("Background refresh failed (non-critical):", err);
@@ -271,9 +272,8 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                         <div
                           key={site.id}
                           onClick={() => handleSiteChange(site)}
-                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                            selectedSite?.id === site.id ? "bg-gray-50" : ""
-                          }`}
+                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${selectedSite?.id === site.id ? "bg-gray-50" : ""
+                            }`}
                         >
                           <h3 className="text-xs font-medium">{site.location}</h3>
                           <p className="text-xs">{site.name} ({site.code})</p>
@@ -286,7 +286,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                     <div className="add-btn border-t">
                       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button 
+                          <Button
                             type="button"
                             className="bg-[#F4F4F4] text-[#0A0A0A] text-xs p-3 w-full rounded-none rounded-b-[12px] justify-start"
                           >
@@ -305,20 +305,20 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                             <div className="grid gap-4 py-4">
                               <div className="grid gap-3">
                                 <Label htmlFor="site-name">Site Name *</Label>
-                                <Input 
-                                  id="site-name" 
-                                  name="siteName" 
-                                  placeholder="e.g., Dubai Office" 
+                                <Input
+                                  id="site-name"
+                                  name="siteName"
+                                  placeholder="e.g., Dubai Office"
                                   required
                                   disabled={isCreatingSite}
                                 />
                               </div>
                               <div className="grid gap-3">
                                 <Label htmlFor="location">Location *</Label>
-                                <Input 
-                                  id="location" 
-                                  name="location" 
-                                  placeholder="e.g., Dubai, UAE" 
+                                <Input
+                                  id="location"
+                                  name="location"
+                                  placeholder="e.g., Dubai, UAE"
                                   required
                                   disabled={isCreatingSite}
                                 />
@@ -388,7 +388,7 @@ export default function Sidebar({ orgId }: { orgId: string }) {
                 // Create a URL-friendly slug from process name
                 const processSlug = process.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
                 const processHref = `processes/${process.id}`;
-                
+
                 return (
                   <Link
                     key={process.id}
@@ -425,9 +425,21 @@ export default function Sidebar({ orgId }: { orgId: string }) {
             Audit
           </Link>
         </div>
-
+        <div className="">
+          <Link
+            href={link("settings/teams")}
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
+              ${pathname.includes("/settings/teams")
+                ? "bg-gray-100 font-medium text-gray-900"
+                : "text-gray-600 hover:bg-gray-50"
+              }
+            `}
+          >
+            <Users size={18} />
+            Teams
+          </Link>
+        </div>
       </nav>
-
       <div className="footer p-5">
         <Link
           href={link("settings")}

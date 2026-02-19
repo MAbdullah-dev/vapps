@@ -58,13 +58,14 @@ export async function POST(
     client = await getTenantClient(orgId);
 
     // Verify issue exists and is in 'in-review' status
+    // Also check issuer to ensure only issuer (or Top leadership) can verify
     const issueResult = await client.query(
-      `SELECT id, status, "processId" FROM issues WHERE id = $1 AND "processId" = $2`,
+      `SELECT id, status, "processId", issuer FROM issues WHERE id = $1 AND "processId" = $2`,
       [issueId, processId]
     );
 
     if (issueResult.rows.length === 0) {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Issue not found" },
         { status: 404 }
@@ -73,10 +74,61 @@ export async function POST(
 
     const issue = issueResult.rows[0];
     if (issue.status !== 'in-review') {
-      await client.end();
+      client.release();
       return NextResponse.json(
         { error: "Issue must be in 'in-review' status to verify" },
         { status: 400 }
+      );
+    }
+
+    // Permission: Top = verify any; Operational = verify for their assigned site(s); Issuer = verify own; Support = cannot verify
+    const { prisma } = await import("@/lib/prisma");
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: ctx.user.id,
+          organizationId: orgId,
+        },
+      },
+      select: { role: true, leadershipTier: true },
+    });
+    const isOwner = org?.ownerId === ctx.user.id;
+    const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+    const { roleToLeadershipTier } = await import("@/lib/roles");
+    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+    const isTopLeadership = leadershipTier === "Top" || isOwner;
+    const isOperationalLeadership = leadershipTier === "Operational";
+    const isIssuer = issue.issuer === ctx.user.id;
+
+    let canVerify = isTopLeadership || isIssuer;
+    if (!canVerify && isOperationalLeadership) {
+      const processRow = await client.query(
+        `SELECT "siteId" FROM processes WHERE id = $1`,
+        [processId]
+      );
+      if (processRow.rows.length > 0) {
+        const siteId = processRow.rows[0].siteId;
+        const siteAccessResult = await client.query(
+          `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+          [ctx.user.id, siteId]
+        );
+        canVerify = siteAccessResult.rows.length > 0;
+      }
+    }
+
+    if (!canVerify) {
+      client.release();
+      return NextResponse.json(
+        {
+          error: isOperationalLeadership
+            ? "You can only verify issues for sites you are assigned to."
+            : "Only the issuer or leadership can verify this issue.",
+        },
+        { status: 403 }
       );
     }
 
@@ -142,18 +194,41 @@ export async function POST(
       ]
     );
 
-    // Update issue status based on verification
+    // Update issue status and verifier based on verification
+    // Set verifier = current user (issuer or Top leadership who verified)
     if (verificationStatus === 'effective') {
-      // Mark as done
-      await client.query(
-        `UPDATE issues SET status = 'done', "updatedAt" = NOW() WHERE id = $1`,
-        [issueId]
-      );
+      // Mark as done and set verifier
+      try {
+        await client.query(
+          `UPDATE issues SET status = 'done', verifier = $2, "updatedAt" = NOW() WHERE id = $1`,
+          [issueId, ctx.user.id]
+        );
+      } catch (updateErr: any) {
+        // Handle missing verifier column gracefully
+        if (updateErr?.code === "42703" && updateErr.message?.includes("verifier")) {
+          await client.query(
+            `UPDATE issues SET status = 'done', "updatedAt" = NOW() WHERE id = $1`,
+            [issueId]
+          );
+        } else {
+          throw updateErr;
+        }
+      }
     } else if (verificationStatus === 'ineffective') {
-      // Reassign: set status back to 'in-progress' and update assignee/due date
+      // Reassign: set status back to 'in-progress' and update assignee
       const updateFields: string[] = ['status = $2', '"updatedAt" = NOW()'];
       const updateValues: any[] = [issueId, 'in-progress'];
       let paramIndex = 3;
+
+      // Try to include verifier
+      let hasVerifierColumn = true;
+      try {
+        updateFields.push(`verifier = $${paramIndex}`);
+        updateValues.push(ctx.user.id);
+        paramIndex++;
+      } catch {
+        hasVerifierColumn = false;
+      }
 
       if (reassignedTo) {
         updateFields.push(`assignee = $${paramIndex}`);
@@ -161,18 +236,26 @@ export async function POST(
         paramIndex++;
       }
 
-      if (reassignmentDueDate) {
-        // Note: issues table might not have dueDate field, adjust if needed
-        // For now, we'll just update status and assignee
+      try {
+        await client.query(
+          `UPDATE issues SET ${updateFields.join(', ')} WHERE id = $1`,
+          updateValues
+        );
+      } catch (updateErr: any) {
+        // Handle missing verifier column
+        if (updateErr?.code === "42703" && updateErr.message?.includes("verifier")) {
+          const fieldsWithoutVerifier = updateFields.filter(f => !f.includes('verifier'));
+          await client.query(
+            `UPDATE issues SET ${fieldsWithoutVerifier.join(', ')} WHERE id = $1`,
+            updateValues.filter((_, i) => i !== 2) // Remove verifier value
+          );
+        } else {
+          throw updateErr;
+        }
       }
-
-      await client.query(
-        `UPDATE issues SET ${updateFields.join(', ')} WHERE id = $1`,
-        updateValues
-      );
     }
 
-    await client.end();
+    client.release();
 
     return NextResponse.json({
       success: true,
@@ -184,7 +267,7 @@ export async function POST(
     console.error("Error saving verification:", error);
     if (client) {
       try {
-        await client.end();
+        client.release();
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -227,7 +310,7 @@ export async function GET(
       [issueId]
     );
 
-    await client.end();
+    client.release();
 
     if (result.rows.length === 0) {
       return NextResponse.json({ verification: null });
@@ -251,7 +334,7 @@ export async function GET(
     console.error("Error fetching verification:", error);
     if (client) {
       try {
-        await client.end();
+        client.release();
       } catch (e) {
         // Ignore cleanup errors
       }

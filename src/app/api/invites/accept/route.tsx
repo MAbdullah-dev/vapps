@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
-import { normalizeRole, isRoleHigher, getHigherRole, type Role } from "@/lib/roles";
+import { normalizeRole, isRoleHigher, getHigherRole, roleToLeadershipTier, type Role } from "@/lib/roles";
 
 export async function POST(req: NextRequest) {
   let token: string | undefined;
@@ -127,6 +127,8 @@ export async function POST(req: NextRequest) {
 
       try {
         // Handle organization membership
+        const leadershipTier = roleToLeadershipTier(inviteRole);
+        
         if (!existingMembership) {
           // Create new membership
           await prisma.userOrganization.create({
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
               organizationId: orgId,
               role: inviteRole,
+              leadershipTier: leadershipTier, // Store leadership tier explicitly
             },
           });
 
@@ -141,6 +144,7 @@ export async function POST(req: NextRequest) {
             userId: user.id,
             orgId,
             role: inviteRole,
+            leadershipTier,
           });
         } else {
           // User already a member - upgrade role if invite role is higher
@@ -153,7 +157,10 @@ export async function POST(req: NextRequest) {
                   organizationId: orgId,
                 },
               },
-              data: { role: inviteRole },
+              data: { 
+                role: inviteRole,
+                leadershipTier: leadershipTier, // Update leadership tier when role changes
+              },
             });
 
             logger.info("User role upgraded", {
@@ -161,6 +168,7 @@ export async function POST(req: NextRequest) {
               orgId,
               oldRole: currentRole,
               newRole: inviteRole,
+              leadershipTier,
             });
           }
         }

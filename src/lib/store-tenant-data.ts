@@ -229,6 +229,47 @@ export async function storeTenantData(
         ]
       );
 
+      // 10. Seed Preset Roles
+      const presetRoles = [
+        // Level 1 – Admin – Strategy & Governance
+        { roleName: "CEO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Executive Officer responsible for overall strategic direction, organizational vision, and executive decision-making.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        { roleName: "CFO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Financial Officer overseeing financial strategy, budgeting, and fiscal governance.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        { roleName: "COO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Operating Officer managing day-to-day operations and operational excellence.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        { roleName: "CTO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Technology Officer leading technology strategy and digital transformation.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        { roleName: "CHRO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Human Resources Officer managing talent strategy and organizational culture.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        { roleName: "CMO", leadershipLevel: 1, systemRole: "Admin", focus: "Strategy & Governance", description: "Chief Marketing Officer driving brand strategy and market positioning.", accessDescription: "Full system access: Can manage all roles, users, permissions, and organizational settings." },
+        // Level 2 – Manager – Tactical Deployment
+        { roleName: "VP Operations", leadershipLevel: 2, systemRole: "Manager", focus: "Tactical Deployment", description: "Vice President of Operations responsible for operational strategy execution and process optimization.", accessDescription: "Manager access: Can manage level 3 roles, view reports, and manage team workflows." },
+        { roleName: "Director", leadershipLevel: 2, systemRole: "Manager", focus: "Tactical Deployment", description: "Director leading departmental strategy and cross-functional initiatives.", accessDescription: "Manager access: Can manage level 3 roles, view reports, and manage team workflows." },
+        { roleName: "Plant Manager", leadershipLevel: 2, systemRole: "Manager", focus: "Tactical Deployment", description: "Plant Manager overseeing manufacturing operations and production efficiency.", accessDescription: "Manager access: Can manage level 3 roles, view reports, and manage team workflows." },
+        { roleName: "Quality Manager", leadershipLevel: 2, systemRole: "Manager", focus: "Tactical Deployment", description: "Quality Manager ensuring product quality standards and compliance.", accessDescription: "Manager access: Can manage level 3 roles, view reports, and manage team workflows." },
+        // Level 3 – Member – Daily Execution
+        { roleName: "Supervisor", leadershipLevel: 3, systemRole: "Member", focus: "Daily Execution", description: "Supervisor managing daily team activities and ensuring task completion.", accessDescription: "Member access: Can view assigned tasks, submit reports, and collaborate with team members." },
+        { roleName: "Team Lead", leadershipLevel: 3, systemRole: "Member", focus: "Daily Execution", description: "Team Lead coordinating team efforts and facilitating communication.", accessDescription: "Member access: Can view assigned tasks, submit reports, and collaborate with team members." },
+        { roleName: "Coordinator", leadershipLevel: 3, systemRole: "Member", focus: "Daily Execution", description: "Coordinator organizing resources and supporting operational workflows.", accessDescription: "Member access: Can view assigned tasks, submit reports, and collaborate with team members." },
+      ];
+
+      for (const role of presetRoles) {
+        await client.query(
+          `INSERT INTO roles (
+            id, "roleName", "leadershipLevel", "systemRole", focus,
+            description, "accessDescription", "isPreset", "isActive",
+            "createdAt", "updatedAt"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+          [
+            crypto.randomUUID(),
+            role.roleName,
+            role.leadershipLevel,
+            role.systemRole,
+            role.focus,
+            role.description,
+            role.accessDescription,
+            true, // Mark as preset
+            true, // Active by default
+          ]
+        );
+      }
+
       // Commit transaction
       await client.query("COMMIT");
     } catch (error) {

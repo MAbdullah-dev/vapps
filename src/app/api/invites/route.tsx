@@ -20,10 +20,20 @@ export async function POST(req: NextRequest) {
     bodyData = body; // Store for error logging
     const { orgId, siteId, processId, email, role = "member" } = body;
 
-    // Validation
-    if (!orgId || !siteId || !email) {
+    // Validation: orgId and email always required
+    if (!orgId || !email) {
       return NextResponse.json(
-        { error: "orgId, siteId, and email are required" },
+        { error: "orgId and email are required" },
+        { status: 400 }
+      );
+    }
+
+    // Top Leadership (admin): siteId/processId optional. Operational/Support: siteId required.
+    const normalizedRoleForValidation = normalizeRole(role);
+    const isTopLeadership = normalizedRoleForValidation === "admin" || normalizedRoleForValidation === "owner";
+    if (!isTopLeadership && !siteId) {
+      return NextResponse.json(
+        { error: "siteId is required for Operational and Support leadership" },
         { status: 400 }
       );
     }
@@ -82,6 +92,9 @@ export async function POST(req: NextRequest) {
         token,
         organizationId: orgId,
         email,
+        role: normalizedRole, // Store role in master DB for easier listing
+        siteId: siteId ?? null, // Store siteId in master DB
+        processId: processId ?? null, // Store processId in master DB
         status: "pending",
         expiresAt,
         invitedBy: user.id,
@@ -98,7 +111,7 @@ export async function POST(req: NextRequest) {
         `,
         [
           email,
-          siteId,
+          siteId ?? null,
           processId ?? null,
           normalizedRole,
           token,

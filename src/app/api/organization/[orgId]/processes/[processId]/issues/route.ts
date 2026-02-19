@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import { logActivity } from "@/lib/activity-logger";
+import { prisma } from "@/lib/prisma";
+import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 
 /**
@@ -31,9 +33,9 @@ export async function GET(
 
     try {
 
-      // Verify process exists
+      // Verify process exists and get siteId for access check
       const processResult = await client.query(
-        `SELECT id FROM processes WHERE id = $1`,
+        `SELECT id, "siteId" FROM processes WHERE id = $1`,
         [processId]
       );
 
@@ -43,6 +45,61 @@ export async function GET(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const processSiteId = processResult.rows[0].siteId;
+
+      // Access control by leadership tier:
+      // Top = all; Operational = assigned site(s) only; Support = assigned process only
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { ownerId: true },
+      });
+      const userOrg = await prisma.userOrganization.findUnique({
+        where: {
+          userId_organizationId: {
+            userId: ctx.user.id,
+            organizationId: orgId,
+          },
+        },
+        select: { role: true, leadershipTier: true },
+      });
+      const isOwner = org?.ownerId === ctx.user.id;
+      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+      const isTopLeadership = leadershipTier === "Top" || isOwner;
+      const isOperationalLeadership = leadershipTier === "Operational";
+      const isSupportLeadership = leadershipTier === "Support";
+
+      if (isTopLeadership) {
+        // Top: access to all issues, processes, and sites — no further check
+      } else if (isOperationalLeadership) {
+        const siteAccessResult = await client.query(
+          `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+          [ctx.user.id, processSiteId]
+        );
+        if (siteAccessResult.rows.length === 0) {
+          client.release();
+          return NextResponse.json(
+            { error: "You can only view and manage issues for sites you are assigned to." },
+            { status: 403 }
+          );
+        }
+      } else if (isSupportLeadership) {
+        const processAccessResult = await client.query(
+          `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id = $2::text::uuid`,
+          [ctx.user.id, processId]
+        );
+        if (processAccessResult.rows.length === 0) {
+          client.release();
+          return NextResponse.json(
+            { error: "You can only view and manage issues for the process you are assigned to." },
+            { status: 403 }
+          );
+        }
+      } else {
+        client.release();
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
       // Get issues, optionally filtered by sprintId
@@ -56,6 +113,8 @@ export async function GET(
           i.status,
           i.points,
           i.assignee,
+          i.issuer,
+          i.verifier,
           i.tags,
           i.source,
           i."sprintId",
@@ -91,13 +150,24 @@ export async function GET(
           queryParams.length > 1 ? queryParams : [queryParams[0]]
         );
       } catch (queryErr: any) {
-        if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline"))) {
-          const fallbackQuery = issuesQuery.replace(/,?\s*i\."deadline"\s*/i, " ");
+        // Handle missing columns gracefully (backward compatibility)
+        if (queryErr?.code === "42703") {
+          // Try without issuer, verifier, deadline
+          const fallbackQuery = issuesQuery
+            .replace(/,?\s*i\.issuer\s*/i, " ")
+            .replace(/,?\s*i\.verifier\s*/i, " ")
+            .replace(/,?\s*i\."deadline"\s*/i, " ");
           issuesResult = await client.query(
             fallbackQuery,
             queryParams.length > 1 ? queryParams : [queryParams[0]]
           );
-          issuesResult.rows = issuesResult.rows.map((r: any) => ({ ...r, deadline: null }));
+          // Set defaults for missing columns
+          issuesResult.rows = issuesResult.rows.map((r: any) => ({
+            ...r,
+            issuer: r.issuer || null,
+            verifier: r.verifier || null,
+            deadline: r.deadline || null,
+          }));
         } else {
           throw queryErr;
         }
@@ -173,14 +243,49 @@ export async function POST(
       );
     }
 
+    // Get user's leadership tier and role from UserOrganization
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: ctx.user.id,
+          organizationId: orgId,
+        },
+      },
+      select: {
+        role: true,
+        leadershipTier: true,
+      },
+    });
+
+    // Check if user is organization owner (Top leadership)
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+
+    const isOwner = org?.ownerId === ctx.user.id;
+    const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+    const isTopLeadership = leadershipTier === "Top" || isOwner;
+    const isOperationalLeadership = leadershipTier === "Operational";
+    const isSupportLeadership = leadershipTier === "Support";
+
+    // Permission check: Only Top and Operational leadership can create issues
+    if (isSupportLeadership) {
+      return NextResponse.json(
+        { error: "Support leadership cannot create issues. They can only be assigned to tasks." },
+        { status: 403 }
+      );
+    }
+
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);
 
     try {
 
-      // Verify process exists
+      // Verify process exists and get its site
       const processResult = await client.query(
-        `SELECT id FROM processes WHERE id = $1`,
+        `SELECT id, "siteId" FROM processes WHERE id = $1`,
         [processId]
       );
 
@@ -190,6 +295,24 @@ export async function POST(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const processSiteId = processResult.rows[0].siteId;
+
+      // Operational leadership: verify they have access to this site
+      if (isOperationalLeadership) {
+        const siteAccessResult = await client.query(
+          `SELECT user_id FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+          [ctx.user.id, processSiteId]
+        );
+
+        if (siteAccessResult.rows.length === 0) {
+          client.release();
+          return NextResponse.json(
+            { error: "You can only create issues for sites you are assigned to." },
+            { status: 403 }
+          );
+        }
       }
 
       // Apply business rules for status and sprint assignment
@@ -224,12 +347,13 @@ export async function POST(
       const tagsArray = tags && Array.isArray(tags) ? tags : [tag.trim()];
 
       // Insert new issue (deadline optional; column may not exist in older tenant DBs)
+      // issuer is set to current user (Top or Operational leadership)
       const issueId = crypto.randomUUID();
       const deadlineVal = deadline != null && deadline !== "" ? new Date(deadline).toISOString() : null;
       try {
         await client.query(
-          `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+          `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", issuer, "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
           [
             issueId,
             title.trim(),
@@ -244,34 +368,84 @@ export async function POST(
             processId,
             order || 0,
             deadlineVal,
+            ctx.user.id, // issuer: user who created the issue
           ]
         );
       } catch (insertErr: any) {
-        if (insertErr?.code === "42703" || (insertErr?.message && String(insertErr.message).includes("deadline"))) {
-          await client.query(
-            `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "createdAt", "updatedAt")
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
-            [
-              issueId,
-              title.trim(),
-              description?.trim() || null,
-              priority || "medium",
-              finalStatus,
-              points || 0,
-              assignee || null,
-              tagsArray,
-              source.trim(),
-              finalSprintId,
-              processId,
-              order || 0,
-            ]
-          );
+        // Handle missing columns gracefully (backward compatibility)
+        if (insertErr?.code === "42703") {
+          const missingColumn = insertErr.message?.includes("issuer") ? "issuer" :
+                               insertErr.message?.includes("deadline") ? "deadline" : null;
+          
+          if (missingColumn === "issuer") {
+            // Try without issuer (old schema)
+            await client.query(
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+              [
+                issueId,
+                title.trim(),
+                description?.trim() || null,
+                priority || "medium",
+                finalStatus,
+                points || 0,
+                assignee || null,
+                tagsArray,
+                source.trim(),
+                finalSprintId,
+                processId,
+                order || 0,
+                deadlineVal,
+              ]
+            );
+          } else if (missingColumn === "deadline") {
+            // Try without deadline
+            await client.query(
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", issuer, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+              [
+                issueId,
+                title.trim(),
+                description?.trim() || null,
+                priority || "medium",
+                finalStatus,
+                points || 0,
+                assignee || null,
+                tagsArray,
+                source.trim(),
+                finalSprintId,
+                processId,
+                order || 0,
+                ctx.user.id,
+              ]
+            );
+          } else {
+            // Try without both
+            await client.query(
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
+              [
+                issueId,
+                title.trim(),
+                description?.trim() || null,
+                priority || "medium",
+                finalStatus,
+                points || 0,
+                assignee || null,
+                tagsArray,
+                source.trim(),
+                finalSprintId,
+                processId,
+                order || 0,
+              ]
+            );
+          }
         } else {
           throw insertErr;
         }
       }
 
-      // Fetch the created issue (include deadline if column exists)
+      // Fetch the created issue (include issuer, verifier, deadline if columns exist)
       let issueResult;
       try {
         issueResult = await client.query(
@@ -283,6 +457,8 @@ export async function POST(
             i.status,
             i.points,
             i.assignee,
+            i.issuer,
+            i.verifier,
             i.tags,
             i.source,
             i."sprintId",
@@ -296,28 +472,39 @@ export async function POST(
           [issueId]
         );
       } catch (selectErr: any) {
-        if (selectErr?.code === "42703" || (selectErr?.message && String(selectErr.message).includes("deadline"))) {
-          issueResult = await client.query(
-            `SELECT 
-              i.id,
-              i.title,
-              i.description,
-              i.priority,
-              i.status,
-              i.points,
-              i.assignee,
-              i.tags,
-              i.source,
-              i."sprintId",
-              i."processId",
-              i."order",
-              i."createdAt",
-              i."updatedAt"
-            FROM issues i
-            WHERE i.id = $1`,
-            [issueId]
-          );
-          if (issueResult.rows[0]) issueResult.rows[0].deadline = null;
+        // Handle missing columns gracefully
+        if (selectErr?.code === "42703") {
+          // Try with fewer columns
+          try {
+            issueResult = await client.query(
+              `SELECT 
+                i.id,
+                i.title,
+                i.description,
+                i.priority,
+                i.status,
+                i.points,
+                i.assignee,
+                i.tags,
+                i.source,
+                i."sprintId",
+                i."processId",
+                i."order",
+                i."createdAt",
+                i."updatedAt"
+              FROM issues i
+              WHERE i.id = $1`,
+              [issueId]
+            );
+            // Set defaults for missing columns
+            if (issueResult.rows[0]) {
+              issueResult.rows[0].issuer = issueResult.rows[0].issuer || null;
+              issueResult.rows[0].verifier = issueResult.rows[0].verifier || null;
+              issueResult.rows[0].deadline = null;
+            }
+          } catch {
+            throw selectErr;
+          }
         } else {
           throw selectErr;
         }

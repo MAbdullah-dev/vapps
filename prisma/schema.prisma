@@ -14,6 +14,7 @@ model User {
   emailVerified      DateTime?
   image              String?
   password           String?
+  lastActive         DateTime?          // Track when user was last active
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   accounts           Account[]
@@ -72,10 +73,12 @@ model UserOrganization {
   userId         String
   organizationId String
   role           String       @default("member")
+  leadershipTier String?      // Top, Operational, Support - derived from role but stored for easier querying
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
+  @@index([leadershipTier])
 }
 
 model OrgDatabaseInstance {
@@ -95,6 +98,9 @@ model Invitation {
   token          String       @unique
   organizationId String
   email          String
+  role           String?      // Role for the invitation (owner, admin, manager, member)
+  siteId         String?      // Site assignment (for Operational/Support leadership)
+  processId      String?      // Process assignment (for Operational/Support leadership)
   status         String       @default("pending") // pending, accepted, expired, cancelled
   expiresAt      DateTime
   createdAt      DateTime     @default(now())
@@ -106,5 +112,6 @@ model Invitation {
   @@index([organizationId])
   @@index([email, status])
   @@index([status, expiresAt])
+  @@index([role])
   @@map("invitations")
 }

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
-import { queryTenant, getTenantPool } from "@/lib/db/tenant-pool";
+import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
+import { prisma } from "@/lib/prisma";
+import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 
 /**
  * GET /api/organization/[orgId]/sites
- * Get all sites and their processes for an organization
- * 
- * OPTIMIZED: Uses request context to eliminate redundant master DB queries
+ * Get sites and their processes. Top = all; Operational = their site(s); Support = site(s) containing their process(es).
  */
 export async function GET(
   req: NextRequest,
@@ -17,50 +17,120 @@ export async function GET(
   try {
     const { orgId } = await params;
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tenant, user } = ctx;
+    const { tenant } = ctx;
     const userRole = tenant.userRole;
 
-    // Check cache first (60s TTL)
-    const cacheKey = cacheKeys.orgSites(orgId);
+    const cacheKey = `sites:${orgId}:${ctx.user.id}`;
     const cached = cache.get<{ sites: any[]; userRole: string; organization: { id: string; name: string } }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }
 
-    try {
-      // OPTIMIZED: Single query with LEFT JOIN using pooled connection
-      // This eliminates N+1 query problem (was making 1 + N queries, now just 1)
-      const rows = await queryTenant<any>(orgId, `
-        SELECT 
-          s.id,
-          s.name,
-          s.code,
-          s.location,
-          s."createdAt",
-          s."updatedAt",
-          p.id as "processId",
-          p.name as "processName",
-          p."createdAt" as "processCreatedAt"
-        FROM sites s
-        LEFT JOIN processes p ON p."siteId" = s.id
-        ORDER BY s."createdAt" ASC, p.name ASC
-      `).catch((error) => {
-        console.error("[Sites API] Database query error:", error);
-        throw error;
-      });
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+      },
+      select: { role: true, leadershipTier: true },
+    });
+    const isOwner = org?.ownerId === ctx.user.id;
+    const userRoleFromOrg = isOwner ? "owner" : (userOrg?.role || "member");
+    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRoleFromOrg);
+    const isTopLeadership = leadershipTier === "Top" || isOwner;
+    const isOperationalLeadership = leadershipTier === "Operational";
+    const isSupportLeadership = leadershipTier === "Support";
 
-      // Group processes by site
+    const client = await getTenantClient(orgId);
+
+    try {
+      let allowedSiteIds: string[] | null = null;
+      let allowedProcessIds: string[] | null = null;
+
+      if (isOperationalLeadership) {
+        const siteRows = await client.query<{ site_id: string }>(
+          `SELECT site_id::text as site_id FROM site_users WHERE user_id = $1`,
+          [ctx.user.id]
+        );
+        allowedSiteIds = siteRows.rows.map((r) => r.site_id);
+        if (allowedSiteIds.length === 0) {
+          client.release();
+          const response = {
+            sites: [],
+            userRole,
+            organization: { id: tenant.orgId, name: tenant.orgName },
+          };
+          cache.set(cacheKey, response, 60 * 1000);
+          return NextResponse.json(response);
+        }
+      } else if (isSupportLeadership) {
+        const processRows = await client.query<{ process_id: string }>(
+          `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
+          [ctx.user.id]
+        );
+        allowedProcessIds = processRows.rows.map((r) => r.process_id);
+        if (allowedProcessIds.length === 0) {
+          client.release();
+          const response = {
+            sites: [],
+            userRole,
+            organization: { id: tenant.orgId, name: tenant.orgName },
+          };
+          cache.set(cacheKey, response, 60 * 1000);
+          return NextResponse.json(response);
+        }
+      }
+
+      let rows: any[];
+
+      if (isTopLeadership) {
+        const result = await client.query(`
+          SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
+                 p.id as "processId", p.name as "processName", p."createdAt" as "processCreatedAt"
+          FROM sites s
+          LEFT JOIN processes p ON p."siteId" = s.id
+          ORDER BY s."createdAt" ASC, p.name ASC
+        `);
+        rows = result.rows;
+      } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+        const placeholders = allowedSiteIds.map((_, i) => `$${i + 1}`).join(", ");
+        const result = await client.query(
+          `SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
+                 p.id as "processId", p.name as "processName", p."createdAt" as "processCreatedAt"
+          FROM sites s
+          LEFT JOIN processes p ON p."siteId" = s.id
+          WHERE s.id IN (${placeholders})
+          ORDER BY s."createdAt" ASC, p.name ASC`,
+          allowedSiteIds
+        );
+        rows = result.rows;
+      } else if (allowedProcessIds && allowedProcessIds.length > 0) {
+        const placeholders = allowedProcessIds.map((_, i) => `$${i + 1}`).join(", ");
+        const result = await client.query(
+          `SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
+                 p.id as "processId", p.name as "processName", p."createdAt" as "processCreatedAt"
+          FROM sites s
+          INNER JOIN processes p ON p."siteId" = s.id AND p.id IN (${placeholders})
+          ORDER BY s."createdAt" ASC, p.name ASC`,
+          allowedProcessIds
+        );
+        rows = result.rows;
+      } else {
+        rows = [];
+      }
+
+      client.release();
+
       const sitesMap = new Map<string, any>();
-      
       rows.forEach((row: any) => {
         const siteId = row.id;
-        
         if (!sitesMap.has(siteId)) {
           sitesMap.set(siteId, {
             id: row.id,
@@ -72,8 +142,6 @@ export async function GET(
             processes: [],
           });
         }
-        
-        // Add process if it exists (LEFT JOIN may return null)
         if (row.processId) {
           sitesMap.get(siteId)!.processes.push({
             id: row.processId,
@@ -83,42 +151,23 @@ export async function GET(
         }
       });
 
-      const sitesWithProcesses = Array.from(sitesMap.values());
-
       const response = {
-        sites: sitesWithProcesses,
+        sites: Array.from(sitesMap.values()),
         userRole,
-        organization: {
-          id: tenant.orgId,
-          name: tenant.orgName,
-        },
+        organization: { id: tenant.orgId, name: tenant.orgName },
       };
 
-      // Cache the response for 60 seconds
       cache.set(cacheKey, response, 60 * 1000);
-
       return NextResponse.json(response);
     } catch (dbError: any) {
-      console.error("[Sites API] Database error details:", {
-        message: dbError.message,
-        code: dbError.code,
-        stack: dbError.stack,
-        orgId,
-        hasDatabase: !!tenant.connectionString,
-        databaseName: tenant.dbName,
-      });
-      
-      // Return detailed error in development, generic in production
+      client.release();
+      console.error("[Sites API] Database error:", dbError);
       return NextResponse.json(
-        { 
-          error: "Failed to fetch sites", 
+        {
+          error: "Failed to fetch sites",
           message: dbError.message,
           ...(process.env.NODE_ENV === "development" && {
-            details: {
-              code: dbError.code,
-              stack: dbError.stack,
-              orgId,
-            },
+            details: { code: dbError.code, stack: dbError.stack, orgId },
           }),
         },
         { status: 500 }

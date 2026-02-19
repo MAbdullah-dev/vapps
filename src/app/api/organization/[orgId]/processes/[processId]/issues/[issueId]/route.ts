@@ -3,6 +3,8 @@ import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import { logActivity } from "@/lib/activity-logger";
+import { prisma } from "@/lib/prisma";
+import { roleToLeadershipTier } from "@/lib/roles";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/issues/[issueId]
@@ -19,6 +21,71 @@ export async function GET(
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
+    const accessClient = await getTenantClient(orgId);
+    try {
+      const processResult = await accessClient.query(
+        `SELECT id, "siteId" FROM processes WHERE id = $1`,
+        [processId]
+      );
+      if (processResult.rows.length === 0) {
+        accessClient.release();
+        return NextResponse.json({ error: "Process not found" }, { status: 404 });
+      }
+      const processSiteId = processResult.rows[0].siteId;
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { ownerId: true },
+      });
+      const userOrg = await prisma.userOrganization.findUnique({
+        where: {
+          userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        },
+        select: { role: true, leadershipTier: true },
+      });
+      const isOwner = org?.ownerId === ctx.user.id;
+      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+      const isTopLeadership = leadershipTier === "Top" || isOwner;
+      const isOperationalLeadership = leadershipTier === "Operational";
+      const isSupportLeadership = leadershipTier === "Support";
+
+      if (!isTopLeadership) {
+        if (isOperationalLeadership) {
+          const siteAccess = await accessClient.query(
+            `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+            [ctx.user.id, processSiteId]
+          );
+          if (siteAccess.rows.length === 0) {
+            accessClient.release();
+            return NextResponse.json(
+              { error: "You can only view and manage issues for sites you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else if (isSupportLeadership) {
+          const processAccess = await accessClient.query(
+            `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id = $2::text::uuid`,
+            [ctx.user.id, processId]
+          );
+          if (processAccess.rows.length === 0) {
+            accessClient.release();
+            return NextResponse.json(
+              { error: "You can only view and manage issues for the process you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else {
+          accessClient.release();
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      }
+      accessClient.release();
+    } catch (e) {
+      accessClient.release();
+      throw e;
     }
 
     // Check cache first (60s TTL)
@@ -153,6 +220,66 @@ export async function PUT(
           { error: "Issue not found" },
           { status: 404 }
         );
+      }
+
+      // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
+      const { prisma } = await import("@/lib/prisma");
+      const { roleToLeadershipTier } = await import("@/lib/roles");
+      const processRow = await client.query(
+        `SELECT "siteId" FROM processes WHERE id = $1`,
+        [processId]
+      );
+      if (processRow.rows.length === 0) {
+        client.release();
+        return NextResponse.json({ error: "Process not found" }, { status: 404 });
+      }
+      const processSiteId = processRow.rows[0].siteId;
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { ownerId: true },
+      });
+      const userOrg = await prisma.userOrganization.findUnique({
+        where: {
+          userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        },
+        select: { role: true, leadershipTier: true },
+      });
+      const isOwner = org?.ownerId === ctx.user.id;
+      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+      const isTopLeadership = leadershipTier === "Top" || isOwner;
+      const isOperationalLeadership = leadershipTier === "Operational";
+      const isSupportLeadership = leadershipTier === "Support";
+
+      if (!isTopLeadership) {
+        if (isOperationalLeadership) {
+          const siteAccess = await client.query(
+            `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
+            [ctx.user.id, processSiteId]
+          );
+          if (siteAccess.rows.length === 0) {
+            client.release();
+            return NextResponse.json(
+              { error: "You can only view and manage issues for sites you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else if (isSupportLeadership) {
+          const processAccess = await client.query(
+            `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id = $2::text::uuid`,
+            [ctx.user.id, processId]
+          );
+          if (processAccess.rows.length === 0) {
+            client.release();
+            return NextResponse.json(
+              { error: "You can only view and manage issues for the process you are assigned to." },
+              { status: 403 }
+            );
+          }
+        } else {
+          client.release();
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
       }
 
       // Build update query dynamically

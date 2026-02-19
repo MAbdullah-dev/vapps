@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
-import { queryTenant, getTenantPool } from "@/lib/db/tenant-pool";
+import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
+import { prisma } from "@/lib/prisma";
+import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 
 /**
  * GET /api/organization/[orgId]/processes?siteId=xxx
- * Get all processes for an organization, optionally filtered by siteId
+ * Get processes for an organization.
+ * Access: Top = all; Operational = only processes in their assigned site(s); Support = only their assigned process(es).
  */
 export async function GET(
   req: NextRequest,
@@ -17,63 +20,124 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId");
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check cache first (60s TTL)
-    const cacheKey = cacheKeys.orgProcesses(orgId, siteId || undefined);
+    // Cache key includes userId so different roles get correct filtered results
+    const cacheKey = `processes:${orgId}:${ctx.user.id}:${siteId || "all"}`;
     const cached = cache.get<{ processes: any[] }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }
 
-    try {
-      // OPTIMIZED: Single query with JOIN using pooled connection
-      const processesQuery = siteId
-        ? `
-          SELECT 
-            p.id,
-            p.name,
-            p.description,
-            p."siteId",
-            p."createdAt",
-            p."updatedAt",
-            s.name as "siteName",
-            s.code as "siteCode",
-            s.location as "siteLocation"
-          FROM processes p
-          INNER JOIN sites s ON p."siteId" = s.id
-          WHERE p."siteId" = $1
-          ORDER BY p."createdAt" DESC
-        `
-        : `
-          SELECT 
-            p.id,
-            p.name,
-            p.description,
-            p."siteId",
-            p."createdAt",
-            p."updatedAt",
-            s.name as "siteName",
-            s.code as "siteCode",
-            s.location as "siteLocation"
-          FROM processes p
-          INNER JOIN sites s ON p."siteId" = s.id
-          ORDER BY p."createdAt" DESC
-        `;
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true },
+    });
+    const userOrg = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+      },
+      select: { role: true, leadershipTier: true },
+    });
+    const isOwner = org?.ownerId === ctx.user.id;
+    const userRole = isOwner ? "owner" : (userOrg?.role || "member");
+    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
+    const isTopLeadership = leadershipTier === "Top" || isOwner;
+    const isOperationalLeadership = leadershipTier === "Operational";
+    const isSupportLeadership = leadershipTier === "Support";
 
-      const processes = await queryTenant<any>(orgId, processesQuery, siteId ? [siteId] : undefined);
+    const client = await getTenantClient(orgId);
+
+    try {
+      let allowedSiteIds: string[] | null = null;
+      let allowedProcessIds: string[] | null = null;
+
+      if (isOperationalLeadership) {
+        const siteRows = await client.query<{ site_id: string }>(
+          `SELECT site_id::text as site_id FROM site_users WHERE user_id = $1`,
+          [ctx.user.id]
+        );
+        allowedSiteIds = siteRows.rows.map((r) => r.site_id);
+        if (allowedSiteIds.length === 0) {
+          client.release();
+          const response = { processes: [] };
+          cache.set(cacheKey, response, 60 * 1000);
+          return NextResponse.json(response);
+        }
+      } else if (isSupportLeadership) {
+        const processRows = await client.query<{ process_id: string }>(
+          `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
+          [ctx.user.id]
+        );
+        allowedProcessIds = processRows.rows.map((r) => r.process_id);
+        if (allowedProcessIds.length === 0) {
+          client.release();
+          const response = { processes: [] };
+          cache.set(cacheKey, response, 60 * 1000);
+          return NextResponse.json(response);
+        }
+      }
+
+      const baseQuery = `
+        SELECT 
+          p.id,
+          p.name,
+          p.description,
+          p."siteId",
+          p."createdAt",
+          p."updatedAt",
+          s.name as "siteName",
+          s.code as "siteCode",
+          s.location as "siteLocation"
+        FROM processes p
+        INNER JOIN sites s ON p."siteId" = s.id
+      `;
+      const orderClause = ` ORDER BY p."createdAt" DESC`;
+
+      let processes: any[];
+
+      if (isTopLeadership) {
+        if (siteId) {
+          const result = await client.query(
+            `${baseQuery} WHERE p."siteId" = $1 ${orderClause}`,
+            [siteId]
+          );
+          processes = result.rows;
+        } else {
+          const result = await client.query(`${baseQuery} ${orderClause}`);
+          processes = result.rows;
+        }
+      } else if (allowedSiteIds && allowedSiteIds.length > 0) {
+        const siteIdFilter = siteId && allowedSiteIds.includes(siteId)
+          ? [siteId]
+          : allowedSiteIds;
+        const placeholders = siteIdFilter.map((_, i) => `$${i + 1}`).join(", ");
+        const result = await client.query(
+          `${baseQuery} WHERE p."siteId"::text IN (${placeholders}) ${orderClause}`,
+          siteIdFilter
+        );
+        processes = result.rows;
+      } else if (allowedProcessIds && allowedProcessIds.length > 0) {
+        const placeholders = allowedProcessIds.map((_, i) => `$${i + 1}`).join(", ");
+        const result = await client.query(
+          `${baseQuery} WHERE p.id::text IN (${placeholders}) ${orderClause}`,
+          allowedProcessIds
+        );
+        processes = result.rows;
+      } else {
+        processes = [];
+      }
+
+      client.release();
 
       const response = { processes };
-
-      // Cache the response for 60 seconds
       cache.set(cacheKey, response, 60 * 1000);
-
       return NextResponse.json(response);
     } catch (dbError: any) {
+      client.release();
       return NextResponse.json(
         { error: "Failed to fetch processes", message: dbError.message },
         { status: 500 }
