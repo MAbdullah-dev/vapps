@@ -49,9 +49,10 @@ export async function GET(
     });
 
     // Fetch pending invitations; role comes from tenant (or master if migrated)
+    // Explicitly select name and jobTitle to ensure they're included
     const pendingInvites = await prisma.invitation.findMany({
       where: { organizationId: orgId, status: "pending" },
-      select: { id: true, email: true, token: true },
+      select: { id: true, email: true, token: true, name: true, jobTitle: true },
     });
 
     let inviteRoles: Record<string, string> = {};
@@ -167,11 +168,11 @@ export async function GET(
 
       return {
         id: m.user.id,
-        name: m.user.name || m.user.email || "—",
+        name: (m.user.name && m.user.name.trim()) || m.user.email || "—", // Ensure name is not empty string
         email: m.user.email || "",
         leadershipTier: tier,
         systemRole: roleToSystemRoleDisplay(m.role),
-        jobTitle: (m as { jobTitle?: string }).jobTitle ?? (isOwner ? "Owner" : undefined),
+        jobTitle: (m.jobTitle && m.jobTitle.trim()) || (isOwner ? "Owner" : undefined), // Ensure jobTitle is not empty string
         isOwner: isOwner,
         status: "Active" as const,
         lastActive: "—",
@@ -241,11 +242,11 @@ export async function GET(
 
         return {
           id: inv.id,
-          name: "—",
+          name: (inv.name && inv.name.trim()) || inv.email || "—", // Use invitation name if available (not empty), fallback to email
           email: inv.email,
           leadershipTier: tier,
           systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
-          jobTitle: (inv as { jobTitle?: string }).jobTitle ?? undefined,
+          jobTitle: (inv.jobTitle && inv.jobTitle.trim()) || undefined, // Ensure jobTitle is not empty string
           isOwner: false,
           status: "Invited" as const,
           lastActive: "Never",

@@ -61,6 +61,7 @@ model Organization {
   id          String               @id @default(uuid())
   name        String
   ownerId     String
+  permissions Json?                // Role-based permission matrix: { [key]: { admin, manager, member } }
   createdAt   DateTime             @default(now())
   database    OrgDatabaseInstance?
   owner       User                 @relation("OrganizationOwner", fields: [ownerId], references: [id])

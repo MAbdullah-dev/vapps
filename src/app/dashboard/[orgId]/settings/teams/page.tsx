@@ -408,7 +408,9 @@ export default function TeamsPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium">{member.name}</div>
+                          <div className="font-medium">
+                            {member.name && member.name !== "—" ? member.name : member.email || "—"}
+                          </div>
                           <div className="text-sm text-gray-500">{member.email}</div>
                         </div>
                       </div>
@@ -418,7 +420,7 @@ export default function TeamsPage() {
                         <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
                           Owner
                         </Badge>
-                      ) : member.jobTitle ? (
+                      ) : member.jobTitle && member.jobTitle.trim() ? (
                         <span className="text-sm font-medium text-gray-700">{member.jobTitle}</span>
                       ) : (
                         <span className="text-sm text-gray-400">—</span>
