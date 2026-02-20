@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
+import { prisma } from "@/lib/prisma";
+import { type Role } from "@/lib/roles";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 
 /**
  * PUT /api/organization/[orgId]/sites/[siteId]
@@ -24,12 +27,23 @@ export async function PUT(
 
     const { tenant } = ctx;
 
-    // Only owners can update sites
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can update sites" },
-        { status: 403 }
-      );
+    // Org owner can do anything; otherwise require manage_sites
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true, permissions: true },
+    });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    const isOwner = org.ownerId === ctx.user.id;
+    if (!isOwner) {
+      const stored = (org.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, tenant.userRole as Role, "manage_sites")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage sites and departments." },
+          { status: 403 }
+        );
+      }
     }
 
     if (!siteName || !location) {
@@ -126,12 +140,23 @@ export async function DELETE(
 
     const { tenant } = ctx;
 
-    // Only owners can delete sites
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can delete sites" },
-        { status: 403 }
-      );
+    // Org owner can do anything; otherwise require manage_sites
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true, permissions: true },
+    });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    const isOwner = org.ownerId === ctx.user.id;
+    if (!isOwner) {
+      const stored = (org.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, tenant.userRole as Role, "manage_sites")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage sites and departments." },
+          { status: 403 }
+        );
+      }
     }
 
     // Use tenant pool instead of new Client()

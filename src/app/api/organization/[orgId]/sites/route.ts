@@ -203,12 +203,23 @@ export async function POST(
 
     const { tenant } = ctx;
 
-    // Only owners can create sites
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can create sites" },
-        { status: 403 }
-      );
+    // Org owner can do anything; otherwise require manage_sites
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true, permissions: true },
+    });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    const isOwner = org.ownerId === ctx.user.id;
+    if (!isOwner) {
+      const stored = (org.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, tenant.userRole as Role, "manage_sites")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage sites and departments." },
+          { status: 403 }
+        );
+      }
     }
 
     if (!siteName || !location) {

@@ -3,7 +3,8 @@ import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
-import { roleToLeadershipTier } from "@/lib/roles";
+import { roleToLeadershipTier, type Role } from "@/lib/roles";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import crypto from "crypto";
 
 /**
@@ -171,6 +172,25 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Org owner can do anything; otherwise require manage_processes
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { ownerId: true, permissions: true },
+    });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    const isOwner = org.ownerId === ctx.user.id;
+    if (!isOwner) {
+      const stored = (org.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, ctx.tenant.userRole as Role, "manage_processes")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage processes." },
+          { status: 403 }
+        );
+      }
+    }
+
     if (!name || !name.trim()) {
       return NextResponse.json(
         { error: "Process name is required" },
@@ -230,7 +250,10 @@ export async function POST(
           [processId]
         );
 
-        // Clear cache after mutation
+        // Clear cache after mutation - invalidate all process-related cache entries for this org
+        // GET endpoint uses: processes:${orgId}:${userId}:${siteId}
+        // We need to clear all user-specific entries, so use pattern matching
+        cache.clearPattern(`processes:${orgId}:*`);
         cache.delete(cacheKeys.orgProcesses(orgId));
         cache.delete(cacheKeys.orgProcesses(orgId, siteId));
         cache.delete(cacheKeys.orgSites(orgId));

@@ -48,11 +48,19 @@ export async function GET(
       },
     });
 
-    // Fetch pending invitations; role comes from tenant (or master if migrated)
-    // Explicitly select name and jobTitle to ensure they're included
+    // Fetch pending invitations; role comes from tenant (or master if migrated).
+    // Include siteId, processId, name so we can show site/process for invited members.
     const pendingInvites = await prisma.invitation.findMany({
       where: { organizationId: orgId, status: "pending" },
-      select: { id: true, email: true, token: true, name: true, jobTitle: true },
+      select: {
+        id: true,
+        email: true,
+        token: true,
+        jobTitle: true,
+        name: true,
+        siteId: true,
+        processId: true,
+      },
     });
 
     let inviteRoles: Record<string, string> = {};
@@ -195,44 +203,46 @@ export async function GET(
       };
     });
 
-    // For invited members, try to get site/process from invitation
+    // For invited members, resolve site/process from master invite (siteId/processId) via tenant DB.
+    // Fallback to tenant invitations row if master has no site/process (legacy or sync gap).
     const invitedMembers = await Promise.all(
       pendingInvites.map(async (inv) => {
         const tier = roleToLeadershipTier(inviteRoles[inv.token] || "member");
         let siteName: string | undefined;
         let processName: string | undefined;
+        let siteId: string | undefined = inv.siteId ?? undefined;
+        let processId: string | undefined = inv.processId ?? undefined;
 
         if ((tier === "Operational" || tier === "Support") && ctx.tenant?.connectionString) {
           try {
             await withTenantConnection(ctx.tenant.connectionString, async (client) => {
-              const inviteRow = await client.query<{
-                site_id: string | null;
-                process_id: string | null;
-              }>(
-                `SELECT site_id, process_id FROM invitations WHERE token = $1`,
-                [inv.token]
-              );
+              // If master has no site/process, try tenant invitations table (fallback for legacy/sync gap)
+              if ((tier === "Operational" && !siteId) || (tier === "Support" && (!siteId || !processId))) {
+                const inviteRow = await client.query<{ site_id: string | null; process_id: string | null }>(
+                  `SELECT site_id, process_id FROM invitations WHERE token = $1`,
+                  [inv.token]
+                );
+                if (inviteRow.rows.length > 0) {
+                  const row = inviteRow.rows[0];
+                  if (row.site_id != null && !siteId) siteId = String(row.site_id);
+                  if (row.process_id != null && !processId) processId = String(row.process_id);
+                }
+              }
 
-              if (inviteRow.rows.length > 0) {
-                const invite = inviteRow.rows[0];
-                if (invite.site_id) {
-                  const siteRow = await client.query<{ name: string }>(
-                    `SELECT name FROM sites WHERE id = $1::text::uuid`,
-                    [invite.site_id]
-                  );
-                  if (siteRow.rows.length > 0) {
-                    siteName = siteRow.rows[0].name;
-                  }
-                }
-                if (invite.process_id && tier === "Support") {
-                  const processRow = await client.query<{ name: string }>(
-                    `SELECT name FROM processes WHERE id = $1::text::uuid`,
-                    [invite.process_id]
-                  );
-                  if (processRow.rows.length > 0) {
-                    processName = processRow.rows[0].name;
-                  }
-                }
+              // Resolve names from tenant (sites.id and processes.id are TEXT)
+              if (siteId) {
+                const siteRow = await client.query<{ name: string }>(
+                  `SELECT name FROM sites WHERE id = $1`,
+                  [siteId]
+                );
+                if (siteRow.rows.length > 0) siteName = siteRow.rows[0].name;
+              }
+              if (processId && tier === "Support") {
+                const processRow = await client.query<{ name: string }>(
+                  `SELECT name FROM processes WHERE id = $1`,
+                  [processId]
+                );
+                if (processRow.rows.length > 0) processName = processRow.rows[0].name;
               }
             });
           } catch (e) {
@@ -242,19 +252,19 @@ export async function GET(
 
         return {
           id: inv.id,
-          name: (inv.name && inv.name.trim()) || inv.email || "—", // Use invitation name if available (not empty), fallback to email
+          name: (inv.name && inv.name.trim()) || inv.email || "—",
           email: inv.email,
           leadershipTier: tier,
           systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
-          jobTitle: (inv.jobTitle && inv.jobTitle.trim()) || undefined, // Ensure jobTitle is not empty string
+          jobTitle: (inv.jobTitle && inv.jobTitle.trim()) || undefined,
           isOwner: false,
           status: "Invited" as const,
           lastActive: "Never",
           avatar: undefined,
+          ...(siteId ? { siteId } : {}),
+          ...(processId ? { processId } : {}),
           ...(tier === "Operational" && siteName ? { siteName } : {}),
-          ...(tier === "Support" && siteName && processName
-            ? { siteName, processName }
-            : {}),
+          ...(tier === "Support" && (siteName || processName) ? { siteName: siteName ?? undefined, processName: processName ?? undefined } : {}),
         };
       })
     );

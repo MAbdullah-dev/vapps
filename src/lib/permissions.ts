@@ -20,11 +20,12 @@ export const PERMISSION_KEYS = [
   "manage_teams",
   "manage_sites",
   "manage_processes",
-  "create_issues",
-  "verify_issues",
-  "view_reports",
-  "export_data",
-  "manage_documents",
+  // COMMENTED OUT FOR NOW - keeping only active permissions:
+  // "create_issues",
+  // "verify_issues",
+  // "view_reports",
+  // "export_data",
+  // "manage_documents",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -45,11 +46,12 @@ export const DEFAULT_PERMISSIONS: PermissionRow[] = [
   { key: "manage_teams", label: PERMISSION_LABELS.manage_teams, admin: true, manager: false, member: false },
   { key: "manage_sites", label: PERMISSION_LABELS.manage_sites, admin: true, manager: true, member: false },
   { key: "manage_processes", label: PERMISSION_LABELS.manage_processes, admin: true, manager: true, member: false },
-  { key: "create_issues", label: PERMISSION_LABELS.create_issues, admin: true, manager: true, member: true },
-  { key: "verify_issues", label: PERMISSION_LABELS.verify_issues, admin: true, manager: true, member: false },
-  { key: "view_reports", label: PERMISSION_LABELS.view_reports, admin: true, manager: true, member: true },
-  { key: "export_data", label: PERMISSION_LABELS.export_data, admin: true, manager: false, member: false },
-  { key: "manage_documents", label: PERMISSION_LABELS.manage_documents, admin: true, manager: true, member: true },
+  // COMMENTED OUT FOR NOW - keeping only active permissions:
+  // { key: "create_issues", label: PERMISSION_LABELS.create_issues, admin: true, manager: true, member: true },
+  // { key: "verify_issues", label: PERMISSION_LABELS.verify_issues, admin: true, manager: true, member: false },
+  // { key: "view_reports", label: PERMISSION_LABELS.view_reports, admin: true, manager: true, member: true },
+  // { key: "export_data", label: PERMISSION_LABELS.export_data, admin: true, manager: false, member: false },
+  // { key: "manage_documents", label: PERMISSION_LABELS.manage_documents, admin: true, manager: true, member: true },
 ];
 
 /** Stored shape in DB: { [key]: { admin, manager, member } } */
@@ -113,4 +115,49 @@ export function hasPermission(
   if (!row) return false;
   const effectiveRole: SystemRoleKey = role === "owner" ? "admin" : role;
   return row[effectiveRole];
+}
+
+/** Permission keys we enforce in API/UI. */
+// COMMENTED OUT FOR NOW: create_issues, verify_issues, view_reports, export_data, manage_documents
+export const ENFORCED_PERMISSION_KEYS = [
+  "manage_teams",
+  "manage_sites",
+  "manage_processes",
+  // "create_issues",
+  // "verify_issues",
+] as const;
+
+export type EnforcedPermissionKey = (typeof ENFORCED_PERMISSION_KEYS)[number];
+
+export interface CurrentUserPermissionFlags {
+  manage_teams: boolean;
+  manage_sites: boolean;
+  manage_processes: boolean;
+  // COMMENTED OUT FOR NOW:
+  // create_issues: boolean;
+  // verify_issues: boolean;
+}
+
+/**
+ * Get the current user's permission flags for enforced keys only.
+ * Used by GET /permissions and by UI to show/hide Invite User and edit/delete.
+ * Org owner always gets all permissions (can do anything).
+ */
+export function getCurrentUserPermissionFlags(
+  stored: StoredPermissions | null,
+  role: "owner" | "admin" | "manager" | "member"
+): CurrentUserPermissionFlags {
+  // Org owner can do anything – always grant all enforced permissions
+  if (role === "owner") {
+    return {
+      manage_teams: true,
+      manage_sites: true,
+      manage_processes: true,
+    };
+  }
+  return {
+    manage_teams: hasPermission(stored, role, "manage_teams"),
+    manage_sites: hasPermission(stored, role, "manage_sites"),
+    manage_processes: hasPermission(stored, role, "manage_processes"),
+  };
 }
