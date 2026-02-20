@@ -81,12 +81,38 @@ export async function POST(
       );
     }
 
-    // Only the issuer (creator) of the issue can verify it
-    const isIssuer = issue.issuer === ctx.user.id;
-    if (!isIssuer) {
+    // Only the issuer (creator) of the issue can verify it (normalize for DB string vs session type)
+    const rawIssuer = issue.issuer;
+    const issuerId =
+      rawIssuer == null
+        ? ''
+        : typeof rawIssuer === 'string'
+          ? rawIssuer.trim()
+          : String(rawIssuer).trim();
+    const userId = ctx.user.id != null ? String(ctx.user.id).trim() : '';
+    
+    // Debug: log comparison (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Verify API] Issuer check:', {
+        issueId,
+        issuerId,
+        userId,
+        match: issuerId === userId,
+        rawIssuerType: typeof rawIssuer,
+        ctxUserId: ctx.user.id,
+      });
+    }
+    
+    // Require strict match: issuer must exist and match current user
+    if (issuerId === '' || userId === '' || issuerId !== userId) {
       client.release();
       return NextResponse.json(
-        { error: "Only the user who created this issue can verify it." },
+        {
+          error:
+            issuerId === ''
+              ? "This issue has no issuer recorded. Only the user who created the issue can verify it."
+              : "Only the user who created this issue can verify it.",
+        },
         { status: 403 }
       );
     }

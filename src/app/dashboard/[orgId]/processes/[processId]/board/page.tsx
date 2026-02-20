@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   KanbanBoard,
   KanbanCard,
@@ -57,6 +58,7 @@ type Issue = {
   status: string;
   points?: number;
   assignee?: string;
+  issuer?: string | null;
   tags?: string[];
   source?: string;
   sprintId?: string | null;
@@ -85,6 +87,8 @@ const Board = () => {
   const params = useParams();
   const orgId = params.orgId as string;
   const processId = params.processId as string;
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string })?.id ?? null;
 
   const [issues, setIssues] = useState<Issue[]>([]);
   const [processUsers, setProcessUsers] = useState<ProcessUser[]>([]);
@@ -115,7 +119,6 @@ const Board = () => {
   const processTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const issuesRef = useRef<Issue[]>([]); // Keep ref in sync for optimistic updates
   const failedUpdatesRef = useRef<Set<string>>(new Set()); // Track failed updates for rollback
-
   // Keep refs in sync with state
   useEffect(() => {
     issuesRef.current = issues;
@@ -144,7 +147,7 @@ const Board = () => {
       setProcessUsers(usersRes.users || []);
     } catch (error: any) {
       console.error('Error fetching board data:', error);
-      toast.error('Failed to load board data');
+      toast.error('Failed to load board. Please refresh the page.');
     } finally {
       setIsLoading(false);
     }
@@ -246,7 +249,8 @@ const Board = () => {
           console.log(`[UpdateQueue] Skipping rollback for ${update.issueId} - newer update exists`);
         }
         
-        toast.error(`Failed to update issue status`);
+        const errMsg = error?.response?.data?.error ?? error?.message;
+        toast.error(errMsg && typeof errMsg === "string" ? errMsg : "Could not save the new status. Please try again.");
       }
     }
 
@@ -302,48 +306,50 @@ const Board = () => {
   }, [scheduleQueueProcessing]);
 
   // Handle drag and drop - optimistic UI updates only
+  // Rules: only assignee can move from To Do or to In Review; only issuer can move to Done
   const handleDataChange = useCallback((updatedData: any[]) => {
-    // Update local state optimistically for immediate UI feedback
     const updatedIssues = updatedData.map((item) => {
       const originalIssue = issuesRef.current.find((i) => i.id === item.id);
       if (originalIssue) {
         const newStatus = columnIdToStatus(item.column);
         const oldStatus = originalIssue.status;
 
-        // Prevent moving to "Done" status - tasks can only be marked as Done after review approval
-        if (newStatus === 'done' && oldStatus !== 'done') {
-          console.log('[handleDataChange] ⚠️ Cannot move task to Done - must be approved via review');
-          toast.error("Tasks can only be marked as Done after review approval");
-          // Revert to original status
+        // If no current user, block all moves (session may still be loading)
+        if (!currentUserId) {
+          toast.error("Please sign in to move or update issues on the board.");
           return originalIssue;
         }
 
-        // Special handling: If moving from "in-progress" to "in-review", open dialog first
-        if (oldStatus === 'in-progress' && newStatus === 'in-review') {
-          // Check if there's already a pending review update for this issue
-          // If so, don't open dialog again (prevents reopening empty dialog)
-          if (pendingReviewUpdate && pendingReviewUpdate.issueId === item.id) {
-            console.log('[handleDataChange] ⚠️ Dialog already open for this issue, ignoring drag');
-            // Already have a pending update, don't open dialog again
-            // Revert to original status to prevent UI glitch
+        // Moving to Done is not allowed from the board – only the issuer can verify from Manage Issues
+        if (newStatus === 'done' && oldStatus !== 'done') {
+          toast.error("Only the issuer can verify this issue from Manage Issues. Issues cannot be moved to Done from the board.");
+          return originalIssue;
+        }
+
+        // Moving from To Do: only the assignee can move the issue from To Do
+        if (oldStatus === 'to-do' && (newStatus === 'in-progress' || newStatus === 'in-review')) {
+          if (originalIssue.assignee !== currentUserId) {
+            toast.error("Only the assignee can move this issue from To Do.");
             return originalIssue;
           }
-          
-          // Always open dialog when moving from "in-progress" to "in-review"
-          // Dialog will load existing review data if available (user can update or keep it)
-          console.log('[handleDataChange] Opening review dialog for issue:', item.id, '(will load existing data if available)');
-          
-          // Store the pending update and open dialog
+        }
+
+        // Moving from In Progress to In Review: only the assignee can move to In Review
+        if (oldStatus === 'in-progress' && newStatus === 'in-review') {
+          if (originalIssue.assignee !== currentUserId) {
+            toast.error("Only the assignee can move this issue to In Review.");
+            return originalIssue;
+          }
+          // Check if there's already a pending review update for this issue
+          if (pendingReviewUpdate && pendingReviewUpdate.issueId === item.id) {
+            return originalIssue;
+          }
           setPendingReviewUpdate({
             issueId: item.id,
             newStatus,
             previousStatus: oldStatus,
           });
           setReviewDialogOpen(true);
-          
-          // Update UI optimistically for smooth drag experience
-          // If user cancels dialog, we'll revert in handleReviewCancel
-          // If user submits, we'll queue the API call in handleReviewSubmit
           return {
             ...originalIssue,
             status: newStatus,
@@ -351,7 +357,8 @@ const Board = () => {
           };
         }
 
-        // If status changed, queue the update
+        // Other moves (e.g. In Progress from To Do, or within same column): allow if assignee for this issue
+        // Moving from in-review to another column (except done): could be assignee or issuer – allow for now
         if (oldStatus !== newStatus) {
           queueUpdate(item.id, newStatus, oldStatus);
         }
@@ -366,7 +373,7 @@ const Board = () => {
     });
 
     setIssues(updatedIssues);
-  }, [queueUpdate, pendingReviewUpdate]);
+  }, [queueUpdate, pendingReviewUpdate, currentUserId, orgId, processId]);
 
   // Handle drag start - track that dragging has started
   const handleDragStart = useCallback((event: any) => {
@@ -728,9 +735,10 @@ const Board = () => {
                   setIssues((prev) => prev.filter((i) => i.id !== issueToDelete.id));
                   setDeleteDialogOpen(false);
                   setIssueToDelete(null);
-                  toast.success('Issue deleted');
+                  toast.success("Issue deleted successfully.");
                 } catch (err: any) {
-                  toast.error(err?.response?.data?.error ?? err?.message ?? 'Failed to delete issue');
+                  const msg = err?.response?.data?.error ?? err?.message;
+                  toast.error(msg && typeof msg === "string" ? msg : "Could not delete the issue. Please try again.");
                 } finally {
                   setIsDeleting(false);
                 }

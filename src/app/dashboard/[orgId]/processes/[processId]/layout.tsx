@@ -116,9 +116,8 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
       .catch(() => setUserRole("member"));
   }, [orgId]);
 
-  // Create/Edit Issue form: only Level 1 (owner, admin) and Level 2 (manager) can access
-  const canAccessIssueForm =
-    userRole === "owner" || userRole === "admin" || userRole === "manager";
+  // Create/Edit Issue form: any level (including Level 3 / member) can create and open issues
+  const canAccessIssueForm = true;
 
   // Fetch metadata, sprints, and process users on mount
   useEffect(() => {
@@ -161,12 +160,6 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
       // Only handle if it's for this process
       if (eventOrgId !== orgId || eventProcessId !== processId) return;
-
-      // Level 3 (member) cannot create or edit issues
-      if (!canAccessIssueForm) {
-        toast.error("Create and edit issues is available for Level 1 and Level 2 only.");
-        return;
-      }
 
       // Open in create mode when no issueId (e.g. from timeline "add")
       if (!issueId) {
@@ -217,14 +210,10 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     return () => {
       window.removeEventListener('openIssueDialog', handleOpenIssueDialog);
     };
-  }, [orgId, processId, canAccessIssueForm]);
+  }, [orgId, processId]);
 
   // Reset form when dialog closes
   const handleDialogOpenChange = (open: boolean) => {
-    if (open && !canAccessIssueForm) {
-      toast.error("Create and edit issues is available for Level 1 and Level 2 only.");
-      return;
-    }
     setIsCreateDialogOpen(open);
     if (!open) {
       // Reset form when dialog closes
@@ -583,29 +572,13 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           </p>
         </div>
 
-        {/* Create Issue Dialog - only Level 1 & 2 can access */}
+        {/* Create Issue Dialog - any level can create issues */}
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
-          {canAccessIssueForm ? (
-            <DialogTrigger asChild>
-              <Button variant="default">
-                <Plus size={16} /> New Issue
-              </Button>
-            </DialogTrigger>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block">
-                  <Button variant="default" disabled className="cursor-not-allowed opacity-60">
-                    <Plus size={16} /> New Issue
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Create and edit issues is available for Level 1 and Level 2 only.</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
+          <DialogTrigger asChild>
+            <Button variant="default">
+              <Plus size={16} /> New Issue
+            </Button>
+          </DialogTrigger>
           <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingIssue ? (isViewOnly ? "View Issue" : "Edit Issue") : "Create Issue"}</DialogTitle>
@@ -634,7 +607,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       className="w-full"
                       disabled={isViewOnly}
                     />
-                    
+
                     <Button
                       type="button"
                       onClick={async () => {

@@ -166,7 +166,11 @@ export async function GET(
     }
 
     const issue = issues[0];
-    
+    // Normalize issuer to string so client comparison with session user id is reliable
+    if (issue) {
+      issue.issuer = issue.issuer != null ? String(issue.issuer) : null;
+    }
+
     // Cache the issue for 60 seconds
     cache.set(cacheKey, issue, 60 * 1000);
 

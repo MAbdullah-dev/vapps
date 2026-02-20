@@ -324,6 +324,15 @@ export default function IssuesDashboard() {
             console.log("[VerificationIssues] Verification submitted successfully:", response)
             toast.success("Issue marked as effective and closed")
 
+            // Notify board (and other tabs) so issue moves to Done
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("issueUpdated", {
+                  detail: { processId, orgId, issueId: selectedIssue.id, status: "done" },
+                })
+              )
+            }
+
             // Refresh data
             const issuesRes = await apiClient.getIssues(orgId, processId)
             setAllIssues(issuesRes.issues || [])
