@@ -3,7 +3,8 @@ import { getRequestContext } from "@/lib/request-context";
 import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
-import { normalizeRole, roleToLeadershipTier, isRoleHigher } from "@/lib/roles";
+import { normalizeRole, roleToLeadershipTier, isRoleHigher, type Role } from "@/lib/roles";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 
 /**
  * PUT /api/organization/[orgId]/members/[userId]
@@ -90,13 +91,12 @@ export async function PUT(
     // Validate role if provided
     let normalizedRole = existingMembership.role;
     if (role) {
-      normalizedRole = normalizeRole(role);
+      normalizedRole = normalizeRole(role) as Role;
       
-      // Check permission: Only Top Leadership can change roles
-      const currentUserTier = roleToLeadershipTier(currentUserRole);
-      if (currentUserTier !== "Top") {
+      // Enforce hierarchy: cannot assign a role higher than your own
+      if (isRoleHigher(normalizedRole, currentUserRole as Role)) {
         return NextResponse.json(
-          { error: "Only Top Leadership can change user roles" },
+          { error: "You cannot assign a role higher than your own." },
           { status: 403 }
         );
       }
@@ -244,14 +244,26 @@ export async function DELETE(
       );
     }
 
-    // Get organization to check owner
+    // Get organization to check owner and permissions
     const organization = await prisma.organization.findUnique({
       where: { id: orgId },
-      select: { ownerId: true },
+      select: { ownerId: true, permissions: true },
     });
 
     if (!organization) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    // Org owner can do anything; otherwise require manage_teams
+    const isOwner = organization.ownerId === ctx.user.id;
+    if (!isOwner) {
+      const stored = (organization.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, currentUserRole as Role, "manage_teams")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage users and teams." },
+          { status: 403 }
+        );
+      }
     }
 
     // Prevent deleting the owner

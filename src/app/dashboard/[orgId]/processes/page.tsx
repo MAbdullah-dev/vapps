@@ -47,7 +47,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+import { AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label"
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -98,6 +99,9 @@ export default function ProcessesListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreatingProcess, setIsCreatingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
+  const [canManageProcesses, setCanManageProcesses] = useState(false);
+  const [deletingProcess, setDeletingProcess] = useState<Process | null>(null);
+  const [isDeletingProcess, setIsDeletingProcess] = useState(false);
 
   // Fetch processes for a specific site
   const fetchProcessesForSite = useCallback(async (siteId: string, showLoading: boolean = true) => {
@@ -105,6 +109,7 @@ export default function ProcessesListPage() {
       if (showLoading) {
         setIsLoading(true);
       }
+      // Add timestamp to force fresh fetch (bypasses browser cache, server cache is handled by backend)
       const response = await apiClient.getProcesses(orgId, siteId);
       setProcesses(response.processes || []);
     } catch (error: any) {
@@ -116,6 +121,25 @@ export default function ProcessesListPage() {
         setIsLoading(false);
       }
     }
+  }, [orgId]);
+
+  // Fetch permissions
+  useEffect(() => {
+    if (!orgId) return;
+    const fetchPermissions = async () => {
+      try {
+        const res = await apiClient.get<{
+          currentUserPermissions: {
+            manage_processes: boolean;
+          };
+        }>(`/organization/${orgId}/permissions`);
+        setCanManageProcesses(res.currentUserPermissions?.manage_processes ?? false);
+      } catch (e: any) {
+        console.error("Failed to fetch permissions:", e);
+        setCanManageProcesses(false);
+      }
+    };
+    fetchPermissions();
   }, [orgId]);
 
   // Fetch sites and processes
@@ -188,11 +212,41 @@ export default function ProcessesListPage() {
 
     window.addEventListener('siteChanged', handleSiteChange);
 
+    // Listen for process creation events to refresh the list
+    const handleProcessCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.orgId === orgId && isMounted) {
+        const siteId = customEvent.detail.siteId;
+        // Refresh processes if it's for the current site
+        if (siteId === selectedSiteId) {
+          fetchProcessesForSite(siteId, false);
+        }
+      }
+    };
+
+    window.addEventListener('processCreated', handleProcessCreated);
+
+    // Listen for process deletion events to refresh the list
+    const handleProcessDeleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.orgId === orgId && isMounted) {
+        const siteId = customEvent.detail.siteId;
+        // Refresh processes if it's for the current site
+        if (siteId === selectedSiteId) {
+          fetchProcessesForSite(siteId, false);
+        }
+      }
+    };
+
+    window.addEventListener('processDeleted', handleProcessDeleted);
+
     return () => {
       isMounted = false;
       window.removeEventListener('siteChanged', handleSiteChange as EventListener);
+      window.removeEventListener('processCreated', handleProcessCreated);
+      window.removeEventListener('processDeleted', handleProcessDeleted);
     };
-  }, [orgId, fetchProcessesForSite]);
+  }, [orgId, fetchProcessesForSite, selectedSiteId]);
 
   // Filter processes based on search - memoized to prevent unnecessary recalculations
   const filteredProcesses = useMemo(() => {
@@ -278,6 +332,35 @@ export default function ProcessesListPage() {
     }
   };
 
+  // Handle delete process
+  const handleDeleteProcess = async () => {
+    if (!deletingProcess || !selectedSiteId) return;
+
+    setIsDeletingProcess(true);
+    try {
+      const result = await apiClient.deleteProcess(orgId, deletingProcess.id);
+      
+      toast.success(result.message || "Process deleted successfully");
+
+      // Trigger sidebar refresh by dispatching a custom event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('processDeleted', { 
+          detail: { siteId: selectedSiteId, orgId, processId: deletingProcess.id } 
+        }));
+      }
+
+      // Refresh processes list
+      await fetchProcessesForSite(selectedSiteId, false);
+      
+      setDeletingProcess(null);
+    } catch (error: any) {
+      console.error("Error deleting process:", error);
+      toast.error(error.message || "Failed to delete process");
+    } finally {
+      setIsDeletingProcess(false);
+    }
+  };
+
   // Calculate stats
   const totalProcesses = processes.length;
   const activeProjects = 0; // Not in DB yet - will be implemented with task management
@@ -292,9 +375,12 @@ export default function ProcessesListPage() {
           <h1 className="text-md font-bold mb-2">Processes</h1>
           <p className="text-base">Manage your projects and processes</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
+        {canManageProcesses && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button variant="outline"><Plus /> Create Process</Button>
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(true)}>
+                <Plus /> Create Process
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
             <form key={editingProcess?.id || "create"} onSubmit={handleCreateProcess}>
@@ -351,7 +437,8 @@ export default function ProcessesListPage() {
               </DialogFooter>
             </form>
             </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
 
       </div>
 
@@ -472,9 +559,22 @@ export default function ProcessesListPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditProcess(process); }}>
-                        Edit Process
-                      </DropdownMenuItem>
+                      {canManageProcesses && (
+                        <>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditProcess(process); }}>
+                            Edit Process
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setDeletingProcess(process); 
+                            }}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            Delete Process
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Process Settings</DropdownMenuItem>
                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Share</DropdownMenuItem>
                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Archive</DropdownMenuItem>
@@ -722,6 +822,41 @@ export default function ProcessesListPage() {
           )}
         </div>
       )}
+
+      {/* Delete Process Dialog */}
+      <Dialog open={!!deletingProcess} onOpenChange={(open) => !open && setDeletingProcess(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Delete Process
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deletingProcess?.name}"? This action cannot be undone and will permanently delete the process and all associated data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button 
+                type="button" 
+                variant="outline" 
+                disabled={isDeletingProcess}
+                onClick={() => setDeletingProcess(null)}
+              >
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button 
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteProcess}
+              disabled={isDeletingProcess}
+            >
+              {isDeletingProcess ? "Deleting..." : "Delete Process"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

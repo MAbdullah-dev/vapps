@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
-import { normalizeRole } from "@/lib/roles";
+import { normalizeRole, type Role } from "@/lib/roles";
 import { sendInvitationEmail } from "@/helpers/mailer";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 
 export async function POST(req: NextRequest) {
   let bodyData: { orgId?: string; email?: string } = {};
@@ -16,15 +17,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    bodyData = body; // Store for error logging
-    const { orgId, siteId, processId, email, fullName, role = "member", jobTitle } = body;
-    
-    // Log jobTitle for debugging
-    logger.info("Creating invitation with jobTitle", {
+    let body: Record<string, unknown>;
+    try {
+      const raw = await req.json();
+      body = typeof raw === "object" && raw !== null ? raw : {};
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+    bodyData = body;
+
+    // Read and normalize fields so we never rely on undefined or wrong types
+    const orgId = typeof body.orgId === "string" ? body.orgId : undefined;
+    const email = typeof body.email === "string" ? body.email.trim() : undefined;
+    const fullName = typeof body.fullName === "string" ? body.fullName.trim() : (typeof (body as any).name === "string" ? (body as any).name.trim() : null);
+    const role = typeof body.role === "string" ? body.role : "member";
+    const jobTitle = body.jobTitle != null && body.jobTitle !== "" ? String(body.jobTitle).trim() : null;
+    const siteId = body.siteId != null && body.siteId !== "" ? String(body.siteId) : null;
+    const processId = body.processId != null && body.processId !== "" ? String(body.processId) : null;
+
+    logger.info("Creating invitation", {
       email,
-      jobTitle: jobTitle || "null/undefined",
-      jobTitleType: typeof jobTitle,
+      hasFullName: !!fullName,
+      jobTitle: jobTitle ?? "null",
+      siteId: siteId ?? "null",
+      processId: processId ?? "null",
     });
 
     // Validation: orgId and email always required
@@ -35,15 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Top Leadership (admin): siteId/processId optional. Operational/Support: siteId required.
-    const normalizedRoleForValidation = normalizeRole(role);
-    const isTopLeadership = normalizedRoleForValidation === "admin" || normalizedRoleForValidation === "owner";
-    if (!isTopLeadership && !siteId) {
-      return NextResponse.json(
-        { error: "siteId is required for Operational and Support leadership" },
-        { status: 400 }
-      );
-    }
+    // Note: Role normalization and validation happens after permission check below
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,13 +62,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate org exists and get database connection
+    // Validate org exists and get database connection + permissions
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
       include: { database: true },
     });
+    const orgWithPermissions = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, ownerId: true, database: true, permissions: true },
+    });
 
-    if (!org) {
+    if (!org || !orgWithPermissions) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
@@ -71,8 +83,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalize role
-    const normalizedRole = normalizeRole(role);
+    // Org owner can do anything – skip permission check; otherwise require manage_teams
+    const isOwner = orgWithPermissions.ownerId === user.id;
+    const membership = await prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: user.id, organizationId: orgId },
+      },
+      select: { role: true },
+    });
+    if (!membership) {
+      return NextResponse.json(
+        { error: "You are not a member of this organization" },
+        { status: 403 }
+      );
+    }
+    // Normalize role before permission check to ensure consistent comparison
+    const currentUserRole = normalizeRole(membership.role) as Role;
+    if (!isOwner) {
+      const stored = (orgWithPermissions.permissions ?? null) as StoredPermissions | null;
+      if (!hasPermission(stored, currentUserRole, "manage_teams")) {
+        return NextResponse.json(
+          { error: "You do not have permission to manage users and teams." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Normalize role and enforce hierarchy: cannot invite with role higher than your own
+    const normalizedRole = normalizeRole(role) as Role;
+    if (!isOwner && isRoleHigher(normalizedRole, currentUserRole)) {
+      return NextResponse.json(
+        { error: "You cannot invite a user with a higher role than your own." },
+        { status: 403 }
+      );
+    }
+
+    // Top Leadership (admin): siteId/processId optional. Operational/Support: siteId required.
+    const isTopLeadership = normalizedRole === "admin" || normalizedRole === "owner";
+    if (!isTopLeadership && !siteId) {
+      return NextResponse.json(
+        { error: "siteId is required for Operational and Support leadership" },
+        { status: 400 }
+      );
+    }
 
     // Check for existing pending invite for same org + email
     const existingInvite = await prisma.invitation.findFirst({
@@ -93,41 +146,33 @@ export async function POST(req: NextRequest) {
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
 
-    // Create new invitation in master DB
-    // Ensure jobTitle is a string or null (not undefined or empty string)
-    const jobTitleValue = jobTitle && typeof jobTitle === "string" && jobTitle.trim() !== "" 
-      ? jobTitle.trim() 
-      : null;
-    
-    // Ensure name is a string or null
-    const nameValue = fullName && typeof fullName === "string" && fullName.trim() !== ""
-      ? fullName.trim()
-      : null;
-    
+    // Create new invitation in master DB (all values already normalized above)
     const masterInvite = await prisma.invitation.create({
       data: {
         token,
         organizationId: orgId,
         email,
-        name: nameValue, // Store user's name in invitation
-        role: normalizedRole, // Store role in master DB for easier listing
-        jobTitle: jobTitleValue, // Store jobTitle in master DB
-        siteId: siteId ?? null, // Store siteId in master DB
-        processId: processId ?? null, // Store processId in master DB
+        name: fullName || null,
+        role: normalizedRole,
+        jobTitle,
+        siteId,
+        processId,
         status: "pending",
         expiresAt,
         invitedBy: user.id,
       },
     });
-    
-    logger.info("Invitation created with jobTitle", {
+
+    logger.info("Invitation created", {
       inviteId: masterInvite.id,
       email,
-      jobTitle: masterInvite.jobTitle || "null",
+      name: masterInvite.name ?? "null",
+      jobTitle: masterInvite.jobTitle ?? "null",
+      siteId: masterInvite.siteId ?? "null",
+      processId: masterInvite.processId ?? "null",
     });
 
-    // Store tenant-specific invitation
-    // Note: jobTitle is stored in master DB only, read from masterInvite when accepting
+    // Store tenant-specific invitation (site_id/process_id used when user accepts)
     await withTenantConnection(org.database.connectionString, async (client) => {
       await client.query(
         `
@@ -135,15 +180,7 @@ export async function POST(req: NextRequest) {
         (email, site_id, process_id, role, token, invited_by, expires_at, status, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
         `,
-        [
-          email,
-          siteId ?? null,
-          processId ?? null,
-          normalizedRole,
-          token,
-          user.id,
-          expiresAt,
-        ]
+        [email, siteId, processId, normalizedRole, token, user.id, expiresAt]
       );
     });
 

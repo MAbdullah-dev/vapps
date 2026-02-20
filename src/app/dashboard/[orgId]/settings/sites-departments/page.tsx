@@ -50,6 +50,7 @@ export default function SitesDepartmentsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [expandedSites, setExpandedSites] = useState<string[]>([]);
+  const [canManageSites, setCanManageSites] = useState(false);
 
   // Form state for add/edit
   const [formData, setFormData] = useState({
@@ -78,8 +79,24 @@ export default function SitesDepartmentsPage() {
   useEffect(() => {
     if (orgId && typeof orgId === 'string' && orgId !== 'undefined') {
       fetchSites();
+      fetchPermissions();
     }
   }, [orgId, fetchSites]);
+
+  const fetchPermissions = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      const res = await apiClient.get<{
+        currentUserPermissions: {
+          manage_sites: boolean;
+        };
+      }>(`/organization/${orgId}/permissions`);
+      setCanManageSites(res.currentUserPermissions?.manage_sites ?? false);
+    } catch (e: any) {
+      console.error("Failed to fetch permissions:", e);
+      setCanManageSites(false);
+    }
+  }, [orgId]);
 
   const handleAddSite = async () => {
     if (!formData.siteName.trim() || !formData.location.trim()) {
@@ -212,10 +229,12 @@ export default function SitesDepartmentsPage() {
               Last updated: {formatDate(lastUpdated)}
             </span>
           )}
-          <Button onClick={() => setIsAddDialogOpen(true)} variant="dark">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Site
-          </Button>
+          {canManageSites && (
+            <Button onClick={() => setIsAddDialogOpen(true)} variant="dark">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Site
+            </Button>
+          )}
         </div>
       </div>
 
@@ -299,24 +318,26 @@ export default function SitesDepartmentsPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditSite(site)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteSite(site)}
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {canManageSites && (
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditSite(site)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteSite(site)}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>

@@ -98,13 +98,34 @@ export default function TeamsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [deletingUser, setDeletingUser] = useState<TeamMember | null>(null);
-
-  // TODO: Replace with actual current user role from auth context
-  const currentUserRole: SystemRole = "Admin";
+  const [canManageTeams, setCanManageTeams] = useState(false);
+  const [currentUserSystemRole, setCurrentUserSystemRole] = useState<SystemRole>("Member");
 
   useEffect(() => {
-    if (orgId) fetchMembers();
+    if (orgId) {
+      fetchMembers();
+      fetchPermissions();
+    }
   }, [orgId]);
+
+  const fetchPermissions = async () => {
+    try {
+      const res = await apiClient.get<{
+        currentUserPermissions: {
+          manage_teams: boolean;
+          manage_sites: boolean;
+          manage_processes: boolean;
+        };
+        currentUserRole: string;
+      }>(`/organization/${orgId}/permissions`);
+      setCanManageTeams(res.currentUserPermissions?.manage_teams ?? false);
+      const role = res.currentUserRole as SystemRole;
+      setCurrentUserSystemRole(role === "Admin" || role === "Manager" || role === "Member" ? role : "Member");
+    } catch (e: any) {
+      console.error("Failed to fetch permissions:", e);
+      setCanManageTeams(false); // Default to false on error
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -228,13 +249,15 @@ export default function TeamsPage() {
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                className="bg-black text-white hover:bg-gray-800 flex items-center gap-2"
-                onClick={() => setIsCreateUserDialogOpen(true)}
-              >
-                <UserPlus className="h-4 w-4" />
-                Invite User
-              </Button>
+              {canManageTeams && (
+                <Button 
+                  className="bg-black text-white hover:bg-gray-800 flex items-center gap-2"
+                  onClick={() => setIsCreateUserDialogOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Invite User
+                </Button>
+              )}
             </TooltipTrigger>
             <TooltipContent>
               <p>Role and permissions are assigned automatically based on leadership level</p>
@@ -470,7 +493,7 @@ export default function TeamsPage() {
                     </TableCell>
                     <TableCell className="text-gray-500">{member.lastActive}</TableCell>
                     <TableCell>
-                      {!member.isOwner && (
+                      {!member.isOwner && canManageTeams && (
                         <div className="flex items-center justify-end gap-2">
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -524,7 +547,8 @@ export default function TeamsPage() {
         open={isCreateUserDialogOpen}
         onOpenChange={setIsCreateUserDialogOpen}
         orgId={orgId}
-        currentUserRole={currentUserRole}
+        currentUserRole={currentUserSystemRole}
+        canManageTeams={canManageTeams}
         onUserCreated={fetchMembers}
       />
 

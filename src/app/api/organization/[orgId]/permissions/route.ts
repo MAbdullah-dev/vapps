@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   storedToPermissionRows,
   permissionRowsToStored,
+  getCurrentUserPermissionFlags,
   PERMISSION_KEYS,
   type PermissionRow,
   type StoredPermissions,
@@ -39,11 +40,13 @@ export async function GET(
     const permissions = storedToPermissionRows(stored);
     const currentUserRole = ctx.tenant.userRole; // owner | admin | manager | member
     const systemRoleDisplay = roleToSystemRoleDisplay(currentUserRole);
+    const currentUserPermissions = getCurrentUserPermissionFlags(stored, currentUserRole);
 
     return NextResponse.json({
       permissions,
       isOwner,
       currentUserRole: systemRoleDisplay, // "Admin" | "Manager" | "Member"
+      currentUserPermissions, // { manage_teams, manage_sites, manage_processes, create_issues, verify_issues }
     });
   } catch (error: any) {
     console.error("Error fetching permissions:", error);

@@ -52,7 +52,11 @@ export default function PermissionsPage() {
         isOwner: boolean;
         currentUserRole: string;
       }>(`/organization/${orgId}/permissions`);
-      setPermissions(res.permissions ?? []);
+      // Filter to show only active permissions: manage_teams, manage_sites, manage_processes
+      const activePermissions = (res.permissions ?? []).filter(
+        (p) => p.key === "manage_teams" || p.key === "manage_sites" || p.key === "manage_processes"
+      );
+      setPermissions(activePermissions);
       setIsOwner(res.isOwner ?? false);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load permissions");
@@ -69,34 +73,11 @@ export default function PermissionsPage() {
       const next = [...prev];
       const row = next[index];
       if (!row) return prev;
-      const newValue = !row[role];
-      if (newValue) {
-        if (role === "member") {
-          next[index] = {
-            ...row,
-            admin: row.admin || true,
-            manager: row.manager || true,
-            member: true,
-          };
-        } else if (role === "manager") {
-          next[index] = {
-            ...row,
-            admin: row.admin || true,
-            manager: true,
-            member: row.member,
-          };
-        } else {
-          next[index] = { ...row, admin: true, manager: row.manager, member: row.member };
-        }
-      } else {
-        if (role === "admin") {
-          next[index] = { ...row, admin: false, manager: false, member: false };
-        } else if (role === "manager") {
-          next[index] = { ...row, manager: false, member: false };
-        } else {
-          next[index] = { ...row, member: false };
-        }
-      }
+      // Independent toggle - each role can be enabled/disabled independently
+      next[index] = {
+        ...row,
+        [role]: !row[role],
+      };
       return next;
     });
   };
@@ -105,6 +86,7 @@ export default function PermissionsPage() {
     if (!isOwner) return;
     try {
       setSaving(true);
+      // Only send the active permissions (manage_teams, manage_sites, manage_processes)
       await apiClient.put(`/organization/${orgId}/permissions`, { permissions });
       toast.success("Permissions saved. Only the organization owner can change these.");
       await fetchPermissions();

@@ -148,9 +148,19 @@ export default function Sidebar({ orgId }: { orgId: string }) {
       }
     };
 
+    const handleProcessDeleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.orgId === orgId) {
+        // Refresh sites to get updated process list
+        fetchSites();
+      }
+    };
+
     window.addEventListener('processCreated', handleProcessCreated);
+    window.addEventListener('processDeleted', handleProcessDeleted);
     return () => {
       window.removeEventListener('processCreated', handleProcessCreated);
+      window.removeEventListener('processDeleted', handleProcessDeleted);
     };
   }, [orgId, fetchSites]);
 

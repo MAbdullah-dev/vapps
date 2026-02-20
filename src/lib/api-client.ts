@@ -209,6 +209,15 @@ class ApiClient {
     );
   }
 
+  /**
+   * Delete a process
+   */
+  deleteProcess(orgId: string, processId: string) {
+    return this.delete<{ message: string; siteId: string }>(
+      `/organization/${orgId}/processes/${processId}`
+    );
+  }
+
   // ========== Sprint Methods ==========
 
   /**

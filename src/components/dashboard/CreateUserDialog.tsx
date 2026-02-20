@@ -93,6 +93,7 @@ interface CreateUserDialogProps {
   onOpenChange: (open: boolean) => void;
   orgId: string;
   currentUserRole: SystemRole;
+  canManageTeams?: boolean; // Permission flag for manage_teams
   onUserCreated?: () => void;
 }
 
@@ -110,6 +111,7 @@ export default function CreateUserDialog({
   onOpenChange,
   orgId,
   currentUserRole,
+  canManageTeams = false,
   onUserCreated,
 }: CreateUserDialogProps) {
   const [fullName, setFullName] = useState("");
@@ -125,10 +127,11 @@ export default function CreateUserDialog({
   const [errors, setErrors] = useState<FormErrors>({});
   const [orgName, setOrgName] = useState("");
 
-  // Permission checks
+  // Permission checks: Use actual permission flag (canManageTeams) instead of just role
+  // Admin can create all users, Manager can create Members, Member can create if they have manage_teams permission
   const canCreateAllUsers = currentUserRole === "Admin";
   const canCreateMembersOnly = currentUserRole === "Manager";
-  const cannotCreateUsers = currentUserRole === "Member";
+  const cannotCreateUsers = !canManageTeams && currentUserRole === "Member";
 
   // Derived: leadership level and RBAC system role (org-level)
   const roleLevel: RoleLevel | null = jobTitle ? jobTitleToRoleLevel[jobTitle] : null;
@@ -144,6 +147,8 @@ export default function CreateUserDialog({
     if (!targetRole) return false;
     if (canCreateAllUsers) return true;
     if (canCreateMembersOnly && targetRole === "Member") return true;
+    // Member role users can create users if they have manage_teams permission
+    if (currentUserRole === "Member" && canManageTeams && targetRole === "Member") return true;
     return false;
   };
 
