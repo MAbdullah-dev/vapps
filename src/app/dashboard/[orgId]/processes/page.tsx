@@ -232,6 +232,8 @@ export default function ProcessesListPage() {
       if (customEvent.detail.orgId === orgId && isMounted) {
         const siteId = customEvent.detail.siteId;
         // Refresh processes if it's for the current site
+        // Note: This listener may use a stale selectedSiteId, but the optimistic
+        // update in handleDeleteProcess ensures immediate UI feedback
         if (siteId === selectedSiteId) {
           fetchProcessesForSite(siteId, false);
         }
@@ -279,10 +281,21 @@ export default function ProcessesListPage() {
     try {
       if (editingProcess) {
         // Update existing process
-        await apiClient.updateProcess(orgId, editingProcess.id, {
+        const updatedProcess = await apiClient.updateProcess(orgId, editingProcess.id, {
           name,
           description: description || undefined,
         });
+
+        // Optimistically update the process in the UI immediately
+        if (updatedProcess.process) {
+          setProcesses((prevProcesses) =>
+            prevProcesses.map((p) =>
+              p.id === editingProcess.id
+                ? { ...p, ...updatedProcess.process }
+                : p
+            )
+          );
+        }
 
         toast.success("Process updated successfully!");
       } else {
@@ -308,8 +321,11 @@ export default function ProcessesListPage() {
       setIsCreateDialogOpen(false);
       setEditingProcess(null);
 
-      // Refresh processes list
-      await fetchProcessesForSite(selectedSiteId, false);
+      // Refresh processes list in the background to ensure consistency
+      fetchProcessesForSite(selectedSiteId, false).catch((error) => {
+        console.error("Error refreshing processes after save:", error);
+        // If refresh fails, we've already optimistically updated the UI
+      });
     } catch (error: any) {
       console.error(`Error ${editingProcess ? 'updating' : 'creating'} process:`, error);
       toast.error(error.message || `Failed to ${editingProcess ? 'update' : 'create'} process`);
@@ -337,25 +353,39 @@ export default function ProcessesListPage() {
     if (!deletingProcess || !selectedSiteId) return;
 
     setIsDeletingProcess(true);
+    const processIdToDelete = deletingProcess.id;
+    
     try {
-      const result = await apiClient.deleteProcess(orgId, deletingProcess.id);
+      const result = await apiClient.deleteProcess(orgId, processIdToDelete);
+      
+      // Optimistically remove the process from the UI immediately
+      setProcesses((prevProcesses) => 
+        prevProcesses.filter((p) => p.id !== processIdToDelete)
+      );
       
       toast.success(result.message || "Process deleted successfully");
 
       // Trigger sidebar refresh by dispatching a custom event
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('processDeleted', { 
-          detail: { siteId: selectedSiteId, orgId, processId: deletingProcess.id } 
+          detail: { siteId: selectedSiteId, orgId, processId: processIdToDelete } 
         }));
       }
 
-      // Refresh processes list
-      await fetchProcessesForSite(selectedSiteId, false);
+      // Refresh processes list in the background to ensure consistency
+      fetchProcessesForSite(selectedSiteId, false).catch((error) => {
+        console.error("Error refreshing processes after deletion:", error);
+        // If refresh fails, we've already optimistically updated the UI
+      });
       
       setDeletingProcess(null);
     } catch (error: any) {
       console.error("Error deleting process:", error);
       toast.error(error.message || "Failed to delete process");
+      // If deletion fails, refresh the list to ensure UI is in sync
+      fetchProcessesForSite(selectedSiteId, false).catch((refreshError) => {
+        console.error("Error refreshing processes after failed deletion:", refreshError);
+      });
     } finally {
       setIsDeletingProcess(false);
     }

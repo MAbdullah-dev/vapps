@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
-import { normalizeRole, type Role } from "@/lib/roles";
+import { normalizeRole, isRoleHigher, type Role } from "@/lib/roles";
 import { sendInvitationEmail } from "@/helpers/mailer";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 
@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
     const jobTitle = body.jobTitle != null && body.jobTitle !== "" ? String(body.jobTitle).trim() : null;
     const siteId = body.siteId != null && body.siteId !== "" ? String(body.siteId) : null;
     const processId = body.processId != null && body.processId !== "" ? String(body.processId) : null;
+    const additionalRoleIds = Array.isArray(body.additionalRoleIds)
+      ? (body.additionalRoleIds as string[]).filter((id) => typeof id === "string" && id.trim() !== "")
+      : [];
 
     logger.info("Creating invitation", {
       email,
@@ -118,13 +121,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Top Leadership (admin): siteId/processId optional. Operational/Support: siteId required.
-    const isTopLeadership = normalizedRole === "admin" || normalizedRole === "owner";
-    if (!isTopLeadership && !siteId) {
-      return NextResponse.json(
-        { error: "siteId is required for Operational and Support leadership" },
-        { status: 400 }
-      );
+    // Every user except Owner must have one site and one process.
+    const isOwnerRole = normalizedRole === "owner";
+    if (!isOwnerRole) {
+      if (!siteId) {
+        return NextResponse.json(
+          { error: "Site is required for all users except Owner." },
+          { status: 400 }
+        );
+      }
+      if (!processId) {
+        return NextResponse.json(
+          { error: "Process is required for all users except Owner." },
+          { status: 400 }
+        );
+      }
     }
 
     // Check for existing pending invite for same org + email
@@ -157,6 +168,7 @@ export async function POST(req: NextRequest) {
         jobTitle,
         siteId,
         processId,
+        additionalRoleIds: additionalRoleIds.length > 0 ? additionalRoleIds : undefined,
         status: "pending",
         expiresAt,
         invitedBy: user.id,
@@ -172,16 +184,30 @@ export async function POST(req: NextRequest) {
       processId: masterInvite.processId ?? "null",
     });
 
-    // Store tenant-specific invitation (site_id/process_id used when user accepts)
+    // Store tenant-specific invitation (site_id/process_id and additional_role_ids used when user accepts)
     await withTenantConnection(org.database.connectionString, async (client) => {
-      await client.query(
-        `
-        INSERT INTO invitations
-        (email, site_id, process_id, role, token, invited_by, expires_at, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
-        `,
-        [email, siteId, processId, normalizedRole, token, user.id, expiresAt]
-      );
+      const hasAdditionalRoleIdsColumn = await client.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'invitations' AND column_name = 'additional_role_ids'`
+      ).then((r: { rows: { column_name: string }[] }) => r.rows.length > 0);
+      if (hasAdditionalRoleIdsColumn) {
+        await client.query(
+          `
+          INSERT INTO invitations
+          (email, site_id, process_id, role, token, invited_by, expires_at, status, created_at, additional_role_ids)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), $8::uuid[])
+          `,
+          [email, siteId, processId, normalizedRole, token, user.id, expiresAt, additionalRoleIds.length > 0 ? additionalRoleIds : []]
+        );
+      } else {
+        await client.query(
+          `
+          INSERT INTO invitations
+          (email, site_id, process_id, role, token, invited_by, expires_at, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+          `,
+          [email, siteId, processId, normalizedRole, token, user.id, expiresAt]
+        );
+      }
     });
 
     // Send invitation email

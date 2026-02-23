@@ -2,9 +2,9 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Info, Paperclip, Save, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { apiClient } from "@/lib/api-client";
 
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
@@ -28,7 +29,26 @@ const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), {
 
 export default function CreateAuditStep4Page() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
+  const programId = searchParams.get("programId") ?? "";
+  const criteria = searchParams.get("criteria") ?? "";
+  const auditPlanId = searchParams.get("auditPlanId") ?? "";
+  const stepQuery = (() => {
+    const p = new URLSearchParams();
+    if (programId) p.set("programId", programId);
+    if (criteria) p.set("criteria", criteria);
+    if (auditPlanId) p.set("auditPlanId", auditPlanId);
+    const q = p.toString();
+    return q ? `?${q}` : "";
+  })();
+
+  const [isLoading, setIsLoading] = useState(!!auditPlanId);
+  const [auditeeDisplay, setAuditeeDisplay] = useState({ name: "—", uin: "—" });
+  const [processDisplay, setProcessDisplay] = useState({ name: "—", ref: "—" });
+  const [submissionDate, setSubmissionDate] = useState(format(new Date(), "dd-MM-yyyy"));
+  const [submittingToAuditor, setSubmittingToAuditor] = useState(false);
 
   const [containmentDescription, setContainmentDescription] = useState("");
   const [responsiblePerson, setResponsiblePerson] = useState("");
@@ -44,6 +64,57 @@ export default function CreateAuditStep4Page() {
   const [auditeeComments, setAuditeeComments] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!orgId || !auditPlanId) {
+      setIsLoading(false);
+      setSubmissionDate(format(new Date(), "dd-MM-yyyy"));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const planRes = await apiClient.getAuditPlan(orgId, auditPlanId);
+        if (cancelled || !planRes.plan) {
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+        const plan = planRes.plan;
+        if (plan.status === "findings_submitted_to_auditee" && plan.currentUserRole !== "auditee") {
+          if (!cancelled) {
+            setIsLoading(false);
+            router.push(`/dashboard/${orgId}/audit`);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setSubmissionDate(plan.datePrepared ? format(new Date(plan.datePrepared), "dd-MM-yyyy") : format(new Date(), "dd-MM-yyyy"));
+        }
+
+        const membersRes = await apiClient.getMembers(orgId);
+        if (!cancelled && membersRes.teamMembers?.length) {
+          const auditee = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.auditeeUserId);
+          setAuditeeDisplay({
+            name: auditee ? (auditee.name || auditee.email || "—") : "—",
+            uin: auditee?.email ?? "—",
+          });
+        }
+
+        if (!cancelled && plan.auditProgramId) {
+          const progRes = await apiClient.getAuditProgram(orgId, plan.auditProgramId);
+          if (!cancelled && progRes.program) {
+            setProcessDisplay({
+              name: progRes.program.processName || plan.programName || "—",
+              ref: plan.auditNumber || auditPlanId.slice(0, 8) + "...",
+            });
+          }
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgId, auditPlanId]);
 
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
   const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
@@ -330,7 +401,7 @@ export default function CreateAuditStep4Page() {
           </div>
         </div>
 
-        {/* Summary & Actions Card */}
+        {/* Summary & Actions Card — dynamic from plan / program / auditee */}
         <div className="relative mt-8 overflow-hidden rounded-xl border-t-4 border-green-500/50 bg-slate-800 px-6 py-6 text-white shadow-lg">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -338,21 +409,21 @@ export default function CreateAuditStep4Page() {
                 <p className="text-xs font-bold uppercase tracking-wide text-green-400">
                   AUDITEE NAME & UIN
                 </p>
-                <p className="mt-1 font-bold text-white">SARAH MILLER</p>
-                <p className="text-sm text-white/90">UIN-SM-9901</p>
+                <p className="mt-1 font-bold text-white">{isLoading ? "…" : auditeeDisplay.name}</p>
+                <p className="text-sm text-white/90">{isLoading ? "…" : auditeeDisplay.uin}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-green-400">
                   PROCESS
                 </p>
-                <p className="mt-1 font-bold text-white">CORE OPERATIONS</p>
-                <p className="text-sm text-white/90">SYS-GEN-2026</p>
+                <p className="mt-1 font-bold text-white">{isLoading ? "…" : processDisplay.name}</p>
+                <p className="text-sm text-white/90">{isLoading ? "…" : processDisplay.ref}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-green-400">
                   DATE
                 </p>
-                <p className="mt-1 font-bold text-white">04-02-2026</p>
+                <p className="mt-1 font-bold text-white">{submissionDate}</p>
                 <p className="text-sm text-white/90">AUTOMATED LOG</p>
               </div>
             </div>
@@ -376,10 +447,23 @@ export default function CreateAuditStep4Page() {
             </Button>
             <Button
               type="button"
+              disabled={submittingToAuditor || !auditPlanId}
               className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-green-500"
+              onClick={async () => {
+                if (!orgId || !auditPlanId) return;
+                setSubmittingToAuditor(true);
+                try {
+                  await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "ca_submitted_to_auditor");
+                  router.push(`/dashboard/${orgId}/audit/create/5${stepQuery}`);
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setSubmittingToAuditor(false);
+                }
+              }}
             >
               <Send className="h-4 w-4" />
-              SUBMIT TO AUDITOR
+              {submittingToAuditor ? "Submitting…" : "SUBMIT TO AUDITOR"}
             </Button>
           </div>
         </div>
@@ -393,7 +477,7 @@ export default function CreateAuditStep4Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/3`}
+            href={`/dashboard/${orgId}/audit/create/3${stepQuery}`}
             className="inline-flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -405,7 +489,7 @@ export default function CreateAuditStep4Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/5`}
+            href={`/dashboard/${orgId}/audit/create/5${stepQuery}`}
             className="inline-flex items-center gap-2"
           >
             Save & Continue

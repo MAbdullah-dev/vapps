@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import {
   CheckCircle,
   ChevronLeft,
@@ -15,15 +16,87 @@ import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
+  const programId = searchParams.get("programId") ?? "";
+  const criteria = searchParams.get("criteria") ?? "";
+  const auditPlanId = searchParams.get("auditPlanId") ?? "";
+  const stepQuery = (() => {
+    const p = new URLSearchParams();
+    if (programId) p.set("programId", programId);
+    if (criteria) p.set("criteria", criteria);
+    if (auditPlanId) p.set("auditPlanId", auditPlanId);
+    const q = p.toString();
+    return q ? `?${q}` : "";
+  })();
+
+  const [isLoading, setIsLoading] = useState(!!auditPlanId);
+  const [auditIdDisplay, setAuditIdDisplay] = useState("—");
+  const [leadAuditorDisplay, setLeadAuditorDisplay] = useState({ name: "—", role: "—" });
+  const [dateApproved, setDateApproved] = useState(() => format(new Date(), "dd-MMM-yyyy"));
+  const [timeApproved, setTimeApproved] = useState(() => format(new Date(), "HH:mm"));
+  const [stats, setStats] = useState({ total: 0, majorNcs: 0, minorNcs: 0 });
+  const [closing, setClosing] = useState(false);
 
   const [finalDecision, setFinalDecision] = useState<
     "effective" | "ineffective"
   >("effective");
   const [managementComments, setManagementComments] = useState("");
+
+  useEffect(() => {
+    if (!orgId || !auditPlanId) {
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const planRes = await apiClient.getAuditPlan(orgId, auditPlanId);
+        if (cancelled || !planRes.plan) {
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+        const plan = planRes.plan;
+        const isClosureStep = plan.status === "pending_closure" || plan.status === "closed";
+        if (isClosureStep && plan.currentUserRole !== "lead_auditor") {
+          if (!cancelled) {
+            setIsLoading(false);
+            router.push(`/dashboard/${orgId}/audit`);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setAuditIdDisplay(plan.auditNumber || plan.id?.slice(0, 8) || "—");
+        }
+        const membersRes = await apiClient.getMembers(orgId);
+        if (!cancelled && membersRes.teamMembers?.length && plan.leadAuditorUserId) {
+          const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
+          const member = lead as { name?: string; email?: string; systemRole?: string } | undefined;
+          setLeadAuditorDisplay({
+            name: member ? (member.name || member.email || "—") : "—",
+            role: member?.systemRole || "Lead Auditor",
+          });
+        }
+        const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanId);
+        if (!cancelled && findingsRes.findings?.length) {
+          const f = findingsRes.findings;
+          setStats({
+            total: f.length,
+            majorNcs: f.filter((x: { status: string }) => x.status === "major_nc").length,
+            minorNcs: f.filter((x: { status: string }) => x.status === "minor_nc").length,
+          });
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgId, auditPlanId]);
 
   return (
     <div className="space-y-6">
@@ -39,7 +112,7 @@ export default function CreateAuditStep6Page() {
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             Audit ID:{" "}
-            <span className="font-semibold text-green-600">AUD/2024/001</span>
+            <span className="font-semibold text-green-600">{isLoading ? "…" : auditIdDisplay}</span>
             {" • "}
             ISO 19011:2026 Compliant
           </p>
@@ -144,19 +217,19 @@ export default function CreateAuditStep6Page() {
             <div className="flex flex-1 gap-8">
               <div className="bg-white rounded-lg p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                  APPROVED BY
+                  APPROVED BY (LEAD AUDITOR)
                 </p>
-                <p className="mt-1 font-bold text-gray-900">David Harrison</p>
+                <p className="mt-1 font-bold text-gray-900">{isLoading ? "…" : leadAuditorDisplay.name}</p>
                 <p className="text-sm text-gray-600">
-                  VP, Quality & Compliance
+                  {isLoading ? "…" : leadAuditorDisplay.role}
                 </p>
               </div>
               <div className="bg-white rounded-lg p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
                   DATE APPROVED
                 </p>
-                <p className="mt-1 font-bold text-gray-900">03-Feb-2026</p>
-                <p className="text-sm text-gray-600">16:45 GMT</p>
+                <p className="mt-1 font-bold text-gray-900">{dateApproved}</p>
+                <p className="text-sm text-gray-600">{timeApproved}</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center justify-center">
@@ -172,25 +245,25 @@ export default function CreateAuditStep6Page() {
           </div>
         </div>
 
-        {/* Summary Statistics - 3 cards */}
+        {/* Summary Statistics - 3 cards (from findings) */}
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
               TOTAL FINDINGS
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">04</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.total}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
               MAJOR NCS CLOSED
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">01</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.majorNcs}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
               MINOR NCS CLOSED
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">03</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.minorNcs}</p>
           </div>
         </div>
       </div>
@@ -203,7 +276,7 @@ export default function CreateAuditStep6Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/5`}
+            href={`/dashboard/${orgId}/audit/create/5${stepQuery}`}
             className="inline-flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -212,15 +285,24 @@ export default function CreateAuditStep6Page() {
         </Button>
         <Button
           className="bg-green-600 text-white hover:bg-green-700"
-          asChild
+          disabled={closing || !auditPlanId}
+          onClick={async () => {
+            if (!orgId || !auditPlanId) return;
+            setClosing(true);
+            try {
+              if (finalDecision === "effective") {
+                await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "closed");
+              }
+              router.push(`/dashboard/${orgId}/audit`);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setClosing(false);
+            }
+          }}
         >
-          <Link
-            href={`/dashboard/${orgId}/audit`}
-            className="inline-flex items-center gap-2"
-          >
-            Finalize Audit & Close
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+          {closing ? "Closing…" : finalDecision === "effective" ? "Finalize Audit & Close" : "Return to Audit List"}
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>

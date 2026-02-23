@@ -79,6 +79,8 @@ interface EditUserDialogProps {
   currentLeadershipTier: "TOP" | "OPERATIONAL" | "SUPPORT" | "Top" | "Operational" | "Support";
   currentSiteId?: string;
   currentProcessId?: string;
+  /** Current additional role names (e.g. ["Auditor"]) from the members API */
+  currentAdditionalRoles?: string[];
   onUserUpdated?: () => void;
 }
 
@@ -99,6 +101,7 @@ export default function EditUserDialog({
   currentLeadershipTier,
   currentSiteId,
   currentProcessId,
+  currentAdditionalRoles,
   onUserUpdated,
 }: EditUserDialogProps) {
   const [name, setName] = useState(userName || "");
@@ -107,27 +110,35 @@ export default function EditUserDialog({
   const [process, setProcess] = useState(currentProcessId || "");
   const [sites, setSites] = useState<Site[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
+  const [additionalRoles, setAdditionalRoles] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAdditionalRoleIds, setSelectedAdditionalRoleIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // Derived values
+  // Derived values. Every user (except Owner) has one site and one process.
   const roleLevel: RoleLevel | null = jobTitle ? jobTitleToRoleLevel[jobTitle] : null;
   const systemRole: SystemRole | null = roleLevel ? roleLevelToSystemRole[roleLevel] : null;
-  const isTopLeadership = roleLevel === LEADERSHIP_TOP;
-  const isOperationalLeadership = roleLevel === LEADERSHIP_OPERATIONAL;
-  const isSupportLeadership = roleLevel === LEADERSHIP_SUPPORT;
 
-  // Load sites and processes
+  // Load sites and additional roles when dialog opens
   useEffect(() => {
     if (open && orgId) {
       loadSites();
-      if (site) {
-        loadProcesses(site);
-      }
+      apiClient
+        .get<{ additionalRoles: { id: string; name: string }[] }>(`/organization/${orgId}/additional-roles`)
+        .then((res) => setAdditionalRoles(res.additionalRoles ?? []))
+        .catch(() => setAdditionalRoles([]));
+    }
+  }, [open, orgId]);
+
+  useEffect(() => {
+    if (open && orgId && site) {
+      loadProcesses(site);
+    } else {
+      setProcesses([]);
     }
   }, [open, orgId, site]);
 
-  // Reset form when dialog opens/closes or user changes
+  // Reset form and sync additional role selection when dialog opens or user changes
   useEffect(() => {
     if (open) {
       setName(userName || "");
@@ -135,8 +146,17 @@ export default function EditUserDialog({
       setSite(currentSiteId || "");
       setProcess(currentProcessId || "");
       setErrors({});
+      // selectedAdditionalRoleIds is synced when additionalRoles load (see effect below)
     }
   }, [open, userName, currentJobTitle, currentSiteId, currentProcessId]);
+
+  // When we have both the role list and current user's roles, set selected ids (by matching names)
+  useEffect(() => {
+    if (!open || additionalRoles.length === 0) return;
+    const names = currentAdditionalRoles ?? [];
+    const ids = additionalRoles.filter((ar) => names.includes(ar.name)).map((ar) => ar.id);
+    setSelectedAdditionalRoleIds(ids);
+  }, [open, additionalRoles, currentAdditionalRoles]);
 
   const loadSites = async () => {
     try {
@@ -150,37 +170,28 @@ export default function EditUserDialog({
 
   const loadProcesses = async (siteId: string) => {
     try {
-      const res = await apiClient.get<{ processes: Process[] }>(`/organization/${orgId}/processes`);
-      const siteProcesses = (res.processes || []).filter((p: any) => p.siteId === siteId);
-      setProcesses(siteProcesses);
-    } catch (e: any) {
+      const res = await apiClient.getProcesses(orgId, siteId);
+      setProcesses(res.processes || []);
+    } catch (e: unknown) {
       console.error("Failed to load processes", e);
       toast.error("Failed to load processes");
+      setProcesses([]);
     }
   };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!name || name.trim() === "") {
-      // Name validation - but we'll use userName from props as fallback
-    }
-
     if (!jobTitle) {
       newErrors.jobTitle = "Job title is required";
     }
 
-    if (isOperationalLeadership && !site) {
+    // Every user must have one site and one process (Owner is not edited in this dialog)
+    if (!site) {
       newErrors.site = "Select one site";
     }
-
-    if (isSupportLeadership) {
-      if (!site) {
-        newErrors.site = "Select one site";
-      }
-      if (!process) {
-        newErrors.process = "Select one process";
-      }
+    if (!process) {
+      newErrors.process = "Select one process";
     }
 
     setErrors(newErrors);
@@ -196,21 +207,15 @@ export default function EditUserDialog({
     setErrors({});
 
     try {
-      const siteId = isTopLeadership ? null : site || null;
-      const processId = isTopLeadership
-        ? null
-        : isOperationalLeadership
-          ? null
-          : process || null;
-
       const jobTitleToSend = jobTitle && jobTitle.trim() !== "" ? String(jobTitle).trim() : null;
 
       await apiClient.put(`/organization/${orgId}/members/${userId}`, {
-        name: name.trim() || userName.trim(), // Send name to update User table
+        name: name.trim() || userName.trim(),
         role: systemRole.toLowerCase(),
         jobTitle: jobTitleToSend,
-        siteId,
-        processId,
+        siteId: site || null,
+        processId: process || null,
+        additionalRoleIds: selectedAdditionalRoleIds.length > 0 ? selectedAdditionalRoleIds : [],
       });
 
       toast.success("User updated successfully");
@@ -365,53 +370,19 @@ export default function EditUserDialog({
             </div>
           )}
 
-          {/* Site Selection */}
-          {isTopLeadership && (
-            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-600">
-                Top Leadership has organization-wide access.
-              </p>
-            </div>
-          )}
-
-          {isOperationalLeadership && (
-            <div className="space-y-2">
-              <Label htmlFor="site-operational">
-                Site (operational scope) <span className="text-red-500">*</span>
-              </Label>
-              <Select value={site} onValueChange={handleSiteChange}>
-                <SelectTrigger
-                  id="site-operational"
-                  className={errors.site ? "border-red-500" : ""}
-                >
-                  <SelectValue placeholder="Select one site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.site && (
-                <div className="flex items-center gap-1 text-sm text-red-500">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{errors.site}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isSupportLeadership && (
+          {/* Site and Process – required for every user (Owner is not edited here) */}
+          {roleLevel != null && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="site-support">
-                  Site (operational scope) <span className="text-red-500">*</span>
+                <Label htmlFor="edit-site">
+                  Site <span className="text-red-500">*</span>
                 </Label>
+                <p className="text-xs text-gray-500 mb-1">
+                  Select the site where this user operates.
+                </p>
                 <Select value={site} onValueChange={handleSiteChange}>
                   <SelectTrigger
-                    id="site-support"
+                    id="edit-site"
                     className={errors.site ? "border-red-500" : ""}
                   >
                     <SelectValue placeholder="Select one site" />
@@ -432,33 +403,73 @@ export default function EditUserDialog({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="process-support">
-                  Process <span className="text-red-500">*</span>
-                </Label>
-                <Select value={process} onValueChange={setProcess}>
-                  <SelectTrigger
-                    id="process-support"
-                    className={errors.process ? "border-red-500" : ""}
+              {site && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-process">
+                    Process <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-1">
+                    Select one process within this site.
+                  </p>
+                  <Select
+                    value={process}
+                    onValueChange={(v) => {
+                      setProcess(v);
+                      setErrors((prev) => ({ ...prev, process: undefined }));
+                    }}
                   >
-                    <SelectValue placeholder="Select one process" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {processes.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.process && (
-                  <div className="flex items-center gap-1 text-sm text-red-500">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{errors.process}</span>
-                  </div>
-                )}
-              </div>
+                    <SelectTrigger
+                      id="edit-process"
+                      className={errors.process ? "border-red-500" : ""}
+                    >
+                      <SelectValue placeholder={processes.length === 0 ? "No processes" : "Select one process"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {processes.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.process && (
+                    <div className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{errors.process}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
+          )}
+
+          {/* Additional roles (e.g. Auditor) */}
+          {additionalRoles.length > 0 && (
+            <div className="space-y-2">
+              <Label>Additional roles (e.g. Auditor)</Label>
+              <p className="text-xs text-gray-500 mb-1">
+                Assign or remove custom roles such as Auditor.
+              </p>
+              <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+                {additionalRoles.map((ar) => (
+                  <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedAdditionalRoleIds.includes(ar.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAdditionalRoleIds((prev) => [...prev, ar.id]);
+                        } else {
+                          setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 

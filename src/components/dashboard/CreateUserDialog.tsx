@@ -123,6 +123,8 @@ export default function CreateUserDialog({
   const [process, setProcess] = useState("");
   const [sites, setSites] = useState<Site[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
+  const [additionalRoles, setAdditionalRoles] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAdditionalRoleIds, setSelectedAdditionalRoleIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [orgName, setOrgName] = useState("");
@@ -137,7 +139,7 @@ export default function CreateUserDialog({
   const roleLevel: RoleLevel | null = jobTitle ? jobTitleToRoleLevel[jobTitle] : null;
   const systemRole: SystemRole | null = roleLevel ? roleLevelToSystemRole[roleLevel] : null;
 
-  // Leadership tier flags for site scope UI (site = operational scope only)
+  // Leadership tier flags. Every user (including Top/Admin) must have one site and one process except Owner.
   const isTopLeadership = roleLevel === LEADERSHIP_TOP;
   const isOperationalLeadership = roleLevel === LEADERSHIP_OPERATIONAL;
   const isSupportLeadership = roleLevel === LEADERSHIP_SUPPORT;
@@ -152,17 +154,21 @@ export default function CreateUserDialog({
     return false;
   };
 
-  // Fetch sites and organization info
+  // Fetch sites, organization, and additional roles
   useEffect(() => {
     if (open && orgId) {
       const fetchData = async () => {
         try {
-          const sitesResponse = await apiClient.getSites(orgId);
+          const [sitesResponse, rolesResponse] = await Promise.all([
+            apiClient.getSites(orgId),
+            apiClient.get<{ additionalRoles: { id: string; name: string }[] }>(`/organization/${orgId}/additional-roles`).catch(() => ({ additionalRoles: [] })),
+          ]);
           setSites(sitesResponse.sites || []);
           setOrganization(orgId);
           if (sitesResponse.organization) {
             setOrgName(sitesResponse.organization.name || "");
           }
+          setAdditionalRoles(rolesResponse.additionalRoles ?? []);
         } catch (error) {
           console.error("Error fetching sites:", error);
         }
@@ -171,8 +177,8 @@ export default function CreateUserDialog({
     }
   }, [open, orgId]);
 
-  // Site context for process fetch: Operational and Support both use single site (PHASE 1)
-  const siteForProcess = (isOperationalLeadership || isSupportLeadership) ? site : "";
+  // Site context for process fetch: all tiers (including Top) need site + process
+  const siteForProcess = site;
 
   // Fetch processes when a site is selected (Operational or Support)
   useEffect(() => {
@@ -203,6 +209,7 @@ export default function CreateUserDialog({
       setSite("");
       setSelectedProcesses([]);
       setProcess("");
+      setSelectedAdditionalRoleIds([]);
       setErrors({});
     }
   }, [open]);
@@ -226,22 +233,12 @@ export default function CreateUserDialog({
       newErrors.organization = "Organization is required";
     }
 
-    // PHASE 1 scope validation — split by leadership tier
-    if (isTopLeadership) {
-      // Top: do not validate site or process (auto-all sites).
-    } else if (isOperationalLeadership) {
-      // Operational: one site required; they have access to all processes in that site (no process selection).
-      if (!site) {
-        newErrors.site = "Select one site.";
-      }
-    } else if (isSupportLeadership) {
-      // Support: site and process both required.
-      if (!site) {
-        newErrors.site = "Select one site.";
-      }
-      if (!process) {
-        newErrors.process = "Select one process.";
-      }
+    // Every user (Admin, Manager, Member) must have one site and one process. Owner is not invited from this dialog.
+    if (!site) {
+      newErrors.site = "Select one site.";
+    }
+    if (!process) {
+      newErrors.process = "Select one process.";
     }
 
     // Permission check (all tiers)
@@ -262,19 +259,12 @@ export default function CreateUserDialog({
     setErrors({});
 
     try {
-      // Invite API: Top = no site/process; Operational = site only (access all processes in site); Support = site + process
-      const siteId = isTopLeadership ? null : site || null;
-      const processId = isTopLeadership
-        ? null
-        : isOperationalLeadership
-          ? null
-          : process || null;
+      // Every user (Admin, Manager, Member) gets one site and one process. Owner is not invited from this dialog.
+      const siteId = site || null;
+      const processId = process || null;
 
-      // Ensure jobTitle is sent as a string when provided
       const jobTitleToSend = jobTitle && jobTitle.trim() !== "" ? String(jobTitle).trim() : null;
-      
-      console.log("Sending invitation with jobTitle:", jobTitleToSend, "original:", jobTitle);
-      
+
       await apiClient.post("/invites", {
         orgId,
         email: email.trim(),
@@ -283,6 +273,7 @@ export default function CreateUserDialog({
         processId,
         role: systemRole.toLowerCase(),
         jobTitle: jobTitleToSend,
+        additionalRoleIds: selectedAdditionalRoleIds.length > 0 ? selectedAdditionalRoleIds : undefined,
       });
 
       setFullName("");
@@ -291,6 +282,7 @@ export default function CreateUserDialog({
       setSite("");
       setSelectedProcesses([]);
       setProcess("");
+      setSelectedAdditionalRoleIds([]);
       setErrors({});
       toast.success("Invitation sent successfully.");
       onOpenChange(false);
@@ -429,11 +421,6 @@ export default function CreateUserDialog({
                 <span>{errors.jobTitle}</span>
               </div>
             )}
-            {isTopLeadership && (
-              <p className="text-xs text-gray-500 mt-1">
-                Top Leadership has organization-wide access.
-              </p>
-            )}
           </div>
 
           {/* Leadership Level (Auto-selected, Read-only) */}
@@ -497,61 +484,18 @@ export default function CreateUserDialog({
             />
           </div>
 
-          {/* PHASE 1 scope: Top = no selectors; Operational = 1 site + multi process; Support = 1 site + 1 process */}
-          {isTopLeadership && (
-            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-600">
-                Top Leadership has organization-wide access.
-              </p>
-            </div>
-          )}
-
-          {isOperationalLeadership && (
-            <div className="space-y-2">
-              <Label htmlFor="site-operational">
-                Site (operational scope) <span className="text-red-500">*</span>
-              </Label>
-              <p className="text-xs text-gray-500 mb-1">
-                Select one site. Level 2 Leadership has access to all processes within this site.
-              </p>
-              <Select value={site} onValueChange={handleSiteChange}>
-                <SelectTrigger
-                  id="site-operational"
-                  className={errors.site ? "border-red-500" : ""}
-                >
-                  <SelectValue placeholder="Select one site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.site && (
-                <div className="flex items-center gap-1 text-sm text-red-500">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{errors.site}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isSupportLeadership && (
+          {/* Every user must be assigned one site and one process (except Owner, who is not invited here). */}
+          {roleLevel != null && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="site-support">
-                  Site (operational scope) <span className="text-red-500">*</span>
+                <Label htmlFor="site">
+                  Site <span className="text-red-500">*</span>
                 </Label>
                 <p className="text-xs text-gray-500 mb-1">
                   Select the site where this user will operate.
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
-                  <SelectTrigger
-                    id="site-support"
-                    className={errors.site ? "border-red-500" : ""}
-                  >
+                  <SelectTrigger id="site" className={errors.site ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select one site" />
                   </SelectTrigger>
                   <SelectContent>
@@ -571,11 +515,11 @@ export default function CreateUserDialog({
               </div>
               {site && (
                 <div className="space-y-2">
-                  <Label htmlFor="process-support">
-                    Process (operational responsibility) <span className="text-red-500">*</span>
+                  <Label htmlFor="process">
+                    Process <span className="text-red-500">*</span>
                   </Label>
                   <p className="text-xs text-gray-500 mb-1">
-                    Select exactly one process within this site.
+                    Select one process within this site.
                   </p>
                   <Select
                     value={process}
@@ -584,10 +528,7 @@ export default function CreateUserDialog({
                       if (errors.process) setErrors((e) => ({ ...e, process: undefined }));
                     }}
                   >
-                    <SelectTrigger
-                      id="process-support"
-                      className={errors.process ? "border-red-500" : ""}
-                    >
+                    <SelectTrigger id="process" className={errors.process ? "border-red-500" : ""}>
                       <SelectValue placeholder={processes.length === 0 ? "No processes available" : "Select one process"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -604,6 +545,35 @@ export default function CreateUserDialog({
                       <span>{errors.process}</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Optional additional roles (e.g. Auditor) */}
+              {additionalRoles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Additional roles (optional)</Label>
+                  <p className="text-xs text-gray-500 mb-1">
+                    Assign custom roles such as Auditor if needed.
+                  </p>
+                  <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+                    {additionalRoles.map((ar) => (
+                      <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedAdditionalRoleIds.includes(ar.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedAdditionalRoleIds((prev) => [...prev, ar.id]);
+                            } else {
+                              setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

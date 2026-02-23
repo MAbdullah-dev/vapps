@@ -264,6 +264,25 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // Assign additional roles (e.g. Auditor) from invitation
+        const rawAdditionalRoleIds = tenantInvite.additional_role_ids;
+        const additionalRoleIds: string[] = Array.isArray(rawAdditionalRoleIds)
+          ? rawAdditionalRoleIds
+          : typeof rawAdditionalRoleIds === "string" && rawAdditionalRoleIds
+            ? rawAdditionalRoleIds.replace(/[{}]/g, "").split(",").map((s) => s.trim()).filter(Boolean)
+            : [];
+        for (const roleId of additionalRoleIds) {
+          if (!roleId) continue;
+          try {
+            await client.query(
+              `INSERT INTO user_additional_roles (user_id, additional_role_id) VALUES ($1, $2::uuid) ON CONFLICT (user_id, additional_role_id) DO NOTHING`,
+              [user.id, roleId]
+            );
+          } catch (e) {
+            logger.warn("Could not assign additional role", { userId: user.id, roleId, error: e });
+          }
+        }
+
         // Mark invitation as accepted in tenant DB
         await client.query(
           `UPDATE invitations SET status = 'accepted' WHERE id = $1`,

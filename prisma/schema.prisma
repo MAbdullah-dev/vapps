@@ -127,6 +127,7 @@ model Invitation {
   jobTitle       String?      // Job title: CEO, CTO, VP, Director, Manager, Supervisor, Team Lead, etc.
   siteId         String?      // Site assignment (for Operational/Support leadership)
   processId      String?      // Process assignment (for Operational/Support leadership)
+  additionalRoleIds Json?     // Optional additional role IDs (e.g. Auditor) stored as string[]
   status         String       @default("pending") // pending, accepted, expired, cancelled
   expiresAt      DateTime
   createdAt      DateTime     @default(now())

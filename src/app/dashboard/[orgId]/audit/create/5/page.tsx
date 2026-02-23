@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useRef, useState, useEffect } from "react";
+import { format } from "date-fns";
 import {
   CheckCircle,
   ChevronLeft,
@@ -17,17 +18,73 @@ import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 export default function CreateAuditStep5Page() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
+  const programId = searchParams.get("programId") ?? "";
+  const criteria = searchParams.get("criteria") ?? "";
+  const auditPlanId = searchParams.get("auditPlanId") ?? "";
+  const stepQuery = (() => {
+    const p = new URLSearchParams();
+    if (programId) p.set("programId", programId);
+    if (criteria) p.set("criteria", criteria);
+    if (auditPlanId) p.set("auditPlanId", auditPlanId);
+    const q = p.toString();
+    return q ? `?${q}` : "";
+  })();
+
+  const [isLoading, setIsLoading] = useState(!!auditPlanId);
+  const [leadAuditorDisplay, setLeadAuditorDisplay] = useState("—");
+  const [verificationStartedAt, setVerificationStartedAt] = useState(() => format(new Date(), "dd-MMM-yyyy HH:mm"));
 
   const [verificationOutcome, setVerificationOutcome] = useState<
     "effective" | "ineffective"
   >("effective");
   const [auditorComments, setAuditorComments] = useState("");
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [proceedingToStep6, setProceedingToStep6] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!orgId || !auditPlanId) {
+      setIsLoading(false);
+      setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const planRes = await apiClient.getAuditPlan(orgId, auditPlanId);
+        if (cancelled || !planRes.plan) {
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+        const plan = planRes.plan;
+        if (plan.status === "ca_submitted_to_auditor" && plan.currentUserRole !== "assigned_auditor") {
+          if (!cancelled) {
+            setIsLoading(false);
+            router.push(`/dashboard/${orgId}/audit`);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
+        }
+        const membersRes = await apiClient.getMembers(orgId);
+        if (!cancelled && membersRes.teamMembers?.length && plan.leadAuditorUserId) {
+          const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
+          setLeadAuditorDisplay(lead ? `${lead.name || lead.email || "—"} (Lead Auditor)` : "—");
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgId, auditPlanId]);
 
   const handleEvidenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -36,7 +93,7 @@ export default function CreateAuditStep5Page() {
     e.target.value = "";
   };
 
-  const auditTrailText = `Verification Started\nJohn Smith (Lead Auditor) • 03-Feb-2026 14:20\n\nAwaiting Final Verification\n---`;
+  const auditTrailText = `Verification Started\n${leadAuditorDisplay} • ${verificationStartedAt}\n\nAwaiting Final Verification\n---`;
 
   const handleCopyAuditTrail = async () => {
     try {
@@ -206,7 +263,7 @@ export default function CreateAuditStep5Page() {
                 Verification Started
               </p>
               <p className="text-sm text-gray-500">
-                John Smith (Lead Auditor) • 03-Feb-2026 14:20
+                {isLoading ? "…" : `${leadAuditorDisplay} • ${verificationStartedAt}`}
               </p>
             </div>
             {/* Second entry: dashed light gray vertical bar, pending */}
@@ -228,7 +285,7 @@ export default function CreateAuditStep5Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/4`}
+            href={`/dashboard/${orgId}/audit/create/4${stepQuery}`}
             className="inline-flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -237,15 +294,22 @@ export default function CreateAuditStep5Page() {
         </Button>
         <Button
           className="bg-green-600 text-white hover:bg-green-700"
-          asChild
+          disabled={proceedingToStep6 || !auditPlanId}
+          onClick={async () => {
+            if (!orgId || !auditPlanId) return;
+            setProceedingToStep6(true);
+            try {
+              await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
+              router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setProceedingToStep6(false);
+            }
+          }}
         >
-          <Link
-            href={`/dashboard/${orgId}/audit/create/6`}
-            className="inline-flex items-center gap-2"
-          >
-            Save & Continue
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+          {proceedingToStep6 ? "Proceeding…" : "Save & Continue"}
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>

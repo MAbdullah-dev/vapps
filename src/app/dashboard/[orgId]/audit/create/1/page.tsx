@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Plus, Search, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface OrganizationInfo {
   name?: string;
@@ -55,40 +57,41 @@ function formatUIN(registrationId: string | undefined): string {
   return registrationId.startsWith("UIN-") ? registrationId : `UIN-${registrationId}`;
 }
 
+type SiteItem = { id: string; name: string; code?: string };
+type ProcessItem = { id: string; name: string; siteId?: string; siteName?: string };
+type MemberItem = { id: string; name: string; email: string; processId?: string; processName?: string; siteId?: string; siteName?: string; additionalRoles?: string[] };
+
 export default function CreateAuditStep1Page() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const orgId = params?.orgId as string;
+  const currentUserId = (session?.user as { id?: string })?.id ?? null;
 
   const [isLoading, setIsLoading] = useState(true);
   const [orgInfo, setOrgInfo] = useState<OrganizationInfo | null>(null);
+  const [sites, setSites] = useState<SiteItem[]>([]);
+  const [processes, setProcesses] = useState<ProcessItem[]>([]);
+  const [members, setMembers] = useState<MemberItem[]>([]);
 
-  const [startPeriod, setStartPeriod] = useState<Date | undefined>(new Date(2026, 2, 2)); // 03-02-2026
-  const [endPeriod, setEndPeriod] = useState<Date | undefined>(new Date(2026, 2, 8)); // 03-08-2026
-  const [systemCreationDate, setSystemCreationDate] = useState<Date | undefined>(new Date(2026, 2, 2)); // 03-02-2026
-  const [processSearch, setProcessSearch] = useState("");
-  const [ownerSearch, setOwnerSearch] = useState("");
+  const [startPeriod, setStartPeriod] = useState<Date | undefined>(undefined);
+  const [endPeriod, setEndPeriod] = useState<Date | undefined>(undefined);
+  const [processId, setProcessId] = useState<string | null>(null);
+  const [programOwnerUserId, setProgramOwnerUserId] = useState<string | null>(null);
+  const [programId, setProgramId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [programPurpose, setProgramPurpose] = useState<string | null>(null);
   const [auditScope, setAuditScope] = useState<string | null>(null);
-  const [selectedSites, setSelectedSites] = useState<string | null>("S1");
+  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [auditType, setAuditType] = useState<string | null>(null);
   const [auditCriteria, setAuditCriteria] = useState<string | null>(null);
 
-  const [risks, setRisks] = useState([
-    { id: "r1", rop: "R-001", category: "Resource Availability", description: "Conflict with major production cycle in Q3", impact: "04 (High)", impactClass: "orange", frequency: "Annual", priority: "Critical", priorityClass: "red" },
-    { id: "r2", rop: "O-001", category: "Digitization", description: "Implementation of VApps automated audit tool", impact: "05 (V.High)", impactClass: "green", frequency: "Ongoing", priority: "Strategic", priorityClass: "green" },
-  ]);
+  const [risks, setRisks] = useState<{ id: string; rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }[]>([]);
 
-  const [scheduleRows] = useState([
-    { audit: "001", type: "First-Party", focus: "QMS & ESG", frequency: "Annual", months: "Jan, Apr, Jul", lead: "Auditor A" },
-    { audit: "002", type: "Second-Party", focus: "EMS & Governance", frequency: "Ongoing", months: "Mar, Jun", lead: "Auditor B" },
-  ]);
+  const [scheduleRows, setScheduleRows] = useState<{ audit: string; type: string; focus: string; frequency: string; months: string; lead: string }[]>([]);
 
-  const [kpis, setKpis] = useState([
-    { id: "k1", kpi: "001", description: "% audit completed vs planned", impact: "High", score: "3", priority: "1", comments: "" },
-    { id: "k2", kpi: "002", description: "ESG performance insights", impact: "Medium", score: "2", priority: "2", comments: "" },
-  ]);
+  const [kpis, setKpis] = useState<{ id: string; kpi: string; description: string; impact: string; score: string; priority: string; comments: string }[]>([]);
 
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const [riskForm, setRiskForm] = useState<{ rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }>({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
@@ -124,40 +127,96 @@ export default function CreateAuditStep1Page() {
     setReviewRows((prev) => [...prev, { id: `p${Date.now()}`, ...reviewForm }]);
     setReviewDialogOpen(false);
   };
-  const [reviewRows, setReviewRows] = useState([
-    { id: "p1", pri: "PRI-01", type: "Scheduled Review", comments: "Overall performance aligned with 2024 targets.", priority: "Medium", priorityClass: "gray" as const, action: "Update site list for S2 expansion" },
-    { id: "p2", pri: "PRI-02", type: "Feedback", comments: "Audit teams report high efficiency with new digital tool.", priority: "Low", priorityClass: "gray" as const, action: "Standardize evidence upload format" },
-    { id: "p3", pri: "PRI-03", type: "Business Risk Changes", comments: "New regulatory requirements for ESG disclosure.", priority: "High", priorityClass: "red" as const, action: "Incorporate IFRS S2 criteria" },
-  ]);
+  const [reviewRows, setReviewRows] = useState<{ id: string; pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }[]>([]);
   const removeReview = (id: string) => setReviewRows((prev) => prev.filter((r) => r.id !== id));
 
-  const toggleSite = (site: string) => {
-    setSelectedSites((prev) => (prev === site ? null : site));
+  const toggleSite = (siteId: string) => {
+    setSelectedSiteIds((prev) => {
+      const next = prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId];
+      if (next.length !== prev.length) {
+        setProcessId(null);
+        setProgramOwnerUserId(null);
+      }
+      return next;
+    });
   };
+
+  // Current user must have Auditor role to create an audit
+  const currentUserHasAuditorRole = useMemo(
+    () => (members.find((m) => m.id === currentUserId)?.additionalRoles ?? []).includes("Auditor"),
+    [members, currentUserId]
+  );
+
+  // Process(es) the current user is assigned to (user cannot audit their own process)
+  const currentUserProcessIds = useMemo(() => {
+    const processId = members.find((m) => m.id === currentUserId)?.processId;
+    return processId ? [processId] : [];
+  }, [members, currentUserId]);
+
+  // Processes for selected site(s) only; exclude processes where the current user is assigned (no self-audit)
+  const processesForSelectedSites = useMemo(
+    () =>
+      selectedSiteIds.length === 0
+        ? []
+        : processes
+            .filter((p) => p.siteId && selectedSiteIds.includes(p.siteId))
+            .filter((p) => !currentUserProcessIds.includes(p.id)),
+    [processes, selectedSiteIds, currentUserProcessIds]
+  );
+
+  // Responsible owner = members assigned to the selected process (and thus site)
+  const responsibleOwnerCandidates = useMemo(
+    () => (processId ? members.filter((m) => m.processId === processId) : []),
+    [members, processId]
+  );
 
   useEffect(() => {
     if (!orgId) {
       setIsLoading(false);
       return;
     }
-    apiClient
-      .getOrganizationInfo(orgId)
-      .then((res) => {
-        const info = res.organizationInfo;
-        if (info) {
-          setOrgInfo({
-            name: info.name,
-            registrationId: info.registrationId,
-            industry: info.industry,
-            subIndustry: info.subIndustry,
-          });
-        } else {
-          setOrgInfo(null);
-        }
+    let cancelled = false;
+    Promise.all([
+      apiClient.getOrganizationInfo(orgId),
+      apiClient.getSites(orgId),
+      apiClient.getProcesses(orgId),
+      apiClient.getMembers(orgId),
+    ])
+      .then(([orgRes, sitesRes, processesRes, membersRes]) => {
+        if (cancelled) return;
+        const info = orgRes.organizationInfo;
+        setOrgInfo(info ? { name: info.name, registrationId: info.registrationId, industry: info.industry, subIndustry: info.subIndustry } : null);
+        const siteList = sitesRes.sites ?? [];
+        setSites(siteList.map((s: any) => ({ id: s.id, name: s.name ?? s.siteName ?? s.id, code: s.code })));
+        setProcesses(processesRes.processes ?? []);
+        const activeMembers = (membersRes.teamMembers ?? []).filter((m: any) => m.status === "Active");
+        setMembers(activeMembers.map((m: any) => ({ id: m.id, name: m.name || m.email || "—", email: m.email ?? "", processId: m.processId, processName: m.processName, siteId: m.siteId, siteName: m.siteName, additionalRoles: m.additionalRoles ?? [] })));
       })
-      .catch(() => setOrgInfo(null))
-      .finally(() => setIsLoading(false));
-  }, [orgId]);
+      .catch(() => {
+        if (!cancelled) setOrgInfo(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [orgId, currentUserId]);
+
+  // User must have Auditor role to create an audit; creator is always the Lead Auditor
+  if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
+    return (
+      <div className="space-y-6">
+        <AuditWorkflowHeader currentStep={1} orgId={orgId} exitHref="../.." />
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
+          <p className="text-lg font-medium text-amber-800">
+            You must have the <strong>Auditor</strong> additional role to create an audit.
+          </p>
+          <p className="mt-2 text-sm text-amber-700">
+            Ask your organization admin to assign you the Auditor role in Teams &amp; Roles (additional roles), then try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -292,28 +351,9 @@ export default function CreateAuditStep1Page() {
               <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 SYSTEM CREATION DATE
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !systemCreationDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {systemCreationDate ? format(systemCreationDate, "MM-dd-yyyy") : "Select date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={systemCreationDate}
-                    onSelect={setSystemCreationDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex items-center rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                Set automatically when the program is saved (not editable)
+              </div>
             </div>
           </div>
           <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
@@ -361,30 +401,34 @@ export default function CreateAuditStep1Page() {
                 ))}
               </div>
             </div>
-            {/* Right half: Organizational Sites / Units */}
+            {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
-                ORGANIZATIONAL SITES / UNITS (SELECT ONE)
+                ORGANIZATIONAL SITES / UNITS (SELECT ONE OR MORE)
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {["S1", "S2", "S3", "S4", "S5"].map((site) => (
-                  <Button
-                    key={site}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleSite(site)}
-                    className={cn(
-                      "min-w-[100px] rounded-md border py-4 transition-colors",
-                      selectedSites === site
-                        ? "border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    )}
-                  >
-                    {site}
-                  </Button>
-                ))}
-              </div>
+              {sites.length === 0 ? (
+                <p className="text-sm text-gray-500">No sites for this organization. Add sites in Settings.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {sites.map((site) => (
+                    <Button
+                      key={site.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleSite(site.id)}
+                      className={cn(
+                        "min-w-[100px] rounded-md border py-4 transition-colors",
+                        selectedSiteIds.includes(site.id)
+                          ? "border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      {site.code || site.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {/* Types of Audits */}
@@ -436,7 +480,7 @@ export default function CreateAuditStep1Page() {
           </div>
         </div>
 
-        {/* Audit Program Owner & Delegation Section */}
+        {/* Audit Program Owner & Delegation: Select site first, then process (for that site), then responsible owner (from process), then lead auditor (user with Auditor role). */}
         <div className="rounded-lg border border-gray-200 bg-green-50/50 p-8 shadow-sm mx-8 my-8">
           <div className="mb-6 flex items-center gap-2">
             <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
@@ -444,36 +488,50 @@ export default function CreateAuditStep1Page() {
               <Info className="h-3 w-3" />
             </div>
           </div>
+          <p className="mb-4 text-sm text-gray-600">
+            Select a site above first. Process list shows only processes for the selected site(s) that you are <strong>not</strong> assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.
+          </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                PROCESS / DEPARTMENT SELECTOR
+                PROCESS / DEPARTMENT
               </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={processSearch}
-                  onChange={(e) => setProcessSearch(e.target.value)}
-                  placeholder="Search Process"
-                  className="pl-9"
-                />
-              </div>
+              <Select
+                value={processId ?? ""}
+                onValueChange={(v) => { setProcessId(v || null); setProgramOwnerUserId(null); }}
+                disabled={selectedSiteIds.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={selectedSiteIds.length === 0 ? "Select a site first" : "Select process"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {processesForSelectedSites.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}{p.siteName ? ` (${p.siteName})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">Only processes you are not assigned to are shown (no self-audit).</p>
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                RESPONSIBLE PERSON (OWNER)
+                RESPONSIBLE OWNER (AUDITEE)
               </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={ownerSearch}
-                  onChange={(e) => setOwnerSearch(e.target.value)}
-                  placeholder="Search Person"
-                  className="pl-8"
-                />
-              </div>
+              <Select value={programOwnerUserId ?? ""} onValueChange={(v) => setProgramOwnerUserId(v || null)} disabled={!processId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select responsible person" />
+                </SelectTrigger>
+                <SelectContent>
+                  {responsibleOwnerCandidates.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}{m.processName ? ` — ${m.processName}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">Determined by selected site and process (person responsible for that process).</p>
             </div>
           </div>
+          <p className="mt-3 text-sm text-green-700 font-medium">
+            Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).
+          </p>
           <p className="mt-4 text-sm italic text-gray-600">
             Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.
           </p>
@@ -726,19 +784,12 @@ export default function CreateAuditStep1Page() {
             </Table>
           </div>
         </div>
-        {/* KPI Summary Cards */}
+        {/* KPI Summary Cards - empty until populated from database */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mx-8 my-8">
-          {[
-            { label: "AUDIT COMPLETION RATE", value: "98%", badge: "Consistent", badgeClass: "bg-green-100 text-green-700" },
-            { label: "FINDING RESOLUTION TIME", value: "12 Days", badge: "Inconsistent", badgeClass: "bg-red-100 text-red-700" },
-            { label: "STAKEHOLDER SATISFACTION", value: "4.8/5", badge: "Consistent", badgeClass: "bg-green-100 text-green-700" },
-          ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{kpi.label}</div>
-              <div className="mt-2 flex items-baseline justify-between gap-2">
-                <span className="text-2xl font-bold text-gray-900">{kpi.value}</span>
-                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", kpi.badgeClass)}>{kpi.badge}</span>
-              </div>
+          {["AUDIT COMPLETION RATE", "FINDING RESOLUTION TIME", "STAKEHOLDER SATISFACTION"].map((label) => (
+            <div key={label} className="rounded-lg border border-gray-200 bg-gray-50 p-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+              <div className="mt-2 text-gray-500">—</div>
             </div>
           ))}
         </div>
@@ -794,31 +845,31 @@ export default function CreateAuditStep1Page() {
             </Table>
           </div>
         </div>
-        {/* Audit Details (dark card) */}
+        {/* Audit Details (populated from database after save) */}
         <div className="rounded-lg bg-slate-800 p-6 text-white shadow-sm mx-8 my-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">AUDIT PLAN DATE</div>
-                <div className="mt-1 text-xl font-bold text-green-400">03-02-2026</div>
+                <div className="mt-1 text-xl font-bold text-green-400">{startPeriod ? format(startPeriod, "MM-dd-yyyy") : "—"}</div>
                 <div className="text-xs text-slate-400">SYSTEM GENERATED</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">AUDIT ACTUAL DATE</div>
-                <div className="mt-1 text-xl font-bold text-green-400">03-02-2026</div>
+                <div className="mt-1 text-xl font-bold text-green-400">—</div>
                 <div className="text-xs text-slate-400">SYSTEM GENERATED (LOG)</div>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">LEAD AUDITOR</div>
-                <div className="mt-1 text-xl font-bold">JOHN SMITH</div>
-                <div className="text-xs text-slate-400">UIN-JS-8820</div>
+                <div className="mt-1 text-xl font-bold">{currentUserId ? (members.find((m) => m.id === currentUserId)?.name ?? "—") : "—"}</div>
+                <div className="text-xs text-slate-400">You (audit creator)</div>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500">
                 <Check className="h-5 w-5 text-white" />
               </div>
-              <div className="text-xs text-slate-400">ID: SEC-66829-X</div>
+              <div className="text-xs text-slate-400">{programId ? `ID: ${programId}` : "—"}</div>
             </div>
           </div>
         </div>
@@ -829,11 +880,44 @@ export default function CreateAuditStep1Page() {
         <Button
           size="lg"
           className="gap-2 bg-green-600 hover:bg-green-700"
-          onClick={() => {
-            router.push(`/dashboard/${orgId}/audit/create/2`);
+          disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
+          onClick={async () => {
+            if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;
+            setIsSaving(true);
+            try {
+              const payload = {
+                startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
+                endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
+                programPurpose,
+                auditScope,
+                auditType,
+                auditCriteria,
+                processId,
+                programOwnerUserId,
+                leadAuditorUserId: currentUserId,
+                siteIds: selectedSiteIds,
+                risks: risks.map((r) => ({ rop: r.rop, category: r.category, description: r.description, impact: r.impact, impactClass: r.impactClass, frequency: r.frequency, priority: r.priority, priorityClass: r.priorityClass })),
+                scheduleRows: scheduleRows.map((row) => ({ audit: row.audit, type: row.type, focus: row.focus, frequency: row.frequency, months: row.months, lead: row.lead })),
+                kpis: kpis.map((k) => ({ kpi: k.kpi, description: k.description, impact: k.impact, score: k.score, priority: k.priority, comments: k.comments })),
+                reviewRows: reviewRows.map((r) => ({ pri: r.pri, type: r.type, comments: r.comments, priority: r.priority, priorityClass: r.priorityClass, action: r.action })),
+              };
+              if (programId) {
+                await apiClient.updateAuditProgram(orgId, programId, payload);
+                router.push(`/dashboard/${orgId}/audit/create/2?programId=${programId}`);
+              } else {
+                const res = await apiClient.createAuditProgram(orgId, payload);
+                const id = res.programId;
+                router.push(`/dashboard/${orgId}/audit/create/2?programId=${id}`);
+              }
+            } catch (e: any) {
+              console.error(e);
+              toast.error(e?.message ?? "Failed to save audit program");
+            } finally {
+              setIsSaving(false);
+            }
           }}
         >
-          Save & Continue
+          {isSaving ? "Saving…" : "Save & Continue"}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

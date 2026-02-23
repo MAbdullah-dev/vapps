@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { format } from "date-fns";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,8 +50,10 @@ import {
   Upload,
   UserCheck,
   X,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 type ComplianceStatus =
   | "compliant"
@@ -72,32 +75,25 @@ interface ChecklistRow {
   evidenceExample: string;
   evidence: string;
   status: ComplianceStatus;
+  statementOfNonconformity?: string;
+  riskSeverity?: "high" | "medium" | "low";
 }
 
-const DEFAULT_ROWS: ChecklistRow[] = [
-  {
-    id: "1",
-    standard: "ISO 9001:2015",
-    clause: "4.1",
-    subclauses: "4.1.1",
-    requirement: "Understanding the organization and its context",
-    question: "Has the organization determined external and internal issues?",
-    evidenceExample: "SWOT Analysis, PESTLE Analysis, Meeting Minutes",
-    evidence: "",
-    status: "not_audited",
-  },
-  {
-    id: "2",
-    standard: "ISO 9001:2015",
-    clause: "5.2.1",
-    subclauses: "5.2.1.a",
-    requirement: "Establishing the quality policy",
-    question: "Is the quality policy appropriate to the purpose and context of the organization?",
-    evidenceExample: "Quality Policy Document, Strategic Plan",
-    evidence: "",
-    status: "not_audited",
-  },
-];
+/** Map audit criteria to standard display name (e.g. for checklist rows). */
+const CRITERIA_TO_STANDARD: Record<string, string> = {
+  "ISO 9001 QUALITY": "ISO 9001:2015",
+  "ISO 14001 ENVIRONMENT": "ISO 14001:2015",
+  "ISO 45001 HEALTH & SAFETY": "ISO 45001:2018",
+  "ISO 27001 INFORMATION SECURITY": "ISO 27001:2022",
+  "ESG & SUSTAINABILITY (GRI / IFRS S1/S2)": "ESG / GRI / IFRS",
+};
+
+/** Map program audit criteria (Step 1) to checklist criteria for fetching questions. */
+const PROGRAM_CRITERIA_TO_CHECKLIST: Record<string, string> = {
+  iso: "ISO 9001 QUALITY",
+  esg: "ESG & SUSTAINABILITY (GRI / IFRS S1/S2)",
+  legal: "ISO 27001 INFORMATION SECURITY",
+};
 
 const LEGEND_ITEMS: { key: ComplianceStatus; label: string; className: string; icon?: "x" | "o" | "dash"; badge?: string }[] = [
   { key: "compliant", label: "COMPLIANT", className: "bg-green-500 text-white rounded-full", icon: "x" },
@@ -110,25 +106,213 @@ const LEGEND_ITEMS: { key: ComplianceStatus; label: string; className: string; i
   { key: "missing", label: "MISSING REQUIRED", className: "border-2 border-dashed border-gray-400 bg-gray-100 text-gray-700 rounded-md", icon: "dash" },
 ];
 
+/** Short status labels for checklist list (e.g. "1. Conformity", "2. Not Auditable") */
+const STATUS_CHECKLIST_LABEL: Record<ComplianceStatus, string> = {
+  compliant: "Conformity",
+  not_audited: "Not Auditable",
+  major_nc: "Major Nonconformity",
+  minor_nc: "Minor Nonconformity",
+  ofi: "OFI",
+  positive: "Positive",
+  na: "NA",
+  missing: "Missing",
+};
+
+/** Empty compliance details — sections stay empty until user selects Document Finding (CA) for a question. */
+const EMPTY_COMPLIANCE_DETAILS = {
+  standard: "",
+  clause: "",
+  subclauses: "",
+  requirement: "",
+  question: "",
+  evidenceExample: "",
+  evidenceSeen: "",
+};
+
+/** Default empty evidence items for CA form reset. */
+const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; effectiveness: "effective" | "ineffective" }[] = [
+  { id: "ev-1", description: "", fileName: "", effectiveness: "effective" },
+  { id: "ev-2", description: "", fileName: "", effectiveness: "effective" },
+];
+
 export default function CreateAuditStep3Page() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const orgId = params?.orgId as string;
+  const programIdFromUrl = searchParams.get("programId") ?? null;
+  const criteriaFromUrl = searchParams.get("criteria") ?? null;
+  const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
 
-  const [rows, setRows] = useState<ChecklistRow[]>(DEFAULT_ROWS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [criteria, setCriteria] = useState<string | null>(null);
+  const [standardName, setStandardName] = useState<string>("—");
+  const [rows, setRows] = useState<ChecklistRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
+  const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(null);
+  const [savingFindings, setSavingFindings] = useState(false);
+  const [submittingToAuditee, setSubmittingToAuditee] = useState(false);
+  /** Plan summary for submission card: dates, audit number, lead auditor (resolved from members). */
+  const [planSummary, setPlanSummary] = useState<{
+    plannedDate: string | null;
+    datePrepared: string | null;
+    auditNumber: string | null;
+    leadAuditorUserId: string | null;
+  } | null>(null);
+  const [leadAuditorDisplay, setLeadAuditorDisplay] = useState<string>("—");
+
+  useEffect(() => {
+    if (!orgId) {
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        let programId = programIdFromUrl;
+        let resolvedCriteria = criteriaFromUrl;
+
+        if (auditPlanIdFromUrl) {
+          const planRes = await apiClient.getAuditPlan(orgId, auditPlanIdFromUrl);
+          if (cancelled || !planRes.plan) return;
+          const plan = planRes.plan;
+          if (plan.currentUserRole === "lead_auditor" && plan.status === "plan_submitted_to_auditee") {
+            if (!cancelled) {
+              setIsLoading(false);
+              router.push(`/dashboard/${orgId}/audit`);
+            }
+            return;
+          }
+          setPlanStatus(plan.status ?? null);
+          programId = plan.auditProgramId ?? programId;
+          setResolvedProgramId(programId);
+          resolvedCriteria = plan.criteria ?? (plan.programCriteria ? PROGRAM_CRITERIA_TO_CHECKLIST[plan.programCriteria] ?? plan.programCriteria : null) ?? resolvedCriteria;
+          setPlanSummary({
+            plannedDate: plan.plannedDate ?? null,
+            datePrepared: plan.datePrepared ?? null,
+            auditNumber: plan.auditNumber ?? null,
+            leadAuditorUserId: plan.leadAuditorUserId ?? null,
+          });
+          const membersRes = await apiClient.getMembers(orgId);
+          if (!cancelled && membersRes.teamMembers?.length) {
+            const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
+            setLeadAuditorDisplay(lead ? `${lead.name || lead.email || "—"} | LEAD AUDITOR` : "—");
+          }
+        }
+
+        if (!resolvedCriteria && programId) {
+          const progRes = await apiClient.getAuditProgram(orgId, programId);
+          if (cancelled || !progRes.program) return;
+          const progCriteria = progRes.program.auditCriteria;
+          resolvedCriteria = progCriteria ? PROGRAM_CRITERIA_TO_CHECKLIST[progCriteria] ?? null : null;
+        }
+
+        if (!resolvedCriteria) {
+          setCriteria(null);
+          setRows([]);
+          setStandardName("—");
+          setIsLoading(false);
+          return;
+        }
+
+        setCriteria(resolvedCriteria);
+        setStandardName(CRITERIA_TO_STANDARD[resolvedCriteria] ?? resolvedCriteria);
+
+        const res = await apiClient.getChecklistQuestions(orgId, { criteria: resolvedCriteria });
+        if (cancelled) return;
+
+        const questions = res.questions ?? [];
+        const ts = Date.now();
+        let mapped: ChecklistRow[] = questions.map((q, i) => ({
+          id: `row-${ts}-${i}`,
+          standard: CRITERIA_TO_STANDARD[resolvedCriteria!] ?? resolvedCriteria!,
+          clause: q.clause ?? "",
+          subclauses: q.subclause ?? "",
+          requirement: q.requirement ?? "",
+          question: q.question ?? "",
+          evidenceExample: q.evidenceExample ?? "",
+          evidence: "",
+          status: "not_audited" as ComplianceStatus,
+        }));
+
+        if (auditPlanIdFromUrl) {
+          const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanIdFromUrl);
+          if (!cancelled && findingsRes.findings?.length > 0) {
+            mapped = findingsRes.findings.map((f: any, i: number) => ({
+              id: `row-${ts}-${i}`,
+              standard: f.standard ?? "",
+              clause: f.clause ?? "",
+              subclauses: f.subclauses ?? "",
+              requirement: f.requirement ?? "",
+              question: f.question ?? "",
+              evidenceExample: f.evidenceExample ?? "",
+              evidence: f.evidenceSeen ?? "",
+              status: (f.status ?? "not_audited") as ComplianceStatus,
+              statementOfNonconformity: f.statementOfNonconformity ?? undefined,
+              riskSeverity: f.riskSeverity ?? undefined,
+            }));
+          }
+        }
+
+        setRows(mapped);
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError("Failed to load checklist questions.");
+          setRows([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [orgId, programIdFromUrl, criteriaFromUrl, auditPlanIdFromUrl]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (r.clause ?? "").toLowerCase().includes(q) ||
+        (r.subclauses ?? "").toLowerCase().includes(q) ||
+        (r.requirement ?? "").toLowerCase().includes(q) ||
+        (r.question ?? "").toLowerCase().includes(q)
+    );
+  }, [rows, searchQuery]);
+
+  const submissionCard = useMemo(() => {
+    if (!planSummary) return { startDate: "—", endDate: "—", manDays: "—", submissionDate: "—", authKey: auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : "—" };
+    const start = planSummary.plannedDate ? format(new Date(planSummary.plannedDate), "dd-MM-yyyy") : "—";
+    const end = planSummary.datePrepared ? format(new Date(planSummary.datePrepared), "dd-MM-yyyy") : "—";
+    let manDays = "—";
+    if (planSummary.plannedDate && planSummary.datePrepared) {
+      const days = (new Date(planSummary.datePrepared).getTime() - new Date(planSummary.plannedDate).getTime()) / (1000 * 60 * 60 * 24);
+      manDays = `${Math.round(days * 10) / 10} Days`;
+    }
+    return {
+      startDate: start,
+      endDate: end,
+      manDays,
+      submissionDate: end,
+      authKey: planSummary.auditNumber || (auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : "—"),
+    };
+  }, [planSummary, auditPlanIdFromUrl]);
 
   const addRow = () => {
     setRows((prev) => [
       ...prev,
       {
-        id: `row-${Date.now()}`,
-        standard: "",
+        id: `row-manual-${Date.now()}`,
+        standard: standardName !== "—" ? standardName : "",
         clause: "",
         subclauses: "",
         requirement: "",
         question: "",
         evidenceExample: "",
         evidence: "",
-        status: "not_audited",
+        status: "not_audited" as ComplianceStatus,
       },
     ]);
   };
@@ -137,25 +321,22 @@ export default function CreateAuditStep3Page() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const updateRow = (id: string, field: keyof ChecklistRow, value: string | ComplianceStatus) => {
+  const updateRow = (id: string, field: keyof ChecklistRow, value: string | ComplianceStatus | "high" | "medium" | "low") => {
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
     );
   };
 
-  const [complianceDetails, setComplianceDetails] = useState({
-    standard: "ISO 9001:2015",
-    clause: "4.1",
-    subclauses: "4.1.1",
-    requirement: "Understanding the organization and its context",
-    question: "Has the organization determined external and internal issues?",
-    evidenceExample: "SWOT Analysis, PESTLE Analysis, Meeting Minutes",
-    evidenceSeen: "",
-  });
+  const [complianceDetails, setComplianceDetails] = useState(EMPTY_COMPLIANCE_DETAILS);
 
   const [riskSeverity, setRiskSeverity] = useState<"high" | "medium" | "low">("medium");
   const [riskJustification, setRiskJustification] = useState("");
   const [statementOfNonconformity, setStatementOfNonconformity] = useState("");
+  /** When user clicks Document Finding (CA), this row receives form values (Evidence Seen, Statement of Nonconformity, Risk Severity) on Save & Continue. */
+  const [activeCARowId, setActiveCARowId] = useState<string | null>(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const checklistSectionRef = useRef<HTMLDivElement>(null);
+  const checklistTableRef = useRef<HTMLDivElement>(null);
 
   type EvidenceItem = {
     id: string;
@@ -163,10 +344,7 @@ export default function CreateAuditStep3Page() {
     fileName: string;
     effectiveness: "effective" | "ineffective";
   };
-  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([
-    { id: "ev-1", description: "", fileName: "EV_FILE_001.PDF", effectiveness: "effective" },
-    { id: "ev-2", description: "", fileName: "EV_FILE_002.PDF", effectiveness: "ineffective" },
-  ]);
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([...DEFAULT_EVIDENCE_ITEMS]);
   const addEvidenceItem = () => {
     setEvidenceItems((prev) => [
       ...prev,
@@ -256,133 +434,260 @@ export default function CreateAuditStep3Page() {
             STEP 3 OF 6: AUDIT FINDINGS
           </h1>
         </div>
-        {/* Audit Checklist */}
+        {/* Audit Checklist — questions from Step 2 criteria (ISO 9001, ISO 14001, etc.) */}
         <div className="mx-8 my-4">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-bold uppercase text-gray-900">AUDIT CHECKLIST</h2>
-            <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
-              <Plus className="mr-2 h-4 w-4" />
-              ADD MANUAL ENTRY ROW
-            </Button>
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-100">
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">STANDARD (SYSTEM)</TableHead>
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">CLAUSE</TableHead>
-                  <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">SUBCLAUSES</TableHead>
-                  <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                  <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">AUDIT QUESTION</TableHead>
-                  <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
-                  <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">EVIDENCE SEEN</TableHead>
-                  <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                  <TableHead className="w-[120px] font-semibold uppercase text-gray-700">ACTION</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, index) => (
-                  <TableRow key={row.id} className="align-top bg-white">
-                    <TableCell className="align-top py-3">
-                      <Input
-                        value={row.standard}
-                        onChange={(e) => updateRow(row.id, "standard", e.target.value)}
-                        placeholder="e.g. ISO 9001:2015"
-                        className="h-9 min-w-[100px] rounded-md border-gray-200 bg-gray-50/50 text-sm text-gray-600"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Input
-                        value={row.clause}
-                        onChange={(e) => updateRow(row.id, "clause", e.target.value)}
-                        placeholder="e.g. 4.1"
-                        className="h-9 w-20 rounded-md border-gray-200 text-sm font-bold text-gray-900"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Input
-                        value={row.subclauses}
-                        onChange={(e) => updateRow(row.id, "subclauses", e.target.value)}
-                        placeholder="e.g. 4.1.1"
-                        className="h-9 w-24 rounded-md border-gray-200 text-sm text-gray-600"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Textarea
-                        value={row.requirement}
-                        onChange={(e) => updateRow(row.id, "requirement", e.target.value)}
-                        placeholder="Compliance requirement"
-                        rows={2}
-                        className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Textarea
-                        value={row.question}
-                        onChange={(e) => updateRow(row.id, "question", e.target.value)}
-                        placeholder="Audit question"
-                        rows={2}
-                        className="min-w-[180px] resize-none rounded-md border-gray-200 text-sm font-medium text-gray-900"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Textarea
-                        value={row.evidenceExample}
-                        onChange={(e) => updateRow(row.id, "evidenceExample", e.target.value)}
-                        placeholder="Typical evidence"
-                        rows={2}
-                        className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Input
-                        value={row.evidence}
-                        onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
-                        placeholder="Enter evidence details..."
-                        className="min-w-[120px] rounded-md border-gray-200 bg-gray-50/80 text-sm italic text-muted-foreground placeholder:italic"
-                      />
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
-                        <SelectTrigger className="h-9 min-w-[100px] rounded-md border-gray-200">
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LEGEND_ITEMS.map((item) => (
-                            <SelectItem key={item.key} value={item.key}>
-                              {item.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="align-top py-3">
-                      {index === rows.length - 1 ? (
-                        <Button
-                          size="sm"
-                          className="gap-1.5 rounded-md bg-orange-500 px-3 text-xs font-semibold uppercase text-white hover:bg-orange-600"
-                          onClick={() => {}}
-                        >
-                          <ArrowRight className="h-3.5 w-3.5" />
-                          NEXT CA
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 rounded-md border-blue-400 px-3 text-xs font-semibold uppercase text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                          onClick={() => {}}
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          DOWNLOAD
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {isLoading && (
+            <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-6 py-8 text-center text-gray-600">
+              Loading checklist questions based on audit criteria...
+            </div>
+          )}
+          {!isLoading && loadError && (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-red-800">
+              {loadError}
+            </div>
+          )}
+          {!isLoading && !loadError && !criteria && (
+            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-6 py-6">
+              <p className="font-medium text-amber-900">
+                No audit criteria selected. The checklist questions depend on the criteria you select in Step 2 (e.g., ISO 9001 Quality, ISO 14001 Environment).
+              </p>
+              <p className="mt-2 text-sm text-amber-800">
+                Go back to Step 2, select the Audit Plan Criteria, then Save &amp; Continue to load the correct questions.
+              </p>
+              <Link
+                href={`/dashboard/${orgId}/audit/create/2${programIdFromUrl ? `?programId=${encodeURIComponent(programIdFromUrl)}` : ""}`}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back to Step 2
+              </Link>
+            </div>
+          )}
+          {!isLoading && !loadError && criteria && (
+            <>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold uppercase text-gray-900">AUDIT CHECKLIST</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Criteria: {criteria}. One question at a time.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input
+                      placeholder="Search questions..."
+                      className="h-10 w-64 rounded-lg border-gray-300 pl-9"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
+                    <Plus className="mr-2 h-4 w-4" />
+                    ADD MANUAL ENTRY ROW
+                  </Button>
+                </div>
+              </div>
+
+              {filteredRows.length === 0 ? (
+                <div className="mx-8 my-4 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600">
+                  No questions match your search. Clear the search or add a manual entry row.
+                </div>
+              ) : (
+                <Fragment>
+                  {currentQuestionIndex >= filteredRows.length ? (
+                    <div className="mx-8 my-4 rounded-lg border border-green-200 bg-green-50 p-8 text-center">
+                      <p className="text-lg font-semibold text-green-800">All questions completed</p>
+                      <p className="mt-2 text-sm text-green-700">Use &quot;Save &amp; Continue Checklist Loop&quot; below to save findings and return to the audit list.</p>
+                    </div>
+                  ) : (
+                    <div ref={checklistTableRef} className="mx-8 my-4 space-y-3">
+                      <p className="text-sm font-medium text-gray-600">
+                        Question {currentQuestionIndex + 1} of {filteredRows.length}
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-100">
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">STANDARD (SYSTEM)</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">CLAUSE</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">SUBCLAUSES</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
+                          <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">AUDIT QUESTION</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
+                          <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">EVIDENCE SEEN</TableHead>
+                          <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
+                          <TableHead className="w-[140px] font-semibold uppercase text-gray-700">ACTION</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredRows.slice(0, currentQuestionIndex + 1).map((row, idx) => {
+                          const isCurrent = idx === currentQuestionIndex;
+                          const isNC = row.status === "major_nc" || row.status === "minor_nc";
+                          const statusLabel = STATUS_CHECKLIST_LABEL[row.status] ?? "—";
+                          return (
+                            <TableRow
+                              key={row.id}
+                              className={cn("align-top", isCurrent ? "bg-white ring-1 ring-orange-200" : "bg-gray-50/80")}
+                            >
+                              <TableCell className="align-top py-2">
+                                {isCurrent ? (
+                                  <Input
+                                    value={row.standard}
+                                    onChange={(e) => updateRow(row.id, "standard", e.target.value)}
+                                    placeholder="e.g. ISO 9001:2015"
+                                    className="h-9 min-w-[100px] rounded-md border-gray-200 bg-gray-50/50 text-sm text-gray-600"
+                                  />
+                                ) : (
+                                  <span className="text-sm text-gray-700">{row.standard || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2">
+                                {isCurrent ? (
+                                  <Input
+                                    value={row.clause}
+                                    onChange={(e) => updateRow(row.id, "clause", e.target.value)}
+                                    placeholder="e.g. 4.1"
+                                    className="h-9 w-20 rounded-md border-gray-200 text-sm font-bold text-gray-900"
+                                  />
+                                ) : (
+                                  <span className="text-sm font-medium text-gray-900">{row.clause || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2">
+                                {isCurrent ? (
+                                  <Input
+                                    value={row.subclauses}
+                                    onChange={(e) => updateRow(row.id, "subclauses", e.target.value)}
+                                    placeholder="e.g. 4.1.1"
+                                    className="h-9 w-24 rounded-md border-gray-200 text-sm text-gray-600"
+                                  />
+                                ) : (
+                                  <span className="text-sm text-gray-700">{row.subclauses || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2 max-w-[160px]">
+                                {isCurrent ? (
+                                  <Textarea
+                                    value={row.requirement}
+                                    onChange={(e) => updateRow(row.id, "requirement", e.target.value)}
+                                    placeholder="Compliance requirement"
+                                    rows={2}
+                                    className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
+                                  />
+                                ) : (
+                                  <span className="line-clamp-2 text-sm text-gray-700">{row.requirement || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2 max-w-[200px]">
+                                {isCurrent ? (
+                                  <Textarea
+                                    value={row.question}
+                                    onChange={(e) => updateRow(row.id, "question", e.target.value)}
+                                    placeholder="Audit question"
+                                    rows={2}
+                                    className="min-w-[180px] resize-none rounded-md border-gray-200 text-sm font-medium text-gray-900"
+                                  />
+                                ) : (
+                                  <span className="line-clamp-2 text-sm text-gray-800">{row.question || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2 max-w-[160px]">
+                                {isCurrent ? (
+                                  <Textarea
+                                    value={row.evidenceExample}
+                                    onChange={(e) => updateRow(row.id, "evidenceExample", e.target.value)}
+                                    placeholder="Typical evidence"
+                                    rows={2}
+                                    className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
+                                  />
+                                ) : (
+                                  <span className="line-clamp-2 text-sm text-gray-600">{row.evidenceExample || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2 max-w-[140px]">
+                                {isCurrent ? (
+                                  <Input
+                                    value={row.evidence}
+                                    onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
+                                    placeholder="Enter evidence details..."
+                                    className="min-w-[120px] rounded-md border-gray-200 bg-gray-50/80 text-sm italic text-muted-foreground placeholder:italic"
+                                  />
+                                ) : (
+                                  <span className="line-clamp-2 text-sm italic text-gray-600">{row.evidence || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2">
+                                {isCurrent ? (
+                                  <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
+                                    <SelectTrigger className="h-9 min-w-[100px] rounded-md border-gray-200">
+                                      <SelectValue placeholder="Select" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {LEGEND_ITEMS.map((item) => (
+                                        <SelectItem key={item.key} value={item.key}>
+                                          {item.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className="text-sm font-medium text-gray-800">{statusLabel}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top py-2">
+                                {isCurrent ? (
+                                  !isNC ? (
+                                    <Button
+                                      size="sm"
+                                      className="gap-1.5 rounded-md bg-green-600 px-3 text-xs font-semibold uppercase text-white hover:bg-green-700"
+                                      onClick={() => setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length))}
+                                    >
+                                      Next
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      className="gap-1.5 rounded-md bg-orange-500 px-3 text-xs font-semibold uppercase text-white hover:bg-orange-600"
+                                      onClick={() => {
+                                        setActiveCARowId(row.id);
+                                        setComplianceDetails((prev) => ({
+                                          ...prev,
+                                          standard: row.standard,
+                                          clause: row.clause,
+                                          subclauses: row.subclauses,
+                                          requirement: row.requirement,
+                                          question: row.question,
+                                          evidenceExample: row.evidenceExample,
+                                          evidenceSeen: row.evidence,
+                                        }));
+                                        setRiskSeverity(row.riskSeverity ?? "medium");
+                                        setStatementOfNonconformity(row.statementOfNonconformity ?? "");
+                                        setTimeout(() => {
+                                          checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                        }, 100);
+                                      }}
+                                    >
+                                      <ArrowRight className="h-3.5 w-3.5" />
+                                      Document Finding (CA)
+                                    </Button>
+                                  )
+                                ) : (
+                                  <span className="text-xs font-medium text-green-700">Complete</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                  )}
+                </Fragment>
+              )}
+            </>
+          )}
         </div>
         {/* Compliance Legend */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
@@ -406,8 +711,9 @@ export default function CreateAuditStep3Page() {
             ))}
           </div>
         </div>
-        {/* Compliance Details */}
-        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
+
+        {/* Compliance Details — pre-filled when user clicks Document Finding (CA); scroll target for CA flow */}
+        <div ref={checklistSectionRef} className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
           <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">COMPLIANCE DETAILS</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div className="space-y-2">
@@ -482,6 +788,7 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
+
         {/* Risk Severity */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
           <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">RISK SEVERITY (CURRENT STATUS)</h2>
@@ -561,6 +868,7 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
+
         {/* Classification, Site, Process & Standard Requirement - 4 cards as in image */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 mx-8 my-4">
           {/* Card 1: CLASSIFICATION */}
@@ -1095,17 +1403,68 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
-        {/* Save & Continue Checklist Loop */}
+        {/* Save & Continue Checklist Loop — when CA form open: saves finding and goes to next question; when all done or no CA: saves all and returns to audit list */}
         <div className="flex justify-center">
           <Button
             type="button"
             className="rounded-full border-2 border-green-500 bg-white px-8 py-6 text-base font-bold uppercase text-green-600 hover:bg-green-50 hover:text-green-700"
+            disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
+            onClick={async () => {
+              if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
+              setSavingFindings(true);
+              const wasDocumentingCA = !!activeCARowId;
+              try {
+                const findings = rows.map((r, i) => {
+                  const isActiveCA = activeCARowId === r.id;
+                  return {
+                    rowIndex: i,
+                    standard: r.standard,
+                    clause: r.clause,
+                    subclauses: r.subclauses,
+                    requirement: r.requirement,
+                    question: r.question,
+                    evidenceExample: r.evidenceExample,
+                    evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                    status: r.status,
+                    statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
+                    riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                  };
+                });
+                await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
+                if (wasDocumentingCA && activeCARowId) {
+                  updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
+                  updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
+                  updateRow(activeCARowId, "riskSeverity", riskSeverity);
+                  setActiveCARowId(null);
+                  setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
+                  setRiskSeverity("medium");
+                  setStatementOfNonconformity("");
+                  setRiskJustification("");
+                  setEvidenceItems(DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item })));
+                  setJustificationForClassification("");
+                  setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length));
+                  setTimeout(() => {
+                    checklistTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 150);
+                }
+                const nextIndex = wasDocumentingCA ? Math.min(currentQuestionIndex + 1, filteredRows.length) : currentQuestionIndex;
+                if (nextIndex >= filteredRows.length) {
+                  router.push(`/dashboard/${orgId}/audit`);
+                } else if (!wasDocumentingCA) {
+                  router.push(`/dashboard/${orgId}/audit`);
+                }
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setSavingFindings(false);
+              }
+            }}
           >
             <Paperclip className="mr-2 h-5 w-5" />
-            SAVE & CONTINUE CHECKLIST LOOP
+            {savingFindings ? "Saving…" : "SAVE & CONTINUE CHECKLIST LOOP"}
           </Button>
         </div>
-        {/* Submission summary card (dark) */}
+        {/* Submission summary card (dark) — dynamic from plan */}
         <div className="rounded-xl border-2 border-green-500/40 bg-gray-900 p-6 shadow-lg ring-2 ring-green-400/20 md:p-8 mx-8 my-4">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {/* Auditor Profile */}
@@ -1114,8 +1473,8 @@ export default function CreateAuditStep3Page() {
                 <UserCheck className="h-4 w-4" />
                 <span className="text-xs font-semibold uppercase tracking-wide">Auditor Profile</span>
               </div>
-              <p className="text-xl font-bold text-white">JOHN SMITH</p>
-              <p className="text-sm text-gray-400">VIN-JS-8820 | LEAD AUDITOR</p>
+              <p className="text-xl font-bold text-white">{leadAuditorDisplay.split(" | ")[0] || "—"}</p>
+              <p className="text-sm text-gray-400">{leadAuditorDisplay}</p>
             </div>
             {/* Audit Timeline */}
             <div className="space-y-2">
@@ -1125,13 +1484,13 @@ export default function CreateAuditStep3Page() {
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <span className="text-gray-500">START DATE</span>
-                <span className="text-white">02-02-2026</span>
+                <span className="text-white">{submissionCard.startDate}</span>
                 <span className="text-gray-500">END DATE</span>
-                <span className="text-white">04-02-2026</span>
+                <span className="text-white">{submissionCard.endDate}</span>
                 <span className="text-gray-500">TOTAL MAN-DAYS</span>
-                <span className="text-white">2.5 Days</span>
+                <span className="text-white">{submissionCard.manDays}</span>
                 <span className="text-gray-500">SUBMISSION DATE</span>
-                <span className="text-white">04-02-2026</span>
+                <span className="text-white">{submissionCard.submissionDate}</span>
               </div>
             </div>
             {/* Authentication Key */}
@@ -1141,7 +1500,7 @@ export default function CreateAuditStep3Page() {
                   <ShieldCheck className="h-7 w-7 text-red-500" />
                 </div>
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Authentication Key</span>
-                <span className="text-sm font-medium text-gray-300">BUTH_FIND_2026_0012</span>
+                <span className="text-sm font-medium text-gray-300">{submissionCard.authKey}</span>
               </div>
             </div>
           </div>
@@ -1152,14 +1511,43 @@ export default function CreateAuditStep3Page() {
               FINAL SUBMISSION NOTICE: SUBMITTING THIS FORM TO THE AUDITEE WILL LOCK STEP 3 PERMANENTLY. NO FURTHER MODIFICATIONS TO FINDINGS OR EVIDENCE CAN BE MADE AFTER THIS ACTION.
             </p>
           </div>
-          {/* Submit to Auditee */}
+          {/* Submit to Auditee — sets status findings_submitted_to_auditee; auditor can do nothing after */}
           <div className="mt-6 flex justify-center">
             <Button
               type="button"
               className="rounded-lg bg-red-600 px-8 py-6 text-base font-bold uppercase text-white hover:bg-red-700"
+              disabled={!auditPlanIdFromUrl || submittingToAuditee || planStatus === "findings_submitted_to_auditee"}
+              onClick={async () => {
+                if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
+                setSubmittingToAuditee(true);
+                try {
+                  const findingsForSubmit = rows.map((r) => {
+                    const isActiveCA = activeCARowId === r.id;
+                    return {
+                      standard: r.standard, clause: r.clause, subclauses: r.subclauses, requirement: r.requirement,
+                      question: r.question, evidenceExample: r.evidenceExample,
+                      evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                      status: r.status,
+                      statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
+                      riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                    };
+                  });
+                  await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findingsForSubmit);
+                  await apiClient.updateAuditPlanStatus(orgId, auditPlanIdFromUrl, "findings_submitted_to_auditee");
+                  const params = new URLSearchParams();
+                  if (programIdFromUrl || resolvedProgramId) params.set("programId", programIdFromUrl || resolvedProgramId || "");
+                  if (criteria) params.set("criteria", criteria);
+                  if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
+                  router.push(`/dashboard/${orgId}/audit/create/4${params.toString() ? `?${params.toString()}` : ""}`);
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setSubmittingToAuditee(false);
+                }
+              }}
             >
               <Send className="mr-2 h-5 w-5" />
-              SUBMIT TO AUDITEE
+              {submittingToAuditee ? "Submitting…" : "SUBMIT TO AUDITEE"}
             </Button>
           </div>
         </div>
@@ -1172,7 +1560,15 @@ export default function CreateAuditStep3Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/2`}
+            href={(() => {
+              const params = new URLSearchParams();
+              const pid = programIdFromUrl || resolvedProgramId;
+              if (pid) params.set("programId", pid);
+              if (criteria) params.set("criteria", criteria);
+              if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
+              const q = params.toString();
+              return `/dashboard/${orgId}/audit/create/2${q ? `?${q}` : ""}`;
+            })()}
             className="inline-flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -1184,7 +1580,15 @@ export default function CreateAuditStep3Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/4`}
+            href={(() => {
+              const params = new URLSearchParams();
+              const pid = programIdFromUrl || resolvedProgramId;
+              if (pid) params.set("programId", pid);
+              if (criteria) params.set("criteria", criteria);
+              if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
+              const q = params.toString();
+              return `/dashboard/${orgId}/audit/create/4${q ? `?${q}` : ""}`;
+            })()}
             className="inline-flex items-center gap-2"
           >
             Save & Continue
