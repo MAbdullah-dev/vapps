@@ -112,7 +112,23 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      if (session.user) session.user.id = token.sub!;
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        // Load name, email, image from DB so session always reflects saved profile (survives logout/login)
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { name: true, email: true, image: true },
+          });
+          if (dbUser) {
+            session.user.name = dbUser.name ?? session.user.name ?? null;
+            session.user.email = dbUser.email ?? session.user.email ?? null;
+            session.user.image = dbUser.image ?? session.user.image ?? null;
+          }
+        } catch {
+          // Keep existing session values if DB read fails
+        }
+      }
       return session;
     },
 

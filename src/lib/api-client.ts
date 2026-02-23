@@ -664,11 +664,119 @@ class ApiClient {
     );
   }
 
+  /**
+   * Get recent notifications (activity) for the current user across all accessible processes in the org.
+   * Returns activities and the list of activity IDs the user has dismissed (backend-persisted).
+   */
+  getNotifications(orgId: string, limit?: number) {
+    return this.get<{ activities: any[]; dismissedIds: string[] }>(
+      `/organization/${orgId}/notifications`,
+      limit ? { limit: limit.toString() } : undefined
+    );
+  }
+
+  /**
+   * Mark one or more notifications as dismissed for the current user (persisted in backend).
+   */
+  dismissNotifications(orgId: string, activityIds: string[]) {
+    return this.post<{ ok: boolean; dismissed: number }>(
+      `/organization/${orgId}/notifications/dismiss`,
+      { activityIds }
+    );
+  }
+
+  // ========== User Profile Methods ==========
+
+  /**
+   * Get current user profile
+   */
+  getProfile() {
+    return this.get<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+      phone: string | null;
+      location: string | null;
+      bio: string | null;
+      jobTitle: string | null;
+      department: string | null;
+      employeeId: string | null;
+      reportsTo: string | null;
+      joinDate: string | null;
+      createdAt: string;
+    }>("/user/profile");
+  }
+
+  /**
+   * Update current user profile
+   */
+  updateProfile(data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    bio?: string;
+    jobTitle?: string;
+    department?: string;
+    employeeId?: string;
+    reportsTo?: string;
+    joinDate?: string | null;
+  }) {
+    return this.patch<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      image: string | null;
+      phone: string | null;
+      location: string | null;
+      bio: string | null;
+      jobTitle: string | null;
+      department: string | null;
+      employeeId: string | null;
+      reportsTo: string | null;
+      joinDate: string | null;
+      createdAt: string;
+    }>("/user/profile", data);
+  }
+
+  /**
+   * Upload profile picture (image file). Returns the stored image key.
+   */
+  async uploadProfileAvatar(file: File): Promise<{ ok: boolean; image: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const baseURL = this.axiosInstance.defaults.baseURL || "/api";
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}${baseURL}/user/profile/avatar`;
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error((err as { error?: string }).error || "Upload failed");
+    }
+    return response.json();
+  }
+
   // ========== Organization Info Methods ==========
 
   /**
    * Get organization info from tenant database
    */
+  /**
+   * Get current user's membership in an org (leadership tier, system role, job title).
+   */
+  getMyOrgMembership(orgId: string) {
+    return this.get<{
+      leadershipTier: string;
+      systemRole: string;
+      jobTitle: string | null;
+      isOwner: boolean;
+    }>(`/organization/${orgId}/me`);
+  }
+
   getOrganizationInfo(orgId: string) {
     return this.get<{ organizationInfo: any | null }>(
       `/organization/${orgId}/organization-info`

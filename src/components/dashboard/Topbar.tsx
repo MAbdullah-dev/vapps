@@ -1,11 +1,14 @@
 "use client";
 
-import { Search, Bell, Check, Moon, Globe, User } from "lucide-react";
+import { Search, Bell, Check, Moon, Globe, User, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { apiClient } from "@/lib/api-client";
 
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -31,9 +34,117 @@ import {
 
 
 
+type NotificationActivity = {
+    id: string;
+    userName: string;
+    userEmail: string;
+    action: string;
+    entityType: string;
+    entityId?: string;
+    entityTitle?: string;
+    details: Record<string, unknown>;
+    createdAt: string;
+    processId: string;
+};
+
+function formatNotificationMessage(a: NotificationActivity): string {
+    const userName = a.userName || a.userEmail || "Someone";
+    const entityTitle = a.entityTitle || a.entityId || "item";
+    switch (a.action) {
+        case "issue.created":
+            return `${userName} created issue ${entityTitle}`;
+        case "issue.updated":
+            return `${userName} updated issue ${entityTitle}`;
+        case "issue.status_changed":
+            const newStatus = (a.details?.newStatus as string) || "updated";
+            return `${userName} changed status of ${entityTitle} to ${newStatus}`;
+        case "issue.assigned":
+            const assignee = (a.details?.assignee as string) || "someone";
+            return `${userName} assigned ${entityTitle} to ${assignee}`;
+        case "sprint.created":
+            return `${userName} created sprint ${entityTitle}`;
+        case "review.submitted":
+            return `${userName} submitted review for ${entityTitle}`;
+        case "verification.completed":
+            return `${userName} completed verification for ${entityTitle}`;
+        default:
+            return `${userName} ${a.action} ${entityTitle}`;
+    }
+}
+
+function formatRelativeTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
+}
+
 export default function Topbar() {
-    const notificationCount = 3;
+    const params = useParams();
+    const orgId = params?.orgId as string | undefined;
     const [selectedLang, setSelectedLang] = useState("English");
+    const [notifications, setNotifications] = useState<NotificationActivity[]>([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+    const [dismissing, setDismissing] = useState(false);
+
+    useEffect(() => {
+        if (!orgId) return;
+        setNotificationsLoading(true);
+        apiClient
+            .getNotifications(orgId, 25)
+            .then((res) => {
+                setNotifications(res.activities || []);
+                setDismissedIds(new Set(res.dismissedIds || []));
+            })
+            .catch(() => {
+                setNotifications([]);
+                setDismissedIds(new Set());
+            })
+            .finally(() => setNotificationsLoading(false));
+    }, [orgId]);
+
+    const visibleNotifications = notifications.filter((n) => !dismissedIds.has(n.id));
+    const notificationCount = visibleNotifications.length;
+
+    const handleDismissOne = async (id: string) => {
+        if (!orgId) return;
+        setDismissedIds((prev) => new Set([...prev, id]));
+        try {
+            await apiClient.dismissNotifications(orgId, [id]);
+        } catch {
+            setDismissedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (!orgId || visibleNotifications.length === 0) return;
+        const ids = visibleNotifications.map((n) => n.id);
+        setDismissedIds((prev) => new Set([...prev, ...ids]));
+        setDismissing(true);
+        try {
+            await apiClient.dismissNotifications(orgId, ids);
+        } catch {
+            setDismissedIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.delete(id));
+                return next;
+            });
+        } finally {
+            setDismissing(false);
+        }
+    };
 
     const handleLogout = async () => {
         await signOut({ callbackUrl: "/auth" });
@@ -103,12 +214,46 @@ export default function Topbar() {
                         )}
                     </PopoverTrigger>
 
-                    <PopoverContent className="w-100 p-4 -translate-x-30 border border-[#0000001A] shadow-lg">
-                        <h4 className="font-semibold text-base mb-2">Notifications</h4>
-                        <div className="space-y-2">
-                            <div className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB]"><p className="text-[#0A0A0A] text-sm">Sarah closed Issue QA-12</p> <span className="text-xs text-[#6A7282]">2 minutes ago</span></div>
-                            <div className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB]"><p className="text-[#0A0A0A] text-sm">New audit assigned to you</p> <span className="text-xs text-[#6A7282]">5 minutes ago</span></div>
-                            <div className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB]"><p className="text-[#0A0A0A] text-sm">Document uploaded: Q4 Report</p> <span className="text-xs text-[#6A7282]">10 minutes ago</span></div>
+                    <PopoverContent className="w-100 p-4 -translate-x-30 border border-[#0000001A] shadow-lg max-h-[min(24rem,70vh)] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold text-base">Notifications</h4>
+                            {!notificationsLoading && visibleNotifications.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs text-[#6A7282] h-7 px-2"
+                                    onClick={handleClearAll}
+                                    disabled={dismissing}
+                                >
+                                    {dismissing ? "Clearing…" : "Clear all"}
+                                </Button>
+                            )}
+                        </div>
+                        <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+                            {notificationsLoading ? (
+                                <p className="text-sm text-[#6A7282] py-4">Loading…</p>
+                            ) : visibleNotifications.length === 0 ? (
+                                <p className="text-sm text-[#6A7282] py-4">No recent activity</p>
+                            ) : (
+                                visibleNotifications.map((a) => (
+                                    <div
+                                        key={a.id}
+                                        className="p-4 rounded-xl flex flex-col gap-1.5 bg-[#F9FAFB] group relative pr-9"
+                                    >
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 text-[#6A7282] hover:text-[#0A0A0A]"
+                                            onClick={() => handleDismissOne(a.id)}
+                                            aria-label="Remove notification"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <p className="text-[#0A0A0A] text-sm pr-6">{formatNotificationMessage(a)}</p>
+                                        <span className="text-xs text-[#6A7282]">{formatRelativeTime(a.createdAt)}</span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </PopoverContent>
                 </Popover>
@@ -162,12 +307,10 @@ export default function Topbar() {
 
                     <DropdownMenuContent align="end" className="w-48 p-1">
 
-                        <DropdownMenuItem>
-                            Profile
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem>
-                            Account Settings
+                        <DropdownMenuItem asChild>
+                            <Link href={orgId ? `/dashboard/${orgId}/account` : "#"}>
+                                Account Settings
+                            </Link>
                         </DropdownMenuItem>
 
                         <DropdownMenuSeparator />

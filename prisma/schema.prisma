@@ -8,19 +8,40 @@ datasource db {
 }
 
 model User {
-  id                 String             @id @default(uuid())
-  name               String?
-  email              String?            @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  lastActive         DateTime?          // Track when user was last active
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  accounts           Account[]
-  ownedOrganizations Organization[]     @relation("OrganizationOwner")
-  sessions           Session[]
-  organizations      UserOrganization[]
+  id                         String                       @id @default(uuid())
+  name                       String?
+  email                      String?                      @unique
+  emailVerified              DateTime?
+  image                      String?
+  password                   String?
+  lastActive                 DateTime?                    // Track when user was last active
+  phone                      String?
+  location                   String?
+  bio                        String?
+  jobTitle                   String?
+  department                 String?
+  employeeId                 String?
+  reportsTo                  String?
+  joinDate                   DateTime?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  accounts                   Account[]
+  ownedOrganizations         Organization[]               @relation("OrganizationOwner")
+  sessions                   Session[]
+  organizations              UserOrganization[]
+  notificationDismissals     UserNotificationDismissal[]
+}
+
+model UserNotificationDismissal {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  activityId     String
+  dismissedAt   DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, activityId])
+  @@index([userId, organizationId])
 }
 
 model Account {
