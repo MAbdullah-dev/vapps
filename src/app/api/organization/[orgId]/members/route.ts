@@ -34,7 +34,6 @@ export async function GET(
     }
 
     // Fetch members (UserOrganization + User)
-    // Only select fields that exist in DB (jobTitle/leadershipTier may be missing until migration is run)
     const memberships = await prisma.userOrganization.findMany({
       where: { organizationId: orgId },
       select: {
@@ -42,6 +41,8 @@ export async function GET(
         userId: true,
         organizationId: true,
         role: true,
+        leadershipTier: true,
+        jobTitle: true,
         user: {
           select: { id: true, name: true, email: true, image: true },
         },

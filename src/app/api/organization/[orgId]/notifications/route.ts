@@ -72,7 +72,6 @@ export async function GET(
       }
 
       if (allowedProcessIds.length === 0) {
-        client.release();
         return NextResponse.json({ activities: [], dismissedIds: [] });
       }
 
@@ -97,8 +96,6 @@ export async function GET(
         [...allowedProcessIds, limit]
       );
 
-      client.release();
-
       const activityIds = activityResult.rows.map((r: { id: string }) => r.id);
       const dismissals = await prisma.userNotificationDismissal.findMany({
         where: {
@@ -115,12 +112,13 @@ export async function GET(
         dismissedIds,
       });
     } catch (dbError: unknown) {
-      client.release();
       const message = dbError instanceof Error ? dbError.message : "Unknown error";
       return NextResponse.json(
         { error: "Failed to fetch notifications", message },
         { status: 500 }
       );
+    } finally {
+      client.release();
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
