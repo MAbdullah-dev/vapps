@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,8 +33,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AuditHistoryDialog from "./AuditHistoryDialog";
 
+const NEXT_STEP_LABELS: Record<number, string> = {
+  3: "Complete Findings (Step 3)",
+  4: "Corrective Action (Step 4)",
+  5: "Effectiveness Verification (Step 5)",
+  6: "Final Closure (Step 6)",
+};
+
 type Audit = {
   id: string;
+  auditPlanId?: string;
+  auditProgramId?: string;
+  nextStepForUser?: number | null;
   standard: string;
   scopeMethodBoundaries: string;
   auditType: string;
@@ -48,78 +59,8 @@ type Audit = {
   dueDate: string;
   kpiScore: "Consistent" | "Inconsistent" | null;
   auditStatus: string;
+  criteria?: string;
 };
-
-const audits: Audit[] = [
-  {
-    id: "AUD/2025/S1/P1/FPA/NC1",
-    standard: "ISO 9001",
-    scopeMethodBoundaries: "On-Site",
-    auditType: "FPA",
-    site: "S1",
-    process: "P1",
-    clause: "4.0 Context",
-    subclauses: "4.2 Interested Parties",
-    ncClassification: "Major",
-    riskLevel: "High",
-    plannedDate: "01-09-2025",
-    actualDate: "",
-    dueDate: "01-10-2025",
-    kpiScore: null,
-    auditStatus: "In-Progress",
-  },
-  {
-    id: "AUD/2025/S1/P1/FPA/NC2",
-    standard: "ISO 9001",
-    scopeMethodBoundaries: "On-Site",
-    auditType: "FPA",
-    site: "S1",
-    process: "P1",
-    clause: "5.0 Leadership",
-    subclauses: "5.2 Policy",
-    ncClassification: "Minor",
-    riskLevel: "Medium",
-    plannedDate: "01-09-2025",
-    actualDate: "11-09-2025",
-    dueDate: "01-10-2025",
-    kpiScore: "Consistent",
-    auditStatus: "Success",
-  },
-  {
-    id: "AUD/2025/S1/P1/FPA/NC3",
-    standard: "ISO 9001",
-    scopeMethodBoundaries: "On-Site",
-    auditType: "FPA",
-    site: "S1",
-    process: "P1",
-    clause: "6.0 Planning",
-    subclauses: "6.2 Objectives",
-    ncClassification: "Minor",
-    riskLevel: "Low",
-    plannedDate: "20-09-2025",
-    actualDate: "15-09-2025",
-    dueDate: "01-10-2025",
-    kpiScore: null,
-    auditStatus: "Pending",
-  },
-  {
-    id: "AUD/2025/S1/P1/FPA/NC4",
-    standard: "ISO 9001",
-    scopeMethodBoundaries: "On-Site",
-    auditType: "FPA",
-    site: "S1",
-    process: "P1",
-    clause: "9.0 Improvement",
-    subclauses: "9.2 Internal Audit",
-    ncClassification: "Minor",
-    riskLevel: "Low",
-    plannedDate: "20-08-2025",
-    actualDate: "",
-    dueDate: "20-09-2025",
-    kpiScore: "Inconsistent",
-    auditStatus: "Fail",
-  },
-];
 
 function TableHeader({ title, sub }: { title: string; sub?: string }) {
   return (
@@ -142,13 +83,16 @@ const getRiskLevelColor = (riskLevel: string) => {
 };
 
 const getStatusColor = (status: string) => {
-  if (status === "Success") return "bg-green-100 text-green-800";
+  if (status === "Closed" || status === "Success") return "bg-green-100 text-green-800";
   if (status === "In-Progress") return "bg-yellow-100 text-yellow-800";
   if (status === "Fail") return "bg-red-100 text-red-700";
   return ""; // Pending: no badge
 };
 
-function getColumns(handleViewHistory: (audit: Audit) => void, handleEditAudit: (audit: Audit) => void): ColumnDef<Audit>[] {
+function getColumns(
+  handleViewHistory: (audit: Audit) => void,
+  handleOpenStep: (audit: Audit, step: number) => void
+): ColumnDef<Audit>[] {
   return [
   {
     accessorKey: "id",
@@ -262,10 +206,25 @@ function getColumns(handleViewHistory: (audit: Audit) => void, handleEditAudit: 
     },
   },
   {
+    accessorKey: "nextStepForUser",
+    id: "yourAction",
+    header: () => <TableHeader title="Your Action" sub="Step requiring your input" />,
+    cell: ({ row }) => {
+      const step = row.original.nextStepForUser;
+      if (step == null) return <span className="text-gray-400">—</span>;
+      return (
+        <span className="text-sm font-medium text-green-700">
+          {NEXT_STEP_LABELS[step] ?? `Step ${step}`}
+        </span>
+      );
+    },
+  },
+  {
     id: "actions",
     header: () => <TableHeader title="Actions" sub="View Share Download PDF" />,
     cell: ({ row }) => {
       const audit = row.original;
+      const step = audit.nextStepForUser;
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -277,15 +236,17 @@ function getColumns(handleViewHistory: (audit: Audit) => void, handleEditAudit: 
               <EllipsisVertical size={18} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuItem onClick={() => handleViewHistory(audit)}>
               <History className="mr-2 h-4 w-4" />
               View History
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleEditAudit(audit)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit Audit
-            </DropdownMenuItem>
+            {step != null && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, step); }}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {NEXT_STEP_LABELS[step] ?? `Open Step ${step}`}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -296,19 +257,65 @@ function getColumns(handleViewHistory: (audit: Audit) => void, handleEditAudit: 
 
 export default function AuditsContent() {
   const pathname = usePathname();
+  const router = useRouter();
+  const orgId = (pathname?.match(/\/dashboard\/([^/]+)\/audit/)?.[1]) ?? "";
+  const [audits, setAudits] = useState<Audit[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const createAuditHref = `${pathname}/create/1`;
+
+  useEffect(() => {
+    if (!orgId) {
+      setPlansLoading(false);
+      return;
+    }
+    apiClient
+      .getAuditPlans(orgId)
+      .then((res) => {
+        const list = res.plans ?? [];
+        setAudits(
+          list.map((p: any) => ({
+            id: p.auditNumber || p.id,
+            auditPlanId: p.id,
+            auditProgramId: p.auditProgramId,
+            nextStepForUser: p.nextStepForUser ?? null,
+            standard: p.criteria || p.programCriteria || "—",
+            scopeMethodBoundaries: "On-Site",
+            auditType: p.auditType || "FPA",
+            site: "—",
+            process: "—",
+            clause: "—",
+            subclauses: "—",
+            ncClassification: "Minor",
+            riskLevel: "Medium",
+            plannedDate: p.plannedDate ? new Date(p.plannedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—",
+            actualDate: p.findingsSubmittedAt ? new Date(p.findingsSubmittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "",
+            dueDate: "—",
+            kpiScore: null,
+            auditStatus: p.status === "closed" ? "Closed" : p.status === "findings_submitted_to_auditee" ? "Success" : p.status === "plan_submitted_to_auditee" || p.status === "ca_submitted_to_auditor" || p.status === "pending_closure" ? "In-Progress" : p.status || "Pending",
+            criteria: p.criteria,
+          }))
+        );
+      })
+      .catch(() => setAudits([]))
+      .finally(() => setPlansLoading(false));
+  }, [orgId]);
 
   const handleViewHistory = (audit: Audit) => {
     setHistoryAudit(audit);
   };
 
-  const handleEditAudit = (audit: Audit) => {
-    // TODO: open edit audit dialog
-    console.log("Edit audit", audit.id);
+  const handleOpenStep = (audit: Audit, step: number) => {
+    if (audit.auditPlanId && orgId) {
+      const params = new URLSearchParams();
+      params.set("auditPlanId", audit.auditPlanId);
+      if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
+      if (audit.criteria) params.set("criteria", audit.criteria);
+      router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+    }
   };
 
-  const columns = getColumns(handleViewHistory, handleEditAudit);
+  const columns = getColumns(handleViewHistory, handleOpenStep);
 
   const table = useReactTable({
     data: audits,
@@ -443,7 +450,8 @@ export default function AuditsContent() {
                 {table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => row.original.auditPlanId && handleEditAudit(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td

@@ -218,6 +218,111 @@ class ApiClient {
     );
   }
 
+  /**
+   * Get organization members (for program owner / lead auditor selection)
+   */
+  getMembers(orgId: string) {
+    return this.get<{ teamMembers: Array<{ id: string; name: string; email: string; siteName?: string; processName?: string; processId?: string; siteId?: string; systemRole?: string }> }>(
+      `/organization/${orgId}/members`
+    );
+  }
+
+  /**
+   * List audit programs; use latest=1 to get only the most recent
+   */
+  getAuditPrograms(orgId: string, latest?: boolean) {
+    return this.get<{ programs?: any[]; program?: any }>(
+      `/organization/${orgId}/audit/programs`,
+      latest ? { latest: "1" } : undefined
+    );
+  }
+
+  /**
+   * Get one audit program by ID (includes sites, risks, schedule, KPIs, reviews)
+   */
+  getAuditProgram(orgId: string, programId: string) {
+    return this.get<{ program: any }>(
+      `/organization/${orgId}/audit/programs/${programId}`
+    );
+  }
+
+  /**
+   * Create a new audit program (Step 1 payload)
+   */
+  createAuditProgram(orgId: string, data: any) {
+    return this.post<{ programId: string; success: boolean }>(
+      `/organization/${orgId}/audit/programs`,
+      data
+    );
+  }
+
+  /**
+   * Update an existing audit program
+   */
+  updateAuditProgram(orgId: string, programId: string, data: any) {
+    return this.put<{ programId: string; success: boolean }>(
+      `/organization/${orgId}/audit/programs/${programId}`,
+      data
+    );
+  }
+
+  /**
+   * Get predefined checklist questions by audit criteria (from Step 2).
+   * Params: criteria (e.g. "ISO 9001 QUALITY") OR programCriteria (e.g. "iso" from Step 1).
+   */
+  getChecklistQuestions(
+    orgId: string,
+    params?: { criteria?: string; programCriteria?: string }
+  ) {
+    const searchParams = new URLSearchParams();
+    if (params?.criteria) searchParams.set("criteria", params.criteria);
+    if (params?.programCriteria) searchParams.set("programCriteria", params.programCriteria);
+    return this.get<{
+      questions: Array<{ clause: string; subclause: string; requirement: string; question: string; evidenceExample: string }>;
+      criteria?: string | null;
+      checklistKey?: string | null;
+      message?: string;
+    }>(`/organization/${orgId}/audit/checklist-questions?${searchParams.toString()}`);
+  }
+
+  /** List audit plans (current user as lead auditor or assigned auditor). */
+  getAuditPlans(orgId: string) {
+    return this.get<{ plans: any[] }>(`/organization/${orgId}/audit/plans`);
+  }
+
+  /** Create audit plan (Step 2 Submit to Auditee). */
+  createAuditPlan(orgId: string, data: {
+    auditProgramId: string;
+    title?: string;
+    auditNumber?: string;
+    criteria?: string;
+    plannedDate?: string;
+    datePrepared?: string;
+    assignedAuditorIds?: string[];
+  }) {
+    return this.post<{ planId: string; success: boolean }>(`/organization/${orgId}/audit/plans`, data);
+  }
+
+  /** Get one audit plan. */
+  getAuditPlan(orgId: string, planId: string) {
+    return this.get<{ plan: any }>(`/organization/${orgId}/audit/plans/${planId}`);
+  }
+
+  /** Update audit plan status (e.g. findings_submitted_to_auditee). */
+  updateAuditPlanStatus(orgId: string, planId: string, status: string) {
+    return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { status });
+  }
+
+  /** Get saved findings for an audit plan. */
+  getAuditPlanFindings(orgId: string, planId: string) {
+    return this.get<{ findings: any[] }>(`/organization/${orgId}/audit/plans/${planId}/findings`);
+  }
+
+  /** Save checklist findings (Step 3). */
+  saveAuditPlanFindings(orgId: string, planId: string, findings: any[]) {
+    return this.put<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}/findings`, { findings });
+  }
+
   // ========== Sprint Methods ==========
 
   /**

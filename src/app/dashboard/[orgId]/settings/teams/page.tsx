@@ -75,6 +75,7 @@ interface TeamMember {
   isOwner?: boolean; // Whether this user is the organization owner
   siteId?: string; // Site ID for editing
   processId?: string; // Process ID for editing
+  additionalRoles?: string[]; // e.g. ["Auditor"]
 }
 
 // Helper function to derive system role from leadership tier
@@ -130,7 +131,7 @@ export default function TeamsPage() {
   const fetchMembers = async () => {
     try {
       setIsLoading(true);
-      const res = await apiClient.get<{ teamMembers: Array<{ id: string; name: string; email: string; leadershipTier: string; systemRole: string; status: "Active" | "Invited"; lastActive: string; avatar?: string; siteName?: string; processName?: string; jobTitle?: string; isOwner?: boolean; siteId?: string; processId?: string }> }>(`/organization/${orgId}/members`);
+      const res = await apiClient.get<{ teamMembers: Array<{ id: string; name: string; email: string; leadershipTier: string; systemRole: string; status: "Active" | "Invited"; lastActive: string; avatar?: string; siteName?: string; processName?: string; jobTitle?: string; isOwner?: boolean; siteId?: string; processId?: string; additionalRoles?: string[] }> }>(`/organization/${orgId}/members`);
       const list = (res.teamMembers || []).map((m) => ({
         id: m.id,
         name: m.name,
@@ -145,6 +146,7 @@ export default function TeamsPage() {
         isOwner: m.isOwner ?? false,
         siteId: m.siteId,
         processId: m.processId,
+        additionalRoles: m.additionalRoles ?? [],
       }));
       setTeamMembers(list);
     } catch (e: any) {
@@ -355,7 +357,7 @@ export default function TeamsPage() {
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Organization-level leadership tier. Determines system role and access permissions.</p>
-                        <p className="mt-1 text-xs">Operational: Shows assigned site. Support: Shows assigned site and process.</p>
+                        <p className="mt-1 text-xs">Every user has one site and one process (except Owner).</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -381,7 +383,7 @@ export default function TeamsPage() {
                         <Info className="h-4 w-4 text-gray-400 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Site assignment for Operational and Support leadership</p>
+                        <p>Assigned site for this user (required for all except Owner)</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -394,7 +396,7 @@ export default function TeamsPage() {
                         <Info className="h-4 w-4 text-gray-400 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Process assignment for Support leadership</p>
+                        <p>Assigned process for this user (required for all except Owner)</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -565,6 +567,7 @@ export default function TeamsPage() {
           currentLeadershipTier={editingUser.leadershipTier}
           currentSiteId={editingUser.siteId}
           currentProcessId={editingUser.processId}
+          currentAdditionalRoles={editingUser.additionalRoles}
           onUserUpdated={() => {
             setEditingUser(null);
             fetchMembers();

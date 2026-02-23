@@ -58,106 +58,129 @@ export async function GET(
       },
     });
 
-    let inviteRoles: Record<string, string> = {};
-    if (ctx.tenant?.connectionString && pendingInvites.length > 0) {
-      try {
-        await withTenantConnection(ctx.tenant.connectionString, async (client) => {
-          const tokens = pendingInvites.map((i) => i.token);
-          const result = await client.query<{ token: string; role: string }>(
-            `SELECT token, role FROM invitations WHERE token = ANY($1)`,
-            [tokens]
-          );
-          result.rows.forEach((row) => {
-            inviteRoles[row.token] = row.role || "member";
-          });
-        });
-      } catch (e) {
-        console.warn("Could not fetch tenant invite roles", e);
-      }
-    }
-
-    // Fetch site/process assignments for Operational and Support users
-    const operationalAndSupportUserIds = memberships
-      .filter((m) => {
-        const tier = roleToLeadershipTier(m.role);
-        return tier === "Operational" || tier === "Support";
-      })
+    const ownerIdForFilter = organization?.ownerId;
+    const nonOwnerUserIds = memberships
+      .filter((m) => m.user.id !== ownerIdForFilter)
       .map((m) => m.user.id);
+    const allMemberUserIds = memberships.map((m) => m.user.id);
 
+    const inviteRoles: Record<string, string> = {};
     const siteAssignments: Record<string, { siteId: string; siteName: string }[]> = {};
     const processAssignments: Record<string, { processId: string; processName: string; siteId: string; siteName: string }[]> = {};
-    const siteIdMap: Record<string, string> = {}; // Map user_id to first siteId
-    const processIdMap: Record<string, string> = {}; // Map user_id to first processId
+    const siteIdMap: Record<string, string> = {};
+    const processIdMap: Record<string, string> = {};
+    const userAdditionalRoles: Record<string, string[]> = {};
+    /** For invited members: token -> { siteId?, processId?, siteName?, processName? } */
+    const inviteSiteProcess: Record<string, { siteId?: string; processId?: string; siteName?: string; processName?: string }> = {};
 
-    if (operationalAndSupportUserIds.length > 0 && ctx.tenant?.connectionString) {
+    // Single tenant connection: run all tenant DB queries in one round-trip
+    if (ctx.tenant?.connectionString) {
       try {
         await withTenantConnection(ctx.tenant.connectionString, async (client) => {
-          // Get site assignments for Operational users
-          const siteRows = await client.query<{
-            user_id: string;
-            site_id: string;
-            site_name: string;
-          }>(
-            `SELECT su.user_id, su.site_id::text as site_id, s.name as site_name
-             FROM site_users su
-             INNER JOIN sites s ON s.id = su.site_id::text
-             WHERE su.user_id = ANY($1)`,
-            [operationalAndSupportUserIds]
-          );
-
-          siteRows.rows.forEach((row) => {
-            if (!siteAssignments[row.user_id]) {
-              siteAssignments[row.user_id] = [];
-            }
-            siteAssignments[row.user_id].push({
-              siteId: row.site_id,
-              siteName: row.site_name,
+          if (pendingInvites.length > 0) {
+            const tokens = pendingInvites.map((i) => i.token);
+            const roleRes = await client.query<{ token: string; role: string }>(
+              `SELECT token, role FROM invitations WHERE token = ANY($1)`,
+              [tokens]
+            );
+            roleRes.rows.forEach((row) => {
+              inviteRoles[row.token] = row.role || "member";
             });
-            // Store first siteId for editing
-            if (!siteIdMap[row.user_id]) {
-              siteIdMap[row.user_id] = row.site_id;
-            }
-          });
+          }
 
-          // Get process assignments for Support users (includes site info)
-          const processRows = await client.query<{
-            user_id: string;
-            process_id: string;
-            process_name: string;
-            site_id: string;
-            site_name: string;
-          }>(
-            `SELECT pu.user_id, pu.process_id::text as process_id, p.name as process_name,
-                    p."siteId" as site_id, s.name as site_name
-             FROM process_users pu
-             INNER JOIN processes p ON p.id = pu.process_id::text
-             INNER JOIN sites s ON s.id = p."siteId"
-             WHERE pu.user_id = ANY($1)`,
-            [operationalAndSupportUserIds]
-          );
-
-          processRows.rows.forEach((row) => {
-            if (!processAssignments[row.user_id]) {
-              processAssignments[row.user_id] = [];
-            }
-            processAssignments[row.user_id].push({
-              processId: row.process_id,
-              processName: row.process_name,
-              siteId: row.site_id,
-              siteName: row.site_name,
+          if (nonOwnerUserIds.length > 0) {
+            const siteRows = await client.query<{ user_id: string; site_id: string; site_name: string }>(
+              `SELECT su.user_id::text as user_id, su.site_id::text as site_id, s.name as site_name
+               FROM site_users su
+               INNER JOIN sites s ON s.id = su.site_id::text
+               WHERE su.user_id::text = ANY($1)`,
+              [nonOwnerUserIds]
+            );
+            siteRows.rows.forEach((row) => {
+              if (!siteAssignments[row.user_id]) siteAssignments[row.user_id] = [];
+              siteAssignments[row.user_id].push({ siteId: row.site_id, siteName: row.site_name });
+              if (!siteIdMap[row.user_id]) siteIdMap[row.user_id] = row.site_id;
             });
-            // Store first processId for editing
-            if (!processIdMap[row.user_id]) {
-              processIdMap[row.user_id] = row.process_id;
+
+            const processRows = await client.query<{
+              user_id: string;
+              process_id: string;
+              process_name: string;
+              site_id: string;
+              site_name: string;
+            }>(
+              `SELECT pu.user_id::text as user_id, pu.process_id::text as process_id, p.name as process_name,
+                      p."siteId" as site_id, s.name as site_name
+               FROM process_users pu
+               INNER JOIN processes p ON p.id = pu.process_id::text
+               INNER JOIN sites s ON s.id = p."siteId"
+               WHERE pu.user_id::text = ANY($1)`,
+              [nonOwnerUserIds]
+            );
+            processRows.rows.forEach((row) => {
+              if (!processAssignments[row.user_id]) processAssignments[row.user_id] = [];
+              processAssignments[row.user_id].push({
+                processId: row.process_id,
+                processName: row.process_name,
+                siteId: row.site_id,
+                siteName: row.site_name,
+              });
+              if (!processIdMap[row.user_id]) processIdMap[row.user_id] = row.process_id;
+              if (!siteIdMap[row.user_id]) siteIdMap[row.user_id] = row.site_id;
+            });
+          }
+
+          if (allMemberUserIds.length > 0) {
+            const roleRows = await client.query<{ user_id: string; name: string }>(
+              `SELECT uar.user_id::text as user_id, ar.name
+               FROM user_additional_roles uar
+               INNER JOIN additional_roles ar ON ar.id = uar.additional_role_id AND ar.is_active = true
+               WHERE uar.user_id::text = ANY($1)`,
+              [allMemberUserIds]
+            );
+            roleRows.rows.forEach((row) => {
+              if (!userAdditionalRoles[row.user_id]) userAdditionalRoles[row.user_id] = [];
+              userAdditionalRoles[row.user_id].push(row.name);
+            });
+          }
+
+          // Batch fetch invite site/process and resolve names (avoids N connections per invite)
+          if (pendingInvites.length > 0) {
+            const tokens = pendingInvites.map((i) => i.token);
+            const invRes = await client.query<{ token: string; site_id: string | null; process_id: string | null }>(
+              `SELECT token, site_id::text as site_id, process_id::text as process_id FROM invitations WHERE token = ANY($1)`,
+              [tokens]
+            );
+            const siteIdsToResolve = new Set<string>();
+            const processIdsToResolve = new Set<string>();
+            invRes.rows.forEach((row) => {
+              const sid = row.site_id ?? undefined;
+              const pid = row.process_id ?? undefined;
+              inviteSiteProcess[row.token] = { siteId: sid, processId: pid };
+              if (sid) siteIdsToResolve.add(sid);
+              if (pid) processIdsToResolve.add(pid);
+            });
+            const siteIdList = Array.from(siteIdsToResolve);
+            const processIdList = Array.from(processIdsToResolve);
+            const siteNameMap: Record<string, string> = {};
+            const processNameMap: Record<string, string> = {};
+            if (siteIdList.length > 0) {
+              const sn = await client.query<{ id: string; name: string }>(`SELECT id::text as id, name FROM sites WHERE id::text = ANY($1)`, [siteIdList]);
+              sn.rows.forEach((r) => { siteNameMap[r.id] = r.name; });
             }
-            // Also store siteId from process if not already set
-            if (!siteIdMap[row.user_id]) {
-              siteIdMap[row.user_id] = row.site_id;
+            if (processIdList.length > 0) {
+              const pn = await client.query<{ id: string; name: string }>(`SELECT id::text as id, name FROM processes WHERE id::text = ANY($1)`, [processIdList]);
+              pn.rows.forEach((r) => { processNameMap[r.id] = r.name; });
             }
-          });
+            Object.keys(inviteSiteProcess).forEach((token) => {
+              const o = inviteSiteProcess[token];
+              if (o?.siteId) o.siteName = siteNameMap[o.siteId];
+              if (o?.processId) o.processName = processNameMap[o.processId];
+            });
+          }
         });
       } catch (e) {
-        console.warn("Could not fetch site/process assignments", e);
+        console.warn("Could not fetch tenant data (roles/sites/processes/invites)", e);
       }
     }
 
@@ -180,89 +203,48 @@ export async function GET(
         status: "Active" as const,
         lastActive: "—",
         avatar: m.user.image ?? undefined,
-        // Add site/process info for Operational and Support
-        ...(tier === "Operational" && sites.length > 0
-          ? { 
+        additionalRoles: userAdditionalRoles[m.user.id] || [],
+        // Site and process for every non-owner (every user has one site + one process except Owner)
+        ...(sites.length > 0
+          ? {
               siteName: sites.map((s) => s.siteName).join(", "),
               siteId: siteIdMap[m.user.id],
             }
           : {}),
-        ...(tier === "Support" && processes.length > 0
+        ...(processes.length > 0
           ? {
-              siteName: processes[0]?.siteName || "",
               processName: processes.map((p) => p.processName).join(", "),
-              siteId: siteIdMap[m.user.id],
               processId: processIdMap[m.user.id],
+              ...(!siteIdMap[m.user.id] && processes[0] ? { siteName: processes[0].siteName, siteId: processes[0].siteId } : {}),
             }
           : {}),
       };
     });
 
-    // For invited members, resolve site/process from master invite (siteId/processId) via tenant DB.
-    // Fallback to tenant invitations row if master has no site/process (legacy or sync gap).
-    const invitedMembers = await Promise.all(
-      pendingInvites.map(async (inv) => {
-        const tier = roleToLeadershipTier(inviteRoles[inv.token] || "member");
-        let siteName: string | undefined;
-        let processName: string | undefined;
-        let siteId: string | undefined = inv.siteId ?? undefined;
-        let processId: string | undefined = inv.processId ?? undefined;
-
-        if ((tier === "Operational" || tier === "Support") && ctx.tenant?.connectionString) {
-          try {
-            await withTenantConnection(ctx.tenant.connectionString, async (client) => {
-              // If master has no site/process, try tenant invitations table (fallback for legacy/sync gap)
-              if ((tier === "Operational" && !siteId) || (tier === "Support" && (!siteId || !processId))) {
-                const inviteRow = await client.query<{ site_id: string | null; process_id: string | null }>(
-                  `SELECT site_id, process_id FROM invitations WHERE token = $1`,
-                  [inv.token]
-                );
-                if (inviteRow.rows.length > 0) {
-                  const row = inviteRow.rows[0];
-                  if (row.site_id != null && !siteId) siteId = String(row.site_id);
-                  if (row.process_id != null && !processId) processId = String(row.process_id);
-                }
-              }
-
-              // Resolve names from tenant (sites.id and processes.id are TEXT)
-              if (siteId) {
-                const siteRow = await client.query<{ name: string }>(
-                  `SELECT name FROM sites WHERE id = $1`,
-                  [siteId]
-                );
-                if (siteRow.rows.length > 0) siteName = siteRow.rows[0].name;
-              }
-              if (processId && tier === "Support") {
-                const processRow = await client.query<{ name: string }>(
-                  `SELECT name FROM processes WHERE id = $1`,
-                  [processId]
-                );
-                if (processRow.rows.length > 0) processName = processRow.rows[0].name;
-              }
-            });
-          } catch (e) {
-            console.warn("Could not fetch invite site/process", e);
-          }
-        }
-
-        return {
-          id: inv.id,
-          name: (inv.name && inv.name.trim()) || inv.email || "—",
-          email: inv.email,
-          leadershipTier: tier,
-          systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
-          jobTitle: (inv.jobTitle && inv.jobTitle.trim()) || undefined,
-          isOwner: false,
-          status: "Invited" as const,
-          lastActive: "Never",
-          avatar: undefined,
-          ...(siteId ? { siteId } : {}),
-          ...(processId ? { processId } : {}),
-          ...(tier === "Operational" && siteName ? { siteName } : {}),
-          ...(tier === "Support" && (siteName || processName) ? { siteName: siteName ?? undefined, processName: processName ?? undefined } : {}),
-        };
-      })
-    );
+    const invitedMembers = pendingInvites.map((inv) => {
+      const tier = roleToLeadershipTier(inviteRoles[inv.token] || "member");
+      const resolved = inviteSiteProcess[inv.token];
+      const siteId = resolved?.siteId ?? inv.siteId ?? undefined;
+      const processId = resolved?.processId ?? inv.processId ?? undefined;
+      const siteName = resolved?.siteName;
+      const processName = resolved?.processName;
+      return {
+        id: inv.id,
+        name: (inv.name && inv.name.trim()) || inv.email || "—",
+        email: inv.email,
+        leadershipTier: tier,
+        systemRole: roleToSystemRoleDisplay(inviteRoles[inv.token] || "member"),
+        jobTitle: (inv.jobTitle && inv.jobTitle.trim()) || undefined,
+        isOwner: false,
+        status: "Invited" as const,
+        lastActive: "Never",
+        avatar: undefined,
+        ...(siteId ? { siteId } : {}),
+        ...(processId ? { processId } : {}),
+        ...(siteName != null ? { siteName } : {}),
+        ...(processName != null ? { processName } : {}),
+      };
+    });
 
     const teamMembers = [...activeMembers, ...invitedMembers];
 

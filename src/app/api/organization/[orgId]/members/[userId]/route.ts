@@ -86,7 +86,7 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { role, jobTitle, siteId, processId, name } = body;
+    const { role, jobTitle, siteId, processId, name, additionalRoleIds } = body;
 
     // Validate role if provided
     let normalizedRole = existingMembership.role;
@@ -176,6 +176,25 @@ export async function PUT(
                ON CONFLICT (process_id, user_id) DO UPDATE
                SET role = EXCLUDED.role`,
               [processId, userId, normalizedRole]
+            );
+          }
+        }
+      });
+    }
+
+    // Update additional roles (e.g. Auditor) in tenant DB
+    if (ctx.tenant?.connectionString && additionalRoleIds !== undefined) {
+      const roleIds: string[] = Array.isArray(additionalRoleIds) ? additionalRoleIds : [];
+      await withTenantConnection(ctx.tenant.connectionString, async (client) => {
+        await client.query(
+          `DELETE FROM user_additional_roles WHERE user_id = $1`,
+          [userId]
+        );
+        for (const roleId of roleIds) {
+          if (roleId && typeof roleId === "string") {
+            await client.query(
+              `INSERT INTO user_additional_roles (user_id, additional_role_id) VALUES ($1, $2::uuid) ON CONFLICT (user_id, additional_role_id) DO NOTHING`,
+              [userId, roleId]
             );
           }
         }
