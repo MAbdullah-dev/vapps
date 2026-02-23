@@ -113,6 +113,7 @@ export async function GET(
           i.status,
           i.points,
           i.assignee,
+          i.issuer,
           i.tags,
           i.source,
           i."sprintId",
@@ -126,7 +127,7 @@ export async function GET(
         [issueId, processId]
       );
     } catch (queryErr: any) {
-      if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline"))) {
+      if (queryErr?.code === "42703" || (queryErr?.message && String(queryErr.message).includes("deadline")) || (queryErr?.message && String(queryErr.message).includes("issuer"))) {
         issues = await queryTenant(
           orgId,
           `SELECT 
@@ -148,7 +149,10 @@ export async function GET(
           WHERE i.id = $1 AND i."processId" = $2`,
           [issueId, processId]
         );
-        if (issues[0]) issues[0].deadline = null;
+        if (issues[0]) {
+          if (!issues[0].deadline) issues[0].deadline = null;
+          if (!issues[0].issuer) issues[0].issuer = null;
+        }
       } else {
         throw queryErr;
       }
@@ -162,7 +166,11 @@ export async function GET(
     }
 
     const issue = issues[0];
-    
+    // Normalize issuer to string so client comparison with session user id is reliable
+    if (issue) {
+      issue.issuer = issue.issuer != null ? String(issue.issuer) : null;
+    }
+
     // Cache the issue for 60 seconds
     cache.set(cacheKey, issue, 60 * 1000);
 
@@ -210,9 +218,9 @@ export async function PUT(
 
     try {
 
-      // Verify issue exists and belongs to this process
+      // Verify issue exists and get assignee for edit permission
       const issueResult = await client.query(
-        `SELECT id FROM issues WHERE id = $1 AND "processId" = $2`,
+        `SELECT id, assignee FROM issues WHERE id = $1 AND "processId" = $2`,
         [issueId, processId]
       );
 
@@ -221,6 +229,16 @@ export async function PUT(
         return NextResponse.json(
           { error: "Issue not found" },
           { status: 404 }
+        );
+      }
+
+      // Only the assignee of the issue can edit it; others can only view
+      const issueAssignee = issueResult.rows[0].assignee;
+      if (issueAssignee !== ctx.user.id) {
+        client.release();
+        return NextResponse.json(
+          { error: "Only the assignee of this issue can edit it." },
+          { status: 403 }
         );
       }
 

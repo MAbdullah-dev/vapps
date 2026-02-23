@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
@@ -61,13 +62,16 @@ import Image from "next/image";
 export default function ProcessLayout({ children }: { children: React.ReactNode }) {
   const { orgId, processId } = useParams();
   const pathname = usePathname();
-  
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string })?.id ?? null;
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "member">("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processData, setProcessData] = useState<{ siteId: string } | null>(null);
   const [isLoadingProcess, setIsLoadingProcess] = useState(true);
+  const [userRole, setUserRole] = useState<string>("member");
 
   const [dueDate, setDueDate] = useState<Date | null>(null);
   const [editorContent, setEditorContent] = useState("");
@@ -102,6 +106,18 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     setComments((prev) => [newComment, ...prev])
     setCommentText("")
   }
+
+  // Fetch current user role (Level 1 = owner/admin, Level 2 = manager, Level 3 = member)
+  useEffect(() => {
+    if (!orgId) return;
+    apiClient
+      .getSites(orgId as string)
+      .then((data) => setUserRole(data.userRole || "member"))
+      .catch(() => setUserRole("member"));
+  }, [orgId]);
+
+  // Create/Edit Issue form: any level (including Level 3 / member) can create and open issues
+  const canAccessIssueForm = true;
 
   // Fetch metadata, sprints, and process users on mount
   useEffect(() => {
@@ -277,6 +293,12 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   const [isLoadingIssue, setIsLoadingIssue] = useState(false);
   const [isUpdatingIssue, setIsUpdatingIssue] = useState(false);
 
+  // Only the assignee of an issue can edit it; others can only view (when opening existing issue)
+  const canEditIssue =
+    canAccessIssueForm &&
+    (!editingIssue || editingIssue.assignee === currentUserId);
+  const isViewOnly = !!editingIssue && !canEditIssue;
+
   const handleAddCustomTitle = () => {
     setCustomTitleMode(true);
   };
@@ -324,6 +346,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
   // Handle issue creation/update form submission
   const handleCreateIssue = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isViewOnly) return;
 
     // Validate mandatory fields
     if (!title || !title.trim()) {
@@ -549,19 +572,22 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
           </p>
         </div>
 
-        {/* Create Issue Dialog */}
+        {/* Create Issue Dialog - any level can create issues */}
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button variant="default">
               <Plus size={16} /> New Issue
             </Button>
           </DialogTrigger>
-
           <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingIssue ? "Edit Issue" : "Create Issue"}</DialogTitle>
+              <DialogTitle>{editingIssue ? (isViewOnly ? "View Issue" : "Edit Issue") : "Create Issue"}</DialogTitle>
               <DialogDescription>
-                {editingIssue ? "Update the issue details." : "Fill the details to create a new issue."}
+                {isViewOnly
+                  ? "You are viewing this issue. Only the assignee can edit it."
+                  : editingIssue
+                  ? "Update the issue details."
+                  : "Fill the details to create a new issue."}
               </DialogDescription>
             </DialogHeader>
 
@@ -579,6 +605,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full"
+                      disabled={isViewOnly}
                     />
 
                     <Button
@@ -620,7 +647,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={title}
                       onValueChange={setTitle}
                       required
-                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
+                      disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading titles..." : "Select a title *"} />
@@ -667,6 +694,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={tag}
                       onChange={(e) => setTag(e.target.value)}
                       className="w-full"
+                      disabled={isViewOnly}
                     />
 
                     <Button
@@ -704,7 +732,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select value={tag} onValueChange={setTag}>
+                    <Select value={tag} onValueChange={setTag} disabled={isViewOnly}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a tag *" />
                       </SelectTrigger>
@@ -750,6 +778,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={source}
                       onChange={(e) => setSource(e.target.value)}
                       className="w-full"
+                      disabled={isViewOnly}
                     />
 
                     <Button
@@ -791,7 +820,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       value={source}
                       onValueChange={setSource}
                       required
-                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
+                      disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={isLoadingMetadata ? "Loading sources..." : "Select a source *"} />
@@ -831,7 +860,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <div className="flex items-center gap-4">
                 <div className="w-1/2">
                   <Label className="mb-2">Priority</Label>
-                  <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
+                  <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Medium (default)" />
                     </SelectTrigger>
@@ -850,6 +879,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     onValueChange={setSelectedStatus}
                     value={selectedStatus}
                     disabled={
+                      isViewOnly ||
                       !!editingIssue ||
                       (selectedSprint && selectedSprint !== "__backlog__") ||
                       isCreatingIssue ||
@@ -929,7 +959,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       <Button
                         variant="outline"
                         role="combobox"
-                        disabled={isCreatingIssue || isLoadingUsers || processUsers.length === 0}
+                        disabled={isViewOnly || isCreatingIssue || isLoadingUsers || processUsers.length === 0}
                         className={cn(
                           "w-full justify-between",
                           selectedAssignees.length === 0 && "text-muted-foreground"
@@ -996,7 +1026,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       }
                     }}
                     value={selectedSprint}
-                    disabled={isCreatingIssue || isLoadingMetadata}
+                    disabled={isViewOnly || isCreatingIssue || isLoadingMetadata}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder={isLoadingMetadata ? "Loading sprints..." : "Select sprint (optional)"} />
@@ -1023,7 +1053,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       variant="outline"
                       id="date"
                       className="w-full justify-between"
-                      disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}
+                      disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue}
                     >
                       {date ? date.toLocaleDateString() : "Select date"}
                       <ChevronDownIcon className="text-muted" />
@@ -1060,6 +1090,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                     imageUploadMethod: "POST",
                     imageAllowedTypes: ["jpeg", "jpg", "png", "webp"],
                     imageMaxSize: 5 * 1024 * 1024,
+                    readOnly: isViewOnly,
                   }}
                 />
               </div>
@@ -1077,12 +1108,14 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                       className="bg-[#F3F3F5] mb-3"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
+                      disabled={isViewOnly}
                     />
                     <Button
                       type="button"
                       variant="dark"
                       className="mb-6"
                       onClick={handleAddComment}
+                      disabled={isViewOnly}
                     >
                       <Send size={16} /> Comment
                     </Button>
@@ -1122,20 +1155,22 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
-                    Cancel
+                    {isViewOnly ? "Close" : "Cancel"}
                   </Button>
                 </DialogClose>
-                <Button type="submit" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
-                  {isLoadingIssue
-                    ? "Loading..."
-                    : isUpdatingIssue
-                      ? "Updating..."
-                      : isCreatingIssue
-                        ? "Creating..."
-                        : editingIssue
-                          ? "Update Issue"
-                          : "Create Issue"}
-                </Button>
+                {!isViewOnly && (
+                  <Button type="submit" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
+                    {isLoadingIssue
+                      ? "Loading..."
+                      : isUpdatingIssue
+                        ? "Updating..."
+                        : isCreatingIssue
+                          ? "Creating..."
+                          : editingIssue
+                            ? "Update Issue"
+                            : "Create Issue"}
+                  </Button>
+                )}
               </DialogFooter>
             </form>
           </DialogContent>

@@ -152,24 +152,36 @@ export async function GET(
           queryParams.length > 1 ? queryParams : [queryParams[0]]
         );
       } catch (queryErr: any) {
-        // Handle missing columns gracefully (backward compatibility)
+        // Handle missing columns: add issuer/verifier if missing, then retry
         if (queryErr?.code === "42703") {
-          // Try without issuer, verifier, deadline
-          const fallbackQuery = issuesQuery
-            .replace(/,?\s*i\.issuer\s*/i, " ")
-            .replace(/,?\s*i\.verifier\s*/i, " ")
-            .replace(/,?\s*i\."deadline"\s*/i, " ");
-          issuesResult = await client.query(
-            fallbackQuery,
-            queryParams.length > 1 ? queryParams : [queryParams[0]]
+          await client.query(
+            `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "issuer" TEXT, ADD COLUMN IF NOT EXISTS "verifier" TEXT`
           );
-          // Set defaults for missing columns
-          issuesResult.rows = issuesResult.rows.map((r: any) => ({
-            ...r,
-            issuer: r.issuer || null,
-            verifier: r.verifier || null,
-            deadline: r.deadline || null,
-          }));
+          try {
+            issuesResult = await client.query(
+              issuesQuery,
+              queryParams.length > 1 ? queryParams : [queryParams[0]]
+            );
+          } catch (retryErr: any) {
+            if (retryErr?.code === "42703") {
+              const fallbackQuery = issuesQuery
+                .replace(/,?\s*i\.issuer\s*/i, " ")
+                .replace(/,?\s*i\.verifier\s*/i, " ")
+                .replace(/,?\s*i\."deadline"\s*/i, " ");
+              issuesResult = await client.query(
+                fallbackQuery,
+                queryParams.length > 1 ? queryParams : [queryParams[0]]
+              );
+              issuesResult.rows = issuesResult.rows.map((r: any) => ({
+                ...r,
+                issuer: r.issuer ?? null,
+                verifier: r.verifier ?? null,
+                deadline: r.deadline ?? null,
+              }));
+            } else {
+              throw retryErr;
+            }
+          }
         } else {
           throw queryErr;
         }
@@ -177,8 +189,14 @@ export async function GET(
 
       client.release();
 
+      // Normalize issuer to string so client comparison with session user id is reliable
+      const issues = issuesResult.rows.map((r: Record<string, unknown>) => ({
+        ...r,
+        issuer: r.issuer != null ? String(r.issuer) : null,
+      }));
+
       return NextResponse.json({
-        issues: issuesResult.rows,
+        issues,
       });
     } catch (dbError: any) {
       client.release();
@@ -380,10 +398,14 @@ export async function POST(
                                insertErr.message?.includes("deadline") ? "deadline" : null;
           
           if (missingColumn === "issuer") {
-            // Try without issuer (old schema)
+            // Add issuer (and verifier) column if missing (e.g. tenant created before migration 011)
             await client.query(
-              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
+              `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "issuer" TEXT, ADD COLUMN IF NOT EXISTS "verifier" TEXT`
+            );
+            // Retry full INSERT with issuer so the creator is recorded
+            await client.query(
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", issuer, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
               [
                 issueId,
                 title.trim(),
@@ -398,6 +420,7 @@ export async function POST(
                 processId,
                 order || 0,
                 deadlineVal,
+                ctx.user.id,
               ]
             );
           } else if (missingColumn === "deadline") {

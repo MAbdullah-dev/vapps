@@ -471,6 +471,16 @@ class ApiClient {
     );
   }
 
+  /**
+   * Claim issuer for an issue that has no issuer recorded (only when issuer is null).
+   */
+  claimIssueIssuer(orgId: string, processId: string, issueId: string) {
+    return this.post<{ issue: { id: string; issuer: string | null }; message: string }>(
+      `/organization/${orgId}/processes/${processId}/issues/${issueId}/claim-issuer`,
+      {}
+    );
+  }
+
   // ========== Process Users Methods ==========
 
   /**

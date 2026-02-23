@@ -26,8 +26,15 @@ export async function GET(
       select: { ownerId: true },
     });
 
+    if (!organization) {
+      return NextResponse.json(
+        { error: "Organization not found" },
+        { status: 404 }
+      );
+    }
+
     // Fetch members (UserOrganization + User)
-    // Explicitly select jobTitle to ensure it's included
+    // Only select fields that exist in DB (jobTitle/leadershipTier may be missing until migration is run)
     const memberships = await prisma.userOrganization.findMany({
       where: { organizationId: orgId },
       select: {
@@ -35,8 +42,6 @@ export async function GET(
         userId: true,
         organizationId: true,
         role: true,
-        leadershipTier: true,
-        jobTitle: true, // Explicitly select jobTitle
         user: {
           select: { id: true, name: true, email: true, image: true },
         },
@@ -184,7 +189,7 @@ export async function GET(
       }
     }
 
-    const ownerId = organization?.ownerId;
+    const ownerId = organization.ownerId;
 
     const activeMembers = memberships.map((m) => {
       const tier = roleToLeadershipTier(m.role);
@@ -251,8 +256,13 @@ export async function GET(
     return NextResponse.json({ teamMembers });
   } catch (error: any) {
     console.error("Error fetching organization members:", error);
+    const message = error?.message || "Unknown error";
+    // Return actual error so client toast can show it (e.g. DB connection, missing table)
     return NextResponse.json(
-      { error: "Failed to fetch members", message: error.message },
+      {
+        error: message,
+        code: "FETCH_MEMBERS_FAILED",
+      },
       { status: 500 }
     );
   }

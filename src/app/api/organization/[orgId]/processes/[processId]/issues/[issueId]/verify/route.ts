@@ -81,52 +81,37 @@ export async function POST(
       );
     }
 
-    // Permission: Top = verify any; Operational = verify for their assigned site(s); Issuer = verify own; Support = cannot verify
-    const { prisma } = await import("@/lib/prisma");
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { ownerId: true },
-    });
-    const userOrg = await prisma.userOrganization.findUnique({
-      where: {
-        userId_organizationId: {
-          userId: ctx.user.id,
-          organizationId: orgId,
-        },
-      },
-      select: { role: true, leadershipTier: true },
-    });
-    const isOwner = org?.ownerId === ctx.user.id;
-    const userRole = isOwner ? "owner" : (userOrg?.role || "member");
-    const { roleToLeadershipTier } = await import("@/lib/roles");
-    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
-    const isTopLeadership = leadershipTier === "Top" || isOwner;
-    const isOperationalLeadership = leadershipTier === "Operational";
-    const isIssuer = issue.issuer === ctx.user.id;
-
-    let canVerify = isTopLeadership || isIssuer;
-    if (!canVerify && isOperationalLeadership) {
-      const processRow = await client.query(
-        `SELECT "siteId" FROM processes WHERE id = $1`,
-        [processId]
-      );
-      if (processRow.rows.length > 0) {
-        const siteId = processRow.rows[0].siteId;
-        const siteAccessResult = await client.query(
-          `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-          [ctx.user.id, siteId]
-        );
-        canVerify = siteAccessResult.rows.length > 0;
-      }
+    // Only the issuer (creator) of the issue can verify it (normalize for DB string vs session type)
+    const rawIssuer = issue.issuer;
+    const issuerId =
+      rawIssuer == null
+        ? ''
+        : typeof rawIssuer === 'string'
+          ? rawIssuer.trim()
+          : String(rawIssuer).trim();
+    const userId = ctx.user.id != null ? String(ctx.user.id).trim() : '';
+    
+    // Debug: log comparison (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Verify API] Issuer check:', {
+        issueId,
+        issuerId,
+        userId,
+        match: issuerId === userId,
+        rawIssuerType: typeof rawIssuer,
+        ctxUserId: ctx.user.id,
+      });
     }
-
-    if (!canVerify) {
+    
+    // Require strict match: issuer must exist and match current user
+    if (issuerId === '' || userId === '' || issuerId !== userId) {
       client.release();
       return NextResponse.json(
         {
-          error: isOperationalLeadership
-            ? "You can only verify issues for sites you are assigned to."
-            : "Only the issuer or leadership can verify this issue.",
+          error:
+            issuerId === ''
+              ? "This issue has no issuer recorded. Only the user who created the issue can verify it."
+              : "Only the user who created this issue can verify it.",
         },
         { status: 403 }
       );
