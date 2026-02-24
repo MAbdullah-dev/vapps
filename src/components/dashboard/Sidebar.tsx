@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Collapsible,
   CollapsibleContent,
@@ -45,124 +46,97 @@ interface Site {
 
 export default function Sidebar({ orgId }: { orgId: string }) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [processOpen, setProcessOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [sites, setSites] = useState<Site[]>([]);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-  const [organization, setOrganization] = useState<{ id: string; name: string } | null>(null);
-  const [userRole, setUserRole] = useState<string>("member");
-  const [isLoading, setIsLoading] = useState(true);
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const { data: sitesData, isLoading, refetch: fetchSites } = useQuery({
+    queryKey: ["sites", orgId],
+    queryFn: () => apiClient.getSites(orgId),
+    staleTime: 2 * 60 * 1000,
+    enabled: !!orgId,
+  });
+
+  const sites = sitesData?.sites ?? [];
+  const organization = sitesData?.organization ?? null;
+  const userRole = sitesData?.userRole ?? "member";
+
   const link = (path: string) => `/dashboard/${orgId}/${path}`;
 
-  const fetchSites = useCallback(async () => {
-    try {
-      const data = await apiClient.getSites(orgId);
-      setSites(data.sites || []);
-      setOrganization(data.organization);
-      setUserRole(data.userRole || "member");
-
-      // Preserve selected site if it still exists, otherwise select first site
-      if (data.sites && data.sites.length > 0) {
-        // Always check localStorage first to get the currently selected site ID
-        let siteIdToPreserve: string | null = null;
-        if (typeof window !== 'undefined') {
-          const storedSite = localStorage.getItem(`selectedSite_${orgId}`);
-          if (storedSite) {
-            try {
-              const parsedSite = JSON.parse(storedSite);
-              siteIdToPreserve = parsedSite.id;
-            } catch (e) {
-              console.error("Error parsing stored site:", e);
-            }
-          }
-        }
-
-        // If we have a site ID to preserve, try to find it in the fetched sites
-        if (siteIdToPreserve) {
-          const preservedSite = data.sites.find((s: Site) => s.id === siteIdToPreserve);
-          if (preservedSite) {
-            // Update selected site with fresh data (including new processes)
-            setSelectedSite(preservedSite);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(preservedSite));
-            }
-            return; // Exit early, site preserved
-          }
-        }
-
-        // If no site ID to preserve or preserved site not found, use first site
-        // Only set first site if we don't have a preserved site ID (to avoid changing selection)
-        if (!siteIdToPreserve) {
-          const firstSite = data.sites[0];
-          setSelectedSite(firstSite);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(firstSite));
-            window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: firstSite.id, orgId } }));
-          }
+  // Sync selectedSite from query data (preserve localStorage or use first site)
+  useEffect(() => {
+    if (!sitesData?.sites?.length) return;
+    const data = sitesData;
+    let siteIdToPreserve: string | null = null;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(`selectedSite_${orgId}`);
+      if (stored) {
+        try {
+          siteIdToPreserve = (JSON.parse(stored) as Site).id;
+        } catch {
+          // ignore
         }
       }
-    } catch (error) {
-      console.error("Error fetching sites:", error);
-    } finally {
-      setIsLoading(false);
     }
-  }, [orgId]);
-
-  useEffect(() => {
-    fetchSites();
-  }, [fetchSites]);
+    if (siteIdToPreserve) {
+      const preserved = data.sites.find((s: Site) => s.id === siteIdToPreserve);
+      if (preserved) {
+        setSelectedSite(preserved);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(preserved));
+        }
+        return;
+      }
+    }
+    const first = data.sites[0];
+    setSelectedSite(first);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(first));
+      window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: first.id, orgId } }));
+    }
+  }, [orgId, sitesData]);
 
   // Listen for process creation events to refresh the sidebar
   useEffect(() => {
     const handleProcessCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail.orgId === orgId) {
-        // Preserve the siteId from the event (the site where process was created)
         const siteIdToPreserve = customEvent.detail.siteId;
-        if (siteIdToPreserve && typeof window !== 'undefined') {
-          // Ensure the siteId is stored in localStorage before refreshing
-          // This ensures fetchSites will preserve it
+        if (siteIdToPreserve && typeof window !== "undefined") {
           const storedSite = localStorage.getItem(`selectedSite_${orgId}`);
           if (storedSite) {
             try {
               const parsedSite = JSON.parse(storedSite);
               if (parsedSite.id !== siteIdToPreserve) {
-                // Update localStorage with the correct siteId
                 const siteToStore = { ...parsedSite, id: siteIdToPreserve };
                 localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(siteToStore));
               }
-            } catch (e) {
-              // If parsing fails, we'll rely on fetchSites to set it
+            } catch {
+              // ignore
             }
-          } else {
-            // If no stored site, create a minimal one with just the ID
-            // fetchSites will fill in the rest
-            localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify({ id: siteIdToPreserve }));
           }
         }
-        // Refresh sites to get updated process list
-        fetchSites();
+        queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
       }
     };
 
     const handleProcessDeleted = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail.orgId === orgId) {
-        // Refresh sites to get updated process list
-        fetchSites();
+        queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
       }
     };
 
-    window.addEventListener('processCreated', handleProcessCreated);
-    window.addEventListener('processDeleted', handleProcessDeleted);
+    window.addEventListener("processCreated", handleProcessCreated);
+    window.addEventListener("processDeleted", handleProcessDeleted);
     return () => {
-      window.removeEventListener('processCreated', handleProcessCreated);
-      window.removeEventListener('processDeleted', handleProcessDeleted);
+      window.removeEventListener("processCreated", handleProcessCreated);
+      window.removeEventListener("processDeleted", handleProcessDeleted);
     };
-  }, [orgId, fetchSites]);
+  }, [orgId, queryClient]);
 
   const handleSiteChange = (site: Site) => {
     setSelectedSite(site);
@@ -204,7 +178,6 @@ export default function Sidebar({ orgId }: { orgId: string }) {
         location,
       });
 
-      // Add the new site to local state immediately (optimistic update)
       const newSite: Site = {
         id: data.site.id,
         name: data.site.name,
@@ -213,26 +186,15 @@ export default function Sidebar({ orgId }: { orgId: string }) {
         processes: data.site.processes || [],
       };
 
-      setSites(prev => [...prev, newSite]);
       setSelectedSite(newSite);
-
-      // Store selected site in localStorage and dispatch event
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(newSite));
-        window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: newSite.id, orgId } }));
+        window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: newSite.id, orgId } }));
       }
 
-      // Reset form before closing dialog
-      if (form) {
-        form.reset();
-      }
-
+      if (form) form.reset();
       setDialogOpen(false);
-
-      // Refresh in background (don't wait or show errors)
-      fetchSites().catch(err => {
-        console.error("Background refresh failed (non-critical):", err);
-      });
+      queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
     } catch (error: any) {
       console.error("Error creating site:", error);
       const errorMessage = error.response?.data?.error || error.message || "Failed to create site";

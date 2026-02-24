@@ -281,65 +281,65 @@ export default function SitesDepartmentsPage() {
                   value={site.id}
                   className="border rounded-lg px-4"
                 >
-                  <AccordionTrigger className="hover:no-underline py-4">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <ChevronRight className="h-4 w-4 text-gray-400" />
-                        <Building2 className="h-5 w-5 text-gray-400" />
-                        <div className="text-left flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{site.name}</span>
-                            <Badge
-                              variant="secondary"
-                              className={
-                                site.name.toLowerCase().includes("headquarters") ||
-                                site.name.toLowerCase().includes("hq")
-                                  ? "bg-purple-100 text-purple-700"
-                                  : "bg-blue-100 text-blue-700"
-                              }
-                            >
-                              {site.name.toLowerCase().includes("headquarters") ||
+                  <div className="flex items-center justify-between w-full pr-4 py-4">
+                    <AccordionTrigger className="hover:no-underline py-0 flex-1 flex items-center gap-3 group">
+                      <span className="inline-block transition-transform group-data-[state=open]:rotate-90">
+                        <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                      </span>
+                      <Building2 className="h-5 w-5 text-gray-400 shrink-0" />
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{site.name}</span>
+                          <Badge
+                            variant="secondary"
+                            className={
+                              site.name.toLowerCase().includes("headquarters") ||
                               site.name.toLowerCase().includes("hq")
-                                ? "headquarters"
-                                : "office"}
-                            </Badge>
+                                ? "bg-purple-100 text-purple-700"
+                                : "bg-blue-100 text-blue-700"
+                            }
+                          >
+                            {site.name.toLowerCase().includes("headquarters") ||
+                            site.name.toLowerCase().includes("hq")
+                              ? "headquarters"
+                              : "office"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span>{site.location}</span>
                           </div>
-                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                          {site.processes.length > 0 && (
                             <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              <span>{site.location}</span>
+                              <Users className="h-3 w-3" />
+                              <span>{site.processes.length} processes</span>
                             </div>
-                            {site.processes.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                <span>{site.processes.length} processes</span>
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </div>
-                      {canManageSites && (
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditSite(site)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteSite(site)}
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </AccordionTrigger>
+                    </AccordionTrigger>
+                    {canManageSites && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditSite(site)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteSite(site)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <AccordionContent>
                     <div className="pt-4 pb-2 pl-8">
                       {site.processes.length === 0 ? (

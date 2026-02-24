@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -255,67 +256,70 @@ function getColumns(
   ];
 }
 
+function mapPlansToAudits(list: any[]): Audit[] {
+  return list.map((p: any) => ({
+    id: p.auditNumber || p.id,
+    auditPlanId: p.id,
+    auditProgramId: p.auditProgramId,
+    nextStepForUser: p.nextStepForUser ?? null,
+    standard: p.criteria || p.programCriteria || "—",
+    scopeMethodBoundaries: "On-Site",
+    auditType: p.auditType || "FPA",
+    site: "—",
+    process: "—",
+    clause: "—",
+    subclauses: "—",
+    ncClassification: "Minor",
+    riskLevel: "Medium",
+    plannedDate: p.plannedDate ? new Date(p.plannedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—",
+    actualDate: p.findingsSubmittedAt ? new Date(p.findingsSubmittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "",
+    dueDate: "—",
+    kpiScore: null,
+    auditStatus: p.status === "closed" ? "Closed" : p.status === "findings_submitted_to_auditee" ? "Success" : p.status === "plan_submitted_to_auditee" || p.status === "ca_submitted_to_auditor" || p.status === "pending_closure" ? "In-Progress" : p.status || "Pending",
+    criteria: p.criteria,
+  }));
+}
+
 export default function AuditsContent() {
   const pathname = usePathname();
   const router = useRouter();
   const orgId = (pathname?.match(/\/dashboard\/([^/]+)\/audit/)?.[1]) ?? "";
-  const [audits, setAudits] = useState<Audit[]>([]);
-  const [plansLoading, setPlansLoading] = useState(true);
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const createAuditHref = `${pathname}/create/1`;
 
-  useEffect(() => {
-    if (!orgId) {
-      setPlansLoading(false);
-      return;
-    }
-    apiClient
-      .getAuditPlans(orgId)
-      .then((res) => {
-        const list = res.plans ?? [];
-        setAudits(
-          list.map((p: any) => ({
-            id: p.auditNumber || p.id,
-            auditPlanId: p.id,
-            auditProgramId: p.auditProgramId,
-            nextStepForUser: p.nextStepForUser ?? null,
-            standard: p.criteria || p.programCriteria || "—",
-            scopeMethodBoundaries: "On-Site",
-            auditType: p.auditType || "FPA",
-            site: "—",
-            process: "—",
-            clause: "—",
-            subclauses: "—",
-            ncClassification: "Minor",
-            riskLevel: "Medium",
-            plannedDate: p.plannedDate ? new Date(p.plannedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—",
-            actualDate: p.findingsSubmittedAt ? new Date(p.findingsSubmittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "",
-            dueDate: "—",
-            kpiScore: null,
-            auditStatus: p.status === "closed" ? "Closed" : p.status === "findings_submitted_to_auditee" ? "Success" : p.status === "plan_submitted_to_auditee" || p.status === "ca_submitted_to_auditor" || p.status === "pending_closure" ? "In-Progress" : p.status || "Pending",
-            criteria: p.criteria,
-          }))
-        );
-      })
-      .catch(() => setAudits([]))
-      .finally(() => setPlansLoading(false));
-  }, [orgId]);
+  const { data: plansData, isLoading: plansLoading } = useQuery({
+    queryKey: ["auditPlans", orgId],
+    queryFn: () => apiClient.getAuditPlans(orgId),
+    enabled: !!orgId,
+    staleTime: 60 * 1000,
+  });
 
-  const handleViewHistory = (audit: Audit) => {
+  const audits = useMemo(
+    () => (plansData?.plans ? mapPlansToAudits(plansData.plans) : []),
+    [plansData?.plans]
+  );
+
+  const handleViewHistory = useCallback((audit: Audit) => {
     setHistoryAudit(audit);
-  };
+  }, []);
 
-  const handleOpenStep = (audit: Audit, step: number) => {
-    if (audit.auditPlanId && orgId) {
-      const params = new URLSearchParams();
-      params.set("auditPlanId", audit.auditPlanId);
-      if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
-      if (audit.criteria) params.set("criteria", audit.criteria);
-      router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
-    }
-  };
+  const handleOpenStep = useCallback(
+    (audit: Audit, step: number) => {
+      if (audit.auditPlanId && orgId) {
+        const params = new URLSearchParams();
+        params.set("auditPlanId", audit.auditPlanId);
+        if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
+        if (audit.criteria) params.set("criteria", audit.criteria);
+        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+      }
+    },
+    [orgId, router]
+  );
 
-  const columns = getColumns(handleViewHistory, handleOpenStep);
+  const columns = useMemo(
+    () => getColumns(handleViewHistory, handleOpenStep),
+    [handleViewHistory, handleOpenStep]
+  );
 
   const table = useReactTable({
     data: audits,
