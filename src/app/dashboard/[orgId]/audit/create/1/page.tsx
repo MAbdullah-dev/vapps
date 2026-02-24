@@ -130,10 +130,10 @@ export default function CreateAuditStep1Page() {
   const [reviewRows, setReviewRows] = useState<{ id: string; pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }[]>([]);
   const removeReview = (id: string) => setReviewRows((prev) => prev.filter((r) => r.id !== id));
 
-  const toggleSite = (siteId: string) => {
+  const selectSite = (siteId: string) => {
     setSelectedSiteIds((prev) => {
-      const next = prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId];
-      if (next.length !== prev.length) {
+      const next = prev.includes(siteId) ? [] : [siteId];
+      if (next.length !== prev.length || (next.length === 1 && next[0] !== prev[0])) {
         setProcessId(null);
         setProgramOwnerUserId(null);
       }
@@ -404,7 +404,7 @@ export default function CreateAuditStep1Page() {
             {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
-                ORGANIZATIONAL SITES / UNITS (SELECT ONE OR MORE)
+                ORGANIZATIONAL SITES / UNITS (SELECT ONE)
               </h3>
               {sites.length === 0 ? (
                 <p className="text-sm text-gray-500">No sites for this organization. Add sites in Settings.</p>
@@ -416,7 +416,7 @@ export default function CreateAuditStep1Page() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleSite(site.id)}
+                      onClick={() => selectSite(site.id)}
                       className={cn(
                         "min-w-[100px] rounded-md border py-4 transition-colors",
                         selectedSiteIds.includes(site.id)
