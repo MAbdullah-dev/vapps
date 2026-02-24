@@ -3,16 +3,17 @@
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Camera, Mail, Phone, MapPin, Calendar, Building2, Loader2 } from "lucide-react";
+import { Camera, Mail, Phone, MapPin, Calendar as CalendarIcon, Building2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Profile = {
   id: string;
@@ -168,15 +169,20 @@ export default function AccountPage() {
         employeeId: form.employeeId.trim() || undefined,
         reportsTo: form.reportsTo.trim() || undefined,
         joinDate: form.joinDate ? form.joinDate : undefined,
-      });
+      }) as typeof profile & { emailVerificationSent?: boolean; message?: string };
       setProfile(updated);
       setIsEditing(false);
-      await updateSession?.({
-        name: updated.name != null ? updated.name : undefined,
-        email: updated.email != null ? updated.email : undefined,
-        image: updated.image != null ? updated.image : undefined,
-      });
-      toast.success("Profile updated");
+      if (updated.emailVerificationSent && updated.message) {
+        toast.success(updated.message);
+        await fetchProfile(false);
+      } else {
+        await updateSession?.({
+          name: updated.name != null ? updated.name : undefined,
+          email: updated.email != null ? updated.email : undefined,
+          image: updated.image != null ? updated.image : undefined,
+        });
+        toast.success("Profile updated");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save profile");
     } finally {
@@ -214,17 +220,7 @@ export default function AccountPage() {
         <p className="text-sm text-[#6A7282] mt-1">Manage your personal information and preferences</p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="bg-[#F3F3F5] rounded-full p-1 gap-1 h-10">
-          <TabsTrigger value="profile" className="rounded-full px-5 data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-white data-[state=active]:shadow-sm">
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="account" className="rounded-full px-5 text-[#6A7282]">Account</TabsTrigger>
-          <TabsTrigger value="security" className="rounded-full px-5 text-[#6A7282]">Security</TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-full px-5 text-[#6A7282]">Activity</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="profile" className="space-y-6 mt-0">
+      <div className="space-y-6">
           {/* User Profile Card */}
           <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
             <CardContent className="p-6">
@@ -328,6 +324,9 @@ export default function AccountPage() {
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
                 />
+                <p className="text-xs text-[#6A7282]">
+                  Changing your email will send a verification link to the new address. Your email will update after you confirm.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label className="text-[#374151] text-sm flex items-center gap-2">
@@ -403,15 +402,42 @@ export default function AccountPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[#374151] text-sm flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-[#6A7282]" /> Join Date
+                    <CalendarIcon className="h-4 w-4 text-[#6A7282]" /> Join Date
                   </Label>
-                  <Input
-                    readOnly={!isEditing}
-                    type="date"
-                    value={form.joinDate}
-                    onChange={(e) => setForm((f) => ({ ...f, joinDate: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
-                  />
+                  {isEditing ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] hover:bg-[#F3F3F5]"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                          {form.joinDate
+                            ? format(new Date(form.joinDate), "PPP")
+                            : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={form.joinDate ? new Date(form.joinDate) : undefined}
+                          onSelect={(date) => {
+                            if (!date) return;
+                            setForm((f) => ({
+                              ...f,
+                              joinDate: format(date, "yyyy-MM-dd"),
+                            }));
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <div className="flex h-9 w-full items-center rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#0A0A0A]">
+                      {form.joinDate
+                        ? format(new Date(form.joinDate), "PPP")
+                        : "—"}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
@@ -427,35 +453,7 @@ export default function AccountPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="account" className="mt-0">
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-[#0A0A0A]">Account</CardTitle>
-              <CardDescription>Account and preferences (coming soon)</CardDescription>
-            </CardHeader>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-0">
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-[#0A0A0A]">Security</CardTitle>
-              <CardDescription>Password and security settings (coming soon)</CardDescription>
-            </CardHeader>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-0">
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-[#0A0A0A]">Activity</CardTitle>
-              <CardDescription>Your recent activity (coming soon)</CardDescription>
-            </CardHeader>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   );
 }

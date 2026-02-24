@@ -55,6 +55,38 @@ export async function sendVerificationEmail({
   });
 }
 
+export async function sendEmailChangeVerification({
+  newEmail,
+  token,
+}: {
+  newEmail: string;
+  token: string;
+}) {
+  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/verify-email-change?token=${token}`;
+  const fromEmail = process.env.SMTP_FROM || "noreply@vapps.com";
+
+  await transporter.sendMail({
+    from: `"VApps" <${fromEmail}>`,
+    to: newEmail,
+    subject: "Confirm your new email address",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0A0A0A;">Confirm your new email</h2>
+        <p>You requested to change your account email to <strong>${newEmail}</strong>.</p>
+        <p>Click the button below to confirm and update your email address:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verifyUrl}" style="background-color: #0A0A0A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Confirm new email
+          </a>
+        </div>
+        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 12px; word-break: break-all;">${verifyUrl}</p>
+        <p style="color: #999; font-size: 12px; margin-top: 30px;">This link expires in 24 hours. If you didn't request this change, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendInvitationEmail({
   email,
   token,

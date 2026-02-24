@@ -37,19 +37,25 @@ import {
 type NotificationActivity = {
     id: string;
     userName: string;
-    userEmail: string;
+    userEmail: string | null;
     action: string;
     entityType: string;
     entityId?: string;
     entityTitle?: string;
     details: Record<string, unknown>;
     createdAt: string;
-    processId: string;
+    processId: string | null;
 };
 
 function formatNotificationMessage(a: NotificationActivity): string {
     const userName = a.userName || a.userEmail || "Someone";
     const entityTitle = a.entityTitle || a.entityId || "item";
+
+    if (a.entityType === "audit_plan") {
+        const statusLabel = (a.details?.statusLabel as string) || (a.details?.status as string) || "updated";
+        return `Audit plan ${entityTitle}: ${statusLabel}`;
+    }
+
     switch (a.action) {
         case "issue.created":
             return `${userName} created issue ${entityTitle}`;

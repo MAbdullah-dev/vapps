@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
+import { sendEmailChangeVerification } from "@/helpers/mailer";
 
 const profileSelect = {
   id: true,
@@ -55,12 +57,21 @@ export async function GET() {
 /**
  * PATCH /api/user/profile
  * Updates the current user's profile. Body can include: name, email, phone, location, bio, jobTitle, department, employeeId, reportsTo, joinDate.
+ * If email is changed to a new address, a verification email is sent to the new address; the DB email is only updated after the user confirms via the link.
  */
 export async function PATCH(req: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: { email: true, ...profileSelect },
+    });
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const body = await req.json();
@@ -77,9 +88,44 @@ export async function PATCH(req: NextRequest) {
       joinDate,
     } = body;
 
+    const newEmail = typeof email === "string" ? email.trim() || null : null;
+    const isEmailChange =
+      newEmail !== null &&
+      newEmail !== (existingUser.email ?? null) &&
+      newEmail.length > 0;
+
+    let emailVerificationSent = false;
+
+    if (isEmailChange) {
+      const other = await prisma.user.findUnique({
+        where: { email: newEmail },
+      });
+      if (other && other.id !== currentUser.id) {
+        return NextResponse.json(
+          { error: "This email is already in use by another account." },
+          { status: 400 }
+        );
+      }
+      const token = randomBytes(32).toString("hex");
+      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await prisma.emailChangeRequest.deleteMany({
+        where: { userId: currentUser.id },
+      });
+      await prisma.emailChangeRequest.create({
+        data: {
+          userId: currentUser.id,
+          newEmail,
+          token,
+          expires,
+        },
+      });
+      await sendEmailChangeVerification({ newEmail, token });
+      emailVerificationSent = true;
+    }
+
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = typeof name === "string" ? name.trim() || null : null;
-    if (email !== undefined) data.email = typeof email === "string" ? email.trim() || null : null;
+    if (!isEmailChange && email !== undefined) data.email = newEmail;
     if (phone !== undefined) data.phone = typeof phone === "string" ? phone.trim() || null : null;
     if (location !== undefined) data.location = typeof location === "string" ? location.trim() || null : null;
     if (bio !== undefined) data.bio = typeof bio === "string" ? bio.trim() || null : null;
@@ -101,6 +147,10 @@ export async function PATCH(req: NextRequest) {
       ...user,
       joinDate: user.joinDate?.toISOString() ?? null,
       createdAt: user.createdAt.toISOString(),
+      ...(emailVerificationSent && {
+        emailVerificationSent: true,
+        message: `Verification email sent to ${newEmail}. Your email will update after you confirm.`,
+      }),
     });
   } catch (error: unknown) {
     console.error("Error updating profile:", error);

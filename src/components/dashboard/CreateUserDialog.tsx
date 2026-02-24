@@ -495,7 +495,7 @@ export default function CreateUserDialog({
                   Select the site where this user will operate.
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
-                  <SelectTrigger id="site" className={errors.site ? "border-red-500" : ""}>
+                  <SelectTrigger id="site" className={`w-full ${errors.site ? "border-red-500" : ""}`}>
                     <SelectValue placeholder="Select one site" />
                   </SelectTrigger>
                   <SelectContent>
@@ -528,7 +528,7 @@ export default function CreateUserDialog({
                       if (errors.process) setErrors((e) => ({ ...e, process: undefined }));
                     }}
                   >
-                    <SelectTrigger id="process" className={errors.process ? "border-red-500" : ""}>
+                    <SelectTrigger id="process" className={`w-full ${errors.process ? "border-red-500" : ""}`}>
                       <SelectValue placeholder={processes.length === 0 ? "No processes available" : "Select one process"} />
                     </SelectTrigger>
                     <SelectContent>
