@@ -209,6 +209,7 @@ export default function CreateAuditStep2Page() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const orgId = params?.orgId as string;
   const programIdFromUrl = searchParams.get("programId") ?? null;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
@@ -1860,6 +1861,7 @@ export default function CreateAuditStep2Page() {
                     datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
                     assignedAuditorIds,
                   });
+                  queryClient.invalidateQueries({ queryKey: ["auditPlans", orgId] });
                   router.push(`/dashboard/${orgId}/audit`);
                 } catch (e) {
                   console.error(e);

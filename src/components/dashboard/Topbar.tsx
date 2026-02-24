@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -96,26 +97,20 @@ export default function Topbar() {
     const params = useParams();
     const orgId = params?.orgId as string | undefined;
     const [selectedLang, setSelectedLang] = useState("English");
-    const [notifications, setNotifications] = useState<NotificationActivity[]>([]);
-    const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
     const [dismissing, setDismissing] = useState(false);
 
+    const { data: notifData, isLoading: notificationsLoading } = useQuery({
+        queryKey: ["notifications", orgId],
+        queryFn: () => apiClient.getNotifications(orgId!, 25),
+        enabled: !!orgId,
+        staleTime: 60 * 1000,
+    });
+
+    const notifications = notifData?.activities ?? [];
     useEffect(() => {
-        if (!orgId) return;
-        setNotificationsLoading(true);
-        apiClient
-            .getNotifications(orgId, 25)
-            .then((res) => {
-                setNotifications(res.activities || []);
-                setDismissedIds(new Set(res.dismissedIds || []));
-            })
-            .catch(() => {
-                setNotifications([]);
-                setDismissedIds(new Set());
-            })
-            .finally(() => setNotificationsLoading(false));
-    }, [orgId]);
+        if (notifData?.dismissedIds) setDismissedIds(new Set(notifData.dismissedIds));
+    }, [notifData?.dismissedIds]);
 
     const visibleNotifications = notifications.filter((n) => !dismissedIds.has(n.id));
     const notificationCount = visibleNotifications.length;
