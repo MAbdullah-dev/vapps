@@ -130,9 +130,9 @@ const EMPTY_COMPLIANCE_DETAILS = {
 };
 
 /** Default empty evidence items for CA form reset. */
-const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; effectiveness: "effective" | "ineffective" }[] = [
-  { id: "ev-1", description: "", fileName: "", effectiveness: "effective" },
-  { id: "ev-2", description: "", fileName: "", effectiveness: "effective" },
+const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; s3Key: string; effectiveness: "effective" | "ineffective" }[] = [
+  { id: "ev-1", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
+  { id: "ev-2", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
 ];
 
 export default function CreateAuditStep3Page() {
@@ -342,9 +342,11 @@ export default function CreateAuditStep3Page() {
     id: string;
     description: string;
     fileName: string;
+    s3Key: string;
     effectiveness: "effective" | "ineffective";
   };
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([...DEFAULT_EVIDENCE_ITEMS]);
+  const [uploadingEvidenceId, setUploadingEvidenceId] = useState<string | null>(null);
   const addEvidenceItem = () => {
     setEvidenceItems((prev) => [
       ...prev,
@@ -352,6 +354,7 @@ export default function CreateAuditStep3Page() {
         id: `ev-${Date.now()}`,
         description: "",
         fileName: "",
+        s3Key: "",
         effectiveness: "effective",
       },
     ]);
@@ -420,9 +423,34 @@ export default function CreateAuditStep3Page() {
     setOfiRows((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const stepQuery = useMemo(() => {
+    const p = new URLSearchParams();
+    if (auditPlanIdFromUrl) p.set("auditPlanId", auditPlanIdFromUrl);
+    if (programIdFromUrl) p.set("programId", programIdFromUrl);
+    if (criteriaFromUrl) p.set("criteria", criteriaFromUrl);
+    return p.toString();
+  }, [auditPlanIdFromUrl, programIdFromUrl, criteriaFromUrl]);
+
+  const currentRow = filteredRows[currentQuestionIndex] ?? null;
+  const isCurrentMinorOrMajorNc =
+    currentRow && (currentRow.status === "minor_nc" || currentRow.status === "major_nc");
+  const isCaOpenForCurrentRow = currentRow && activeCARowId === currentRow.id;
+  const caRequiredFieldsFilled =
+    statementOfNonconformity.trim() !== "" &&
+    riskJustification.trim() !== "" &&
+    justificationForClassification.trim() !== "" &&
+    ((complianceDetails.evidenceSeen ?? "").trim() !== "" || (currentRow?.evidence ?? "").trim() !== "");
+  const canEnableSaveAndContinueLoop =
+    !!auditPlanIdFromUrl &&
+    !savingFindings &&
+    planStatus !== "findings_submitted_to_auditee" &&
+    isCurrentMinorOrMajorNc &&
+    isCaOpenForCurrentRow &&
+    caRequiredFieldsFilled;
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={3} orgId={orgId} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
 
       <div className="rounded-lg border border-gray-200 bg-white p-8">
         {/* Step 3 Header */}
@@ -1129,9 +1157,25 @@ export default function CreateAuditStep3Page() {
                             <input
                               type="file"
                               className="hidden"
-                              onChange={(e) => {
+                              disabled={!!uploadingEvidenceId}
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
-                                if (file) updateEvidenceItem(item.id, "fileName", file.name);
+                                if (!file || !orgId) {
+                                  e.target.value = "";
+                                  return;
+                                }
+                                setUploadingEvidenceId(item.id);
+                                try {
+                                  const planId = auditPlanIdFromUrl || "draft";
+                                  const res = await apiClient.uploadAuditDocument(file, orgId, planId, 3);
+                                  updateEvidenceItem(item.id, "fileName", res.name);
+                                  updateEvidenceItem(item.id, "s3Key", res.key);
+                                } catch (err) {
+                                  console.error(err);
+                                } finally {
+                                  setUploadingEvidenceId(null);
+                                  e.target.value = "";
+                                }
                               }}
                             />
                           </Label>
@@ -1403,12 +1447,12 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
-        {/* Save & Continue Checklist Loop — when CA form open: saves finding and goes to next question; when all done or no CA: saves all and returns to audit list */}
+        {/* Save & Continue Checklist Loop — for MINOR/MAJOR NC: only enabled after Document Finding (CA) is opened and all required fields filled; otherwise enabled when not saving and plan not submitted */}
         <div className="flex justify-center">
           <Button
             type="button"
             className="rounded-full border-2 border-green-500 bg-white px-8 py-6 text-base font-bold uppercase text-green-600 hover:bg-green-50 hover:text-green-700"
-            disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
+            disabled={!canEnableSaveAndContinueLoop}
             onClick={async () => {
               if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
               setSavingFindings(true);
@@ -1553,7 +1597,7 @@ export default function CreateAuditStep3Page() {
         </div>
       </div>
       {/* Bottom navigation */}
-      <div className="flex items-center justify-between py-4">
+      {/* <div className="flex items-center justify-between py-4">
         <Button
           variant="outline"
           className="border-gray-300 text-gray-600 hover:bg-gray-50"
@@ -1595,7 +1639,7 @@ export default function CreateAuditStep3Page() {
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>
-      </div>
+      </div> */}
     </div>
   );
 }

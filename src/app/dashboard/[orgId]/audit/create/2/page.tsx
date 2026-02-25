@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -167,7 +167,7 @@ interface AuditorResource {
   /** When set, this resource is assigned to this org member (must have Auditor additional role). UIN = this id. */
   auditorUserId: string;
   auditorUin: string;
-  /** Role for the selected auditor (e.g. Lead Auditor, Auditor, etc.). Manual input per design. */
+  /** Role for the selected auditor. System-generated, always "Auditor". */
   roleAssignment: string;
   technicalExpert: string;
   observer: string;
@@ -180,7 +180,7 @@ function createEmptyAuditorResource(): AuditorResource {
     auditorSearch: "",
     auditorUserId: "",
     auditorUin: "",
-    roleAssignment: "",
+    roleAssignment: "Auditor",
     technicalExpert: "",
     observer: "",
     trainee: "",
@@ -213,6 +213,7 @@ export default function CreateAuditStep2Page() {
   const queryClient = useQueryClient();
   const orgId = params?.orgId as string;
   const programIdFromUrl = searchParams.get("programId") ?? null;
+  const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
 
@@ -229,11 +230,20 @@ export default function CreateAuditStep2Page() {
     siteIds?: string[];
     sites?: { id: string; name: string; code?: string }[];
   } | null>(null);
-  const [programsList, setProgramsList] = useState<{ id: string; name?: string }[]>([]);
+  type ProgramListItem = {
+    id: string;
+    name?: string;
+    startPeriod?: string | null;
+    endPeriod?: string | null;
+    processName?: string | null;
+    sites?: { id: string; name: string; code?: string }[];
+    auditType?: string | null;
+  };
+  const [programsList, setProgramsList] = useState<ProgramListItem[]>([]);
   const [programSearch, setProgramSearch] = useState("");
   const [sites, setSites] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [processes, setProcesses] = useState<{ id: string; name: string; siteId?: string; siteName?: string }[]>([]);
-  const [members, setMembers] = useState<{ id: string; name: string; email?: string; additionalRoles?: string[] }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string; email?: string; additionalRoles?: string[]; processId?: string }[]>([]);
 
   const [identificationOpen, setIdentificationOpen] = useState(true);
   const [objectivesOpen, setObjectivesOpen] = useState(true);
@@ -266,8 +276,19 @@ export default function CreateAuditStep2Page() {
   const [auditNumber, setAuditNumber] = useState("");
   const [parentProgramName, setParentProgramName] = useState("");
   const [selectedPlanOption, setSelectedPlanOption] = useState<"A" | "B" | "C" | null>(null);
+
+  // When Option C is selected, redirect to Step 1 (create new audit program there first)
+  useEffect(() => {
+    if (selectedPlanOption === "C" && orgId) {
+      const step1Url = programIdFromUrl
+        ? `/dashboard/${orgId}/audit/create/1?programId=${programIdFromUrl}`
+        : `/dashboard/${orgId}/audit/create/1`;
+      router.push(step1Url);
+    }
+  }, [selectedPlanOption, orgId, programIdFromUrl, router]);
   const [selectedAuditType, setSelectedAuditType] = useState<string>("FPA");
   const [methodology, setMethodology] = useState<"on-site" | "remote" | "hybrid">("on-site");
+  const [physicalLocationAddress, setPhysicalLocationAddress] = useState("");
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [objectivesOther, setObjectivesOther] = useState("");
@@ -334,10 +355,28 @@ export default function CreateAuditStep2Page() {
     if (critMapped) setSelectedCriteria(critMapped);
   };
 
+  const formatProgramDisplay = (pg: ProgramListItem) => {
+    const audit = pg.name || `Program ${pg.id?.slice(0, 8) ?? ""}`;
+    const yearRaw = pg.startPeriod ?? pg.endPeriod;
+    const year = yearRaw ? String(yearRaw).slice(0, 4) : "";
+    const site = pg.sites?.length
+      ? (pg.sites[0].code || pg.sites[0].name || "")
+      : "";
+    const process = pg.processName ?? "";
+    const auditType = pg.auditType ?? "";
+    const parts = [audit, year, site, process, auditType].filter(Boolean);
+    if (parts.length <= 1) return audit;
+    return parts.join(" / ");
+  };
+
   const filteredProgramsForSearch = useMemo(() => {
     if (!programSearch.trim()) return programsList.slice(0, 10);
     const q = programSearch.trim().toLowerCase();
-    return programsList.filter((pg) => (pg.name ?? "").toLowerCase().includes(q)).slice(0, 10);
+    return programsList.filter((pg) => {
+      const label = formatProgramDisplay(pg);
+      const name = pg.name ?? "";
+      return name.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    }).slice(0, 10);
   }, [programsList, programSearch]);
 
   const selectProgramById = async (id: string) => {
@@ -377,12 +416,22 @@ export default function CreateAuditStep2Page() {
           name: m.name || m.email || "—",
           email: m.email ?? "",
           additionalRoles: m.additionalRoles ?? [],
+          processId: m.processId ?? undefined,
         })));
 
         const programsRes = await apiClient.getAuditPrograms(orgId);
         const list = programsRes.programs ?? [];
-        setProgramsList(list.map((pg: any) => ({ id: pg.id, name: pg.name || `Program ${pg.id?.slice(0, 8) || ""}` })));
+        setProgramsList(list.map((pg: any) => ({
+          id: pg.id,
+          name: pg.name ?? null,
+          startPeriod: pg.startPeriod ?? pg.start_period ?? null,
+          endPeriod: pg.endPeriod ?? pg.end_period ?? null,
+          processName: pg.processName ?? pg.process_name ?? null,
+          sites: pg.sites ?? [],
+          auditType: pg.auditType ?? pg.audit_type ?? null,
+        })));
 
+        let programLoaded = false;
         if (programIdFromUrl) {
           const progRes = await apiClient.getAuditProgram(orgId, programIdFromUrl);
           if (cancelled || !progRes.program) return;
@@ -390,7 +439,45 @@ export default function CreateAuditStep2Page() {
           setProgram(p);
           setSelectedPlanOption("A");
           applyProgramToForm(p);
-        } else {
+          programLoaded = true;
+        }
+
+        if (auditPlanIdFromUrl) {
+          const planRes = await apiClient.getAuditPlan(orgId, auditPlanIdFromUrl);
+          if (cancelled || !planRes.plan) return;
+          const plan = planRes.plan;
+          if (!programLoaded && plan.auditProgramId) {
+            const progRes = await apiClient.getAuditProgram(orgId, plan.auditProgramId);
+            if (!cancelled && progRes.program) {
+              const p = progRes.program;
+              setProgram(p);
+              setSelectedPlanOption("A");
+              applyProgramToForm(p);
+            }
+          }
+          setAuditPlanTitle(plan.title ?? "");
+          setAuditNumber(plan.auditNumber ?? "");
+          setSelectedCriteria(plan.criteria ?? null);
+          setPlannedDate(plan.plannedDate ? new Date(plan.plannedDate) : undefined);
+          setDatePrepared(plan.datePrepared ? new Date(plan.datePrepared) : undefined);
+          const ids = plan.assignedAuditorIds ?? [];
+          if (ids.length > 0) {
+            const membersList = active.map((m: any) => ({ id: m.id, name: m.name || m.email || "—" }));
+            setAuditorResources(ids.map((userId: string, i: number) => {
+              const name = membersList.find((m: { id: string }) => m.id === userId)?.name ?? "";
+              return {
+                id: `auditor-${auditPlanIdFromUrl}-${i}`,
+                auditorSearch: name,
+                auditorUserId: userId,
+                auditorUin: userId,
+                roleAssignment: "Auditor",
+                technicalExpert: "",
+                observer: "",
+                trainee: "",
+              };
+            }));
+          }
+        } else if (!programIdFromUrl) {
           setSelectedPlanOption(null);
         }
       } catch (e) {
@@ -401,7 +488,7 @@ export default function CreateAuditStep2Page() {
     };
     load();
     return () => { cancelled = true; };
-  }, [orgId, programIdFromUrl]);
+  }, [orgId, programIdFromUrl, auditPlanIdFromUrl]);
   const [coreCompetence, setCoreCompetence] = useState<Record<string, boolean>>({});
   const toggleCoreCompetence = (key: string) => {
     setCoreCompetence((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -445,6 +532,42 @@ export default function CreateAuditStep2Page() {
     );
   };
 
+  const submitAuditPlan = useCallback(async () => {
+    if (!orgId || !effectiveProgramId) return;
+    setIsSubmittingPlan(true);
+    try {
+      const assignedAuditorIds = auditorResources
+        .map((r) => r.auditorUserId)
+        .filter(Boolean);
+      await apiClient.createAuditPlan(orgId, {
+        auditProgramId: effectiveProgramId,
+        title: auditPlanTitle || undefined,
+        auditNumber: auditNumber || undefined,
+        criteria: selectedCriteria || undefined,
+        plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
+        datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
+        assignedAuditorIds,
+      });
+      queryClient.invalidateQueries({ queryKey: ["auditPlans", orgId] });
+      router.push(`/dashboard/${orgId}/audit`);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmittingPlan(false);
+    }
+  }, [
+    orgId,
+    effectiveProgramId,
+    auditorResources,
+    auditPlanTitle,
+    auditNumber,
+    selectedCriteria,
+    plannedDate,
+    datePrepared,
+    queryClient,
+    router,
+  ]);
+
   /** Filter auditors by search query for dropdown (only users with Auditor role). */
   const getFilteredAuditorsForSearch = (query: string, excludeUserIds: string[]) => {
     const q = query.trim().toLowerCase();
@@ -458,9 +581,18 @@ export default function CreateAuditStep2Page() {
       .slice(0, 10);
   };
 
+  const stepQuery = useMemo(() => {
+    const p = new URLSearchParams();
+    if (auditPlanIdFromUrl) p.set("auditPlanId", auditPlanIdFromUrl);
+    if (programIdFromUrl) p.set("programId", programIdFromUrl);
+    const c = searchParams.get("criteria");
+    if (c) p.set("criteria", c);
+    return p.toString();
+  }, [auditPlanIdFromUrl, programIdFromUrl, searchParams]);
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={2} orgId={orgId} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 6]} stepQuery={stepQuery || undefined} exitHref="../.." />
 
 <div className="rounded-lg bg-white px-5 py-8">
 
@@ -572,8 +704,8 @@ export default function CreateAuditStep2Page() {
                           className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-t border-gray-100 flex items-center justify-between"
                           onClick={() => selectProgramById(pg.id)}
                         >
-                          <span className="font-medium text-gray-900">{pg.name}</span>
-                          <ChevronRight className="h-4 w-4 text-gray-400" />
+                          <span className="font-medium text-gray-900">{formatProgramDisplay(pg)}</span>
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
                         </button>
                       </li>
                     ))}
@@ -585,7 +717,7 @@ export default function CreateAuditStep2Page() {
               )}
               {program && (
                 <div className="rounded-lg border border-green-200 bg-green-50/50 px-4 py-3">
-                  <p className="text-sm font-medium text-green-800">Linked program: {parentProgramName}</p>
+                  <p className="text-sm font-medium text-green-800">Linked program: {formatProgramDisplay(program as ProgramListItem)}</p>
                   <p className="text-xs text-green-700 mt-0.5">Objectives, type, criteria, and scope are pre-filled from this program.</p>
                 </div>
               )}
@@ -624,8 +756,8 @@ export default function CreateAuditStep2Page() {
           )}
         </div>
 
-        {/* Option B: New Audit Plan — instant plan without program link */}
-        <div
+        {/* Option B: New Audit Plan — instant plan without program link (commented out for now, use later) */}
+        {/* <div
           onClick={() => setSelectedPlanOption("B")}
           className={cn(
             "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
@@ -675,9 +807,9 @@ export default function CreateAuditStep2Page() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
-        {/* Option C: Schedule New Audit Program */}
+        {/* Option B: Schedule New Audit Program (formerly Option C) */}
         <div
           onClick={() => setSelectedPlanOption("C")}
           className={cn(
@@ -691,7 +823,7 @@ export default function CreateAuditStep2Page() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <h3 className="text-base font-bold text-gray-900">
-                OPTION C: SCHEDULE NEW AUDIT PROGRAM
+                OPTION B: SCHEDULE NEW AUDIT PROGRAM
               </h3>
             </div>
             {selectedPlanOption === "C" && (
@@ -832,7 +964,7 @@ export default function CreateAuditStep2Page() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-gray-200 px-6 py-5 space-y-6">
-            {/* System Generated - Program Purpose & Objectives */}
+            {/* System Generated - Program Purpose & Objectives (from Step 1) */}
             <div className="rounded-lg border border-green-300 bg-green-50/80 p-4">
               <h4 className="text-sm font-bold uppercase tracking-wide text-green-800">
                 System Generated - Program Purpose & Objectives
@@ -847,29 +979,34 @@ export default function CreateAuditStep2Page() {
                   that impact product or system performance.
                 </p>
               </div>
+              <p className="mt-2 text-xs text-green-700">
+                Selected from Step 1 — PROGRAM PURPOSE & OBJECTIVES (SELECT ONE).
+              </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {[
                   "Verify management system conformity (ISO clauses)",
                   "Evaluate system effectiveness & performance",
                   "Assess ESG practices (E / S / G factors)",
                   "Support risk-based decision-making",
-                ].map((label) => (
-                  <Label
-                    key={label}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors",
-                      objectivesCheckboxes[label] ? "border-green-500 bg-green-50/50" : "border-gray-200 bg-white hover:bg-gray-50/80"
-                    )}
-                  >
-                    <Checkbox
-                      checked={!!objectivesCheckboxes[label]}
-                      onCheckedChange={(checked) =>
-                        setObjectivesCheckboxes((prev) => ({ ...prev, [label]: !!checked }))
-                      }
-                    />
-                    <span className="text-sm text-gray-800">{label}</span>
-                  </Label>
-                ))}
+                ].map((label) => {
+                  const isSelectedFromStep1 = program?.programPurpose != null && PROGRAM_PURPOSE_TO_OBJECTIVE[program.programPurpose] === label;
+                  return (
+                    <div
+                      key={label}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors",
+                        isSelectedFromStep1 ? "border-green-500 bg-green-50/50" : "border-gray-200 bg-gray-50/50 opacity-75"
+                      )}
+                    >
+                      {isSelectedFromStep1 ? (
+                        <Check className="h-5 w-5 shrink-0 text-green-600" />
+                      ) : (
+                        <div className="h-5 w-5 shrink-0 rounded border border-gray-300 bg-white" />
+                      )}
+                      <span className={cn("text-sm", isSelectedFromStep1 ? "text-gray-900 font-medium" : "text-gray-500")}>{label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1089,7 +1226,8 @@ export default function CreateAuditStep2Page() {
 
             {/* Site Selection & Location Details - two columns */}
             <div className="grid gap-6 sm:grid-cols-2">
-              <div>
+           {/* comment for now  site selection */}
+              {/* <div>
                 <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700 mb-3">
                   Site Selection
                 </h4>
@@ -1120,21 +1258,94 @@ export default function CreateAuditStep2Page() {
                     ))}
                   </div>
                 )}
-              </div>
+              </div> */}
+           {/* comment for now  site selection */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700 mb-3">
                   Location Details
                 </h4>
-                <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6">
-                  <Building2 className="h-16 w-16 text-gray-300" />
-                  <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
-                    Physical Location
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Location will be marked for hybrid audits.
-                  </p>
-                </div>
+                {methodology === "on-site" ? (
+                  <div className="flex min-h-[200px] w-full flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6">
+                    <Building2 className="h-16 w-16 text-gray-300" />
+                    <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
+                      Physical Location
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Not used for on-site audits
+                    </p>
+                  </div>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex min-h-[200px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-1"
+                      >
+                        <Building2 className="h-16 w-16 text-gray-300" />
+                        <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
+                          Physical Location
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {physicalLocationAddress ? physicalLocationAddress : "Click to add location (map)"}
+                        </p>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[min(90vw,420px)] p-0" align="start">
+                      <div className="p-4 space-y-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium uppercase tracking-wide text-gray-700 flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-green-600" />
+                            Add location
+                          </Label>
+                          <Input
+                            placeholder="Enter address or place name"
+                            className="rounded-lg border-gray-300"
+                            value={physicalLocationAddress}
+                            onChange={(e) => setPhysicalLocationAddress(e.target.value)}
+                          />
+                        </div>
+                        <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-100 min-h-[220px]">
+                          <iframe
+                            title="Location map"
+                            src={`https://www.google.com/maps?q=${encodeURIComponent(physicalLocationAddress || " ")}+&output=embed`}
+                            className="w-full h-[220px] border-0"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Enter an address above to view it on the map. Location will be marked for remote and hybrid audits.
+                        </p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
+              {methodology !== "on-site" && (
+                <div className="mt-4 space-y-2">
+                  <span className="block text-xs font-medium uppercase text-gray-500">
+                    Chosen location
+                  </span>
+                  {physicalLocationAddress ? (
+                    <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-100 min-h-[200px]">
+                      <iframe
+                        title="Chosen location map"
+                        src={`https://www.google.com/maps?q=${encodeURIComponent(physicalLocationAddress)}&output=embed`}
+                        className="w-full h-[200px] border-0"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                      <p className="px-3 py-2 text-sm text-gray-600 bg-gray-50 border-t border-gray-200">
+                        {physicalLocationAddress}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/50">
+                      <p className="text-sm text-gray-500">No location selected. Click the card above to add a location.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Process / Area to be audited */}
@@ -1170,23 +1381,14 @@ export default function CreateAuditStep2Page() {
                   </div>
                 </div>
                 <div className="min-w-[220px] flex-1 space-y-1">
-                  <Label className="block text-xs font-medium uppercase text-gray-500">
-                    Process Selection
-                  </Label>
-                  <Select
-                    value={selectedProcessId ?? ""}
-                    onValueChange={(v) => setSelectedProcessId(v || null)}
-                    disabled={processesForSelectedSites.length === 0}
-                  >
-                    <SelectTrigger className="h-10 rounded-lg border-gray-300">
-                      <SelectValue placeholder={processesForSelectedSites.length === 0 ? "Select site(s) first" : "Select process"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {processesForSelectedSites.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}{p.siteName ? ` (${p.siteName})` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <span className="block text-xs font-medium uppercase text-gray-500">
+                    Process (System Generated)
+                  </span>
+                  <div className="inline-flex items-center gap-2 w-full min-h-10 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
+                    <span className="text-sm font-medium text-gray-800">
+                      {program?.processName ?? "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1638,7 +1840,16 @@ export default function CreateAuditStep2Page() {
                   .filter((r) => r.id !== resource.id)
                   .map((r) => r.auditorUserId)
                   .filter(Boolean);
-                const dropdownAuditors = getFilteredAuditorsForSearch(resource.auditorSearch, assignedElsewhere);
+                const auditProcessId = program?.processId ?? null;
+                const userIdsInAuditProcess = auditProcessId
+                  ? auditorsOnly.filter((m) => m.processId === auditProcessId).map((m) => m.id)
+                  : [];
+                const excludeIds = [
+                  ...assignedElsewhere,
+                  ...(currentUserId ? [currentUserId] : []),
+                  ...userIdsInAuditProcess,
+                ];
+                const dropdownAuditors = getFilteredAuditorsForSearch(resource.auditorSearch, excludeIds);
                 return (
                   <div
                     key={resource.id}
@@ -1733,12 +1944,9 @@ export default function CreateAuditStep2Page() {
                           Role Assignment
                         </Label>
                         <Input
-                          placeholder="Role"
-                          className="h-10 rounded-lg border-gray-300"
-                          value={resource.roleAssignment}
-                          onChange={(e) =>
-                            updateAuditorResource(resource.id, "roleAssignment", e.target.value)
-                          }
+                          className="h-10 rounded-lg border-gray-300 bg-gray-50"
+                          value="Auditor"
+                          readOnly
                         />
                       </div>
                     </div>
@@ -1838,38 +2046,17 @@ export default function CreateAuditStep2Page() {
               type="button"
               variant="outline"
               className="border-green-500 bg-transparent text-green-500 hover:bg-green-500/10 hover:text-green-400"
+              disabled={!effectiveProgramId || isSubmittingPlan}
+              onClick={() => submitAuditPlan()}
             >
               <FileText className="h-4 w-4 mr-2" />
-              Save Audit Plan (Draft)
+              {isSubmittingPlan ? "Saving…" : "Save Audit Plan (Draft)"}
             </Button>
             <Button
               type="button"
               className="bg-green-600 text-white hover:bg-green-700"
               disabled={!effectiveProgramId || isSubmittingPlan}
-              onClick={async () => {
-                if (!orgId || !effectiveProgramId) return;
-                setIsSubmittingPlan(true);
-                try {
-                  const assignedAuditorIds = auditorResources
-                    .map((r) => r.auditorUserId)
-                    .filter(Boolean);
-                  await apiClient.createAuditPlan(orgId, {
-                    auditProgramId: effectiveProgramId,
-                    title: auditPlanTitle || undefined,
-                    auditNumber: auditNumber || undefined,
-                    criteria: selectedCriteria || undefined,
-                    plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
-                    datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
-                    assignedAuditorIds,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["auditPlans", orgId] });
-                  router.push(`/dashboard/${orgId}/audit`);
-                } catch (e) {
-                  console.error(e);
-                } finally {
-                  setIsSubmittingPlan(false);
-                }
-              }}
+              onClick={() => submitAuditPlan()}
             >
               <FileCheck className="h-4 w-4 mr-2" />
               {isSubmittingPlan ? "Submitting…" : "Generate Audit Plan"}
@@ -1881,7 +2068,7 @@ export default function CreateAuditStep2Page() {
       </div>
       {/* Step navigation */}
 
-      <div className="flex items-center justify-between px-6 py-4 mt-6">
+      {/* <div className="flex items-center justify-between px-6 py-4 mt-6">
         <Button variant="outline" className="text-gray-700 border-gray-300" asChild>
           <Link
             href={programIdFromUrl ? `/dashboard/${orgId}/audit/create/1?programId=${programIdFromUrl}` : `/dashboard/${orgId}/audit/create/1`}
@@ -1906,7 +2093,7 @@ export default function CreateAuditStep2Page() {
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>
-      </div>
+      </div> */}
     </div>
   );
 }

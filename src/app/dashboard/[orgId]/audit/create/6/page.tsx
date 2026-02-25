@@ -100,7 +100,7 @@ export default function CreateAuditStep6Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={6} orgId={orgId} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 6]} stepQuery={stepQuery || undefined} exitHref="../.." />
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">
@@ -137,12 +137,11 @@ export default function CreateAuditStep6Page() {
                     : "border-gray-200 bg-white hover:border-gray-300"
                 )}
               >
-                <Square
-                  className={cn(
-                    "mt-0.5 h-5 w-5 shrink-0",
-                    finalDecision === "effective" ? "text-green-600" : "text-gray-400"
-                  )}
-                />
+                {finalDecision === "effective" ? (
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                ) : (
+                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                )}
                 <div>
                   <p className="font-bold text-gray-900">
                     Effective - Close Audit
@@ -163,12 +162,11 @@ export default function CreateAuditStep6Page() {
                     : "border-gray-200 bg-white hover:border-gray-300"
                 )}
               >
-                <Square
-                  className={cn(
-                    "mt-0.5 h-5 w-5 shrink-0",
-                    finalDecision === "ineffective" ? "text-green-600" : "text-gray-400"
-                  )}
-                />
+                {finalDecision === "ineffective" ? (
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                ) : (
+                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                )}
                 <div>
                   <p className="font-bold text-gray-900">
                     Ineffective - Re-open Audit
