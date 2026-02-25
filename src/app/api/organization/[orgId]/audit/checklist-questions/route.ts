@@ -3,6 +3,9 @@ import { getRequestContext } from "@/lib/request-context";
 import { CRITERIA_TO_CHECKLIST_KEY, PROGRAM_CRITERIA_TO_CHECKLIST_KEY } from "@/lib/audit-checklists";
 import iso9001Questions from "@/lib/audit-checklists/iso-9001.json";
 import iso14001Questions from "@/lib/audit-checklists/iso-14001.json";
+import iso45001Questions from "@/lib/audit-checklists/iso-45001.json";
+import iso27001Questions from "@/lib/audit-checklists/iso-27001.json";
+import iatf16949Questions from "@/lib/audit-checklists/iatf-16949.json";
 
 type ChecklistItem = {
   clause: string;
@@ -15,6 +18,9 @@ type ChecklistItem = {
 const CHECKLIST_BY_KEY: Record<string, ChecklistItem[]> = {
   "iso-9001": iso9001Questions as ChecklistItem[],
   "iso-14001": iso14001Questions as ChecklistItem[],
+  "iso-45001": iso45001Questions as ChecklistItem[],
+  "iso-27001": iso27001Questions as ChecklistItem[],
+  "iatf-16949": iatf16949Questions as ChecklistItem[],
 };
 
 /**
