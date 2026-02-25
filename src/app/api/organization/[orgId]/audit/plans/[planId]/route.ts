@@ -34,6 +34,7 @@ export async function GET(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
                 ap.title, ap.audit_number, ap.criteria, ap.planned_date, ap.date_prepared,
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
+                ap.step_4_data,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
@@ -60,6 +61,7 @@ export async function GET(
         programName: row.program_name,
         auditType: row.audit_type,
         programCriteria: row.program_criteria,
+        step4Data: row.step_4_data ?? null,
         assignedAuditorIds: [] as string[],
       };
 
@@ -117,9 +119,10 @@ export async function PATCH(
 
     const body = await req.json().catch(() => ({}));
     const status = body.status;
+    const step4Data = body.step4Data;
 
-    if (!status) {
-      return NextResponse.json({ error: "status is required" }, { status: 400 });
+    if (!status && step4Data === undefined) {
+      return NextResponse.json({ error: "status or step4Data is required" }, { status: 400 });
     }
 
     await withTenantConnection(connectionString, async (client) => {
@@ -130,15 +133,28 @@ export async function PATCH(
         throw new Error("audit_plans table does not exist");
       }
 
-      if (status === "findings_submitted_to_auditee") {
+      const hasStep4Column = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_4_data'`
+      );
+
+      if (status) {
+        if (status === "findings_submitted_to_auditee") {
+          await client.query(
+            `UPDATE audit_plans SET status = $1, findings_submitted_at = now(), updated_at = now() WHERE id = $2`,
+            [status, planId]
+          );
+        } else {
+          await client.query(
+            `UPDATE audit_plans SET status = $1, updated_at = now() WHERE id = $2`,
+            [status, planId]
+          );
+        }
+      }
+
+      if (step4Data !== undefined && hasStep4Column.rows.length > 0) {
         await client.query(
-          `UPDATE audit_plans SET status = $1, findings_submitted_at = now(), updated_at = now() WHERE id = $2`,
-          [status, planId]
-        );
-      } else {
-        await client.query(
-          `UPDATE audit_plans SET status = $1, updated_at = now() WHERE id = $2`,
-          [status, planId]
+          `UPDATE audit_plans SET step_4_data = $1, updated_at = now() WHERE id = $2`,
+          [JSON.stringify(step4Data), planId]
         );
       }
     });

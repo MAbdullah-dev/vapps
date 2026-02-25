@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
   Upload,
   History,
   Pencil,
+  FileEdit,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,9 +45,15 @@ const NEXT_STEP_LABELS: Record<number, string> = {
 
 type Audit = {
   id: string;
+  auditProgramRef: string; // "Audit/Year/Site/Process/Audit Type"
   auditPlanId?: string;
   auditProgramId?: string;
   nextStepForUser?: number | null;
+  /** Raw status from API for role logic (e.g. "closed") */
+  planStatus?: string;
+  leadAuditorUserId?: string | null;
+  auditeeUserId?: string | null;
+  assignedAuditorIds?: string[];
   standard: string;
   scopeMethodBoundaries: string;
   auditType: string;
@@ -90,15 +98,39 @@ const getStatusColor = (status: string) => {
   return ""; // Pending: no badge
 };
 
+/** Steps 1,2,6 = lead; 3,5 = auditor; 4 = auditee. Edit only for own tab; no edit after closed. */
+function canEditAudit(audit: Audit, currentUserId: string | null): boolean {
+  if (!currentUserId || audit.planStatus === "closed") return false;
+  const isLead = audit.leadAuditorUserId === currentUserId;
+  const isAuditee = audit.auditeeUserId === currentUserId;
+  const isAssigned = (audit.assignedAuditorIds ?? []).includes(currentUserId);
+  const step = audit.nextStepForUser;
+  return (
+    (isLead && (step === 6 || step == null)) ||
+    (isAssigned && (step === 3 || step === 5)) ||
+    (isAuditee && step === 4)
+  );
+}
+
+/** Step to open when user clicks Edit: 2 for lead (plan form) when no step, else their step. */
+function getEditStep(audit: Audit, currentUserId: string | null): number | null {
+  if (!currentUserId) return null;
+  const step = audit.nextStepForUser;
+  if (step != null && step >= 3 && step <= 6) return step;
+  return audit.leadAuditorUserId === currentUserId ? 2 : null;
+}
+
 function getColumns(
   handleViewHistory: (audit: Audit) => void,
-  handleOpenStep: (audit: Audit, step: number) => void
+  handleOpenStep: (audit: Audit, step: number) => void,
+  handleEditAudit: (audit: Audit, step: number) => void,
+  currentUserId: string | null
 ): ColumnDef<Audit>[] {
   return [
   {
-    accessorKey: "id",
-    header: () => <TableHeader title="Audit Program Ref." sub="(Audit/Year/Site/Process/Audit Type/NC#)" />,
-    cell: ({ row }) => <span className="font-medium text-gray-900">{row.original.id}</span>,
+    accessorKey: "auditProgramRef",
+    header: () => <TableHeader title="Audit Program Ref." sub="(Audit/Year/Site/Process/Audit Type)" />,
+    cell: ({ row }) => <span className="font-medium text-gray-900">{row.original.auditProgramRef}</span>,
   },
   {
     accessorKey: "standard",
@@ -238,6 +270,12 @@ function getColumns(
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+            {canEditAudit(audit, currentUserId) && getEditStep(audit, currentUserId) != null && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); const s = getEditStep(audit, currentUserId); if (s != null) handleEditAudit(audit, s); }}>
+                <FileEdit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => handleViewHistory(audit)}>
               <History className="mr-2 h-4 w-4" />
               View History
@@ -257,16 +295,29 @@ function getColumns(
 }
 
 function mapPlansToAudits(list: any[]): Audit[] {
-  return list.map((p: any) => ({
+  return list.map((p: any) => {
+    const auditPart = p.auditNumber || p.id || "—";
+    const dateForYear = p.plannedDate || p.datePrepared || p.createdAt;
+    const year = dateForYear ? new Date(dateForYear).getFullYear() : "—";
+    const site = p.site ?? p.siteName ?? p.programSite ?? "—";
+    const process = p.process ?? p.processName ?? p.programProcess ?? "—";
+    const auditType = (p.auditType || "FPA").toString().toUpperCase();
+    const auditProgramRef = `${auditPart}/${year}/${site}/${process}/${auditType}`;
+    return {
     id: p.auditNumber || p.id,
+    auditProgramRef,
     auditPlanId: p.id,
     auditProgramId: p.auditProgramId,
     nextStepForUser: p.nextStepForUser ?? null,
+    planStatus: p.status,
+    leadAuditorUserId: p.leadAuditorUserId ?? null,
+    auditeeUserId: p.auditeeUserId ?? null,
+    assignedAuditorIds: p.assignedAuditorIds ?? [],
     standard: p.criteria || p.programCriteria || "—",
     scopeMethodBoundaries: "On-Site",
-    auditType: p.auditType || "FPA",
-    site: "—",
-    process: "—",
+    auditType,
+    site,
+    process,
     clause: "—",
     subclauses: "—",
     ncClassification: "Minor",
@@ -277,12 +328,15 @@ function mapPlansToAudits(list: any[]): Audit[] {
     kpiScore: null,
     auditStatus: p.status === "closed" ? "Closed" : p.status === "findings_submitted_to_auditee" ? "Success" : p.status === "plan_submitted_to_auditee" || p.status === "ca_submitted_to_auditor" || p.status === "pending_closure" ? "In-Progress" : p.status || "Pending",
     criteria: p.criteria,
-  }));
+  };
+  });
 }
 
 export default function AuditsContent() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string })?.id ?? null;
   const orgId = (pathname?.match(/\/dashboard\/([^/]+)\/audit/)?.[1]) ?? "";
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const createAuditHref = `${pathname}/create/1`;
@@ -303,6 +357,19 @@ export default function AuditsContent() {
     setHistoryAudit(audit);
   }, []);
 
+  const handleEditAudit = useCallback(
+    (audit: Audit, step: number) => {
+      if (audit.auditPlanId && orgId) {
+        const params = new URLSearchParams();
+        params.set("auditPlanId", audit.auditPlanId);
+        if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
+        if (audit.criteria) params.set("criteria", audit.criteria);
+        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+      }
+    },
+    [orgId, router]
+  );
+
   const handleOpenStep = useCallback(
     (audit: Audit, step: number) => {
       if (audit.auditPlanId && orgId) {
@@ -317,8 +384,8 @@ export default function AuditsContent() {
   );
 
   const columns = useMemo(
-    () => getColumns(handleViewHistory, handleOpenStep),
-    [handleViewHistory, handleOpenStep]
+    () => getColumns(handleViewHistory, handleOpenStep, handleEditAudit, currentUserId),
+    [handleViewHistory, handleOpenStep, handleEditAudit, currentUserId]
   );
 
   const table = useReactTable({
@@ -455,7 +522,13 @@ export default function AuditsContent() {
                   <tr
                     key={row.id}
                     className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => row.original.auditPlanId && handleEditAudit(row.original)}
+                    onClick={() => {
+                      const audit = row.original;
+                      if (!audit.auditPlanId) return;
+                      const step = getEditStep(audit, currentUserId);
+                      if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
+                      else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td

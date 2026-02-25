@@ -45,7 +45,8 @@ export default function CreateAuditStep5Page() {
     "effective" | "ineffective"
   >("effective");
   const [auditorComments, setAuditorComments] = useState("");
-  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [evidenceFiles, setEvidenceFiles] = useState<{ name: string; key: string }[]>([]);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [proceedingToStep6, setProceedingToStep6] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,11 +87,24 @@ export default function CreateAuditStep5Page() {
     return () => { cancelled = true; };
   }, [orgId, auditPlanId]);
 
-  const handleEvidenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEvidenceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files?.length) return;
-    setEvidenceFiles((prev) => [...prev, ...Array.from(files)]);
-    e.target.value = "";
+    if (!files?.length || !orgId) return;
+    const planId = auditPlanId || "draft";
+    setUploadingEvidence(true);
+    try {
+      const uploaded: { name: string; key: string }[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const res = await apiClient.uploadAuditDocument(files[i], orgId, planId, 5);
+        uploaded.push({ name: res.name, key: res.key });
+      }
+      setEvidenceFiles((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploadingEvidence(false);
+      e.target.value = "";
+    }
   };
 
   const auditTrailText = `Verification Started\n${leadAuditorDisplay} • ${verificationStartedAt}\n\nAwaiting Final Verification\n---`;
@@ -106,7 +120,7 @@ export default function CreateAuditStep5Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={5} orgId={orgId} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         {/* Main title with thick green vertical bar to the left */}
         <div className="flex items-center">

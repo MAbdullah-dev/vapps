@@ -37,7 +37,9 @@ export async function GET(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
                 ap.title, ap.audit_number, ap.criteria, ap.planned_date, ap.date_prepared,
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
-                p.name as program_name, p.audit_type, p.audit_criteria as program_criteria
+                p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
+                (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
          WHERE ap.lead_auditor_user_id = $1
@@ -92,6 +94,8 @@ export async function GET(
           programName: row.program_name,
           auditType: row.audit_type,
           programCriteria: row.program_criteria,
+          processName: row.process_name ?? null,
+          siteName: row.site_name ?? null,
         });
       }
     });

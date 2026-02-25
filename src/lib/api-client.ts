@@ -313,6 +313,11 @@ class ApiClient {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { status });
   }
 
+  /** Save Step 4 (Auditee Corrective Action) form data. */
+  saveAuditPlanStep4(orgId: string, planId: string, step4Data: Record<string, unknown>) {
+    return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { step4Data });
+  }
+
   /** Get saved findings for an audit plan. */
   getAuditPlanFindings(orgId: string, planId: string) {
     return this.get<{ findings: any[] }>(`/organization/${orgId}/audit/plans/${planId}/findings`);
@@ -634,6 +639,45 @@ class ApiClient {
         console.error("[File Upload] Non-JSON error response:", text.substring(0, 200));
         throw new Error(`Failed to upload file: ${response.status} ${response.statusText}. Check that the API route exists.`);
       }
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Upload a file to S3 under audit-documents (audit workflow steps 3, 4, 5).
+   * @param file - File to upload
+   * @param orgId - Organization ID
+   * @param auditPlanId - Audit plan ID (use "draft" if not yet created)
+   * @param step - Step number (3, 4, 5, or 6)
+   * @returns Upload result with key and link for download
+   */
+  async uploadAuditDocument(
+    file: File,
+    orgId: string,
+    auditPlanId: string,
+    step: number
+  ): Promise<{ success: boolean; key: string; name: string; size: number; type: string; link: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("orgId", orgId);
+    formData.append("auditPlanId", auditPlanId);
+    formData.append("step", String(step));
+
+    const baseUrl = this.baseUrl || "/api";
+    const response = await fetch(`${baseUrl}/files/audit-upload`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to upload file");
+      }
+      throw new Error(`Failed to upload file: ${response.status}`);
     }
 
     return response.json();

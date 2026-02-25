@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -95,45 +95,111 @@ export default function CreateAuditStep1Page() {
 
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const [riskForm, setRiskForm] = useState<{ rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }>({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
+  const [editingRiskId, setEditingRiskId] = useState<string | null>(null);
   const addRisk = () => {
+    setEditingRiskId(null);
     setRiskForm({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
     setRiskDialogOpen(true);
   };
+  const editRisk = (r: typeof risks[0]) => {
+    setEditingRiskId(r.id);
+    setRiskForm({ rop: r.rop, category: r.category, description: r.description, impact: r.impact, impactClass: r.impactClass, frequency: r.frequency, priority: r.priority, priorityClass: r.priorityClass });
+    setRiskDialogOpen(true);
+  };
   const submitRisk = () => {
-    setRisks((prev) => [...prev, { id: `r${Date.now()}`, ...riskForm }]);
+    if (editingRiskId) {
+      setRisks((prev) => prev.map((r) => (r.id === editingRiskId ? { ...r, ...riskForm } : r)));
+      setEditingRiskId(null);
+    } else {
+      setRisks((prev) => [...prev, { id: `r${Date.now()}`, ...riskForm }]);
+    }
     setRiskDialogOpen(false);
   };
   const removeRisk = (id: string) => setRisks((prev) => prev.filter((r) => r.id !== id));
 
   const [kpiDialogOpen, setKpiDialogOpen] = useState(false);
   const [kpiForm, setKpiForm] = useState({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
+  const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const addKpi = () => {
+    setEditingKpiId(null);
     setKpiForm({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
     setKpiDialogOpen(true);
   };
+  const editKpi = (k: typeof kpis[0]) => {
+    setEditingKpiId(k.id);
+    setKpiForm({ kpi: k.kpi, description: k.description, impact: k.impact, score: k.score, priority: k.priority, comments: k.comments });
+    setKpiDialogOpen(true);
+  };
   const submitKpi = () => {
-    setKpis((prev) => [...prev, { id: `k${Date.now()}`, ...kpiForm }]);
+    if (editingKpiId) {
+      setKpis((prev) => prev.map((k) => (k.id === editingKpiId ? { ...k, ...kpiForm } : k)));
+      setEditingKpiId(null);
+    } else {
+      setKpis((prev) => [...prev, { id: `k${Date.now()}`, ...kpiForm }]);
+    }
     setKpiDialogOpen(false);
   };
   const removeKpi = (id: string) => setKpis((prev) => prev.filter((k) => k.id !== id));
 
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleEditIndex, setScheduleEditIndex] = useState<number | null>(null);
+  const [scheduleEditForm, setScheduleEditForm] = useState<{ audit: string; type: string; focus: string; frequency: string; months: string; lead: string }>({ audit: "", type: "", focus: "", frequency: "", months: "", lead: "" });
+  const addScheduleRow = () => {
+    setScheduleEditIndex(null);
+    setScheduleEditForm({ audit: "", type: "", focus: "", frequency: "", months: "", lead: "" });
+    setScheduleDialogOpen(true);
+  };
+  const editScheduleRow = (index: number) => {
+    setScheduleEditIndex(index);
+    setScheduleEditForm({ ...scheduleRows[index] });
+    setScheduleDialogOpen(true);
+  };
+  const submitScheduleEdit = () => {
+    if (scheduleEditIndex !== null) {
+      setScheduleRows((prev) => prev.map((row, i) => (i === scheduleEditIndex ? scheduleEditForm : row)));
+    } else {
+      setScheduleRows((prev) => [...prev, scheduleEditForm]);
+    }
+    setScheduleEditIndex(null);
+    setScheduleDialogOpen(false);
+  };
+  const removeScheduleRow = (index: number) => {
+    setScheduleRows((prev) => prev.filter((_, i) => i !== index));
+    if (scheduleEditIndex !== null && (scheduleEditIndex === index || scheduleEditIndex > index)) {
+      setScheduleEditIndex(scheduleEditIndex === index ? null : scheduleEditIndex - 1);
+      setScheduleDialogOpen(false);
+    }
+  };
+
+  const [reviewRows, setReviewRows] = useState<{ id: string; pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }[]>([]);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState<{ pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }>({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
   const addReview = () => {
+    setEditingReviewId(null);
     setReviewForm({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
     setReviewDialogOpen(true);
   };
+  const editReview = (r: typeof reviewRows[0]) => {
+    setEditingReviewId(r.id);
+    setReviewForm({ pri: r.pri, type: r.type, comments: r.comments, priority: r.priority, priorityClass: r.priorityClass, action: r.action });
+    setReviewDialogOpen(true);
+  };
   const submitReview = () => {
-    setReviewRows((prev) => [...prev, { id: `p${Date.now()}`, ...reviewForm }]);
+    if (editingReviewId) {
+      setReviewRows((prev) => prev.map((row) => (row.id === editingReviewId ? { ...row, ...reviewForm } : row)));
+      setEditingReviewId(null);
+    } else {
+      setReviewRows((prev) => [...prev, { id: `p${Date.now()}`, ...reviewForm }]);
+    }
     setReviewDialogOpen(false);
   };
-  const [reviewRows, setReviewRows] = useState<{ id: string; pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }[]>([]);
   const removeReview = (id: string) => setReviewRows((prev) => prev.filter((r) => r.id !== id));
 
-  const toggleSite = (siteId: string) => {
+  const selectSite = (siteId: string) => {
     setSelectedSiteIds((prev) => {
-      const next = prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId];
-      if (next.length !== prev.length) {
+      const next = prev.includes(siteId) ? [] : [siteId];
+      if (next.length !== prev.length || (next.length === 1 && next[0] !== prev[0])) {
         setProcessId(null);
         setProgramOwnerUserId(null);
       }
@@ -205,7 +271,7 @@ export default function CreateAuditStep1Page() {
   if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
     return (
       <div className="space-y-6">
-        <AuditWorkflowHeader currentStep={1} orgId={orgId} exitHref="../.." />
+        <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 6]} exitHref="../.." />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
           <p className="text-lg font-medium text-amber-800">
             You must have the <strong>Auditor</strong> additional role to create an audit.
@@ -220,7 +286,7 @@ export default function CreateAuditStep1Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={1} orgId={orgId} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 6]} exitHref="../.." />
 
       <div className="rounded-lg border border-gray-200 bg-white  shadow-sm">
         {/* Organization Context Section */}
@@ -404,7 +470,7 @@ export default function CreateAuditStep1Page() {
             {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
-                ORGANIZATIONAL SITES / UNITS (SELECT ONE OR MORE)
+                ORGANIZATIONAL SITES / UNITS (SELECT ONE)
               </h3>
               {sites.length === 0 ? (
                 <p className="text-sm text-gray-500">No sites for this organization. Add sites in Settings.</p>
@@ -416,7 +482,7 @@ export default function CreateAuditStep1Page() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => toggleSite(site.id)}
+                      onClick={() => selectSite(site.id)}
                       className={cn(
                         "min-w-[100px] rounded-md border py-4 transition-colors",
                         selectedSiteIds.includes(site.id)
@@ -660,7 +726,7 @@ export default function CreateAuditStep1Page() {
                   <TableHead className="font-semibold">Impact (1-5)</TableHead>
                   <TableHead className="font-semibold">Frequency</TableHead>
                   <TableHead className="font-semibold">Priority</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -691,9 +757,14 @@ export default function CreateAuditStep1Page() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeRisk(r.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editRisk(r)} aria-label="Edit risk">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeRisk(r.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -711,9 +782,14 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* Audit Program Structure & Schedule */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">
-            AUDIT PROGRAM STRUCTURE & SCHEDULE
-          </h2>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">
+              AUDIT PROGRAM STRUCTURE & SCHEDULE
+            </h2>
+            <Button onClick={addScheduleRow} size="sm" className="bg-green-600 hover:bg-green-700">
+              + ADD ROW
+            </Button>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <Table>
               <TableHeader>
@@ -724,6 +800,7 @@ export default function CreateAuditStep1Page() {
                   <TableHead className="font-semibold">Frequency</TableHead>
                   <TableHead className="font-semibold">Target Months</TableHead>
                   <TableHead className="font-semibold">Lead Auditor</TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -735,6 +812,16 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{row.frequency}</TableCell>
                     <TableCell>{row.months}</TableCell>
                     <TableCell>{row.lead}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editScheduleRow(i)} aria-label="Edit schedule row">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeScheduleRow(i)} aria-label="Remove schedule row">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -761,7 +848,7 @@ export default function CreateAuditStep1Page() {
                   <TableHead className="font-semibold">Score</TableHead>
                   <TableHead className="font-semibold">Priority</TableHead>
                   <TableHead className="font-semibold">Comments</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -774,9 +861,14 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{k.priority}</TableCell>
                     <TableCell>{k.comments || "—"}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeKpi(k.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editKpi(k)} aria-label="Edit KPI">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeKpi(k.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -811,7 +903,7 @@ export default function CreateAuditStep1Page() {
                   <TableHead className="font-semibold">PROGRAM LEADER COMMENTS</TableHead>
                   <TableHead className="font-semibold">PRIORITY</TableHead>
                   <TableHead className="font-semibold">ACTION FOR IMPROVEMENT</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -835,9 +927,14 @@ export default function CreateAuditStep1Page() {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeReview(r.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editReview(r)} aria-label="Edit review">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeReview(r.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -875,8 +972,50 @@ export default function CreateAuditStep1Page() {
         </div>
       </div>
 
-      {/* Save & Continue */}
-      <div className="flex justify-end">
+      {/* Save & Continue / Save */}
+      <div className="flex justify-end gap-3">
+        <Button
+          size="lg"
+          variant="outline"
+          className="gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
+          onClick={async () => {
+            if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;
+            setIsSaving(true);
+            try {
+              const payload = {
+                startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
+                endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
+                programPurpose,
+                auditScope,
+                auditType,
+                auditCriteria,
+                processId,
+                programOwnerUserId,
+                leadAuditorUserId: currentUserId,
+                siteIds: selectedSiteIds,
+                risks: risks.map((r) => ({ rop: r.rop, category: r.category, description: r.description, impact: r.impact, impactClass: r.impactClass, frequency: r.frequency, priority: r.priority, priorityClass: r.priorityClass })),
+                scheduleRows: scheduleRows.map((row) => ({ audit: row.audit, type: row.type, focus: row.focus, frequency: row.frequency, months: row.months, lead: row.lead })),
+                kpis: kpis.map((k) => ({ kpi: k.kpi, description: k.description, impact: k.impact, score: k.score, priority: k.priority, comments: k.comments })),
+                reviewRows: reviewRows.map((r) => ({ pri: r.pri, type: r.type, comments: r.comments, priority: r.priority, priorityClass: r.priorityClass, action: r.action })),
+              };
+              if (programId) {
+                await apiClient.updateAuditProgram(orgId, programId, payload);
+                router.push(`/dashboard/${orgId}/audit`);
+              } else {
+                const res = await apiClient.createAuditProgram(orgId, payload);
+                router.push(`/dashboard/${orgId}/audit`);
+              }
+            } catch (e: any) {
+              console.error(e);
+              toast.error(e?.message ?? "Failed to save audit program");
+            } finally {
+              setIsSaving(false);
+            }
+          }}
+        >
+          {isSaving ? "Saving…" : "Save"}
+        </Button>
         <Button
           size="lg"
           className="gap-2 bg-green-600 hover:bg-green-700"
@@ -917,17 +1056,17 @@ export default function CreateAuditStep1Page() {
             }
           }}
         >
-          {isSaving ? "Saving…" : "Save & Continue"}
+          {isSaving ? "Saving…" : "Continue"}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
       {/* Add Risk Dialog */}
-      <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
+      <Dialog open={riskDialogOpen} onOpenChange={(open) => { setRiskDialogOpen(open); if (!open) setEditingRiskId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Risk</DialogTitle>
-            <DialogDescription>Add a new risk or opportunity to the audit program.</DialogDescription>
+            <DialogTitle>{editingRiskId ? "Edit Risk" : "Add Risk"}</DialogTitle>
+            <DialogDescription>{editingRiskId ? "Update the risk or opportunity." : "Add a new risk or opportunity to the audit program."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -983,17 +1122,17 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRiskDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>Add Risk</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>{editingRiskId ? "Save changes" : "Add Risk"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Add KPI Dialog */}
-      <Dialog open={kpiDialogOpen} onOpenChange={setKpiDialogOpen}>
+      <Dialog open={kpiDialogOpen} onOpenChange={(open) => { setKpiDialogOpen(open); if (!open) setEditingKpiId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add KPI</DialogTitle>
-            <DialogDescription>Add a new KPI for monitoring and measurement.</DialogDescription>
+            <DialogTitle>{editingKpiId ? "Edit KPI" : "Add KPI"}</DialogTitle>
+            <DialogDescription>{editingKpiId ? "Update the KPI." : "Add a new KPI for monitoring and measurement."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -1036,17 +1175,61 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setKpiDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>Add KPI</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>{editingKpiId ? "Save changes" : "Add KPI"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Review Dialog */}
-      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+      {/* Add / Edit Schedule Row Dialog */}
+      <Dialog open={scheduleDialogOpen} onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) setScheduleEditIndex(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Review</DialogTitle>
-            <DialogDescription>Add a program review or improvement item.</DialogDescription>
+            <DialogTitle>{scheduleEditIndex !== null ? "Edit Schedule Row" : "Add Schedule Row"}</DialogTitle>
+            <DialogDescription>{scheduleEditIndex !== null ? "Update the audit program structure and schedule row." : "Add a new row to the audit program structure and schedule."}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="schedule-audit">Audit#</Label>
+                <Input id="schedule-audit" value={scheduleEditForm.audit} onChange={(e) => setScheduleEditForm((f) => ({ ...f, audit: e.target.value }))} placeholder="e.g. 1" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schedule-type">Audit Type</Label>
+                <Input id="schedule-type" value={scheduleEditForm.type} onChange={(e) => setScheduleEditForm((f) => ({ ...f, type: e.target.value }))} placeholder="e.g. Internal" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-focus">System / ESG Focus</Label>
+              <Input id="schedule-focus" value={scheduleEditForm.focus} onChange={(e) => setScheduleEditForm((f) => ({ ...f, focus: e.target.value }))} placeholder="e.g. QMS, EMS" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="schedule-frequency">Frequency</Label>
+                <Input id="schedule-frequency" value={scheduleEditForm.frequency} onChange={(e) => setScheduleEditForm((f) => ({ ...f, frequency: e.target.value }))} placeholder="e.g. Annual" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schedule-months">Target Months</Label>
+                <Input id="schedule-months" value={scheduleEditForm.months} onChange={(e) => setScheduleEditForm((f) => ({ ...f, months: e.target.value }))} placeholder="e.g. Q1, Q2" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-lead">Lead Auditor</Label>
+              <Input id="schedule-lead" value={scheduleEditForm.lead} onChange={(e) => setScheduleEditForm((f) => ({ ...f, lead: e.target.value }))} placeholder="Lead auditor name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitScheduleEdit}>{scheduleEditIndex !== null ? "Save changes" : "Add Row"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit Review Dialog */}
+      <Dialog open={reviewDialogOpen} onOpenChange={(open) => { setReviewDialogOpen(open); if (!open) setEditingReviewId(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingReviewId ? "Edit Review" : "Add Review"}</DialogTitle>
+            <DialogDescription>{editingReviewId ? "Update the program review or improvement item." : "Add a program review or improvement item."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -1093,7 +1276,7 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>Add Review</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>{editingReviewId ? "Save changes" : "Add Review"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -23,9 +23,14 @@ const STEPS = [
   { step: 6, label: "Closure", icon: CheckCircle },
 ] as const;
 
+/** Lead auditor: 1,2,6; Auditor: 3,5; Auditee: 4 */
 interface AuditWorkflowHeaderProps {
   currentStep: number;
   orgId?: string;
+  /** Steps this role can access. Default [1,2,6] for lead auditor. */
+  allowedSteps?: number[];
+  /** Query string to append to step links (e.g. auditPlanId, programId, criteria). */
+  stepQuery?: string;
   saveDraftHref?: string;
   exitHref?: string;
 }
@@ -33,12 +38,15 @@ interface AuditWorkflowHeaderProps {
 export default function AuditWorkflowHeader({
   currentStep,
   orgId,
+  allowedSteps = [1, 2, 6],
+  stepQuery,
   saveDraftHref = "#",
   exitHref = "../..",
 }: AuditWorkflowHeaderProps) {
   const getStepHref = (step: number) => {
     if (!orgId) return "#";
-    return `/dashboard/${orgId}/audit/create/${step}`;
+    const base = `/dashboard/${orgId}/audit/create/${step}`;
+    return stepQuery ? `${base}?${stepQuery}` : base;
   };
 
   return (
@@ -67,38 +75,24 @@ export default function AuditWorkflowHeader({
         {/* Tabs */}
         <div className="flex gap-2">
           {STEPS.map(({ step, label, icon: Icon }) => {
-            const isFirstStep = step === 1;
-            const isSecondStep = step === 2;
-            const isLastStep = step === STEPS.length; // Last step (step 6)
-            
-            // Only steps 1, 2, and 6 are accessible
-            const isAccessible = isFirstStep || isSecondStep || isLastStep;
-            
-            // Only accessible steps can be marked as completed (locked tabs never show as completed)
-            const isCompleted = isAccessible && currentStep > step;
+            // Role-based: only steps in allowedSteps are accessible (lead: 1,2,6; auditor: 3,5; auditee: 4)
+            const isAccessible = allowedSteps.includes(step);
+            // Only show completed for steps this role owns and has passed (auditor on step 5 doesn't "complete" step 4)
+            const isCompleted = allowedSteps.includes(step) && currentStep > step;
             const isCurrent = currentStep === step;
-            
-            // Determine if unlocked (for accessible steps only)
-            const isUnlocked = isAccessible && (
-              isCompleted || 
-              isCurrent || 
-              (isSecondStep && currentStep === 1) || // Step 2 unlocked when on step 1
-              (isLastStep && currentStep !== STEPS.length && !isCompleted) // Step 6 unlocked unless it's current
-            );
+            const isUnlocked = isAccessible; // All allowed steps are clickable for this role
 
-            // Tab container classes - rounded rectangular tabs
+            // Tab container: current step always shows active (green), then completed, then unlocked, then locked
             const tabClasses = cn(
               "flex-1 rounded-lg border-2 transition-all duration-200",
               "flex flex-col items-center justify-center py-4 px-2 min-h-[100px]",
-              !isAccessible
-                ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60" // Always disabled for steps 3, 4, 5
+              isCurrent
+                ? "bg-green-600 border-green-600 cursor-pointer" // Current step always active
                 : isCompleted
                 ? "bg-green-50 border-green-600 hover:bg-green-100 cursor-pointer"
-                : isCurrent
-                ? "bg-green-600 border-green-600 cursor-pointer" // Solid green, border matches background
                 : isUnlocked
-                ? "bg-white border-green-600 hover:bg-green-50 cursor-pointer" // White with green border
-                : "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60" // Disabled
+                ? "bg-white border-green-600 hover:bg-green-50 cursor-pointer"
+                : "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
             );
 
             // Icon circle classes
@@ -106,10 +100,12 @@ export default function AuditWorkflowHeader({
               "flex h-10 w-10 items-center justify-center rounded-full border-2 mb-2",
               isCompleted
                 ? "bg-green-500 border-green-600"
-                : "bg-white border-gray-300" // White circle for current, unlocked, and disabled
+                : isCurrent
+                ? "bg-white/20 border-white" // Current: subtle circle on green
+                : "bg-white border-gray-300"
             );
 
-            // Icon component - completed shows checkmark, others show original icon
+            // Icon component - completed shows checkmark, current and others show step icon
             const IconComponent = isCompleted ? Check : Icon;
 
             // Icon color classes
@@ -117,9 +113,11 @@ export default function AuditWorkflowHeader({
               "h-5 w-5",
               isCompleted
                 ? "text-white"
-                : isCurrent || isUnlocked
-                ? "text-gray-600" // Gray icon for current and unlocked tabs
-                : "text-gray-400" // Light gray for disabled tabs
+                : isCurrent
+                ? "text-white"
+                : isUnlocked
+                ? "text-gray-600"
+                : "text-gray-400"
             );
 
             // Text classes
@@ -130,8 +128,8 @@ export default function AuditWorkflowHeader({
                 : isCurrent
                 ? "text-white"
                 : isUnlocked
-                ? "text-gray-700" // Dark gray for unlocked
-                : "text-gray-400" // Light gray for disabled
+                ? "text-gray-700"
+                : "text-gray-400"
             );
 
             const stepHref = getStepHref(step);
@@ -145,8 +143,8 @@ export default function AuditWorkflowHeader({
               </>
             );
 
-            // Only allow navigation to accessible steps that are completed, current, or unlocked
-            if (!isAccessible || (!isCompleted && !isCurrent && !isUnlocked)) {
+            // Only allow navigation to steps this role can access
+            if (!isAccessible) {
               return (
                 <div key={step} className={tabClasses}>
                   {tabContent}
