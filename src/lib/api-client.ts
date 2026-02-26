@@ -388,6 +388,20 @@ class ApiClient {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { status });
   }
 
+  /** Update audit plan (Step 2 edit: title, auditNumber, criteria, dates, assignedAuditorIds, status, step2Data). */
+  updateAuditPlan(orgId: string, planId: string, data: {
+    title?: string;
+    auditNumber?: string;
+    criteria?: string;
+    plannedDate?: string;
+    datePrepared?: string;
+    assignedAuditorIds?: string[];
+    status?: string;
+    step2Data?: Record<string, unknown>;
+  }) {
+    return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, data);
+  }
+
   /** Save Step 4 (Auditee Corrective Action) form data. */
   saveAuditPlanStep4(orgId: string, planId: string, step4Data: Record<string, unknown>) {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { step4Data });

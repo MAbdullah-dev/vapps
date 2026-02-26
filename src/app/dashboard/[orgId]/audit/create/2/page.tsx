@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
@@ -187,6 +187,12 @@ const PROGRAM_AUDIT_TYPE_TO_PLAN: Record<string, string> = {
   tpa: "TPA",
 };
 
+function getQueryFromWindow(): { auditPlanId: string | null; programId: string | null } {
+  if (typeof window === "undefined") return { auditPlanId: null, programId: null };
+  const p = new URLSearchParams(window.location.search);
+  return { auditPlanId: p.get("auditPlanId"), programId: p.get("programId") };
+}
+
 export default function CreateAuditStep2Page() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -194,10 +200,36 @@ export default function CreateAuditStep2Page() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const orgId = params?.orgId as string;
-  const programIdFromUrl = searchParams.get("programId") ?? null;
-  const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
+  const [urlQuery, setUrlQuery] = useState<{ auditPlanId: string | null; programId: string | null }>(() =>
+    getQueryFromWindow()
+  );
+  const programIdFromUrl = searchParams.get("programId") ?? urlQuery.programId;
+  const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? urlQuery.auditPlanId;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
+
+  useLayoutEffect(() => {
+    const q = getQueryFromWindow();
+    if (q.auditPlanId || q.programId) setUrlQuery(q);
+  }, []);
+  useEffect(() => {
+    const q = getQueryFromWindow();
+    if (q.auditPlanId || q.programId) setUrlQuery(q);
+  }, [searchParams]);
+
+  const planQuery = useQuery({
+    queryKey: ["auditPlan", orgId, auditPlanIdFromUrl],
+    queryFn: () => apiClient.getAuditPlan(orgId, auditPlanIdFromUrl!).then((r) => r.plan),
+    enabled: !!orgId && !!auditPlanIdFromUrl,
+    staleTime: 0, // always refetch when opening edit so Step 2 fields are fresh
+  });
+
+  // Force refetch plan when opening edit so step2Data (amrcRows, Manual Entry) is never stale
+  useEffect(() => {
+    if (orgId && auditPlanIdFromUrl) {
+      queryClient.invalidateQueries({ queryKey: ["auditPlan", orgId, auditPlanIdFromUrl] });
+    }
+  }, [orgId, auditPlanIdFromUrl, queryClient]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [program, setProgram] = useState<{
@@ -242,6 +274,9 @@ export default function CreateAuditStep2Page() {
   const [rescheduleAuditPlan, setRescheduleAuditPlan] = useState<"yes" | "no">("yes");
   const [datePrepared, setDatePrepared] = useState<Date | undefined>(() => new Date());
   const [plannedDate, setPlannedDate] = useState<Date | undefined>(undefined);
+  const [tpccRegisteredProcess, setTpccRegisteredProcess] = useState("");
+  const [tpccAuditReference, setTpccAuditReference] = useState("");
+  const [leadAuditorComments, setLeadAuditorComments] = useState("");
 
   const addMethodologyRow = () => {
     setAmrcRows((prev) => [...prev, createEmptyAmrcRow()]);
@@ -318,26 +353,31 @@ export default function CreateAuditStep2Page() {
     id: string;
     name?: string;
     processId?: string;
+    processName?: string;
     programPurpose?: string;
     auditType?: string;
     auditCriteria?: string;
+    auditScope?: string;
     siteIds?: string[];
   }) => {
     setParentProgramName(p.name || `Audit Program ${p.id.slice(0, 8)}`);
     setSelectedSiteIds(p.siteIds ?? []);
     setSelectedProcessId(p.processId ?? null);
-    const purposeKey = p.programPurpose ?? "";
+    const purposeKey = (p.programPurpose ?? "").toLowerCase();
     setObjectivesCheckboxes((prev) => {
       const next = { ...prev };
       const label = PROGRAM_PURPOSE_TO_OBJECTIVE[purposeKey];
       if (label) next[label] = true;
       return next;
     });
-    const typeMapped = PROGRAM_AUDIT_TYPE_TO_PLAN[p.auditType ?? ""];
+    const typeKey = (p.auditType ?? "").toLowerCase();
+    const typeMapped = PROGRAM_AUDIT_TYPE_TO_PLAN[typeKey];
     if (typeMapped) setSelectedAuditType(typeMapped);
-    const critMapped = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[p.auditCriteria ?? ""];
+    const critKey = (p.auditCriteria ?? "").toLowerCase();
+    const critMapped = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[critKey];
     if (critMapped) setSelectedCriteria(critMapped);
-    setSelectedChecklistId(null);
+    else if (p.auditCriteria && AUDIT_CRITERIA.includes(p.auditCriteria as any)) setSelectedCriteria(p.auditCriteria);
+    if (p.auditScope) setObjectivesOther((prev) => prev || p.auditScope!);
   };
 
   const formatProgramDisplay = (pg: ProgramListItem) => {
@@ -419,53 +459,25 @@ export default function CreateAuditStep2Page() {
         })));
 
         let programLoaded = false;
-        if (programIdFromUrl) {
-          const progRes = await apiClient.getAuditProgram(orgId, programIdFromUrl);
-          if (cancelled || !progRes.program) return;
-          const p = progRes.program;
-          setProgram(p);
-          setSelectedPlanOption("A");
-          applyProgramToForm(p);
-          programLoaded = true;
-        }
-
-        if (auditPlanIdFromUrl) {
-          const planRes = await apiClient.getAuditPlan(orgId, auditPlanIdFromUrl);
-          if (cancelled || !planRes.plan) return;
-          const plan = planRes.plan;
-          if (!programLoaded && plan.auditProgramId) {
-            const progRes = await apiClient.getAuditProgram(orgId, plan.auditProgramId);
+        if (programIdFromUrl && !cancelled) {
+          try {
+            const progRes = await apiClient.getAuditProgram(orgId, programIdFromUrl);
             if (!cancelled && progRes.program) {
               const p = progRes.program;
               setProgram(p);
               setSelectedPlanOption("A");
               applyProgramToForm(p);
+              programLoaded = true;
             }
+          } catch (_) {
+            if (cancelled) return;
           }
-          setAuditPlanTitle(plan.title ?? "");
-          setAuditNumber(plan.auditNumber ?? "");
-          setSelectedCriteria(plan.criteria ?? null);
-          setSelectedChecklistId(plan.checklistId ?? null);
-          setPlannedDate(plan.plannedDate ? new Date(plan.plannedDate) : undefined);
-          setDatePrepared(plan.datePrepared ? new Date(plan.datePrepared) : undefined);
-          const ids = plan.assignedAuditorIds ?? [];
-          if (ids.length > 0) {
-            const membersList = active.map((m: any) => ({ id: m.id, name: m.name || m.email || "—" }));
-            setAuditorResources(ids.map((userId: string, i: number) => {
-              const name = membersList.find((m: { id: string }) => m.id === userId)?.name ?? "";
-              return {
-                id: `auditor-${auditPlanIdFromUrl}-${i}`,
-                auditorSearch: name,
-                auditorUserId: userId,
-                auditorUin: userId,
-                roleAssignment: "Auditor",
-                technicalExpert: "",
-                observer: "",
-                trainee: "",
-              };
-            }));
-          }
-        } else if (!programIdFromUrl) {
+        }
+
+        if (auditPlanIdFromUrl && !cancelled) {
+          setSelectedPlanOption("A");
+        }
+        if (!auditPlanIdFromUrl && !programIdFromUrl) {
           setSelectedPlanOption(null);
         }
       } catch (e) {
@@ -477,6 +489,188 @@ export default function CreateAuditStep2Page() {
     load();
     return () => { cancelled = true; };
   }, [orgId, programIdFromUrl, auditPlanIdFromUrl]);
+
+  // When editing: apply plan + program data to form (single source of truth for edit mode)
+  useEffect(() => {
+    const plan = planQuery.data;
+    if (!plan || !orgId) return;
+    let cancelled = false;
+    const programName = (plan as { programName?: string }).programName ?? "";
+
+    // Apply plan fields immediately so all Step 2 fields show without waiting for program fetch
+    const title = (plan as { title?: string; name?: string }).title ?? (plan as { title?: string; name?: string }).name ?? "";
+    const auditNum = (plan as { auditNumber?: string; audit_number?: string }).auditNumber ?? (plan as { auditNumber?: string; audit_number?: string }).audit_number ?? "";
+    const criteriaVal = (plan as { criteria?: string }).criteria ?? null;
+    const planned = (plan as { plannedDate?: string; planned_date?: string }).plannedDate ?? (plan as { plannedDate?: string; planned_date?: string }).planned_date;
+    const prepared = (plan as { datePrepared?: string; date_prepared?: string }).datePrepared ?? (plan as { datePrepared?: string; date_prepared?: string }).date_prepared;
+    const assignedIds = (plan as { assignedAuditorIds?: string[] }).assignedAuditorIds ?? [];
+
+    setSelectedPlanOption("A");
+    setParentProgramName(programName);
+    setAuditPlanTitle(title);
+    setAuditNumber(auditNum);
+    setSelectedCriteria(criteriaVal);
+    setPlannedDate(planned ? new Date(String(planned).slice(0, 10)) : undefined);
+    setDatePrepared(prepared ? new Date(String(prepared).slice(0, 10)) : undefined);
+
+    let step2: Record<string, unknown> | null = null;
+    const rawStep2 = (plan as { step2Data?: Record<string, unknown> | string }).step2Data;
+    if (typeof rawStep2 === "string") {
+      try {
+        step2 = JSON.parse(rawStep2) as Record<string, unknown>;
+      } catch {
+        step2 = null;
+      }
+    } else if (rawStep2 && typeof rawStep2 === "object") {
+      step2 = rawStep2 as Record<string, unknown>;
+    }
+    const membersList = members.map((m) => ({ id: m.id, name: m.name || m.email || "—" }));
+    const step2AuditorResources = step2 && typeof step2 === "object"
+      ? (step2.auditorResources ?? (step2 as { auditor_resources?: unknown[] }).auditor_resources)
+      : undefined;
+    const step2AmrcRows = step2 && typeof step2 === "object"
+      ? (step2.amrcRows ?? (step2 as { amrc_rows?: unknown[] }).amrc_rows)
+      : undefined;
+
+    if (step2 && typeof step2 === "object") {
+      if (typeof step2.tpccRegisteredProcess === "string") setTpccRegisteredProcess(step2.tpccRegisteredProcess);
+      if (typeof step2.tpccAuditReference === "string") setTpccAuditReference(step2.tpccAuditReference);
+      if (typeof step2.leadAuditorComments === "string") setLeadAuditorComments(step2.leadAuditorComments);
+      const reschedule = step2.rescheduleAuditPlan ?? (step2 as { reschedule_audit_plan?: string }).reschedule_audit_plan;
+      if (reschedule === "yes" || reschedule === "no") setRescheduleAuditPlan(reschedule);
+      if (typeof step2.selectedAuditType === "string") setSelectedAuditType(step2.selectedAuditType);
+      if (step2.methodology === "on-site" || step2.methodology === "remote" || step2.methodology === "hybrid") setMethodology(step2.methodology);
+      if (typeof step2.physicalLocationAddress === "string") setPhysicalLocationAddress(step2.physicalLocationAddress);
+      if (Array.isArray(step2.selectedSiteIds)) setSelectedSiteIds(step2.selectedSiteIds);
+      if (step2.selectedProcessId != null) setSelectedProcessId(String(step2.selectedProcessId));
+      if (typeof step2.objectivesOther === "string") setObjectivesOther(step2.objectivesOther);
+      if (step2.objectivesCheckboxes && typeof step2.objectivesCheckboxes === "object") setObjectivesCheckboxes(step2.objectivesCheckboxes as Record<string, boolean>);
+      if (typeof step2.parentProgramName === "string") setParentProgramName(step2.parentProgramName);
+      if (Array.isArray(step2AmrcRows)) {
+        setAmrcRows(
+          step2AmrcRows.length > 0
+            ? step2AmrcRows.map((r: any, i: number) => ({
+                id: r.id ?? `amrc-${Date.now()}-${i}`,
+                reviewCategory: r.reviewCategory ?? r.review_category ?? "",
+                comments: r.comments ?? "",
+                priority: (r.priority as Priority) ?? "MEDIUM",
+                action: r.action ?? "",
+              }))
+            : [createEmptyAmrcRow()]
+        );
+      }
+      if (Array.isArray(step2AuditorResources)) {
+        setAuditorResources(
+          step2AuditorResources.length > 0
+            ? step2AuditorResources.map((r: any, i: number) => {
+                const uid = r.auditorUserId ?? r.auditor_user_id;
+                const name = uid ? (membersList.find((mm) => mm.id === uid)?.name ?? "") : "";
+                return {
+                  id: r.id ?? `auditor-${auditPlanIdFromUrl}-${i}-${Date.now()}`,
+                  auditorSearch: name,
+                  auditorUserId: uid ?? "",
+                  auditorUin: r.auditorUin ?? r.auditor_uin ?? uid ?? "",
+                  roleAssignment: r.roleAssignment ?? r.role_assignment ?? "Auditor",
+                  technicalExpert: r.technicalExpert ?? r.technical_expert ?? "",
+                  observer: r.observer ?? "",
+                  trainee: r.trainee ?? "",
+                };
+              })
+            : [createEmptyAuditorResource()]
+        );
+      }
+    }
+
+    const usedStep2AuditorResources = Array.isArray(step2AuditorResources);
+    if (!usedStep2AuditorResources) {
+      const ids = assignedIds;
+      if (ids.length > 0) {
+        setAuditorResources(
+          ids.map((userId: string, i: number) => {
+            const name = membersList.find((mm) => mm.id === userId)?.name ?? "";
+            return {
+              id: `auditor-${auditPlanIdFromUrl}-${i}-${Date.now()}`,
+              auditorSearch: name,
+              auditorUserId: userId,
+              auditorUin: userId,
+              roleAssignment: "Auditor",
+              technicalExpert: "",
+              observer: "",
+              trainee: "",
+            };
+          })
+        );
+      } else {
+        setAuditorResources([createEmptyAuditorResource()]);
+      }
+    }
+
+    // Then load program to fill scope/objectives; then re-apply step2 so saved Step 2 data wins
+    (async () => {
+      if (plan.auditProgramId) {
+        try {
+          const progRes = await apiClient.getAuditProgram(orgId, plan.auditProgramId);
+          if (cancelled) return;
+          if (progRes.program) {
+            const p = progRes.program;
+            setProgram(p);
+            applyProgramToForm(p);
+            setParentProgramName(p.name || programName);
+            if (step2 && typeof step2 === "object") {
+              if (typeof step2.parentProgramName === "string") setParentProgramName(step2.parentProgramName);
+              if (typeof step2.selectedAuditType === "string") setSelectedAuditType(step2.selectedAuditType);
+              if (step2.methodology === "on-site" || step2.methodology === "remote" || step2.methodology === "hybrid") setMethodology(step2.methodology);
+              if (Array.isArray(step2.selectedSiteIds)) setSelectedSiteIds(step2.selectedSiteIds);
+              if (step2.selectedProcessId != null) setSelectedProcessId(String(step2.selectedProcessId));
+              if (typeof step2.objectivesOther === "string") setObjectivesOther(step2.objectivesOther);
+              if (step2.objectivesCheckboxes && typeof step2.objectivesCheckboxes === "object") setObjectivesCheckboxes(step2.objectivesCheckboxes as Record<string, boolean>);
+              if (typeof step2.physicalLocationAddress === "string") setPhysicalLocationAddress(step2.physicalLocationAddress);
+              const rescheduleAgain = step2.rescheduleAuditPlan ?? (step2 as { reschedule_audit_plan?: string }).reschedule_audit_plan;
+              if (rescheduleAgain === "yes" || rescheduleAgain === "no") setRescheduleAuditPlan(rescheduleAgain);
+              if (Array.isArray(step2AmrcRows)) {
+                setAmrcRows(
+                  step2AmrcRows.length > 0
+                    ? step2AmrcRows.map((r: any, i: number) => ({
+                        id: r.id ?? `amrc-${Date.now()}-${i}`,
+                        reviewCategory: r.reviewCategory ?? r.review_category ?? "",
+                        comments: r.comments ?? "",
+                        priority: (r.priority as Priority) ?? "MEDIUM",
+                        action: r.action ?? "",
+                      }))
+                    : [createEmptyAmrcRow()]
+                );
+              }
+              if (Array.isArray(step2AuditorResources)) {
+                const membersList2 = members.map((m: { id: string; name?: string; email?: string }) => ({ id: m.id, name: m.name || m.email || "—" }));
+                setAuditorResources(
+                  step2AuditorResources.length > 0
+                    ? step2AuditorResources.map((r: any, i: number) => {
+                        const uid = r.auditorUserId ?? r.auditor_user_id;
+                        const name = uid ? (membersList2.find((mm) => mm.id === uid)?.name ?? "") : "";
+                        return {
+                          id: r.id ?? `auditor-${auditPlanIdFromUrl}-${i}-${Date.now()}`,
+                          auditorSearch: name,
+                          auditorUserId: uid ?? "",
+                          auditorUin: r.auditorUin ?? r.auditor_uin ?? uid ?? "",
+                          roleAssignment: r.roleAssignment ?? r.role_assignment ?? "Auditor",
+                          technicalExpert: r.technicalExpert ?? r.technical_expert ?? "",
+                          observer: r.observer ?? "",
+                          trainee: r.trainee ?? "",
+                        };
+                      })
+                    : [createEmptyAuditorResource()]
+                );
+              }
+            }
+          }
+        } catch (_) {
+          if (cancelled) return;
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgId, auditPlanIdFromUrl, planQuery.data, members]);
+
   const [coreCompetence, setCoreCompetence] = useState<Record<string, boolean>>({});
   const toggleCoreCompetence = (key: string) => {
     setCoreCompetence((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -520,23 +714,71 @@ export default function CreateAuditStep2Page() {
     );
   };
 
-  const submitAuditPlan = useCallback(async () => {
+  const submitAuditPlan = useCallback(async (asDraft: boolean = false) => {
     if (!orgId || !effectiveProgramId) return;
     setIsSubmittingPlan(true);
     try {
       const assignedAuditorIds = auditorResources
         .map((r) => r.auditorUserId)
         .filter(Boolean);
-      await apiClient.createAuditPlan(orgId, {
-        auditProgramId: effectiveProgramId,
-        title: auditPlanTitle || undefined,
-        auditNumber: auditNumber || undefined,
-        criteria: selectedCriteria || undefined,
-        checklistId: selectedChecklistId || undefined,
-        plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
-        datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
-        assignedAuditorIds,
-      });
+      const step2Data = {
+        tpccRegisteredProcess: tpccRegisteredProcess || undefined,
+        tpccAuditReference: tpccAuditReference || undefined,
+        leadAuditorComments: leadAuditorComments || undefined,
+        rescheduleAuditPlan,
+        selectedAuditType: selectedAuditType || undefined,
+        methodology: methodology || undefined,
+        physicalLocationAddress: physicalLocationAddress || undefined,
+        selectedSiteIds: selectedSiteIds ?? [],
+        selectedProcessId: selectedProcessId ?? undefined,
+        objectivesOther: objectivesOther || undefined,
+        objectivesCheckboxes: objectivesCheckboxes ?? undefined,
+        parentProgramName: parentProgramName || undefined,
+        amrcRows: amrcRows.map((r) => ({
+          id: r.id,
+          reviewCategory: r.reviewCategory,
+          comments: r.comments,
+          priority: r.priority,
+          action: r.action,
+        })),
+        auditorResources: auditorResources.map((r) => ({
+          id: r.id,
+          auditorUserId: r.auditorUserId,
+          auditorUin: r.auditorUin,
+          roleAssignment: r.roleAssignment,
+          technicalExpert: r.technicalExpert || undefined,
+          observer: r.observer || undefined,
+          trainee: r.trainee || undefined,
+        })),
+      };
+
+      if (auditPlanIdFromUrl) {
+        await apiClient.updateAuditPlan(orgId, auditPlanIdFromUrl, {
+          title: auditPlanTitle || undefined,
+          auditNumber: auditNumber || undefined,
+          criteria: selectedCriteria || undefined,
+          plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
+          datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
+          assignedAuditorIds,
+          status: asDraft ? "draft" : "plan_submitted_to_auditee",
+          step2Data,
+        });
+      } else {
+        const createRes = await apiClient.createAuditPlan(orgId, {
+          auditProgramId: effectiveProgramId,
+          title: auditPlanTitle || undefined,
+          auditNumber: auditNumber || undefined,
+          criteria: selectedCriteria || undefined,
+          plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
+          datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
+          assignedAuditorIds,
+        });
+        const newPlanId = (createRes as { planId?: string }).planId;
+        if (newPlanId) {
+          await apiClient.updateAuditPlan(orgId, newPlanId, { step2Data });
+          queryClient.invalidateQueries({ queryKey: ["auditPlan", orgId, newPlanId] });
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["auditPlans", orgId] });
       router.push(`/dashboard/${orgId}/audit`);
     } catch (e) {
@@ -547,6 +789,7 @@ export default function CreateAuditStep2Page() {
   }, [
     orgId,
     effectiveProgramId,
+    auditPlanIdFromUrl,
     auditorResources,
     auditPlanTitle,
     auditNumber,
@@ -554,6 +797,19 @@ export default function CreateAuditStep2Page() {
     selectedChecklistId,
     plannedDate,
     datePrepared,
+    tpccRegisteredProcess,
+    tpccAuditReference,
+    leadAuditorComments,
+    rescheduleAuditPlan,
+    amrcRows,
+    selectedAuditType,
+    methodology,
+    physicalLocationAddress,
+    selectedSiteIds,
+    selectedProcessId,
+    objectivesOther,
+    objectivesCheckboxes,
+    parentProgramName,
     queryClient,
     router,
   ]);
@@ -642,8 +898,10 @@ export default function CreateAuditStep2Page() {
         Audit Plan Entry Selection
       </h2>
 
-      {isLoading ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-500">Loading...</div>
+      {isLoading || (!!auditPlanIdFromUrl && planQuery.isFetching && !planQuery.data) ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
+          {auditPlanIdFromUrl && !planQuery.data ? "Loading audit plan…" : "Loading…"}
+        </div>
       ) : (
       <div className="space-y-6 mb-6">
         {/* Option A: Continue With Existing Audit Program — select from Step 1 link or search existing programs */}
@@ -1113,6 +1371,8 @@ export default function CreateAuditStep2Page() {
                       type="search"
                       placeholder="Name or Email of Registrar/Auditor"
                       className="h-10 rounded-lg border-gray-300 pl-9"
+                      value={tpccRegisteredProcess}
+                      onChange={(e) => setTpccRegisteredProcess(e.target.value)}
                     />
                   </div>
                 </div>
@@ -1127,6 +1387,8 @@ export default function CreateAuditStep2Page() {
                       type="search"
                       placeholder="Audit Number / Certificate Reference"
                       className="h-10 rounded-lg border-gray-300 pl-9"
+                      value={tpccAuditReference}
+                      onChange={(e) => setTpccAuditReference(e.target.value)}
                     />
                   </div>
                 </div>
@@ -1514,6 +1776,8 @@ export default function CreateAuditStep2Page() {
                         placeholder="Enter detailed comments regarding scheduling, justification..."
                         className="min-h-20 w-full max-w-xl rounded-lg border-gray-300"
                         rows={3}
+                        value={leadAuditorComments}
+                        onChange={(e) => setLeadAuditorComments(e.target.value)}
                       />
                     </TableCell>
                     <TableCell className="px-6 py-4 text-xs text-gray-600">
@@ -2060,7 +2324,7 @@ export default function CreateAuditStep2Page() {
               variant="outline"
               className="border-green-500 bg-transparent text-green-500 hover:bg-green-500/10 hover:text-green-400"
               disabled={!effectiveProgramId || isSubmittingPlan}
-              onClick={() => submitAuditPlan()}
+              onClick={() => submitAuditPlan(true)}
             >
               <FileText className="h-4 w-4 mr-2" />
               {isSubmittingPlan ? "Saving…" : "Save Audit Plan (Draft)"}
@@ -2069,7 +2333,7 @@ export default function CreateAuditStep2Page() {
               type="button"
               className="bg-green-600 text-white hover:bg-green-700"
               disabled={!effectiveProgramId || isSubmittingPlan}
-              onClick={() => submitAuditPlan()}
+              onClick={() => submitAuditPlan(false)}
             >
               <FileCheck className="h-4 w-4 mr-2" />
               {isSubmittingPlan ? "Submitting…" : "Generate Audit Plan"}
