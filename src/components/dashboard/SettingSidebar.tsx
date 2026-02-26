@@ -12,7 +12,8 @@ import {
   Plug,
   Bell,
   BarChart,
-  UserCog
+  UserCog,
+  FileCheck,
 } from 'lucide-react';
 
 const SettingSidebar = () => {
@@ -80,6 +81,12 @@ const SettingSidebar = () => {
       subtitle: 'Metrics and dashboards',
       icon: BarChart,
       path: `/dashboard/${orgId}/settings/kpi-reports`,
+    },
+    {
+      title: 'Audit Checklist',
+      subtitle: 'Question management',
+      icon: FileCheck,
+      path: `/dashboard/${orgId}/settings/audit-checklist`,
     },
   ];
 

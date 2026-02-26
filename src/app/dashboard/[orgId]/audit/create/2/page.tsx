@@ -123,25 +123,7 @@ const AUDIT_TYPES = [
   },
 ] as const;
 
-const AUDIT_CRITERIA = [
-  "ISO 9001 QUALITY",
-  "ISO 14001 ENVIRONMENT",
-  "ISO 45001 HEALTH & SAFETY",
-  "ISO 27001 INFORMATION SECURITY",
-  "IATF 16949",
-  "ISO 22000",
-  "ISO 20000-1",
-  "ISO 50001",
-  "ISO 21001",
-  "ISO 22301",
-  "ISO 42001",
-  "ISO 37001",
-  "ISO 13485",
-  "ISO 20400",
-  "ISO 26000",
-  "ISO 30415",
-  "ESG & SUSTAINABILITY (GRI / IFRS S1/S2)",
-] as const;
+/** Audit criteria options are now loaded from org checklists (Settings > Audit Checklist). */
 
 const CORE_AUDITOR_COMPETENCIES = [
   "Knowledge of audit principles & methods",
@@ -255,6 +237,8 @@ export default function CreateAuditStep2Page() {
   const [methodsOpen, setMethodsOpen] = useState(true);
   const [amrcRows, setAmrcRows] = useState<AmrcRow[]>(() => [createEmptyAmrcRow()]);
   const [selectedCriteria, setSelectedCriteria] = useState<string | null>(null);
+  const [selectedChecklistId, setSelectedChecklistId] = useState<string | null>(null);
+  const [auditChecklists, setAuditChecklists] = useState<{ id: string; name: string; questionCount: number }[]>([]);
   const [rescheduleAuditPlan, setRescheduleAuditPlan] = useState<"yes" | "no">("yes");
   const [datePrepared, setDatePrepared] = useState<Date | undefined>(() => new Date());
   const [plannedDate, setPlannedDate] = useState<Date | undefined>(undefined);
@@ -353,6 +337,7 @@ export default function CreateAuditStep2Page() {
     if (typeMapped) setSelectedAuditType(typeMapped);
     const critMapped = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[p.auditCriteria ?? ""];
     if (critMapped) setSelectedCriteria(critMapped);
+    setSelectedChecklistId(null);
   };
 
   const formatProgramDisplay = (pg: ProgramListItem) => {
@@ -401,12 +386,14 @@ export default function CreateAuditStep2Page() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [sitesRes, processesRes, membersRes] = await Promise.all([
+        const [sitesRes, processesRes, membersRes, checklistsRes] = await Promise.all([
           apiClient.getSites(orgId),
           apiClient.getProcesses(orgId),
           apiClient.getMembers(orgId),
+          apiClient.getAuditChecklists(orgId).catch(() => ({ checklists: [] })),
         ]);
         if (cancelled) return;
+        setAuditChecklists(checklistsRes.checklists ?? []);
         const siteList = sitesRes.sites ?? [];
         setSites(siteList.map((s: any) => ({ id: s.id, name: s.name ?? s.siteName ?? s.id, code: s.code })));
         setProcesses(processesRes.processes ?? []);
@@ -458,6 +445,7 @@ export default function CreateAuditStep2Page() {
           setAuditPlanTitle(plan.title ?? "");
           setAuditNumber(plan.auditNumber ?? "");
           setSelectedCriteria(plan.criteria ?? null);
+          setSelectedChecklistId(plan.checklistId ?? null);
           setPlannedDate(plan.plannedDate ? new Date(plan.plannedDate) : undefined);
           setDatePrepared(plan.datePrepared ? new Date(plan.datePrepared) : undefined);
           const ids = plan.assignedAuditorIds ?? [];
@@ -544,6 +532,7 @@ export default function CreateAuditStep2Page() {
         title: auditPlanTitle || undefined,
         auditNumber: auditNumber || undefined,
         criteria: selectedCriteria || undefined,
+        checklistId: selectedChecklistId || undefined,
         plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
         datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
         assignedAuditorIds,
@@ -562,6 +551,7 @@ export default function CreateAuditStep2Page() {
     auditPlanTitle,
     auditNumber,
     selectedCriteria,
+    selectedChecklistId,
     plannedDate,
     datePrepared,
     queryClient,
@@ -1562,38 +1552,61 @@ export default function CreateAuditStep2Page() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-gray-200 px-6 py-5 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {AUDIT_CRITERIA.map((criterion) => (
-                <Label
-                  key={criterion}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors",
-                    selectedCriteria === criterion
-                      ? "border-green-500 bg-green-50/30"
-                      : "border-gray-200 bg-white hover:bg-gray-50/80"
-                  )}
-                >
-                  <Checkbox
-                    checked={selectedCriteria === criterion}
-                    onCheckedChange={(checked) =>
-                      setSelectedCriteria(checked ? criterion : null)
-                    }
-                    className="border-2 border-green-600 data-[state=checked]:border-green-600"
-                  />
-                  <span className="text-sm font-medium uppercase tracking-wide text-gray-800">
-                    {criterion}
-                  </span>
-                </Label>
-              ))}
-            </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
-              <RefreshCw className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
-              <p className="text-sm text-blue-700">
-                <span className="font-semibold uppercase">Automation Note:</span>{" "}
-                Criteria selection influences audit checklist generation and
-                evidence requirements in Step 3.
-              </p>
-            </div>
+            {auditChecklists.length === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-4">
+                <p className="text-sm text-amber-800">
+                  <span className="font-semibold">No audit checklists yet.</span> Create checklists and add questions in{" "}
+                  <Link href={`/dashboard/${orgId}/settings/audit-checklist`} className="underline font-medium text-amber-900 hover:text-amber-700">
+                    Settings → Audit Checklist
+                  </Link>
+                  . Criteria selection drives the checklist questions in Step 3.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {auditChecklists.map((c) => (
+                    <Label
+                      key={c.id}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors",
+                        selectedChecklistId === c.id
+                          ? "border-green-500 bg-green-50/30"
+                          : "border-gray-200 bg-white hover:bg-gray-50/80"
+                      )}
+                    >
+                      <Checkbox
+                        checked={selectedChecklistId === c.id}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedChecklistId(c.id);
+                            setSelectedCriteria(c.name);
+                          } else {
+                            setSelectedChecklistId(null);
+                            setSelectedCriteria(null);
+                          }
+                        }}
+                        className="border-2 border-green-600 data-[state=checked]:border-green-600"
+                      />
+                      <span className="text-sm font-medium uppercase tracking-wide text-gray-800">
+                        {c.name}
+                      </span>
+                      {c.questionCount > 0 && (
+                        <span className="text-xs text-gray-500 ml-auto">({c.questionCount})</span>
+                      )}
+                    </Label>
+                  ))}
+                </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
+                  <RefreshCw className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                  <p className="text-sm text-blue-700">
+                    <span className="font-semibold uppercase">Automation Note:</span>{" "}
+                    Criteria selection influences audit checklist generation and
+                    evidence requirements in Step 3.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -2083,6 +2096,7 @@ export default function CreateAuditStep2Page() {
             href={(() => {
               const params = new URLSearchParams();
               if (programIdFromUrl) params.set("programId", programIdFromUrl);
+              if (selectedChecklistId) params.set("checklistId", selectedChecklistId);
               if (selectedCriteria) params.set("criteria", selectedCriteria);
               const q = params.toString();
               return `/dashboard/${orgId}/audit/create/3${q ? `?${q}` : ""}`;

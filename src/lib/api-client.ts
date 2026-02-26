@@ -267,22 +267,96 @@ class ApiClient {
   }
 
   /**
-   * Get predefined checklist questions by audit criteria (from Step 2).
-   * Params: criteria (e.g. "ISO 9001 QUALITY") OR programCriteria (e.g. "iso" from Step 1).
+   * Get checklist questions by checklistId (DB) or by criteria/programCriteria (legacy/static).
    */
   getChecklistQuestions(
     orgId: string,
-    params?: { criteria?: string; programCriteria?: string }
+    params?: { criteria?: string; programCriteria?: string; checklistId?: string }
   ) {
     const searchParams = new URLSearchParams();
     if (params?.criteria) searchParams.set("criteria", params.criteria);
     if (params?.programCriteria) searchParams.set("programCriteria", params.programCriteria);
+    if (params?.checklistId) searchParams.set("checklistId", params.checklistId);
     return this.get<{
       questions: Array<{ clause: string; subclause: string; requirement: string; question: string; evidenceExample: string }>;
       criteria?: string | null;
       checklistKey?: string | null;
+      checklistId?: string | null;
       message?: string;
     }>(`/organization/${orgId}/audit/checklist-questions?${searchParams.toString()}`);
+  }
+
+  /** List org audit checklists (Question Management). */
+  getAuditChecklists(orgId: string) {
+    return this.get<{ checklists: Array<{ id: string; name: string; questionCount: number; createdAt: string }> }>(
+      `/organization/${orgId}/audit-checklists`
+    );
+  }
+
+  /** Create audit checklist. */
+  createAuditChecklist(orgId: string, data: { name: string }) {
+    return this.post<{ checklist: { id: string; name: string } }>(`/organization/${orgId}/audit-checklists`, data);
+  }
+
+  /** Get one audit checklist with questions. */
+  getAuditChecklist(orgId: string, checklistId: string) {
+    return this.get<{
+      checklist: {
+        id: string;
+        name: string;
+        questions: Array<{
+          id: string;
+          clause: string;
+          subclause: string;
+          requirement: string;
+          question: string;
+          evidenceExample: string;
+          sortOrder: number;
+        }>;
+      };
+    }>(`/organization/${orgId}/audit-checklists/${checklistId}`);
+  }
+
+  /** Update audit checklist name. */
+  updateAuditChecklist(orgId: string, checklistId: string, data: { name: string }) {
+    return this.patch<{ success: boolean }>(`/organization/${orgId}/audit-checklists/${checklistId}`, data);
+  }
+
+  /** Delete audit checklist. */
+  deleteAuditChecklist(orgId: string, checklistId: string) {
+    return this.delete<{ success: boolean }>(`/organization/${orgId}/audit-checklists/${checklistId}`);
+  }
+
+  /** Add question to checklist. */
+  createChecklistQuestion(
+    orgId: string,
+    checklistId: string,
+    data: { clause?: string; subclause?: string; requirement?: string; question?: string; evidenceExample?: string; sortOrder?: number }
+  ) {
+    return this.post<{ question: { id: string; clause: string; subclause: string; requirement: string; question: string; evidenceExample: string; sortOrder: number } }>(
+      `/organization/${orgId}/audit-checklists/${checklistId}/questions`,
+      data
+    );
+  }
+
+  /** Update checklist question. */
+  updateChecklistQuestion(
+    orgId: string,
+    checklistId: string,
+    questionId: string,
+    data: { clause?: string; subclause?: string; requirement?: string; question?: string; evidenceExample?: string; sortOrder?: number }
+  ) {
+    return this.patch<{ success: boolean }>(
+      `/organization/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`,
+      data
+    );
+  }
+
+  /** Delete checklist question. */
+  deleteChecklistQuestion(orgId: string, checklistId: string, questionId: string) {
+    return this.delete<{ success: boolean }>(
+      `/organization/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`
+    );
   }
 
   /** List audit plans (current user as lead auditor or assigned auditor). */
@@ -296,6 +370,7 @@ class ApiClient {
     title?: string;
     auditNumber?: string;
     criteria?: string;
+    checklistId?: string;
     plannedDate?: string;
     datePrepared?: string;
     assignedAuditorIds?: string[];

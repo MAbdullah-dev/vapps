@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
@@ -9,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+import "froala-editor/css/froala_editor.pkgd.min.css";
+import "froala-editor/css/froala_style.min.css";
+
+const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
 import {
   Select,
   SelectContent,
@@ -79,6 +85,15 @@ interface ChecklistRow {
   riskSeverity?: "high" | "medium" | "low";
 }
 
+/** Checklist item for manual row search (clause/subclause → requirement, question, evidenceExample). */
+interface ManualChecklistItem {
+  clause: string;
+  subclause: string;
+  requirement: string;
+  question: string;
+  evidenceExample: string;
+}
+
 /** Map audit criteria to standard display name (e.g. for checklist rows). */
 const CRITERIA_TO_STANDARD: Record<string, string> = {
   "ISO 9001 QUALITY": "ISO 9001:2015",
@@ -143,6 +158,7 @@ export default function CreateAuditStep3Page() {
   const orgId = params?.orgId as string;
   const programIdFromUrl = searchParams.get("programId") ?? null;
   const criteriaFromUrl = searchParams.get("criteria") ?? null;
+  const checklistIdFromUrl = searchParams.get("checklistId") ?? null;
   const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -163,6 +179,11 @@ export default function CreateAuditStep3Page() {
     leadAuditorUserId: string | null;
   } | null>(null);
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState<string>("—");
+  /** Checklist items for manual row search (by clause/subclause) under the selected standard. */
+  const [checklistItemsForManual, setChecklistItemsForManual] = useState<ManualChecklistItem[]>([]);
+  const [manualRowSearchQuery, setManualRowSearchQuery] = useState("");
+  const [manualRowSearchOpen, setManualRowSearchOpen] = useState(false);
+  const manualRowSearchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!orgId) {
@@ -175,6 +196,7 @@ export default function CreateAuditStep3Page() {
         let programId = programIdFromUrl;
         let resolvedCriteria = criteriaFromUrl;
 
+        let resolvedChecklistId: string | null = checklistIdFromUrl;
         if (auditPlanIdFromUrl) {
           const planRes = await apiClient.getAuditPlan(orgId, auditPlanIdFromUrl);
           if (cancelled || !planRes.plan) return;
@@ -189,6 +211,7 @@ export default function CreateAuditStep3Page() {
           setPlanStatus(plan.status ?? null);
           programId = plan.auditProgramId ?? programId;
           setResolvedProgramId(programId);
+          if (plan.checklistId) resolvedChecklistId = plan.checklistId;
           resolvedCriteria = plan.criteria ?? (plan.programCriteria ? PROGRAM_CRITERIA_TO_CHECKLIST[plan.programCriteria] ?? plan.programCriteria : null) ?? resolvedCriteria;
           setPlanSummary({
             plannedDate: plan.plannedDate ?? null,
@@ -203,14 +226,14 @@ export default function CreateAuditStep3Page() {
           }
         }
 
-        if (!resolvedCriteria && programId) {
+        if (!resolvedChecklistId && !resolvedCriteria && programId) {
           const progRes = await apiClient.getAuditProgram(orgId, programId);
           if (cancelled || !progRes.program) return;
           const progCriteria = progRes.program.auditCriteria;
           resolvedCriteria = progCriteria ? PROGRAM_CRITERIA_TO_CHECKLIST[progCriteria] ?? null : null;
         }
 
-        if (!resolvedCriteria) {
+        if (!resolvedChecklistId && !resolvedCriteria) {
           setCriteria(null);
           setRows([]);
           setStandardName("—");
@@ -218,17 +241,31 @@ export default function CreateAuditStep3Page() {
           return;
         }
 
-        setCriteria(resolvedCriteria);
-        setStandardName(CRITERIA_TO_STANDARD[resolvedCriteria] ?? resolvedCriteria);
+        setCriteria(resolvedCriteria ?? (resolvedChecklistId ? "Checklist" : null));
+        setStandardName(CRITERIA_TO_STANDARD[resolvedCriteria ?? ""] ?? resolvedCriteria ?? "—");
 
-        const res = await apiClient.getChecklistQuestions(orgId, { criteria: resolvedCriteria });
+        const res = resolvedChecklistId
+          ? await apiClient.getChecklistQuestions(orgId, { checklistId: resolvedChecklistId })
+          : await apiClient.getChecklistQuestions(orgId, { criteria: resolvedCriteria! });
         if (cancelled) return;
 
         const questions = res.questions ?? [];
+        if (!cancelled) {
+          setChecklistItemsForManual(
+            questions.map((q) => ({
+              clause: q.clause ?? "",
+              subclause: q.subclause ?? "",
+              requirement: q.requirement ?? "",
+              question: q.question ?? "",
+              evidenceExample: q.evidenceExample ?? "",
+            }))
+          );
+        }
         const ts = Date.now();
+        const standardLabel = resolvedChecklistId ? (resolvedCriteria ?? "Checklist") : (CRITERIA_TO_STANDARD[resolvedCriteria!] ?? resolvedCriteria!);
         let mapped: ChecklistRow[] = questions.map((q, i) => ({
           id: `row-${ts}-${i}`,
-          standard: CRITERIA_TO_STANDARD[resolvedCriteria!] ?? resolvedCriteria!,
+          standard: standardLabel,
           clause: q.clause ?? "",
           subclauses: q.subclause ?? "",
           requirement: q.requirement ?? "",
@@ -238,26 +275,77 @@ export default function CreateAuditStep3Page() {
           status: "not_audited" as ComplianceStatus,
         }));
 
+        let loadedFindingsCount = 0;
         if (auditPlanIdFromUrl) {
           const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanIdFromUrl);
           if (!cancelled && findingsRes.findings?.length > 0) {
-            mapped = findingsRes.findings.map((f: any, i: number) => ({
-              id: `row-${ts}-${i}`,
-              standard: f.standard ?? "",
-              clause: f.clause ?? "",
-              subclauses: f.subclauses ?? "",
-              requirement: f.requirement ?? "",
-              question: f.question ?? "",
-              evidenceExample: f.evidenceExample ?? "",
-              evidence: f.evidenceSeen ?? "",
-              status: (f.status ?? "not_audited") as ComplianceStatus,
-              statementOfNonconformity: f.statementOfNonconformity ?? undefined,
-              riskSeverity: f.riskSeverity ?? undefined,
-            }));
+            const saved = findingsRes.findings;
+            // Merge saved findings into template by row index so we keep full checklist and don't lose rows
+            const merged: ChecklistRow[] = questions.map((q, i) => {
+              const f = saved[i];
+              if (f) {
+                return {
+                  id: `row-${ts}-${i}`,
+                  standard: (f.standard ?? standardLabel) || standardLabel,
+                  clause: f.clause ?? q.clause ?? "",
+                  subclauses: f.subclauses ?? q.subclause ?? "",
+                  requirement: f.requirement ?? q.requirement ?? "",
+                  question: f.question ?? q.question ?? "",
+                  evidenceExample: f.evidenceExample ?? q.evidenceExample ?? "",
+                  evidence: f.evidenceSeen ?? "",
+                  status: (f.status ?? "not_audited") as ComplianceStatus,
+                  statementOfNonconformity: f.statementOfNonconformity ?? undefined,
+                  riskSeverity: f.riskSeverity ?? undefined,
+                };
+              }
+              return {
+                id: `row-${ts}-${i}`,
+                standard: standardLabel,
+                clause: q.clause ?? "",
+                subclauses: q.subclause ?? "",
+                requirement: q.requirement ?? "",
+                question: q.question ?? "",
+                evidenceExample: q.evidenceExample ?? "",
+                evidence: "",
+                status: "not_audited" as ComplianceStatus,
+              };
+            });
+            // If we have more saved findings than template questions (e.g. manual rows), append them
+            if (saved.length > questions.length) {
+              for (let i = questions.length; i < saved.length; i++) {
+                const f = saved[i];
+                merged.push({
+                  id: `row-${ts}-${i}`,
+                  standard: f.standard ?? "",
+                  clause: f.clause ?? "",
+                  subclauses: f.subclauses ?? "",
+                  requirement: f.requirement ?? "",
+                  question: f.question ?? "",
+                  evidenceExample: f.evidenceExample ?? "",
+                  evidence: f.evidenceSeen ?? "",
+                  status: (f.status ?? "not_audited") as ComplianceStatus,
+                  statementOfNonconformity: f.statementOfNonconformity ?? undefined,
+                  riskSeverity: f.riskSeverity ?? undefined,
+                });
+              }
+            }
+            mapped = merged;
+            loadedFindingsCount = saved.length;
           }
         }
 
         setRows(mapped);
+
+        // When loading saved findings, show all completed rows by setting currentQuestionIndex
+        // to the first incomplete row (or past the end if all complete)
+        if (loadedFindingsCount > 0) {
+          const firstIncomplete = mapped.findIndex(
+            (r) => r.status === "not_audited" && ((r.evidence ?? "").trim() === "")
+          );
+          const initialIndex =
+            firstIncomplete === -1 ? Math.max(0, mapped.length - 1) : firstIncomplete;
+          setCurrentQuestionIndex(initialIndex);
+        }
       } catch (e) {
         if (!cancelled) {
           setLoadError("Failed to load checklist questions.");
@@ -269,7 +357,7 @@ export default function CreateAuditStep3Page() {
     };
     load();
     return () => { cancelled = true; };
-  }, [orgId, programIdFromUrl, criteriaFromUrl, auditPlanIdFromUrl]);
+  }, [orgId, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl, auditPlanIdFromUrl]);
 
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return rows;
@@ -282,6 +370,28 @@ export default function CreateAuditStep3Page() {
         (r.question ?? "").toLowerCase().includes(q)
     );
   }, [rows, searchQuery]);
+
+  /** For manual row: filter checklist items by clause/subclause (under selected standard). */
+  const filteredManualChecklistItems = useMemo(() => {
+    if (!manualRowSearchQuery.trim()) return [];
+    const q = manualRowSearchQuery.trim().toLowerCase();
+    return checklistItemsForManual.filter(
+      (item) =>
+        (item.clause ?? "").toLowerCase().includes(q) ||
+        (item.subclause ?? "").toLowerCase().includes(q) ||
+        (item.requirement ?? "").toLowerCase().includes(q)
+    );
+  }, [checklistItemsForManual, manualRowSearchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (manualRowSearchRef.current && !manualRowSearchRef.current.contains(e.target as Node)) {
+        setManualRowSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const submissionCard = useMemo(() => {
     if (!planSummary) return { startDate: "—", endDate: "—", manDays: "—", submissionDate: "—", authKey: auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : "—" };
@@ -302,9 +412,9 @@ export default function CreateAuditStep3Page() {
   }, [planSummary, auditPlanIdFromUrl]);
 
   const addRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
+    const insertAt = currentQuestionIndex + 1;
+    setRows((prev) => {
+      const newRow: ChecklistRow = {
         id: `row-manual-${Date.now()}`,
         standard: standardName !== "—" ? standardName : "",
         clause: "",
@@ -314,8 +424,30 @@ export default function CreateAuditStep3Page() {
         evidenceExample: "",
         evidence: "",
         status: "not_audited" as ComplianceStatus,
-      },
-    ]);
+      };
+      return [...prev.slice(0, insertAt), newRow, ...prev.slice(insertAt)];
+    });
+    setCurrentQuestionIndex(insertAt);
+    setManualRowSearchQuery("");
+    setManualRowSearchOpen(false);
+  };
+
+  /** Apply a checklist item (from clause/subclause search) to a manual row. */
+  const applyChecklistItemToRow = (rowId: string, item: ManualChecklistItem) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              clause: item.clause,
+              subclauses: item.subclause,
+              requirement: item.requirement,
+              question: item.question,
+              evidenceExample: item.evidenceExample,
+            }
+          : r
+      )
+    );
   };
 
   const removeRow = (id: string) => {
@@ -338,6 +470,15 @@ export default function CreateAuditStep3Page() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const checklistSectionRef = useRef<HTMLDivElement>(null);
   const checklistTableRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const currentRow = filteredRows[currentQuestionIndex];
+    const isManual = currentRow?.id?.startsWith?.("row-manual-");
+    if (!isManual) {
+      setManualRowSearchQuery("");
+      setManualRowSearchOpen(false);
+    }
+  }, [currentQuestionIndex, filteredRows]);
 
   type EvidenceItem = {
     id: string;
@@ -429,25 +570,37 @@ export default function CreateAuditStep3Page() {
     if (auditPlanIdFromUrl) p.set("auditPlanId", auditPlanIdFromUrl);
     if (programIdFromUrl) p.set("programId", programIdFromUrl);
     if (criteriaFromUrl) p.set("criteria", criteriaFromUrl);
+    if (checklistIdFromUrl) p.set("checklistId", checklistIdFromUrl);
     return p.toString();
-  }, [auditPlanIdFromUrl, programIdFromUrl, criteriaFromUrl]);
+  }, [auditPlanIdFromUrl, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl]);
 
   const currentRow = filteredRows[currentQuestionIndex] ?? null;
   const isCurrentMinorOrMajorNc =
     currentRow && (currentRow.status === "minor_nc" || currentRow.status === "major_nc");
   const isCaOpenForCurrentRow = currentRow && activeCARowId === currentRow.id;
+  const stripHtml = (s: string) => (s ?? "").replace(/<[^>]*>/g, "").trim();
   const caRequiredFieldsFilled =
-    statementOfNonconformity.trim() !== "" &&
-    riskJustification.trim() !== "" &&
-    justificationForClassification.trim() !== "" &&
-    ((complianceDetails.evidenceSeen ?? "").trim() !== "" || (currentRow?.evidence ?? "").trim() !== "");
-  const canEnableSaveAndContinueLoop =
-    !!auditPlanIdFromUrl &&
-    !savingFindings &&
-    planStatus !== "findings_submitted_to_auditee" &&
-    isCurrentMinorOrMajorNc &&
-    isCaOpenForCurrentRow &&
-    caRequiredFieldsFilled;
+    stripHtml(statementOfNonconformity) !== "" &&
+    stripHtml(riskJustification) !== "" &&
+    stripHtml(justificationForClassification) !== "" &&
+    (stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "");
+
+  type CaValidationField = "evidenceSeen" | "riskJustification" | "statementOfNonconformity" | "justificationForClassification";
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<CaValidationField, string>>>({});
+  const refEvidenceSeen = useRef<HTMLDivElement>(null);
+  const refRiskJustification = useRef<HTMLDivElement>(null);
+  const refStatementOfNonconformity = useRef<HTMLDivElement>(null);
+  const refJustificationForClassification = useRef<HTMLDivElement>(null);
+  const fieldRefs: Record<CaValidationField, React.RefObject<HTMLDivElement | null>> = {
+    evidenceSeen: refEvidenceSeen,
+    riskJustification: refRiskJustification,
+    statementOfNonconformity: refStatementOfNonconformity,
+    justificationForClassification: refJustificationForClassification,
+  };
+  const firstErrorFieldOrder: CaValidationField[] = ["evidenceSeen", "riskJustification", "statementOfNonconformity", "justificationForClassification"];
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
+  }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
 
   return (
     <div className="space-y-6">
@@ -480,16 +633,6 @@ export default function CreateAuditStep3Page() {
               <p className="font-medium text-amber-900">
                 No audit criteria selected. The checklist questions depend on the criteria you select in Step 2 (e.g., ISO 9001 Quality, ISO 14001 Environment).
               </p>
-              <p className="mt-2 text-sm text-amber-800">
-                Go back to Step 2, select the Audit Plan Criteria, then Save &amp; Continue to load the correct questions.
-              </p>
-              <Link
-                href={`/dashboard/${orgId}/audit/create/2${programIdFromUrl ? `?programId=${encodeURIComponent(programIdFromUrl)}` : ""}`}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Back to Step 2
-              </Link>
             </div>
           )}
           {!isLoading && !loadError && criteria && (
@@ -534,6 +677,58 @@ export default function CreateAuditStep3Page() {
                       <p className="text-sm font-medium text-gray-600">
                         Question {currentQuestionIndex + 1} of {filteredRows.length}
                       </p>
+                      {filteredRows[currentQuestionIndex]?.id?.startsWith?.("row-manual-") && (
+                        <div
+                          ref={manualRowSearchRef}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                        >
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-600">
+                            Search by Clause / Subclause under {criteria}
+                          </label>
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Input
+                              placeholder="e.g. 4.1 or 4.1.1"
+                              className="h-9 pl-8 pr-3"
+                              value={manualRowSearchQuery}
+                              onChange={(e) => {
+                                setManualRowSearchQuery(e.target.value);
+                                setManualRowSearchOpen(true);
+                              }}
+                              onFocus={() => setManualRowSearchOpen(true)}
+                            />
+                            {manualRowSearchOpen && (
+                              <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                                {filteredManualChecklistItems.length === 0 ? (
+                                  <li className="px-3 py-2 text-sm text-gray-500">
+                                    {manualRowSearchQuery.trim() ? "No matches" : "Type clause or subclause to search"}
+                                  </li>
+                                ) : (
+                                  filteredManualChecklistItems.slice(0, 12).map((item, i) => (
+                                    <li
+                                      key={`${item.clause}-${item.subclause}-${i}`}
+                                      className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
+                                      onClick={() => {
+                                        const currentRow = filteredRows[currentQuestionIndex];
+                                        if (currentRow) applyChecklistItemToRow(currentRow.id, item);
+                                        setManualRowSearchQuery("");
+                                        setManualRowSearchOpen(false);
+                                      }}
+                                    >
+                                      <span className="font-medium text-gray-900">
+                                        {item.clause} / {item.subclause}
+                                      </span>
+                                      <span className="ml-1 text-gray-600 line-clamp-1">
+                                        — {item.requirement}
+                                      </span>
+                                    </li>
+                                  ))
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="overflow-x-auto rounded-lg border border-gray-200">
                     <Table>
                       <TableHeader>
@@ -794,15 +989,23 @@ export default function CreateAuditStep3Page() {
               className="border-gray-200 bg-gray-50 text-sm"
             />
           </div>
-          <div className="mt-6 space-y-2">
+          <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.7 EVIDENCE SEEN</Label>
-            <Textarea
-              value={complianceDetails.evidenceSeen}
-              onChange={(e) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: e.target.value }))}
-              placeholder="Document detailed findings, interview notes, and physical evidence observed..."
-              className="min-h-[120px] border-gray-200 text-sm"
-              rows={5}
-            />
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-gray-200")}>
+              <FroalaEditor
+                tag="textarea"
+                model={complianceDetails.evidenceSeen ?? ""}
+                onModelChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
+                config={{
+                  heightMin: 120,
+                  placeholderText: "Document detailed findings, interview notes, and physical evidence observed...",
+                  charCounterCount: true,
+                }}
+              />
+            </div>
+            {fieldErrors.evidenceSeen && (
+              <p className="text-sm font-medium text-red-600">{fieldErrors.evidenceSeen}</p>
+            )}
           </div>
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
             <Button variant="outline" size="sm" className="gap-2 border-gray-300 font-medium uppercase">
@@ -856,17 +1059,25 @@ export default function CreateAuditStep3Page() {
               </Label>
             ))}
           </div>
-          <div className="mt-8 space-y-2">
+          <div ref={refRiskJustification} className={cn("mt-8 space-y-2", fieldErrors.riskJustification && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
               RISK JUSTIFICATION & COMMENTS (MANDATORY)
             </Label>
-            <Textarea
-              value={riskJustification}
-              onChange={(e) => setRiskJustification(e.target.value)}
-              placeholder="Explain the rationale behind the selected risk level..."
-              className="min-h-[100px] border-gray-200 text-sm"
-              rows={4}
-            />
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-gray-200")}>
+              <FroalaEditor
+                tag="textarea"
+                model={riskJustification}
+                onModelChange={setRiskJustification}
+                config={{
+                  heightMin: 100,
+                  placeholderText: "Explain the rationale behind the selected risk level...",
+                  charCounterCount: true,
+                }}
+              />
+            </div>
+            {fieldErrors.riskJustification && (
+              <p className="text-sm font-medium text-red-600">{fieldErrors.riskJustification}</p>
+            )}
           </div>
           <div className="mt-8 rounded-lg bg-slate-800 p-6 text-white">
             <div className="mb-4 flex items-center gap-2">
@@ -1006,7 +1217,7 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
         {/* Statement of Nonconformity */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4">
+        <div ref={refStatementOfNonconformity} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.statementOfNonconformity && "border-2 border-red-500 bg-red-50/30")}>
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
             STATEMENT OF NONCONFORMITY
           </h2>
@@ -1063,12 +1274,21 @@ export default function CreateAuditStep3Page() {
                 PROFESSIONAL FINDINGS EDITOR (DOC 34 V10 MODE)
               </span>
             </div>
-            <Textarea
-              placeholder="Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
-              className="min-h-[200px] resize-y border-gray-200 text-sm"
-              value={statementOfNonconformity}
-              onChange={(e) => setStatementOfNonconformity(e.target.value)}
-            />
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-gray-200")}>
+              <FroalaEditor
+                tag="textarea"
+                model={statementOfNonconformity}
+                onModelChange={setStatementOfNonconformity}
+                config={{
+                  heightMin: 200,
+                  placeholderText: "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed.",
+                  charCounterCount: true,
+                }}
+              />
+            </div>
+            {fieldErrors.statementOfNonconformity && (
+              <p className="mt-2 text-sm font-medium text-red-600">{fieldErrors.statementOfNonconformity}</p>
+            )}
           </div>
 
           {/* Guidelines / Tips */}
@@ -1246,19 +1466,28 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
         {/* Justification for Classification */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4">
+        <div ref={refJustificationForClassification} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.justificationForClassification && "border-2 border-red-500 bg-red-50/30")}>
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-900">
             JUSTIFICATION FOR CLASSIFICATION
           </h2>
           <p className="mb-4 text-xs text-gray-500">
             MANDATORY EXPLANATION: WHY MA OR MI?
           </p>
-          <Textarea
-            placeholder="Provide a logical justification based on the severity of the deviation and its impact on the management system..."
-            value={justificationForClassification}
-            onChange={(e) => setJustificationForClassification(e.target.value)}
-            className="min-h-[140px] resize-y border-gray-200 text-sm"
-          />
+          <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-gray-200")}>
+            <FroalaEditor
+              tag="textarea"
+              model={justificationForClassification}
+              onModelChange={setJustificationForClassification}
+              config={{
+                heightMin: 140,
+                placeholderText: "Provide a logical justification based on the severity of the deviation and its impact on the management system...",
+                charCounterCount: true,
+              }}
+            />
+          </div>
+          {fieldErrors.justificationForClassification && (
+            <p className="mt-2 text-sm font-medium text-red-600">{fieldErrors.justificationForClassification}</p>
+          )}
         </div>
 
         {/* OFI / Positive Aspect Recording */}
@@ -1448,16 +1677,41 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
-        {/* Save & Continue Checklist Loop — for MINOR/MAJOR NC: only enabled after Document Finding (CA) is opened and all required fields filled; otherwise enabled when not saving and plan not submitted */}
+        {/* Save & Continue Checklist Loop — always enabled; when CA is open for Minor/Major NC, validate and show errors under each field, scroll to first */}
         <div className="flex justify-center">
           <Button
             type="button"
             className="rounded-full border-2 border-green-500 bg-white px-8 py-6 text-base font-bold uppercase text-green-600 hover:bg-green-50 hover:text-green-700"
-            disabled={!canEnableSaveAndContinueLoop}
+            disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
             onClick={async () => {
               if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
-              setSavingFindings(true);
+              setFieldErrors({});
               const wasDocumentingCA = !!activeCARowId;
+              const isCaOpenForThisSave = isCurrentMinorOrMajorNc && isCaOpenForCurrentRow;
+              if (isCaOpenForThisSave) {
+                const errors: Partial<Record<CaValidationField, string>> = {};
+                if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = "Statement of Nonconformity is required.";
+                if (stripHtml(riskJustification) === "") errors.riskJustification = "Risk Justification & Comments is required.";
+                if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = "Justification for Classification is required.";
+                const evidenceFilled = stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "";
+                if (!evidenceFilled) errors.evidenceSeen = "Evidence Seen (or Evidence in the checklist row) is required.";
+                if (Object.keys(errors).length > 0) {
+                  setFieldErrors(errors);
+                  const firstField = firstErrorFieldOrder.find((f) => errors[f]);
+                  if (firstField) {
+                    const ref = fieldRefs[firstField].current;
+                    if (ref) {
+                      ref.scrollIntoView({ behavior: "smooth", block: "center" });
+                      setTimeout(() => {
+                        const focusable = ref.querySelector<HTMLElement>("textarea, [contenteditable=\"true\"], .fr-element");
+                        if (focusable) focusable.focus();
+                      }, 400);
+                    }
+                  }
+                  return;
+                }
+              }
+              setSavingFindings(true);
               try {
                 const findings = rows.map((r, i) => {
                   const isActiveCA = activeCARowId === r.id;
@@ -1557,7 +1811,48 @@ export default function CreateAuditStep3Page() {
             </p>
           </div>
           {/* Submit to Auditee — sets status findings_submitted_to_auditee; auditor can do nothing after */}
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-2">
+            <Button
+              type="button"
+              className="rounded-lg bg-green-600 px-8 py-6 text-base font-bold uppercase text-white hover:bg-green-700"
+              disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
+              onClick={async () => {
+                if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
+                setSavingFindings(true);
+                try {
+                  const findings = rows.map((r, i) => {
+                    const isActiveCA = activeCARowId === r.id;
+                    return {
+                      rowIndex: i,
+                      standard: r.standard,
+                      clause: r.clause,
+                      subclauses: r.subclauses,
+                      requirement: r.requirement,
+                      question: r.question,
+                      evidenceExample: r.evidenceExample,
+                      evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                      status: r.status,
+                      statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
+                      riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                    };
+                  });
+                  await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
+                  if (activeCARowId) {
+                    updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
+                    updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
+                    updateRow(activeCARowId, "riskSeverity", riskSeverity);
+                  }
+                  router.push(`/dashboard/${orgId}/audit`);
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setSavingFindings(false);
+                }
+              }}
+            >
+              <Save className="mr-2 h-5 w-5" />
+              {savingFindings ? "Saving…" : "Save"}
+            </Button>
             <Button
               type="button"
               className="rounded-lg bg-red-600 px-8 py-6 text-base font-bold uppercase text-white hover:bg-red-700"

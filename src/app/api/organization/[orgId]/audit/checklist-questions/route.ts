@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { withTenantConnection } from "@/lib/db/connection-helper";
 import { CRITERIA_TO_CHECKLIST_KEY, PROGRAM_CRITERIA_TO_CHECKLIST_KEY } from "@/lib/audit-checklists";
 import iso9001Questions from "@/lib/audit-checklists/iso-9001.json";
 import iso14001Questions from "@/lib/audit-checklists/iso-14001.json";
@@ -25,8 +26,9 @@ const CHECKLIST_BY_KEY: Record<string, ChecklistItem[]> = {
 
 /**
  * GET /api/organization/[orgId]/audit/checklist-questions
- * Query: ?criteria=ISO%209001%20QUALITY  OR  ?programCriteria=iso
- * Returns predefined checklist questions based on the audit criteria selected in Step 2.
+ * Query: ?checklistId=uuid  (from DB)  OR  ?criteria=...  OR  ?programCriteria=...
+ * When checklistId is provided, returns questions from org's audit_checklist_questions.
+ * Otherwise uses legacy criteria/programCriteria -> static JSON.
  */
 export async function GET(
   req: NextRequest,
@@ -40,8 +42,45 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
+    const checklistId = searchParams.get("checklistId")?.trim();
     const criteria = searchParams.get("criteria")?.trim();
     const programCriteria = searchParams.get("programCriteria")?.trim();
+
+    if (checklistId) {
+      const connectionString = ctx.tenant.connectionString;
+      if (!connectionString) {
+        return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
+      }
+      const questions: ChecklistItem[] = [];
+      await withTenantConnection(connectionString, async (client) => {
+        const tableCheck = await client.query(
+          `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_checklist_questions'`
+        );
+        if (tableCheck.rows.length === 0) return;
+        const result = await client.query(
+          `SELECT clause, subclause, requirement, question, evidence_example
+           FROM audit_checklist_questions
+           WHERE audit_checklist_id = $1
+           ORDER BY sort_order, clause, subclause`,
+          [checklistId]
+        );
+        for (const r of result.rows) {
+          questions.push({
+            clause: r.clause ?? "",
+            subclause: r.subclause ?? "",
+            requirement: r.requirement ?? "",
+            question: r.question ?? "",
+            evidenceExample: r.evidence_example ?? "",
+          });
+        }
+      });
+      return NextResponse.json({
+        questions,
+        checklistId,
+        criteria: null,
+        checklistKey: null,
+      });
+    }
 
     let checklistKey: string | null = null;
     if (criteria) {
@@ -56,7 +95,7 @@ export async function GET(
         questions: [],
         criteria: criteria ?? programCriteria ?? null,
         checklistKey: null,
-        message: criteria || programCriteria ? "No predefined questions for this criteria." : "Provide criteria or programCriteria query param.",
+        message: criteria || programCriteria ? "No predefined questions for this criteria." : "Provide criteria, programCriteria, or checklistId query param.",
       });
     }
 

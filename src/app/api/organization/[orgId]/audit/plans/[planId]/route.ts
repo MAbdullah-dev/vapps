@@ -32,7 +32,7 @@ export async function GET(
 
       const planResult = await client.query(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
-                ap.title, ap.audit_number, ap.criteria, ap.planned_date, ap.date_prepared,
+                ap.title, ap.audit_number, ap.criteria, ap.checklist_id, ap.planned_date, ap.date_prepared,
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 ap.step_4_data,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria
@@ -53,6 +53,7 @@ export async function GET(
         title: row.title,
         auditNumber: row.audit_number,
         criteria: row.criteria,
+        checklistId: row.checklist_id ?? null,
         plannedDate: row.planned_date,
         datePrepared: row.date_prepared,
         planSubmittedAt: row.plan_submitted_at,
