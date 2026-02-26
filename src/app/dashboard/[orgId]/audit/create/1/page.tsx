@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Search, Trash2 } from "lucide-react";
@@ -61,12 +61,25 @@ type SiteItem = { id: string; name: string; code?: string };
 type ProcessItem = { id: string; name: string; siteId?: string; siteName?: string };
 type MemberItem = { id: string; name: string; email: string; processId?: string; processName?: string; siteId?: string; siteName?: string; additionalRoles?: string[] };
 
+function getProgramIdFromWindow(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("programId");
+}
+
 export default function CreateAuditStep1Page() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const orgId = params?.orgId as string;
+  const [urlProgramId, setUrlProgramId] = useState<string | null>(() => getProgramIdFromWindow());
+  const programIdFromUrl = searchParams.get("programId") ?? urlProgramId;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
+
+  useEffect(() => {
+    const q = getProgramIdFromWindow();
+    if (q) setUrlProgramId(q);
+  }, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [orgInfo, setOrgInfo] = useState<OrganizationInfo | null>(null);
@@ -266,6 +279,63 @@ export default function CreateAuditStep1Page() {
       });
     return () => { cancelled = true; };
   }, [orgId, currentUserId]);
+
+  useEffect(() => {
+    if (!orgId || !programIdFromUrl) return;
+    let cancelled = false;
+    apiClient.getAuditProgram(orgId, programIdFromUrl).then((res) => {
+      if (cancelled || !res.program) return;
+      const p = res.program;
+      setProgramId(p.id);
+      if (p.startPeriod) setStartPeriod(new Date(p.startPeriod));
+      if (p.endPeriod) setEndPeriod(new Date(p.endPeriod));
+      if (p.processId) setProcessId(p.processId);
+      if (p.programOwnerUserId) setProgramOwnerUserId(p.programOwnerUserId);
+      if (p.programPurpose != null) setProgramPurpose(p.programPurpose);
+      if (p.auditScope != null) setAuditScope(p.auditScope);
+      if (p.auditType != null) setAuditType(p.auditType);
+      if (p.auditCriteria != null) setAuditCriteria(p.auditCriteria);
+      if (p.siteIds?.length) setSelectedSiteIds(p.siteIds);
+      if (p.risks?.length) setRisks(p.risks.map((r: any, i: number) => ({
+        id: `risk-${i}-${Date.now()}`,
+        rop: r.rop ?? "",
+        category: r.category ?? "",
+        description: r.description ?? "",
+        impact: r.impact ?? "",
+        impactClass: (r.impactClass ?? "gray") as "gray" | "orange" | "green",
+        frequency: r.frequency ?? "",
+        priority: r.priority ?? "",
+        priorityClass: (r.priorityClass ?? "gray") as "gray" | "red" | "green",
+      })));
+      if (p.scheduleRows?.length) setScheduleRows(p.scheduleRows.map((r: any) => ({
+        audit: r.audit ?? "",
+        type: r.type ?? "",
+        focus: r.focus ?? "",
+        frequency: r.frequency ?? "",
+        months: r.months ?? "",
+        lead: r.lead ?? "",
+      })));
+      if (p.kpis?.length) setKpis(p.kpis.map((k: any, i: number) => ({
+        id: `kpi-${i}-${Date.now()}`,
+        kpi: k.kpi ?? "",
+        description: k.description ?? "",
+        impact: k.impact ?? "",
+        score: k.score ?? "",
+        priority: k.priority ?? "",
+        comments: k.comments ?? "",
+      })));
+      if (p.reviewRows?.length) setReviewRows(p.reviewRows.map((r: any, i: number) => ({
+        id: `rev-${i}-${Date.now()}`,
+        pri: r.pri ?? "",
+        type: r.type ?? "",
+        comments: r.comments ?? "",
+        priority: r.priority ?? "",
+        priorityClass: (r.priorityClass === "red" ? "red" : "gray") as "gray" | "red",
+        action: r.action ?? "",
+      })));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [orgId, programIdFromUrl]);
 
   // User must have Auditor role to create an audit; creator is always the Lead Auditor
   if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
