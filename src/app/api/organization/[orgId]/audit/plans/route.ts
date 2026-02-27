@@ -33,9 +33,14 @@ export async function GET(
         return;
       }
 
+      const hasChecklistIdCol = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
+      );
+      const checklistCol = hasChecklistIdCol.rows.length > 0 ? ", ap.checklist_id" : "";
+
       const result = await client.query(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
-                ap.title, ap.audit_number, ap.criteria, ap.checklist_id, ap.planned_date, ap.date_prepared,
+                ap.title, ap.audit_number, ap.criteria${checklistCol}, ap.planned_date, ap.date_prepared,
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
                 (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
@@ -86,7 +91,7 @@ export async function GET(
           title: row.title,
           auditNumber: row.audit_number,
           criteria: row.criteria,
-          checklistId: row.checklist_id ?? null,
+          checklistId: (row as { checklist_id?: string }).checklist_id ?? null,
           plannedDate: row.planned_date,
           datePrepared: row.date_prepared,
           planSubmittedAt: row.plan_submitted_at,

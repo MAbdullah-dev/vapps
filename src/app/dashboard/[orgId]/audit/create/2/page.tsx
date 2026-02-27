@@ -836,12 +836,29 @@ export default function CreateAuditStep2Page() {
     return p.toString();
   }, [auditPlanIdFromUrl, programIdFromUrl, searchParams]);
 
+  const plan = planQuery.data;
+  const currentUserRole = plan?.currentUserRole ?? null;
+  const planStatus = plan?.status ?? null;
+  const canEditStep2 = !auditPlanIdFromUrl || currentUserRole === "lead_auditor";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 6]} stepQuery={stepQuery || undefined} exitHref="../.." />
-
+      <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep2 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          View only — only the Lead Auditor can edit this step.
+        </div>
+      )}
 <div className="rounded-lg bg-white px-5 py-8">
-
+        <div className={cn(!canEditStep2 && "pointer-events-none select-none opacity-90")}>
       {/* Step 2 header */}
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm my-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2372,6 +2389,7 @@ export default function CreateAuditStep2Page() {
           </Link>
         </Button>
       </div> */}
+        </div>
     </div>
   );
 }

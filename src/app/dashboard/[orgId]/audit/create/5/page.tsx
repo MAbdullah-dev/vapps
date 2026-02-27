@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle,
@@ -38,6 +38,8 @@ export default function CreateAuditStep5Page() {
   })();
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState("—");
   const [verificationStartedAt, setVerificationStartedAt] = useState(() => format(new Date(), "dd-MMM-yyyy HH:mm"));
 
@@ -65,14 +67,9 @@ export default function CreateAuditStep5Page() {
           return;
         }
         const plan = planRes.plan;
-        if (plan.status === "ca_submitted_to_auditor" && plan.currentUserRole !== "assigned_auditor") {
-          if (!cancelled) {
-            setIsLoading(false);
-            router.push(`/dashboard/${orgId}/audit`);
-          }
-          return;
-        }
         if (!cancelled) {
+          setCurrentUserRole(plan.currentUserRole ?? null);
+          setPlanStatus(plan.status ?? null);
           setVerificationStartedAt(format(new Date(), "dd-MMM-yyyy HH:mm"));
         }
         const membersRes = await apiClient.getMembers(orgId);
@@ -107,6 +104,16 @@ export default function CreateAuditStep5Page() {
     }
   };
 
+  const canEditStep5 = currentUserRole === "assigned_auditor";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   const auditTrailText = `Verification Started\n${leadAuditorDisplay} • ${verificationStartedAt}\n\nAwaiting Final Verification\n---`;
 
   const handleCopyAuditTrail = async () => {
@@ -120,8 +127,14 @@ export default function CreateAuditStep5Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep5 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          View only — only the assigned Auditor can edit this step.
+        </div>
+      )}
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+        <div className={cn(!canEditStep5 && "pointer-events-none select-none opacity-90")}>
         {/* Main title with thick green vertical bar to the left */}
         <div className="flex items-center">
           <div className="h-9 w-1.5 shrink-0 rounded-full bg-green-500" />
@@ -289,6 +302,7 @@ export default function CreateAuditStep5Page() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Step navigation */}

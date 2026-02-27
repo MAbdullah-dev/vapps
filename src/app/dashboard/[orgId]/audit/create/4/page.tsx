@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
@@ -43,6 +43,7 @@ export default function CreateAuditStep4Page() {
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [auditeeDisplay, setAuditeeDisplay] = useState({ name: "—", uin: "—" });
   const [processDisplay, setProcessDisplay] = useState({ name: "—", ref: "—" });
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState("—");
@@ -97,18 +98,11 @@ export default function CreateAuditStep4Page() {
           return;
         }
         const plan = planRes.plan;
-        if (plan.status === "findings_submitted_to_auditee" && plan.currentUserRole !== "auditee") {
-          if (!cancelled) {
-            setIsLoading(false);
-            router.push(`/dashboard/${orgId}/audit`);
-          }
-          return;
-        }
         if (!cancelled) {
           setSubmissionDate(plan.datePrepared ? format(new Date(plan.datePrepared), "dd-MM-yyyy") : format(new Date(), "dd-MM-yyyy"));
+          setCurrentUserRole(plan.currentUserRole ?? null);
+          setPlanStatus(plan.status ?? null);
         }
-
-        setCurrentUserRole(plan.currentUserRole ?? null);
         const membersRes = await apiClient.getMembers(orgId);
         if (!cancelled && membersRes.teamMembers?.length) {
           const auditee = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.auditeeUserId);
@@ -283,9 +277,25 @@ export default function CreateAuditStep4Page() {
     </div>
   );
 
+  const canEditStep4 = currentUserRole === "auditee";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[4]} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep4 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          View only — only the Auditee can edit this step.
+        </div>
+      )}
+      <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-red-600">
           TO BE RESPONDED BY THE AUDITEE
@@ -814,6 +824,7 @@ export default function CreateAuditStep4Page() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

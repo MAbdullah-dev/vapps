@@ -168,6 +168,7 @@ export default function CreateAuditStep3Page() {
   const [rows, setRows] = useState<ChecklistRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [planStatus, setPlanStatus] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(null);
   const [savingFindings, setSavingFindings] = useState(false);
   const [submittingToAuditee, setSubmittingToAuditee] = useState(false);
@@ -201,14 +202,8 @@ export default function CreateAuditStep3Page() {
           const planRes = await apiClient.getAuditPlan(orgId, auditPlanIdFromUrl);
           if (cancelled || !planRes.plan) return;
           const plan = planRes.plan;
-          if (plan.currentUserRole === "lead_auditor" && plan.status === "plan_submitted_to_auditee") {
-            if (!cancelled) {
-              setIsLoading(false);
-              router.push(`/dashboard/${orgId}/audit`);
-            }
-            return;
-          }
           setPlanStatus(plan.status ?? null);
+          setCurrentUserRole(plan.currentUserRole ?? null);
           programId = plan.auditProgramId ?? programId;
           setResolvedProgramId(programId);
           if (plan.checklistId) resolvedChecklistId = plan.checklistId;
@@ -602,11 +597,26 @@ export default function CreateAuditStep3Page() {
     if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
   }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
 
+  const canEditStep3 = currentUserRole === "assigned_auditor";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
-
+      <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep3 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          View only — only the assigned Auditor can edit this step.
+        </div>
+      )}
       <div className="rounded-lg border border-gray-200 bg-white p-8">
+        <div className={cn(!canEditStep3 && "pointer-events-none select-none opacity-90")}>
         {/* Step 3 Header */}
         <div className="border-b border-gray-200 mx-8 my-4 ">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-green-600">
@@ -1936,6 +1946,7 @@ export default function CreateAuditStep3Page() {
           </Link>
         </Button>
       </div> */}
+        </div>
     </div>
   );
 }
