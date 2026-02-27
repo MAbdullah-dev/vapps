@@ -407,9 +407,10 @@ class ApiClient {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { step4Data });
   }
 
-  /** Get saved findings for an audit plan. */
-  getAuditPlanFindings(orgId: string, planId: string) {
-    return this.get<{ findings: any[] }>(`/organization/${orgId}/audit/plans/${planId}/findings`);
+  /** Get saved findings for an audit plan. Pass params e.g. { _: Date.now() } to avoid cache. */
+  getAuditPlanFindings(orgId: string, planId: string, params?: Record<string, string | number | boolean>) {
+    const query = params && Object.keys(params).length > 0 ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : "";
+    return this.get<{ findings: any[] }>(`/organization/${orgId}/audit/plans/${planId}/findings${query}`);
   }
 
   /** Save checklist findings (Step 3). */

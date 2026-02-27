@@ -10,6 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import "froala-editor/css/froala_style.min.css";
@@ -42,6 +50,7 @@ import {
   Clock,
   Code,
   Download,
+  Eye,
   FileText,
   Italic,
   Lock,
@@ -83,6 +92,9 @@ interface ChecklistRow {
   status: ComplianceStatus;
   statementOfNonconformity?: string;
   riskSeverity?: "high" | "medium" | "low";
+  riskJustification?: string;
+  justificationForClassification?: string;
+  objectiveEvidence?: ObjectiveEvidenceItem[] | null;
 }
 
 /** Checklist item for manual row search (clause/subclause → requirement, question, evidenceExample). */
@@ -92,6 +104,38 @@ interface ManualChecklistItem {
   requirement: string;
   question: string;
   evidenceExample: string;
+}
+
+type ObjectiveEvidenceItem = {
+  id: string;
+  description: string;
+  fileName: string;
+  s3Key: string;
+  effectiveness: "effective" | "ineffective";
+};
+
+function isTrulyEmptyFindingRow(row: {
+  clause?: string | null;
+  subclauses?: string | null;
+  requirement?: string | null;
+  question?: string | null;
+  evidenceExample?: string | null;
+  evidence?: string | null;
+  status?: ComplianceStatus | null;
+  statementOfNonconformity?: string | null;
+  riskSeverity?: "high" | "medium" | "low" | null;
+}): boolean {
+  const textEmpty = (v: unknown) => (typeof v !== "string" ? true : v.trim() === "");
+  const allCoreEmpty =
+    textEmpty(row.clause) &&
+    textEmpty(row.subclauses) &&
+    textEmpty(row.requirement) &&
+    textEmpty(row.question) &&
+    textEmpty(row.evidenceExample);
+  const noEvidence = textEmpty(row.evidence);
+  const defaultStatus = (row.status ?? "not_audited") === "not_audited";
+  const noCa = textEmpty(row.statementOfNonconformity) && (row.riskSeverity == null);
+  return allCoreEmpty && noEvidence && defaultStatus && noCa;
 }
 
 /** Map audit criteria to standard display name (e.g. for checklist rows). */
@@ -160,6 +204,21 @@ export default function CreateAuditStep3Page() {
   const criteriaFromUrl = searchParams.get("criteria") ?? null;
   const checklistIdFromUrl = searchParams.get("checklistId") ?? null;
   const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
+  const step3IndexStorageKey = useMemo(() => {
+    if (!orgId || !auditPlanIdFromUrl) return null;
+    return `audit-step3-index:${orgId}:${auditPlanIdFromUrl}`;
+  }, [orgId, auditPlanIdFromUrl]);
+  const storedStep3Index = useMemo(() => {
+    if (!step3IndexStorageKey) return null;
+    try {
+      const raw = window.localStorage.getItem(step3IndexStorageKey);
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  }, [step3IndexStorageKey]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -171,6 +230,10 @@ export default function CreateAuditStep3Page() {
   const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(null);
   const [savingFindings, setSavingFindings] = useState(false);
   const [submittingToAuditee, setSubmittingToAuditee] = useState(false);
+  const [rowDialogOpen, setRowDialogOpen] = useState(false);
+  const [rowDialogRowId, setRowDialogRowId] = useState<string | null>(null);
+  const [rowDialogDraft, setRowDialogDraft] = useState<ChecklistRow | null>(null);
+  const [rowDialogSaving, setRowDialogSaving] = useState(false);
   /** Plan summary for submission card: dates, audit number, lead auditor (resolved from members). */
   const [planSummary, setPlanSummary] = useState<{
     plannedDate: string | null;
@@ -184,6 +247,11 @@ export default function CreateAuditStep3Page() {
   const [manualRowSearchQuery, setManualRowSearchQuery] = useState("");
   const [manualRowSearchOpen, setManualRowSearchOpen] = useState(false);
   const manualRowSearchRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<ChecklistRow[]>([]);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
 
   useEffect(() => {
     if (!orgId) {
@@ -273,50 +341,89 @@ export default function CreateAuditStep3Page() {
           evidenceExample: q.evidenceExample ?? "",
           evidence: "",
           status: "not_audited" as ComplianceStatus,
+          riskJustification: "",
+          justificationForClassification: "",
+          objectiveEvidence: null,
         }));
 
         let loadedFindingsCount = 0;
         if (auditPlanIdFromUrl) {
           const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanIdFromUrl);
-          if (!cancelled && findingsRes.findings?.length > 0) {
-            const saved = findingsRes.findings;
-            // Merge saved findings into template by row index so we keep full checklist and don't lose rows
-            const merged: ChecklistRow[] = questions.map((q, i) => {
-              const f = saved[i];
-              if (f) {
+          const savedRaw = Array.isArray(findingsRes?.findings) ? [...findingsRes.findings] : [];
+          const saved = savedRaw.filter((f: any) =>
+            !isTrulyEmptyFindingRow({
+              clause: f?.clause,
+              subclauses: f?.subclauses,
+              requirement: f?.requirement,
+              question: f?.question,
+              evidenceExample: f?.evidenceExample ?? f?.evidence_example,
+              evidence: f?.evidenceSeen ?? f?.evidence_seen,
+              status: f?.status,
+              statementOfNonconformity: f?.statementOfNonconformity ?? f?.statement_of_nonconformity,
+              riskSeverity: f?.riskSeverity ?? f?.risk_severity,
+            })
+          );
+          if (!cancelled && saved.length > 0) {
+            if (saved.length >= questions.length) {
+              // Same or more saved than template: use saved as single source of truth so completed and manual rows always show
+              mapped = saved.map((f: any, i: number) => ({
+                id: `row-${ts}-${i}`,
+                standard: (f.standard ?? standardLabel) || standardLabel,
+                clause: f.clause ?? "",
+                subclauses: f.subclauses ?? "",
+                requirement: f.requirement ?? "",
+                question: f.question ?? "",
+                evidenceExample: f.evidenceExample ?? "",
+                evidence: f.evidenceSeen ?? "",
+                status: (f.status ?? "not_audited") as ComplianceStatus,
+                statementOfNonconformity: f.statementOfNonconformity ?? undefined,
+                riskSeverity: f.riskSeverity ?? undefined,
+                riskJustification: f.riskJustification ?? "",
+                justificationForClassification: f.justificationForClassification ?? "",
+                objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
+              }));
+            } else {
+              // Fewer saved than template: merge by index then append any extra (safety)
+              const merged: ChecklistRow[] = questions.map((q, i) => {
+                const f = saved[i];
+                if (f) {
+                  return {
+                    id: `row-${ts}-${i}`,
+                    standard: (f.standard ?? standardLabel) || standardLabel,
+                    clause: f.clause ?? q.clause ?? "",
+                    subclauses: f.subclauses ?? q.subclause ?? "",
+                    requirement: f.requirement ?? q.requirement ?? "",
+                    question: f.question ?? q.question ?? "",
+                    evidenceExample: f.evidenceExample ?? q.evidenceExample ?? "",
+                    evidence: f.evidenceSeen ?? "",
+                    status: (f.status ?? "not_audited") as ComplianceStatus,
+                    statementOfNonconformity: f.statementOfNonconformity ?? undefined,
+                    riskSeverity: f.riskSeverity ?? undefined,
+                    riskJustification: f.riskJustification ?? "",
+                    justificationForClassification: f.justificationForClassification ?? "",
+                    objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
+                  };
+                }
                 return {
                   id: `row-${ts}-${i}`,
-                  standard: (f.standard ?? standardLabel) || standardLabel,
-                  clause: f.clause ?? q.clause ?? "",
-                  subclauses: f.subclauses ?? q.subclause ?? "",
-                  requirement: f.requirement ?? q.requirement ?? "",
-                  question: f.question ?? q.question ?? "",
-                  evidenceExample: f.evidenceExample ?? q.evidenceExample ?? "",
-                  evidence: f.evidenceSeen ?? "",
-                  status: (f.status ?? "not_audited") as ComplianceStatus,
-                  statementOfNonconformity: f.statementOfNonconformity ?? undefined,
-                  riskSeverity: f.riskSeverity ?? undefined,
+                  standard: standardLabel,
+                  clause: q.clause ?? "",
+                  subclauses: q.subclause ?? "",
+                  requirement: q.requirement ?? "",
+                  question: q.question ?? "",
+                  evidenceExample: q.evidenceExample ?? "",
+                  evidence: "",
+                  status: "not_audited" as ComplianceStatus,
+                  riskJustification: "",
+                  justificationForClassification: "",
+                  objectiveEvidence: null,
                 };
-              }
-              return {
-                id: `row-${ts}-${i}`,
-                standard: standardLabel,
-                clause: q.clause ?? "",
-                subclauses: q.subclause ?? "",
-                requirement: q.requirement ?? "",
-                question: q.question ?? "",
-                evidenceExample: q.evidenceExample ?? "",
-                evidence: "",
-                status: "not_audited" as ComplianceStatus,
-              };
-            });
-            // If we have more saved findings than template questions (e.g. manual rows), append them
-            if (saved.length > questions.length) {
+              });
               for (let i = questions.length; i < saved.length; i++) {
                 const f = saved[i];
                 merged.push({
                   id: `row-${ts}-${i}`,
-                  standard: f.standard ?? "",
+                  standard: (f.standard ?? standardLabel) || standardLabel,
                   clause: f.clause ?? "",
                   subclauses: f.subclauses ?? "",
                   requirement: f.requirement ?? "",
@@ -326,10 +433,13 @@ export default function CreateAuditStep3Page() {
                   status: (f.status ?? "not_audited") as ComplianceStatus,
                   statementOfNonconformity: f.statementOfNonconformity ?? undefined,
                   riskSeverity: f.riskSeverity ?? undefined,
+                  riskJustification: f.riskJustification ?? "",
+                  justificationForClassification: f.justificationForClassification ?? "",
+                  objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
                 });
               }
+              mapped = merged;
             }
-            mapped = merged;
             loadedFindingsCount = saved.length;
           }
         }
@@ -337,14 +447,26 @@ export default function CreateAuditStep3Page() {
         setRows(mapped);
 
         // When loading saved findings, show all completed rows by setting currentQuestionIndex
-        // to the first incomplete row (or past the end if all complete)
+        // Prefer restoring the last saved position (localStorage), otherwise fall back to a heuristic.
         if (loadedFindingsCount > 0) {
-          const firstIncomplete = mapped.findIndex(
-            (r) => r.status === "not_audited" && ((r.evidence ?? "").trim() === "")
-          );
-          const initialIndex =
-            firstIncomplete === -1 ? Math.max(0, mapped.length - 1) : firstIncomplete;
-          setCurrentQuestionIndex(initialIndex);
+          let nextIndex: number | null = storedStep3Index;
+          if (nextIndex == null) {
+            // Heuristic: find last row with any auditor input, then continue after it.
+            let lastTouched = -1;
+            for (let i = 0; i < mapped.length; i++) {
+              const r = mapped[i];
+              const touched =
+                (r.evidence ?? "").trim() !== "" ||
+                (r.statementOfNonconformity ?? "").trim() !== "" ||
+                r.riskSeverity != null ||
+                r.id?.startsWith?.("row-manual-");
+              if (touched) lastTouched = i;
+            }
+            nextIndex = lastTouched >= 0 ? lastTouched + 1 : 0;
+          }
+          const clamped = Math.max(0, Math.min(nextIndex, mapped.length));
+          setProgressIndex(clamped);
+          setCurrentQuestionIndex(clamped);
         }
       } catch (e) {
         if (!cancelled) {
@@ -412,7 +534,8 @@ export default function CreateAuditStep3Page() {
   }, [planSummary, auditPlanIdFromUrl]);
 
   const addRow = () => {
-    const insertAt = currentQuestionIndex + 1;
+    const currentDisplayedId = filteredRows[currentQuestionIndex]?.id;
+    let nextIndex = currentQuestionIndex + 1;
     setRows((prev) => {
       const newRow: ChecklistRow = {
         id: `row-manual-${Date.now()}`,
@@ -425,11 +548,16 @@ export default function CreateAuditStep3Page() {
         evidence: "",
         status: "not_audited" as ComplianceStatus,
       };
+      const baseIdx = currentDisplayedId ? prev.findIndex((r) => r.id === currentDisplayedId) : prev.length - 1;
+      const insertAt = baseIdx >= 0 ? baseIdx + 1 : prev.length;
+      nextIndex = insertAt;
       return [...prev.slice(0, insertAt), newRow, ...prev.slice(insertAt)];
     });
-    setCurrentQuestionIndex(insertAt);
+    // Ensure the new manual row is visible as the current row.
+    setSearchQuery("");
+    setCurrentQuestionIndex(nextIndex);
     setManualRowSearchQuery("");
-    setManualRowSearchOpen(false);
+    setManualRowSearchOpen(true);
   };
 
   /** Apply a checklist item (from clause/subclause search) to a manual row. */
@@ -451,7 +579,100 @@ export default function CreateAuditStep3Page() {
   };
 
   const removeRow = (id: string) => {
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setRows((prev) => {
+      const removedIdx = prev.findIndex((r) => r.id === id);
+      const next = prev.filter((r) => r.id !== id);
+      if (removedIdx >= 0) {
+        setCurrentQuestionIndex((ci) => {
+          if (removedIdx < ci) return Math.max(0, ci - 1);
+          if (removedIdx === ci) return Math.max(0, ci - 1);
+          return ci;
+        });
+      }
+      return next;
+    });
+    if (activeCARowId === id) {
+      setActiveCARowId(null);
+      setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
+      setRiskSeverity("medium");
+      setStatementOfNonconformity("");
+      setRiskJustification("");
+      setEvidenceItems(DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item })));
+      setJustificationForClassification("");
+    }
+  };
+
+  const canEditRowDialog = planStatus !== "findings_submitted_to_auditee";
+
+  const openNcFlowForRow = (row: ChecklistRow, idx?: number) => {
+    // Ensure consistent indexing (avoid filtered index issues).
+    setSearchQuery("");
+    if (typeof idx === "number") setCurrentQuestionIndex(idx);
+    setActiveCARowId(row.id);
+    setComplianceDetails((prev) => ({
+      ...prev,
+      standard: row.standard,
+      clause: row.clause,
+      subclauses: row.subclauses,
+      requirement: row.requirement,
+      question: row.question,
+      evidenceExample: row.evidenceExample,
+      evidenceSeen: row.evidence,
+    }));
+    setRiskSeverity(row.riskSeverity ?? "medium");
+    setStatementOfNonconformity(row.statementOfNonconformity ?? "");
+    setRiskJustification(row.riskJustification ?? "");
+    setJustificationForClassification(row.justificationForClassification ?? "");
+    setEvidenceItems(
+      (row.objectiveEvidence && row.objectiveEvidence.length > 0)
+        ? row.objectiveEvidence
+        : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }))
+    );
+    setTimeout(() => {
+      checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const openRowDialog = (rowId: string) => {
+    const row = rowsRef.current.find((r) => r.id === rowId) ?? rows.find((r) => r.id === rowId);
+    if (!row) return;
+    const isNc = row.status === "minor_nc" || row.status === "major_nc";
+    setRowDialogRowId(rowId);
+    setRowDialogDraft({
+      ...row,
+      riskJustification: row.riskJustification ?? "",
+      justificationForClassification: row.justificationForClassification ?? "",
+      objectiveEvidence: isNc
+        ? (row.objectiveEvidence && row.objectiveEvidence.length > 0
+            ? row.objectiveEvidence
+            : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item })))
+        : (row.objectiveEvidence ?? null),
+    });
+    setRowDialogOpen(true);
+  };
+
+  const persistRowsToServer = async (nextRows: ChecklistRow[]) => {
+    if (!orgId || !auditPlanIdFromUrl) return;
+    const rowsToPersist = nextRows.filter((r) => !isTrulyEmptyFindingRow(r));
+    const findings = rowsToPersist.map((r, i) => ({
+      rowIndex: i,
+      standard: r.standard,
+      clause: r.clause,
+      subclauses: r.subclauses,
+      requirement: r.requirement,
+      question: r.question,
+      evidenceExample: r.evidenceExample,
+      evidenceSeen: r.evidence,
+      status: r.status,
+      statementOfNonconformity: r.statementOfNonconformity,
+      riskSeverity: r.riskSeverity,
+      riskJustification: r.riskJustification,
+      justificationForClassification: r.justificationForClassification,
+      objectiveEvidence: r.objectiveEvidence,
+    }));
+    await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
+    setRows(rowsToPersist);
+    rowsRef.current = rowsToPersist;
   };
 
   const updateRow = (id: string, field: keyof ChecklistRow, value: string | ComplianceStatus | "high" | "medium" | "low") => {
@@ -468,8 +689,23 @@ export default function CreateAuditStep3Page() {
   /** When user clicks Document Finding (CA), this row receives form values (Evidence Seen, Statement of Nonconformity, Risk Severity) on Save & Continue. */
   const [activeCARowId, setActiveCARowId] = useState<string | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [progressIndex, setProgressIndex] = useState(0);
   const checklistSectionRef = useRef<HTMLDivElement>(null);
   const checklistTableRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!step3IndexStorageKey) return;
+    try {
+      window.localStorage.setItem(step3IndexStorageKey, String(progressIndex));
+    } catch {
+      // ignore storage errors
+    }
+  }, [progressIndex, step3IndexStorageKey]);
+
+  useEffect(() => {
+    // Never allow progressIndex to go backwards.
+    setProgressIndex((p) => Math.max(p, currentQuestionIndex));
+  }, [currentQuestionIndex]);
 
   useEffect(() => {
     const currentRow = filteredRows[currentQuestionIndex];
@@ -480,14 +716,7 @@ export default function CreateAuditStep3Page() {
     }
   }, [currentQuestionIndex, filteredRows]);
 
-  type EvidenceItem = {
-    id: string;
-    description: string;
-    fileName: string;
-    s3Key: string;
-    effectiveness: "effective" | "ineffective";
-  };
-  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([...DEFAULT_EVIDENCE_ITEMS]);
+  const [evidenceItems, setEvidenceItems] = useState<ObjectiveEvidenceItem[]>([...DEFAULT_EVIDENCE_ITEMS]);
   const [uploadingEvidenceId, setUploadingEvidenceId] = useState<string | null>(null);
   const addEvidenceItem = () => {
     setEvidenceItems((prev) => [
@@ -501,7 +730,7 @@ export default function CreateAuditStep3Page() {
       },
     ]);
   };
-  const updateEvidenceItem = (id: string, field: keyof EvidenceItem, value: string) => {
+  const updateEvidenceItem = (id: string, field: keyof ObjectiveEvidenceItem, value: string) => {
     setEvidenceItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
@@ -605,6 +834,136 @@ export default function CreateAuditStep3Page() {
   return (
     <div className="space-y-6">
       <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
+
+      <Dialog
+        open={rowDialogOpen}
+        onOpenChange={(open) => {
+          setRowDialogOpen(open);
+          if (!open) {
+            setRowDialogRowId(null);
+            setRowDialogDraft(null);
+            setRowDialogSaving(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Checklist Question — View / Edit</DialogTitle>
+            <DialogDescription>
+              Edit status and evidence. If status is Minor/Major NC, you can also edit CA fields.
+            </DialogDescription>
+          </DialogHeader>
+
+          {rowDialogDraft && (() => {
+            // Dialog is for non-NC rows only; if a row becomes Minor/Major, we route to the CA flow.
+            const isNc = false;
+            return (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Standard</Label>
+                  <Input value={rowDialogDraft.standard} readOnly className="border-gray-200 bg-gray-50 text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Clause</Label>
+                    <Input value={rowDialogDraft.clause} readOnly className="border-gray-200 bg-gray-50 text-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Subclause</Label>
+                    <Input value={rowDialogDraft.subclauses} readOnly className="border-gray-200 bg-gray-50 text-sm" />
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Audit Question</Label>
+                  <Input value={rowDialogDraft.question} readOnly className="border-gray-200 bg-gray-50 text-sm" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Status</Label>
+                  <Select
+                    value={rowDialogDraft.status}
+                    onValueChange={(v) => {
+                      // Minor/Major NC must use the original CA flow (below sections), not the dialog.
+                      if (v === "minor_nc" || v === "major_nc") {
+                        if (rowDialogRowId) {
+                          const baseRows = rowsRef.current.length > 0 ? rowsRef.current : rows;
+                          const idx = baseRows.findIndex((r) => r.id === rowDialogRowId);
+                          const row = idx >= 0 ? baseRows[idx] : null;
+                          if (row) {
+                            setRowDialogOpen(false);
+                            openNcFlowForRow({ ...row, status: v }, idx);
+                            return;
+                          }
+                        }
+                      }
+                      setRowDialogDraft((d) => (d ? { ...d, status: v as ComplianceStatus } : d));
+                    }}
+                    disabled={!canEditRowDialog}
+                  >
+                    <SelectTrigger className="h-9 rounded-md border-gray-200">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LEGEND_ITEMS.map((item) => (
+                        <SelectItem key={item.key} value={item.key}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Minor/Major NC fields are handled in the CA flow below, not in this dialog. */}
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence Seen</Label>
+                  <div className={cn("overflow-hidden rounded-lg border", canEditRowDialog ? "border-gray-200" : "border-gray-200 opacity-75")}>
+                    <FroalaEditor
+                      tag="textarea"
+                      model={rowDialogDraft.evidence ?? ""}
+                      onModelChange={(v: string) => setRowDialogDraft((d) => (d ? { ...d, evidence: v } : d))}
+                      config={{ heightMin: 120, charCounterCount: true, placeholderText: "Evidence seen..." }}
+                    />
+                  </div>
+                </div>
+
+                {/* Minor/Major NC detail sections are intentionally not shown here. */}
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRowDialogOpen(false)}>
+              Close
+            </Button>
+            {canEditRowDialog && (
+              <Button
+                type="button"
+                className="bg-green-600 hover:bg-green-700"
+                disabled={!rowDialogDraft || !rowDialogRowId || rowDialogSaving || savingFindings || !auditPlanIdFromUrl}
+                onClick={async () => {
+                  if (!rowDialogDraft || !rowDialogRowId) return;
+                  setRowDialogSaving(true);
+                  try {
+                    const updatedRows = (rowsRef.current.length > 0 ? rowsRef.current : rows).map((r) =>
+                      r.id === rowDialogRowId ? { ...r, ...rowDialogDraft } : r
+                    );
+                    await persistRowsToServer(updatedRows);
+                    setRowDialogOpen(false);
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setRowDialogSaving(false);
+                  }
+                }}
+              >
+                {rowDialogSaving ? "Saving…" : "Save changes"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-lg border border-gray-200 bg-white p-8">
         {/* Step 3 Header */}
@@ -745,7 +1104,7 @@ export default function CreateAuditStep3Page() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredRows.slice(0, currentQuestionIndex + 1).map((row, idx) => {
+                        {filteredRows.slice(0, Math.max(currentQuestionIndex, progressIndex) + 1).map((row, idx) => {
                           const isCurrent = idx === currentQuestionIndex;
                           const isNC = row.status === "major_nc" || row.status === "minor_nc";
                           const statusLabel = STATUS_CHECKLIST_LABEL[row.status] ?? "—";
@@ -862,13 +1221,27 @@ export default function CreateAuditStep3Page() {
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
                                   !isNC ? (
-                                    <Button
-                                      size="sm"
-                                      className="gap-1.5 rounded-md bg-green-600 px-3 text-xs font-semibold uppercase text-white hover:bg-green-700"
-                                      onClick={() => setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length))}
-                                    >
-                                      Next
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="gap-1.5 rounded-md bg-green-600 px-3 text-xs font-semibold uppercase text-white hover:bg-green-700"
+                                        onClick={() => setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length))}
+                                      >
+                                        Next
+                                      </Button>
+                                      {row.id.startsWith("row-manual-") && (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                          disabled={planStatus === "findings_submitted_to_auditee"}
+                                          onClick={() => removeRow(row.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
                                   ) : (
                                     <Button
                                       size="sm"
@@ -887,6 +1260,13 @@ export default function CreateAuditStep3Page() {
                                         }));
                                         setRiskSeverity(row.riskSeverity ?? "medium");
                                         setStatementOfNonconformity(row.statementOfNonconformity ?? "");
+                                        setRiskJustification(row.riskJustification ?? "");
+                                        setJustificationForClassification(row.justificationForClassification ?? "");
+                                        setEvidenceItems(
+                                          (row.objectiveEvidence && row.objectiveEvidence.length > 0)
+                                            ? row.objectiveEvidence
+                                            : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }))
+                                        );
                                         setTimeout(() => {
                                           checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                                         }, 100);
@@ -897,7 +1277,38 @@ export default function CreateAuditStep3Page() {
                                     </Button>
                                   )
                                 ) : (
-                                  <span className="text-xs font-medium text-green-700">Complete</span>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-medium text-green-700">Complete</span>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-2 text-xs"
+                                      onClick={() => {
+                                        if (isNC) {
+                                          // Minor/Major NC keeps the original CA flow
+                                          openNcFlowForRow(row, idx);
+                                        } else {
+                                          openRowDialog(row.id);
+                                        }
+                                      }}
+                                    >
+                                      <Eye className="mr-1.5 h-4 w-4" />
+                                      View / Edit
+                                    </Button>
+                                    {row.id.startsWith("row-manual-") && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        disabled={planStatus === "findings_submitted_to_auditee"}
+                                        onClick={() => removeRow(row.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -1677,9 +2088,10 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
         </div>
-        {/* Save & Continue Checklist Loop — always enabled; when CA is open for Minor/Major NC, validate and show errors under each field, scroll to first */}
-        <div className="flex justify-center">
-          <Button
+        {/* Save & Continue Checklist Loop — ONLY for Minor/Major NC (CA) */}
+        {isCurrentMinorOrMajorNc && isCaOpenForCurrentRow && (
+          <div className="flex justify-center">
+            <Button
             type="button"
             className="rounded-full border-2 border-green-500 bg-white px-8 py-6 text-base font-bold uppercase text-green-600 hover:bg-green-50 hover:text-green-700"
             disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
@@ -1713,7 +2125,9 @@ export default function CreateAuditStep3Page() {
               }
               setSavingFindings(true);
               try {
-                const findings = rows.map((r, i) => {
+                const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;
+                const rowsToPersist = rowsToSave.filter((r) => !isTrulyEmptyFindingRow(r));
+                const findings = rowsToPersist.map((r, i) => {
                   const isActiveCA = activeCARowId === r.id;
                   return {
                     rowIndex: i,
@@ -1727,13 +2141,21 @@ export default function CreateAuditStep3Page() {
                     status: r.status,
                     statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                     riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                    riskJustification: isActiveCA ? riskJustification : r.riskJustification,
+                    justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
+                    objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
                   };
                 });
                 await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
+                // Keep in-memory rows consistent so empty manual rows don't reappear.
+                setRows(rowsToPersist);
                 if (wasDocumentingCA && activeCARowId) {
                   updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
                   updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
                   updateRow(activeCARowId, "riskSeverity", riskSeverity);
+                  updateRow(activeCARowId, "riskJustification", riskJustification);
+                  updateRow(activeCARowId, "justificationForClassification", justificationForClassification);
+                  updateRow(activeCARowId, "objectiveEvidence", evidenceItems as any);
                   setActiveCARowId(null);
                   setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
                   setRiskSeverity("medium");
@@ -1746,12 +2168,8 @@ export default function CreateAuditStep3Page() {
                     checklistTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }, 150);
                 }
-                const nextIndex = wasDocumentingCA ? Math.min(currentQuestionIndex + 1, filteredRows.length) : currentQuestionIndex;
-                if (nextIndex >= filteredRows.length) {
-                  router.push(`/dashboard/${orgId}/audit`);
-                } else if (!wasDocumentingCA) {
-                  router.push(`/dashboard/${orgId}/audit`);
-                }
+                const nextIndex = Math.min(currentQuestionIndex + 1, filteredRows.length);
+                if (nextIndex >= filteredRows.length) router.push(`/dashboard/${orgId}/audit`);
               } catch (e) {
                 console.error(e);
               } finally {
@@ -1762,7 +2180,8 @@ export default function CreateAuditStep3Page() {
             <Paperclip className="mr-2 h-5 w-5" />
             {savingFindings ? "Saving…" : "SAVE & CONTINUE CHECKLIST LOOP"}
           </Button>
-        </div>
+          </div>
+        )}
         {/* Submission summary card (dark) — dynamic from plan */}
         <div className="rounded-xl border-2 border-green-500/40 bg-gray-900 p-6 shadow-lg ring-2 ring-green-400/20 md:p-8 mx-8 my-4">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -1820,7 +2239,9 @@ export default function CreateAuditStep3Page() {
                 if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
                 setSavingFindings(true);
                 try {
-                  const findings = rows.map((r, i) => {
+                  const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;
+                  const rowsToPersist = rowsToSave.filter((r) => !isTrulyEmptyFindingRow(r));
+                  const findings = rowsToPersist.map((r, i) => {
                     const isActiveCA = activeCARowId === r.id;
                     return {
                       rowIndex: i,
@@ -1834,9 +2255,13 @@ export default function CreateAuditStep3Page() {
                       status: r.status,
                       statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                       riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                    riskJustification: isActiveCA ? riskJustification : r.riskJustification,
+                    justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
+                    objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
                     };
                   });
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
+                  setRows(rowsToPersist);
                   if (activeCARowId) {
                     updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
                     updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
@@ -1861,7 +2286,9 @@ export default function CreateAuditStep3Page() {
                 if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
                 setSubmittingToAuditee(true);
                 try {
-                  const findingsForSubmit = rows.map((r) => {
+                  const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;
+                  const rowsToPersist = rowsToSave.filter((r) => !isTrulyEmptyFindingRow(r));
+                  const findingsForSubmit = rowsToPersist.map((r) => {
                     const isActiveCA = activeCARowId === r.id;
                     return {
                       standard: r.standard, clause: r.clause, subclauses: r.subclauses, requirement: r.requirement,
@@ -1870,9 +2297,13 @@ export default function CreateAuditStep3Page() {
                       status: r.status,
                       statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                       riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
+                      riskJustification: isActiveCA ? riskJustification : r.riskJustification,
+                      justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
+                      objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
                     };
                   });
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findingsForSubmit);
+                  setRows(rowsToPersist);
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanIdFromUrl, "findings_submitted_to_auditee");
                   const params = new URLSearchParams();
                   if (programIdFromUrl || resolvedProgramId) params.set("programId", programIdFromUrl || resolvedProgramId || "");

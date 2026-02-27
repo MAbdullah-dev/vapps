@@ -30,9 +30,37 @@ export async function GET(
       );
       if (tableCheck.rows.length === 0) return;
 
+      const colRes = await client.query(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'audit_plan_findings'
+           AND column_name IN (
+             'statement_of_nonconformity',
+             'risk_severity',
+             'risk_justification',
+             'justification_for_classification',
+             'objective_evidence'
+           )`
+      );
+      const cols = new Set<string>(colRes.rows.map((r: { column_name: string }) => r.column_name));
+      const hasStatement = cols.has("statement_of_nonconformity");
+      const hasRiskSeverity = cols.has("risk_severity");
+      const hasRiskJustification = cols.has("risk_justification");
+      const hasJustificationForClassification = cols.has("justification_for_classification");
+      const hasObjectiveEvidence = cols.has("objective_evidence");
+
+      const extraSelect = [
+        hasStatement ? "statement_of_nonconformity" : null,
+        hasRiskSeverity ? "risk_severity" : null,
+        hasRiskJustification ? "risk_justification" : null,
+        hasJustificationForClassification ? "justification_for_classification" : null,
+        hasObjectiveEvidence ? "objective_evidence" : null,
+      ].filter(Boolean).join(", ");
+      const extraSelectClause = extraSelect ? `, ${extraSelect}` : "";
+
       const result = await client.query(
-        `SELECT id, row_index, standard, clause, subclauses, requirement, question, evidence_example, evidence_seen, status,
-                statement_of_nonconformity, risk_severity
+        `SELECT id, row_index, standard, clause, subclauses, requirement, question, evidence_example, evidence_seen, status${extraSelectClause}
          FROM audit_plan_findings WHERE audit_plan_id = $1 ORDER BY row_index`,
         [planId]
       );
@@ -48,13 +76,19 @@ export async function GET(
           evidenceExample: row.evidence_example,
           evidenceSeen: row.evidence_seen,
           status: row.status,
-          statementOfNonconformity: row.statement_of_nonconformity ?? undefined,
-          riskSeverity: row.risk_severity ?? undefined,
+          statementOfNonconformity: hasStatement ? (row.statement_of_nonconformity ?? undefined) : undefined,
+          riskSeverity: hasRiskSeverity ? (row.risk_severity ?? undefined) : undefined,
+          riskJustification: hasRiskJustification ? (row.risk_justification ?? "") : "",
+          justificationForClassification: hasJustificationForClassification ? (row.justification_for_classification ?? "") : "",
+          objectiveEvidence: hasObjectiveEvidence ? (row.objective_evidence ?? null) : null,
         });
       }
     });
 
-    return NextResponse.json({ findings });
+    const res = NextResponse.json({ findings });
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.headers.set("Pragma", "no-cache");
+    return res;
   } catch (error) {
     console.error("Error fetching findings:", error);
     return NextResponse.json(
@@ -98,25 +132,69 @@ export async function PUT(
 
       await client.query(`DELETE FROM audit_plan_findings WHERE audit_plan_id = $1`, [planId]);
 
+      const colRes = await client.query(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'audit_plan_findings'
+           AND column_name IN (
+             'statement_of_nonconformity',
+             'risk_severity',
+             'risk_justification',
+             'justification_for_classification',
+             'objective_evidence'
+           )`
+      );
+      const cols = new Set<string>(colRes.rows.map((r: { column_name: string }) => r.column_name));
+      const hasStatement = cols.has("statement_of_nonconformity");
+      const hasRiskSeverity = cols.has("risk_severity");
+      const hasRiskJustification = cols.has("risk_justification");
+      const hasJustificationForClassification = cols.has("justification_for_classification");
+      const hasObjectiveEvidence = cols.has("objective_evidence");
+
       for (let i = 0; i < findings.length; i++) {
         const f = findings[i];
+        const columns = [
+          "audit_plan_id",
+          "row_index",
+          "standard",
+          "clause",
+          "subclauses",
+          "requirement",
+          "question",
+          "evidence_example",
+          "evidence_seen",
+          "status",
+          hasStatement ? "statement_of_nonconformity" : null,
+          hasRiskSeverity ? "risk_severity" : null,
+          hasRiskJustification ? "risk_justification" : null,
+          hasJustificationForClassification ? "justification_for_classification" : null,
+          hasObjectiveEvidence ? "objective_evidence" : null,
+        ].filter(Boolean) as string[];
+
+        const values: any[] = [
+          planId,
+          i,
+          f.standard ?? null,
+          f.clause ?? null,
+          f.subclauses ?? null,
+          f.requirement ?? null,
+          f.question ?? null,
+          f.evidenceExample ?? f.evidence_example ?? null,
+          f.evidenceSeen ?? f.evidence_seen ?? null,
+          f.status ?? "not_audited",
+        ];
+
+        if (hasStatement) values.push(f.statementOfNonconformity ?? f.statement_of_nonconformity ?? null);
+        if (hasRiskSeverity) values.push(f.riskSeverity ?? f.risk_severity ?? null);
+        if (hasRiskJustification) values.push(f.riskJustification ?? f.risk_justification ?? null);
+        if (hasJustificationForClassification) values.push(f.justificationForClassification ?? f.justification_for_classification ?? null);
+        if (hasObjectiveEvidence) values.push(f.objectiveEvidence ?? f.objective_evidence ?? null);
+
+        const placeholders = values.map((_, idx) => `$${idx + 1}`).join(", ");
         await client.query(
-          `INSERT INTO audit_plan_findings (audit_plan_id, row_index, standard, clause, subclauses, requirement, question, evidence_example, evidence_seen, status, statement_of_nonconformity, risk_severity)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-          [
-            planId,
-            i,
-            f.standard ?? null,
-            f.clause ?? null,
-            f.subclauses ?? null,
-            f.requirement ?? null,
-            f.question ?? null,
-            f.evidenceExample ?? f.evidence_example ?? null,
-            f.evidenceSeen ?? f.evidence_seen ?? null,
-            f.status ?? "not_audited",
-            f.statementOfNonconformity ?? f.statement_of_nonconformity ?? null,
-            f.riskSeverity ?? f.risk_severity ?? null,
-          ]
+          `INSERT INTO audit_plan_findings (${columns.join(", ")}) VALUES (${placeholders})`,
+          values
         );
       }
     });
