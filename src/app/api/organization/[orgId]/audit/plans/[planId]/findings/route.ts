@@ -189,21 +189,33 @@ export async function PUT(
         if (hasRiskSeverity) values.push(f.riskSeverity ?? f.risk_severity ?? null);
         if (hasRiskJustification) values.push(f.riskJustification ?? f.risk_justification ?? null);
         if (hasJustificationForClassification) values.push(f.justificationForClassification ?? f.justification_for_classification ?? null);
-        if (hasObjectiveEvidence) values.push(f.objectiveEvidence ?? f.objective_evidence ?? null);
+        if (hasObjectiveEvidence) {
+          const raw = f.objectiveEvidence ?? f.objective_evidence ?? null;
+          values.push(raw != null && typeof raw === "object" ? JSON.stringify(raw) : raw);
+        }
 
         const placeholders = values.map((_, idx) => `$${idx + 1}`).join(", ");
-        await client.query(
-          `INSERT INTO audit_plan_findings (${columns.join(", ")}) VALUES (${placeholders})`,
-          values
-        );
+        try {
+          await client.query(
+            `INSERT INTO audit_plan_findings (${columns.join(", ")}) VALUES (${placeholders})`,
+            values
+          );
+        } catch (insertErr: any) {
+          (insertErr as any).rowIndex = i;
+          (insertErr as any).columnCount = columns.length;
+          (insertErr as any).valueCount = values.length;
+          throw insertErr;
+        }
       }
     });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error saving findings:", error);
+    const message = error?.message ?? "Failed to save findings";
+    const detail = error?.detail ?? null;
+    console.error("Error saving findings:", message, detail ?? "", error);
     return NextResponse.json(
-      { error: error?.message ?? "Failed to save findings" },
+      { error: message, detail: detail ?? undefined },
       { status: 500 }
     );
   }

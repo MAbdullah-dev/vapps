@@ -180,6 +180,7 @@ export async function PATCH(
     const body = await req.json().catch(() => ({}));
     const status = body.status;
     const step4Data = body.step4Data;
+    const step5Data = body.step5Data;
     const step2Data = body.step2Data;
     const title = body.title ?? body.name ?? undefined;
     const auditNumber = body.auditNumber ?? body.audit_number ?? undefined;
@@ -192,7 +193,7 @@ export async function PATCH(
         ? body.assigned_auditor_ids
         : undefined;
 
-    const hasPlanUpdate = status !== undefined || step4Data !== undefined || step2Data !== undefined ||
+    const hasPlanUpdate = status !== undefined || step4Data !== undefined || step5Data !== undefined || step2Data !== undefined ||
       title !== undefined || auditNumber !== undefined || criteria !== undefined ||
       plannedDate !== undefined || datePrepared !== undefined || assignedAuditorIds !== undefined;
 
@@ -266,6 +267,16 @@ export async function PATCH(
         await client.query(
           `UPDATE audit_plans SET step_4_data = $1, updated_at = now() WHERE id = $2`,
           [JSON.stringify(step4Data), planId]
+        );
+      }
+
+      if (step5Data !== undefined) {
+        await client.query(
+          `ALTER TABLE audit_plans ADD COLUMN IF NOT EXISTS step_5_data jsonb`
+        );
+        await client.query(
+          `UPDATE audit_plans SET step_5_data = $1, updated_at = now() WHERE id = $2`,
+          [JSON.stringify(step5Data), planId]
         );
       }
 

@@ -826,7 +826,8 @@ export default function CreateAuditStep3Page() {
     if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
   }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
 
-  const canEditStep3 = currentUserRole === "assigned_auditor";
+  const canEditStep3 =
+    planStatus !== "closed" && currentUserRole === "assigned_auditor";
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];

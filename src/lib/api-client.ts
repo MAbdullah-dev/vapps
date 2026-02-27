@@ -388,7 +388,7 @@ class ApiClient {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { status });
   }
 
-  /** Update audit plan (Step 2 edit: title, auditNumber, criteria, dates, assignedAuditorIds, status, step2Data). */
+  /** Update audit plan (Step 2 edit: title, auditNumber, criteria, dates, assignedAuditorIds, status, step2Data; Step 5: step5Data). */
   updateAuditPlan(orgId: string, planId: string, data: {
     title?: string;
     auditNumber?: string;
@@ -398,6 +398,7 @@ class ApiClient {
     assignedAuditorIds?: string[];
     status?: string;
     step2Data?: Record<string, unknown>;
+    step5Data?: Record<string, unknown>;
   }) {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, data);
   }

@@ -66,7 +66,7 @@ type Audit = {
   plannedDate: string;
   actualDate: string;
   dueDate: string;
-  kpiScore: "Consistent" | "Inconsistent" | null;
+  kpiScore: string | null;
   auditStatus: string;
   criteria?: string;
 };
@@ -91,11 +91,45 @@ const getRiskLevelColor = (riskLevel: string) => {
   return "bg-blue-100 text-blue-800";
 };
 
+/** Audit status labels with day thresholds: Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days */
+const AUDIT_STATUS_SUCCESS = "Success ≤ 30 days";
+const AUDIT_STATUS_IN_PROGRESS = "In-Progress < 30 days";
+const AUDIT_STATUS_PENDING = "Pending > 30 days";
+const AUDIT_STATUS_FAIL = "Fail > 40 days";
+
+function getAuditStatusByDays(
+  planStatus: string,
+  plannedDate: string | null,
+  datePrepared: string | null,
+  createdAt: string | null
+): string {
+  const refDate = plannedDate || datePrepared || createdAt;
+  const refTime = refDate ? new Date(refDate).getTime() : Date.now();
+  const days = Math.floor((Date.now() - refTime) / (24 * 60 * 60 * 1000));
+
+  if (planStatus === "closed") return AUDIT_STATUS_SUCCESS;
+  const inProgress = [
+    "plan_submitted_to_auditee",
+    "findings_submitted_to_auditee",
+    "ca_submitted_to_auditor",
+    "pending_closure",
+  ].includes(planStatus);
+  if (inProgress || planStatus === "draft") {
+    if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
+    if (days <= 40) return AUDIT_STATUS_PENDING;
+    return AUDIT_STATUS_FAIL;
+  }
+  if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
+  if (days <= 40) return AUDIT_STATUS_PENDING;
+  return AUDIT_STATUS_FAIL;
+}
+
 const getStatusColor = (status: string) => {
-  if (status === "Closed" || status === "Success") return "bg-green-100 text-green-800";
-  if (status === "In-Progress") return "bg-yellow-100 text-yellow-800";
-  if (status === "Fail") return "bg-red-100 text-red-700";
-  return ""; // Pending: no badge
+  if (status === AUDIT_STATUS_SUCCESS) return "bg-green-100 text-green-800";
+  if (status === AUDIT_STATUS_IN_PROGRESS) return "bg-yellow-100 text-yellow-800";
+  if (status === AUDIT_STATUS_PENDING) return "bg-gray-100 text-gray-800";
+  if (status === AUDIT_STATUS_FAIL) return "bg-red-100 text-red-700";
+  return "";
 };
 
 /** Steps 1,2,6 = lead; 3,5 = auditor; 4 = auditee. Edit only for own tab; no edit after closed. */
@@ -201,7 +235,7 @@ function getColumns(
     accessorKey: "actualDate",
     header: () => <TableHeader title="Actual Date" />,
     cell: ({ row }) => (
-      <span className="text-gray-700">{row.original.actualDate || ""}</span>
+      <span className="text-gray-700">{row.original.actualDate || "—"}</span>
     ),
   },
   {
@@ -215,8 +249,11 @@ function getColumns(
     cell: ({ row }) => {
       const score = row.original.kpiScore;
       if (!score) return <span className="text-gray-400">—</span>;
-      if (score === "Consistent") return <span className="font-medium text-green-600">Consistent</span>;
-      return <span className="font-medium text-red-600">Inconsistent</span>;
+      if (score === "Consistent" || score.toLowerCase() === "consistent")
+        return <span className="font-medium text-green-600">Consistent</span>;
+      if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
+        return <span className="font-medium text-red-600">Inconsistent</span>;
+      return <span className="text-gray-700">{score}</span>;
     },
   },
   {
@@ -241,9 +278,21 @@ function getColumns(
   {
     accessorKey: "nextStepForUser",
     id: "yourAction",
-    header: () => <TableHeader title="Your Action" sub="Step requiring your input" />,
+    header: () => <TableHeader title="Your Action" sub="Step requiring your input or Complete" />,
     cell: ({ row }) => {
-      const step = row.original.nextStepForUser;
+      const audit = row.original;
+      if (audit.planStatus === "closed") {
+        return (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}
+            className="text-sm font-medium text-green-700 hover:underline focus:outline-none"
+          >
+            Complete
+          </button>
+        );
+      }
+      const step = audit.nextStepForUser;
       if (step == null) return <span className="text-gray-400">—</span>;
       return (
         <span className="text-sm font-medium text-green-700">
@@ -270,6 +319,12 @@ function getColumns(
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+            {audit.planStatus === "closed" && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}>
+                <Pencil className="mr-2 h-4 w-4" />
+                View audit (all steps)
+              </DropdownMenuItem>
+            )}
             {canEditAudit(audit, currentUserId) && getEditStep(audit, currentUserId) != null && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); const s = getEditStep(audit, currentUserId); if (s != null) handleEditAudit(audit, s); }}>
                 <FileEdit className="mr-2 h-4 w-4" />
@@ -280,7 +335,7 @@ function getColumns(
               <History className="mr-2 h-4 w-4" />
               View History
             </DropdownMenuItem>
-            {step != null && (
+            {step != null && audit.planStatus !== "closed" && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, step); }}>
                 <Pencil className="mr-2 h-4 w-4" />
                 {NEXT_STEP_LABELS[step] ?? `Open Step ${step}`}
@@ -294,6 +349,12 @@ function getColumns(
   ];
 }
 
+function formatDate(date: string | Date | null): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+}
+
 function mapPlansToAudits(list: any[]): Audit[] {
   return list.map((p: any) => {
     const auditPart = p.auditNumber || p.id || "—";
@@ -303,32 +364,39 @@ function mapPlansToAudits(list: any[]): Audit[] {
     const process = p.process ?? p.processName ?? p.programProcess ?? "—";
     const auditType = (p.auditType || "FPA").toString().toUpperCase();
     const auditProgramRef = `${auditPart}/${year}/${site}/${process}/${auditType}`;
+    const plannedDateFormatted = p.plannedDate ? formatDate(p.plannedDate) : "—";
+    const dueDate =
+      p.plannedDate
+        ? formatDate(new Date(new Date(p.plannedDate).getTime() + 30 * 24 * 60 * 60 * 1000))
+        : "—";
+    const kpiScore =
+      p.kpiScore != null && String(p.kpiScore).trim() !== "" ? String(p.kpiScore).trim() : null;
     return {
-    id: p.auditNumber || p.id,
-    auditProgramRef,
-    auditPlanId: p.id,
-    auditProgramId: p.auditProgramId,
-    nextStepForUser: p.nextStepForUser ?? null,
-    planStatus: p.status,
-    leadAuditorUserId: p.leadAuditorUserId ?? null,
-    auditeeUserId: p.auditeeUserId ?? null,
-    assignedAuditorIds: p.assignedAuditorIds ?? [],
-    standard: p.criteria || p.programCriteria || "—",
-    scopeMethodBoundaries: "On-Site",
-    auditType,
-    site,
-    process,
-    clause: "—",
-    subclauses: "—",
-    ncClassification: "Minor",
-    riskLevel: "Medium",
-    plannedDate: p.plannedDate ? new Date(p.plannedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—",
-    actualDate: p.findingsSubmittedAt ? new Date(p.findingsSubmittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "",
-    dueDate: "—",
-    kpiScore: null,
-    auditStatus: p.status === "closed" ? "Closed" : p.status === "findings_submitted_to_auditee" ? "Success" : p.status === "plan_submitted_to_auditee" || p.status === "ca_submitted_to_auditor" || p.status === "pending_closure" ? "In-Progress" : p.status || "Pending",
-    criteria: p.criteria,
-  };
+      id: p.auditNumber || p.id,
+      auditProgramRef,
+      auditPlanId: p.id,
+      auditProgramId: p.auditProgramId,
+      nextStepForUser: p.nextStepForUser ?? null,
+      planStatus: p.status,
+      leadAuditorUserId: p.leadAuditorUserId ?? null,
+      auditeeUserId: p.auditeeUserId ?? null,
+      assignedAuditorIds: p.assignedAuditorIds ?? [],
+      standard: p.criteria || p.programCriteria || "—",
+      scopeMethodBoundaries: "On-Site",
+      auditType,
+      site,
+      process,
+      clause: p.firstClause ?? p.clause ?? "—",
+      subclauses: p.firstSubclauses ?? p.subclauses ?? "—",
+      ncClassification: "Minor",
+      riskLevel: "Medium",
+      plannedDate: plannedDateFormatted,
+      actualDate: p.findingsSubmittedAt ? formatDate(p.findingsSubmittedAt) : "—",
+      dueDate,
+      kpiScore,
+      auditStatus: getAuditStatusByDays(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
+      criteria: p.criteria,
+    };
   });
 }
 

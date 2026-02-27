@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
@@ -94,7 +95,8 @@ export default function CreateAuditStep6Page() {
     return () => { cancelled = true; };
   }, [orgId, auditPlanId]);
 
-  const canEditStep6 = currentUserRole === "lead_auditor";
+  const canEditStep6 =
+    planStatus !== "closed" && currentUserRole === "lead_auditor";
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -109,7 +111,9 @@ export default function CreateAuditStep6Page() {
       <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep6 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          View only — only the Lead Auditor can edit this step.
+          {planStatus === "closed"
+            ? "View only — this audit is complete; no edits allowed."
+            : "View only — only the Lead Auditor can edit this step."}
         </div>
       )}
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
@@ -281,7 +285,7 @@ export default function CreateAuditStep6Page() {
 
       {/* Step navigation */}
       <div className="flex items-center justify-between px-6 py-4">
-        <Button
+        {/* <Button
           variant="outline"
           className="border-gray-300 text-gray-600 hover:bg-gray-50"
           asChild
@@ -293,20 +297,22 @@ export default function CreateAuditStep6Page() {
             <ChevronLeft className="h-4 w-4" />
             Previous Step
           </Link>
-        </Button>
+        </Button> */}
         <Button
-          className="bg-green-600 text-white hover:bg-green-700"
-          disabled={closing || !auditPlanId}
+          className="bg-green-600 text-white hover:bg-green-700 ml-auto"
+          disabled={closing || !auditPlanId || !canEditStep6}
           onClick={async () => {
             if (!orgId || !auditPlanId) return;
             setClosing(true);
             try {
               if (finalDecision === "effective") {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "closed");
+                toast.success("Audit complete. Status: Closed.");
               }
               router.push(`/dashboard/${orgId}/audit`);
             } catch (e) {
               console.error(e);
+              toast.error("Failed to close audit.");
             } finally {
               setClosing(false);
             }

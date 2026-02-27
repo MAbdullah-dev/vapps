@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle,
-  ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Paperclip,
@@ -50,6 +48,7 @@ export default function CreateAuditStep5Page() {
   const [evidenceFiles, setEvidenceFiles] = useState<{ name: string; key: string }[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [proceedingToStep6, setProceedingToStep6] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -104,7 +103,9 @@ export default function CreateAuditStep5Page() {
     }
   };
 
-  const canEditStep5 = currentUserRole === "assigned_auditor";
+  const canEditStep5 =
+    currentUserRole === "assigned_auditor" &&
+    !["pending_closure", "closed"].includes(planStatus ?? "");
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -130,7 +131,9 @@ export default function CreateAuditStep5Page() {
       <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep5 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          View only — only the assigned Auditor can edit this step.
+          {planStatus === "closed"
+            ? "View only — this audit is complete; no edits allowed."
+            : "View only — only the assigned Auditor can edit this step."}
         </div>
       )}
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
@@ -306,39 +309,66 @@ export default function CreateAuditStep5Page() {
       </div>
 
       {/* Step navigation */}
-      <div className="flex items-center justify-between px-6 py-4">
-        <Button
-          variant="outline"
-          className="border-gray-300 text-gray-600 hover:bg-gray-50"
-          asChild
-        >
-          <Link
-            href={`/dashboard/${orgId}/audit/create/4${stepQuery}`}
-            className="inline-flex items-center gap-2"
+      <div className="flex flex-wrap items-center justify-end gap-4 px-2 py-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            disabled={saving || !auditPlanId || !canEditStep5}
+            onClick={async () => {
+              if (!orgId || !auditPlanId) return;
+              setSaving(true);
+              try {
+                await apiClient.updateAuditPlan(orgId, auditPlanId, {
+                  step5Data: {
+                    verificationOutcome,
+                    auditorComments,
+                    evidenceFiles,
+                    verificationStartedAt,
+                  },
+                });
+                toast.success("Saved as draft.");
+                router.push(`/dashboard/${orgId}/audit`);
+              } catch (e) {
+                console.error(e);
+                toast.error("Failed to save.");
+              } finally {
+                setSaving(false);
+              }
+            }}
           >
-            <ChevronLeft className="h-4 w-4" />
-            Previous Step
-          </Link>
-        </Button>
-        <Button
-          className="bg-green-600 text-white hover:bg-green-700"
-          disabled={proceedingToStep6 || !auditPlanId}
-          onClick={async () => {
-            if (!orgId || !auditPlanId) return;
-            setProceedingToStep6(true);
-            try {
-              await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
-              router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
-            } catch (e) {
-              console.error(e);
-            } finally {
-              setProceedingToStep6(false);
-            }
-          }}
-        >
-          {proceedingToStep6 ? "Proceeding…" : "Save & Continue"}
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            className="bg-green-600 text-white hover:bg-green-700"
+            disabled={proceedingToStep6 || !auditPlanId || !canEditStep5}
+            onClick={async () => {
+              if (!orgId || !auditPlanId) return;
+              setProceedingToStep6(true);
+              try {
+                await apiClient.updateAuditPlan(orgId, auditPlanId, {
+                  step5Data: {
+                    verificationOutcome,
+                    auditorComments,
+                    evidenceFiles,
+                    verificationStartedAt,
+                  },
+                });
+                await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
+                toast.success("Submitted to Lead Auditor.");
+                router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
+              } catch (e) {
+                console.error(e);
+                toast.error("Failed to submit.");
+              } finally {
+                setProceedingToStep6(false);
+              }
+            }}
+          >
+            {proceedingToStep6 ? "Submitting…" : "Submit to Lead Auditor"}
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

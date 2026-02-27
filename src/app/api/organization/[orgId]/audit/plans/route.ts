@@ -38,13 +38,28 @@ export async function GET(
       );
       const checklistCol = hasChecklistIdCol.rows.length > 0 ? ", ap.checklist_id" : "";
 
+      const hasFindingsTable = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`
+      );
+      const hasKpiTable = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_program_kpis'`
+      );
+      const findingsCols =
+        hasFindingsTable.rows.length > 0
+          ? ", (SELECT f.clause FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_clause, (SELECT f.subclauses FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_subclauses"
+          : "";
+      const kpiCol =
+        hasKpiTable.rows.length > 0
+          ? ", (SELECT k.score FROM audit_program_kpis k WHERE k.audit_program_id = ap.audit_program_id ORDER BY k.kpia_number LIMIT 1) as kpi_score"
+          : "";
+
       const result = await client.query(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
                 ap.title, ap.audit_number, ap.criteria${checklistCol}, ap.planned_date, ap.date_prepared,
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
                 (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
-                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsCols}${kpiCol}
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
          WHERE ap.lead_auditor_user_id = $1
@@ -102,6 +117,9 @@ export async function GET(
           programCriteria: row.program_criteria,
           processName: row.process_name ?? null,
           siteName: row.site_name ?? null,
+          firstClause: (row as { first_clause?: string }).first_clause ?? null,
+          firstSubclauses: (row as { first_subclauses?: string }).first_subclauses ?? null,
+          kpiScore: (row as { kpi_score?: string }).kpi_score ?? null,
         });
       }
     });

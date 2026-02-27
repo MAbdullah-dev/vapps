@@ -839,7 +839,9 @@ export default function CreateAuditStep2Page() {
   const plan = planQuery.data;
   const currentUserRole = plan?.currentUserRole ?? null;
   const planStatus = plan?.status ?? null;
-  const canEditStep2 = !auditPlanIdFromUrl || currentUserRole === "lead_auditor";
+  const canEditStep2 =
+    planStatus !== "closed" &&
+    (!auditPlanIdFromUrl || currentUserRole === "lead_auditor");
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -854,7 +856,9 @@ export default function CreateAuditStep2Page() {
       <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep2 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          View only — only the Lead Auditor can edit this step.
+          {planStatus === "closed"
+            ? "View only — this audit is complete; no edits allowed."
+            : "View only — only the Lead Auditor can edit this step."}
         </div>
       )}
 <div className="rounded-lg bg-white px-5 py-8">

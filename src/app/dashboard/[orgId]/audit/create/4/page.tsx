@@ -277,7 +277,8 @@ export default function CreateAuditStep4Page() {
     </div>
   );
 
-  const canEditStep4 = currentUserRole === "auditee";
+  const canEditStep4 =
+    planStatus !== "closed" && currentUserRole === "auditee";
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -292,7 +293,9 @@ export default function CreateAuditStep4Page() {
       <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep4 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
-          View only — only the Auditee can edit this step.
+          {planStatus === "closed"
+            ? "View only — this audit is complete; no edits allowed."
+            : "View only — only the Auditee can edit this step."}
         </div>
       )}
       <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
