@@ -23,12 +23,14 @@ const STEPS = [
   { step: 6, label: "Closure", icon: CheckCircle },
 ] as const;
 
-/** Lead auditor: 1,2,6; Auditor: 3,5; Auditee: 4 */
+/** All steps [1,2,3,4,5,6] are accessible (view); edit only in own tab by role. */
 interface AuditWorkflowHeaderProps {
   currentStep: number;
   orgId?: string;
-  /** Steps this role can access. Default [1,2,6] for lead auditor. */
+  /** All steps are clickable; pass [1,2,3,4,5,6] so everyone can open any tab (read-only when not owner). */
   allowedSteps?: number[];
+  /** Steps that are locked for the current user (e.g. Step 6 until 1–5 complete for lead auditor, Step 5 until Step 4 complete for auditor). */
+  lockedSteps?: number[];
   /** Query string to append to step links (e.g. auditPlanId, programId, criteria). */
   stepQuery?: string;
   saveDraftHref?: string;
@@ -38,7 +40,8 @@ interface AuditWorkflowHeaderProps {
 export default function AuditWorkflowHeader({
   currentStep,
   orgId,
-  allowedSteps = [1, 2, 6],
+  allowedSteps = [1, 2, 3, 4, 5, 6],
+  lockedSteps = [],
   stepQuery,
   saveDraftHref = "#",
   exitHref = "../..",
@@ -75,12 +78,12 @@ export default function AuditWorkflowHeader({
         {/* Tabs */}
         <div className="flex gap-2">
           {STEPS.map(({ step, label, icon: Icon }) => {
-            // Role-based: only steps in allowedSteps are accessible (lead: 1,2,6; auditor: 3,5; auditee: 4)
+            // All steps are accessible (view any tab); completion = any step before current
             const isAccessible = allowedSteps.includes(step);
-            // Only show completed for steps this role owns and has passed (auditor on step 5 doesn't "complete" step 4)
-            const isCompleted = allowedSteps.includes(step) && currentStep > step;
+            const isLocked = lockedSteps.includes(step);
+            const isCompleted = currentStep > step;
             const isCurrent = currentStep === step;
-            const isUnlocked = isAccessible; // All allowed steps are clickable for this role
+            const isUnlocked = isAccessible && !isLocked;
 
             // Tab container: current step always shows active (green), then completed, then unlocked, then locked
             const tabClasses = cn(
@@ -143,10 +146,9 @@ export default function AuditWorkflowHeader({
               </>
             );
 
-            // Only allow navigation to steps this role can access
-            if (!isAccessible) {
+            if (!isAccessible || isLocked) {
               return (
-                <div key={step} className={tabClasses}>
+                <div key={step} className={tabClasses} title={isLocked ? "Complete previous steps first" : undefined}>
                   {tabContent}
                 </div>
               );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle,
@@ -36,6 +36,8 @@ export default function CreateAuditStep6Page() {
   })();
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [auditIdDisplay, setAuditIdDisplay] = useState("—");
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState({ name: "—", role: "—" });
   const [dateApproved, setDateApproved] = useState(() => format(new Date(), "dd-MMM-yyyy"));
@@ -62,15 +64,9 @@ export default function CreateAuditStep6Page() {
           return;
         }
         const plan = planRes.plan;
-        const isClosureStep = plan.status === "pending_closure" || plan.status === "closed";
-        if (isClosureStep && plan.currentUserRole !== "lead_auditor") {
-          if (!cancelled) {
-            setIsLoading(false);
-            router.push(`/dashboard/${orgId}/audit`);
-          }
-          return;
-        }
         if (!cancelled) {
+          setCurrentUserRole(plan.currentUserRole ?? null);
+          setPlanStatus(plan.status ?? null);
           setAuditIdDisplay(plan.auditNumber || plan.id?.slice(0, 8) || "—");
         }
         const membersRes = await apiClient.getMembers(orgId);
@@ -98,10 +94,26 @@ export default function CreateAuditStep6Page() {
     return () => { cancelled = true; };
   }, [orgId, auditPlanId]);
 
+  const canEditStep6 = currentUserRole === "lead_auditor";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 6]} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep6 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          View only — only the Lead Auditor can edit this step.
+        </div>
+      )}
       <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+        <div className={cn(!canEditStep6 && "pointer-events-none select-none opacity-90")}>
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 border-green-200 bg-green-50 text-green-600">
@@ -264,6 +276,7 @@ export default function CreateAuditStep6Page() {
             <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.minorNcs}</p>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Step navigation */}

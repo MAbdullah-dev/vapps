@@ -74,12 +74,31 @@ export default function CreateAuditStep1Page() {
   const orgId = params?.orgId as string;
   const [urlProgramId, setUrlProgramId] = useState<string | null>(() => getProgramIdFromWindow());
   const programIdFromUrl = searchParams.get("programId") ?? urlProgramId;
+  const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const q = getProgramIdFromWindow();
     if (q) setUrlProgramId(q);
   }, []);
+
+  // When opened in context of an audit (auditPlanId in URL), fetch plan to know current user role for read-only
+  useEffect(() => {
+    if (!orgId || !auditPlanIdFromUrl) {
+      if (!auditPlanIdFromUrl) setCurrentUserRole(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient.getAuditPlan(orgId, auditPlanIdFromUrl).then((res) => {
+      if (!cancelled && res.plan) {
+        setCurrentUserRole(res.plan.currentUserRole ?? null);
+        setPlanStatus(res.plan.status ?? null);
+      }
+    }).catch(() => { if (!cancelled) { setCurrentUserRole(null); setPlanStatus(null); } });
+    return () => { cancelled = true; };
+  }, [orgId, auditPlanIdFromUrl]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [orgInfo, setOrgInfo] = useState<OrganizationInfo | null>(null);
@@ -337,11 +356,30 @@ export default function CreateAuditStep1Page() {
     return () => { cancelled = true; };
   }, [orgId, programIdFromUrl]);
 
+  const stepQuery = useMemo(() => {
+    const p = new URLSearchParams();
+    if (programIdFromUrl) p.set("programId", programIdFromUrl);
+    if (auditPlanIdFromUrl) p.set("auditPlanId", auditPlanIdFromUrl);
+    const c = searchParams.get("criteria");
+    if (c) p.set("criteria", c);
+    return p.toString();
+  }, [programIdFromUrl, auditPlanIdFromUrl, searchParams]);
+
+  const canEditStep1 = !auditPlanIdFromUrl || currentUserRole === "lead_auditor";
+
+  const lockedSteps = useMemo(() => {
+    if (!planStatus || !currentUserRole) return [];
+    const locked: number[] = [];
+    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    return locked;
+  }, [planStatus, currentUserRole]);
+
   // User must have Auditor role to create an audit; creator is always the Lead Auditor
   if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
     return (
       <div className="space-y-6">
-        <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 6]} exitHref="../.." />
+        <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} exitHref="../.." />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
           <p className="text-lg font-medium text-amber-800">
             You must have the <strong>Auditor</strong> additional role to create an audit.
@@ -356,9 +394,14 @@ export default function CreateAuditStep1Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 6]} exitHref="../.." />
-
+      <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      {!canEditStep1 && currentUserRole != null && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          View only — only the Lead Auditor can edit this step.
+        </div>
+      )}
       <div className="rounded-lg border border-gray-200 bg-white  shadow-sm">
+        <div className={cn(!canEditStep1 && "pointer-events-none select-none opacity-90")}>
         {/* Organization Context Section */}
         <div className="p-8">
           {/* Header */}
@@ -1350,6 +1393,7 @@ export default function CreateAuditStep1Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
     </div>
   );
 }
