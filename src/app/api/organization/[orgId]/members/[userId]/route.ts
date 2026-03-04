@@ -41,14 +41,7 @@ export async function PUT(
     }
 
     const currentUserRole = currentUserMembership.role;
-
-    // Check if user is trying to update themselves (not allowed for certain fields)
-    if (ctx.user.id === userId) {
-      return NextResponse.json(
-        { error: "You cannot update your own role or assignments" },
-        { status: 403 }
-      );
-    }
+    const isSelfUpdate = ctx.user.id === userId;
 
     // Get organization to check owner
     const organization = await prisma.organization.findUnique({
@@ -60,8 +53,8 @@ export async function PUT(
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    // Prevent updating the owner
-    if (organization.ownerId === userId) {
+    // Prevent others from updating the owner (owner can update their own site/process/auditor)
+    if (organization.ownerId === userId && !isSelfUpdate) {
       return NextResponse.json(
         { error: "Cannot update organization owner" },
         { status: 403 }
@@ -88,11 +81,10 @@ export async function PUT(
     const body = await req.json();
     const { role, jobTitle, siteId, processId, name, additionalRoleIds } = body;
 
-    // Validate role if provided
+    // Validate role if provided (self-update cannot change org role)
     let normalizedRole = existingMembership.role;
-    if (role) {
+    if (role && !isSelfUpdate) {
       normalizedRole = normalizeRole(role) as Role;
-      
       // Enforce hierarchy: cannot assign a role higher than your own
       if (isRoleHigher(normalizedRole, currentUserRole as Role)) {
         return NextResponse.json(
@@ -100,6 +92,9 @@ export async function PUT(
           { status: 403 }
         );
       }
+    }
+    if (isSelfUpdate) {
+      normalizedRole = existingMembership.role;
     }
 
     const leadershipTier = roleToLeadershipTier(normalizedRole);
@@ -124,7 +119,7 @@ export async function PUT(
       }
     }
 
-    // Update UserOrganization
+    // Update UserOrganization (self-update never changes role/leadershipTier)
     await prisma.userOrganization.update({
       where: {
         userId_organizationId: {
@@ -133,8 +128,8 @@ export async function PUT(
         },
       },
       data: {
-        ...(role && { role: normalizedRole }),
-        ...(role && { leadershipTier }),
+        ...(!isSelfUpdate && role && { role: normalizedRole }),
+        ...(!isSelfUpdate && role && { leadershipTier }),
         ...(jobTitle !== undefined && { jobTitle: jobTitle || null }),
       },
     });

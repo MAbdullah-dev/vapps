@@ -91,7 +91,7 @@ export async function GET(
 
         let nextStepForUser: number | null = null;
         if (isAssignedAuditor && status === "plan_submitted_to_auditee") nextStepForUser = 3;
-        else if (isAuditee && status === "findings_submitted_to_auditee") nextStepForUser = 4;
+        else if (isAuditee && (status === "findings_submitted_to_auditee" || status === "verification_ineffective")) nextStepForUser = 4;
         else if (isAssignedAuditor && status === "ca_submitted_to_auditor") nextStepForUser = 5;
         else if (isLeadAuditor && (status === "pending_closure" || status === "closed")) nextStepForUser = 6;
 
@@ -179,6 +179,7 @@ export async function POST(
     }
 
     let planId: string | null = null;
+    let createdAuditNumber: string | null = null;
 
     await withTenantConnection(connectionString, async (client) => {
       const programCheck = await client.query(
@@ -207,6 +208,15 @@ export async function POST(
         ? (typeof datePrepared === "string" ? datePrepared : (datePrepared as Date)?.toISOString?.()?.slice(0, 10))
         : new Date().toISOString().slice(0, 10);
 
+      // System-generated audit number (serial) when not provided
+      let finalAuditNumber = auditNumber != null && String(auditNumber).trim() !== "" ? String(auditNumber).trim() : null;
+      if (finalAuditNumber == null) {
+        const nextSerialRes = await client.query<{ next: string }>(
+          `SELECT (COUNT(*)::integer + 1)::text AS next FROM audit_plans`
+        );
+        finalAuditNumber = nextSerialRes.rows[0]?.next ?? "1";
+      }
+
       const hasChecklistId = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
       );
@@ -217,13 +227,13 @@ export async function POST(
             title, audit_number, criteria, checklist_id, planned_date, date_prepared,
             plan_submitted_at
           ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, $9, now())
-          RETURNING id`,
+          RETURNING id, audit_number`,
           [
             auditProgramId,
             leadAuditorUserId,
             auditeeUserId,
             title,
-            auditNumber,
+            finalAuditNumber,
             criteria,
             checklistId,
             plannedDateStr,
@@ -231,6 +241,7 @@ export async function POST(
           ]
         );
         planId = insertPlan.rows[0]?.id;
+        createdAuditNumber = (insertPlan.rows[0] as { audit_number?: string })?.audit_number ?? finalAuditNumber;
       } else {
         const insertPlan = await client.query(
           `INSERT INTO audit_plans (
@@ -238,19 +249,20 @@ export async function POST(
             title, audit_number, criteria, planned_date, date_prepared,
             plan_submitted_at
           ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, now())
-          RETURNING id`,
+          RETURNING id, audit_number`,
           [
             auditProgramId,
             leadAuditorUserId,
             auditeeUserId,
             title,
-            auditNumber,
+            finalAuditNumber,
             criteria,
             plannedDateStr,
             datePreparedStr,
           ]
         );
         planId = insertPlan.rows[0]?.id;
+        createdAuditNumber = (insertPlan.rows[0] as { audit_number?: string })?.audit_number ?? finalAuditNumber;
       }
       if (!planId) throw new Error("Failed to create audit plan");
 
@@ -264,7 +276,7 @@ export async function POST(
       }
     });
 
-    return NextResponse.json({ planId, success: true });
+    return NextResponse.json({ planId, auditNumber: createdAuditNumber, success: true });
   } catch (error: any) {
     console.error("Error creating audit plan:", error);
     return NextResponse.json(

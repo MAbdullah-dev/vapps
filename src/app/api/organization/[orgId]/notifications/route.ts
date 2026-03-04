@@ -150,11 +150,13 @@ export async function GET(
                   ? "Findings submitted"
                   : row.status === "ca_submitted_to_auditor"
                     ? "Corrective action submitted"
-                    : row.status === "pending_closure"
-                      ? "Pending closure"
-                      : row.status === "closed"
-                        ? "Closed"
-                        : row.status || "Updated";
+                    : row.status === "verification_ineffective"
+                      ? "Returned to auditee"
+                      : row.status === "pending_closure"
+                        ? "Pending closure"
+                        : row.status === "closed"
+                          ? "Closed"
+                          : row.status || "Updated";
             auditActivities.push({
               id: `audit-${row.id}`,
               processId: null,
