@@ -383,12 +383,17 @@ class ApiClient {
     return this.get<{ plan: any }>(`/organization/${orgId}/audit/plans/${planId}`);
   }
 
+  /** Next system-generated audit number (for display when creating a new plan). */
+  getNextAuditNumber(orgId: string) {
+    return this.get<{ nextAuditNumber: string }>(`/organization/${orgId}/audit/plans/next-number`);
+  }
+
   /** Update audit plan status (e.g. findings_submitted_to_auditee). */
   updateAuditPlanStatus(orgId: string, planId: string, status: string) {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, { status });
   }
 
-  /** Update audit plan (Step 2 edit: title, auditNumber, criteria, dates, assignedAuditorIds, status, step2Data; Step 5: step5Data). */
+  /** Update audit plan (Step 2 edit: title, auditNumber, criteria, dates, assignedAuditorIds, status, step2Data; Step 5: step5Data; Step 6: step6Data). */
   updateAuditPlan(orgId: string, planId: string, data: {
     title?: string;
     auditNumber?: string;
@@ -399,6 +404,7 @@ class ApiClient {
     status?: string;
     step2Data?: Record<string, unknown>;
     step5Data?: Record<string, unknown>;
+    step6Data?: Record<string, unknown>;
   }) {
     return this.patch<{ success: boolean }>(`/organization/${orgId}/audit/plans/${planId}`, data);
   }
