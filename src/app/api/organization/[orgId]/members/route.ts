@@ -64,11 +64,13 @@ export async function GET(
       },
     });
 
+    type MembershipRow = (typeof memberships)[number];
+    type PendingInviteRow = (typeof pendingInvites)[number];
     const ownerIdForFilter = organization?.ownerId;
     const nonOwnerUserIds = memberships
-      .filter((m) => m.user.id !== ownerIdForFilter)
-      .map((m) => m.user.id);
-    const allMemberUserIds = memberships.map((m) => m.user.id);
+      .filter((m: MembershipRow) => m.user.id !== ownerIdForFilter)
+      .map((m: MembershipRow) => m.user.id);
+    const allMemberUserIds = memberships.map((m: MembershipRow) => m.user.id);
 
     const inviteRoles: Record<string, string> = {};
     const siteAssignments: Record<string, { siteId: string; siteName: string }[]> = {};
@@ -84,7 +86,7 @@ export async function GET(
       try {
         await withTenantConnection(ctx.tenant.connectionString, async (client) => {
           if (pendingInvites.length > 0) {
-            const tokens = pendingInvites.map((i) => i.token);
+            const tokens = pendingInvites.map((i: PendingInviteRow) => i.token);
             const roleRes = await client.query<{ token: string; role: string }>(
               `SELECT token, role FROM invitations WHERE token = ANY($1)`,
               [tokens]
@@ -152,7 +154,7 @@ export async function GET(
 
           // Batch fetch invite site/process and resolve names (avoids N connections per invite)
           if (pendingInvites.length > 0) {
-            const tokens = pendingInvites.map((i) => i.token);
+            const tokens = pendingInvites.map((i: PendingInviteRow) => i.token);
             const invRes = await client.query<{ token: string; site_id: string | null; process_id: string | null }>(
               `SELECT token, site_id::text as site_id, process_id::text as process_id FROM invitations WHERE token = ANY($1)`,
               [tokens]
@@ -192,7 +194,7 @@ export async function GET(
 
     const ownerId = organization.ownerId;
 
-    const activeMembers = memberships.map((m) => {
+    const activeMembers = memberships.map((m: MembershipRow) => {
       const tier = roleToLeadershipTier(m.role);
       const sites = siteAssignments[m.user.id] || [];
       const processes = processAssignments[m.user.id] || [];
@@ -227,7 +229,7 @@ export async function GET(
       };
     });
 
-    const invitedMembers = pendingInvites.map((inv) => {
+    const invitedMembers = pendingInvites.map((inv: PendingInviteRow) => {
       const tier = roleToLeadershipTier(inviteRoles[inv.token] || "member");
       const resolved = inviteSiteProcess[inv.token];
       const siteId = resolved?.siteId ?? inv.siteId ?? undefined;
