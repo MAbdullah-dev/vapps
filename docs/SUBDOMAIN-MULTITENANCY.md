@@ -46,6 +46,16 @@ This app supports organization access via subdomains. The Next.js middleware (vi
 
    So API routes, NextAuth, and auth pages work the same on every host.
 
+### Apex domain as main app (e.g. vapps.click)
+
+When **`NEXT_PUBLIC_ROOT_DOMAIN`** is set (e.g. `vapps.click` in production), the **apex domain** and **www** are treated as the main app (no rewrite):
+
+- **`vapps.click`** → login, auth (`/auth`, `/auth/signin`, etc.), org list. **No rewrite.**
+- **`www.vapps.click`** → same as apex (main app). **No rewrite.**
+- **`{orgslug}.vapps.click`** → tenant dashboard. Rewritten to `/dashboard/{orgslug}`.
+
+So users open **`https://vapps.click`** to sign in and see the org list; when they click an org they are sent to **`https://stellixsoft.vapps.click`** (or whatever the org slug is). No need for `app.vapps.click`—the bare domain is the main app.
+
 ## Organization from host in API routes
 
 When a request hits an organization-scoped API (e.g. `/api/organization/[orgId]/sites`), the backend resolves the organization as follows:
@@ -122,12 +132,92 @@ NEXT_PUBLIC_ROOT_DOMAIN=lvh.me
 
 ### Example production
 
+See the **Production deployment** section below for full production configuration.
+
+## Production deployment (subdomain)
+
+To run the app in production with subdomain multi-tenancy, configure the following.
+
+### 1. Environment variables (production)
+
+Set these in your production environment (e.g. Vercel, Railway, or your server `.env`):
+
+| Variable | Production value | Notes |
+|----------|------------------|--------|
+| `NODE_ENV` | `production` | Set by most hosts automatically. |
+| `NEXTAUTH_URL` | `https://app.yourdomain.com` | **Must be HTTPS.** Use your **main app** subdomain (login/org list). |
+| `NEXTAUTH_COOKIE_DOMAIN` | `.yourdomain.com` | **Leading dot required.** Parent domain so the cookie is sent to `app.yourdomain.com`, `org1.yourdomain.com`, etc. |
+| `NEXTAUTH_SECRET` or `AUTH_SECRET` | Strong random string (≥32 chars) | **Required** for signing the session. Generate with `openssl rand -base64 32`. |
+| `NEXT_PUBLIC_USE_SUBDOMAIN` | `true` | Enables subdomain redirects and short URLs. |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | `yourdomain.com` | **No leading dot, no protocol.** Used to build tenant URLs: `https://{slug}.yourdomain.com`. |
+
+Example with **apex domain** (vapps.click = login + org list, orgslug.vapps.click = tenant):
+
 ```env
-NEXTAUTH_URL=https://app.yourapp.com
-NEXTAUTH_COOKIE_DOMAIN=.yourapp.com
+NODE_ENV=production
+NEXTAUTH_URL=https://vapps.click
+NEXTAUTH_COOKIE_DOMAIN=.vapps.click
+NEXTAUTH_SECRET=your-production-secret-min-32-chars
 NEXT_PUBLIC_USE_SUBDOMAIN=true
-NEXT_PUBLIC_ROOT_DOMAIN=yourapp.com
+NEXT_PUBLIC_ROOT_DOMAIN=vapps.click
 ```
+
+Example with **subdomain for login** (app.yourdomain.com = main app):
+
+```env
+NODE_ENV=production
+NEXTAUTH_URL=https://app.yourdomain.com
+NEXTAUTH_COOKIE_DOMAIN=.yourdomain.com
+NEXTAUTH_SECRET=your-production-secret-min-32-chars
+NEXT_PUBLIC_USE_SUBDOMAIN=true
+NEXT_PUBLIC_ROOT_DOMAIN=yourdomain.com
+```
+
+- **Main app URL:** Use one fixed subdomain for the “main app” (login + org list). The code treats **`app`**, **`www`**, and **`localhost`** as reserved (no rewrite). **Apex (e.g. vapps.click):** Set `NEXT_PUBLIC_ROOT_DOMAIN=vapps.click` and `NEXTAUTH_URL=https://vapps.click`. Then `vapps.click` and `www.vapps.click` = main app; tenant dashboards = `https://{orgslug}.vapps.click`. **Or use a subdomain for login:** `NEXTAUTH_URL=https://app.yourdomain.com` and tenant dashboards = `https://{org-slug}.yourdomain.com`.
+
+### 2. DNS
+
+- **Main app (login/org list):** Point your main app host to the server (e.g. **`vapps.click`** and **`www.vapps.click`** for apex, or **`app.yourdomain.com`** if using a subdomain for login).
+- **Tenant subdomains:** Either:
+  - **Wildcard:** Create an **A** or **CNAME** record for **`*.yourdomain.com`** pointing to your app’s IP or hostname. Then any subdomain (e.g. `stellixsoft.yourdomain.com`) reaches your app.
+  - **Explicit:** Add an A/CNAME for each org subdomain (e.g. `acme.yourdomain.com`). Only practical if you have few, fixed tenants.
+
+Recommendation: use a **wildcard** record so new organizations work without DNS changes.
+
+### 3. SSL/TLS (HTTPS)
+
+Subdomains must be served over HTTPS so the session cookie (secure in production) is sent.
+
+- **Wildcard certificate:** Use a certificate for **`*.yourdomain.com`** (and optionally `yourdomain.com`). Issued by Let’s Encrypt (e.g. via certbot with DNS challenge) or your provider.
+- **Or multi-SAN:** Certificate that includes `app.yourdomain.com` and `*.yourdomain.com`.
+
+Your host (Vercel, Cloudflare, Nginx, etc.) must terminate SSL and forward requests to the Next.js app with the correct **Host** header.
+
+### 4. Reverse proxy / Host header
+
+The app reads the subdomain from the request **host** (see `src/proxy.ts` and `src/lib/get-org-from-host.ts`). In production you typically have a reverse proxy (Nginx, Cloudflare, Vercel, etc.) in front of Next.js.
+
+- **Preserve the Host header:** Ensure the proxy forwards the original **Host** (e.g. `stellixsoft.yourdomain.com`) to the app. Do not rewrite it to an internal hostname unless you also send the original host in **`X-Forwarded-Host`** (the code uses that when present).
+- **Vercel:** Host and `X-Forwarded-Host` are set automatically; no extra config for subdomains if DNS and SSL are correct.
+- **Nginx (example):**  
+  `proxy_set_header Host $host;`  
+  `proxy_set_header X-Forwarded-Proto $scheme;`
+
+### 5. Cookie and auth (production)
+
+- In production, `src/lib/auth.ts` uses **`__Secure-next-auth.session-token`** and **`secure: true`**, so the cookie is only sent over HTTPS. No change needed if you already use the repo’s auth config.
+- **Same domain:** Ensure login and tenant URLs share the same parent domain (e.g. `app.yourdomain.com` and `org.yourdomain.com`) and that **`NEXTAUTH_COOKIE_DOMAIN=.yourdomain.com`** is set so the cookie is sent to all subdomains.
+
+### 6. Production checklist
+
+- [ ] `NEXTAUTH_URL` is **HTTPS** and is your main app URL (e.g. `https://vapps.click` for apex, or `https://app.yourdomain.com`).
+- [ ] `NEXTAUTH_COOKIE_DOMAIN=.vapps.click` or `.yourdomain.com` (leading dot; your real domain).
+- [ ] `NEXTAUTH_SECRET` or `AUTH_SECRET` set to a strong secret (≥32 chars).
+- [ ] `NEXT_PUBLIC_USE_SUBDOMAIN=true` and `NEXT_PUBLIC_ROOT_DOMAIN=vapps.click` (or your domain).
+- [ ] DNS: main app host (e.g. `vapps.click`, `www.vapps.click`) and `*.vapps.click` (or `*.yourdomain.com`) point to your app.
+- [ ] SSL in place for the main app host and wildcard (e.g. `vapps.click` and `*.vapps.click`).
+- [ ] Reverse proxy forwards **Host** (or **X-Forwarded-Host**) to the app.
+- [ ] Test: open `https://vapps.click` → login → select org → redirect to `https://{slug}.vapps.click`; session and API calls work.
 
 ## Frontend navigation (subdomain vs path)
 
@@ -176,6 +266,63 @@ If you use a different port, set it in `NEXTAUTH_URL` and in the URLs you open (
 4. Request to **`stellixsoft.lvh.me:3000`** → middleware rewrites to **`/dashboard/stellixsoft`**.  
 5. Dashboard layout loads, validates org by slug (404 if not found), and renders the org dashboard; session is sent because the cookie domain is `.lvh.me`.  
 6. API calls from **`stellixsoft.lvh.me`** use the host-derived org; the backend ensures the user is a member (403 if not).
+
+## After pulling from main: alignment checklist
+
+When you merge or pull from `main`, use this checklist so new code works with the subdomain system.
+
+### 1. Proxy and middleware
+
+- **Check:** There must be **only** `src/proxy.ts` as the entry. Next.js 16 does not use `middleware.ts` for this; having both causes build errors.
+- **Align:** If `src/middleware.ts` was re-added, remove it. Do not re-export `config` from proxy in another file.
+- **Check:** In `src/proxy.ts`, `shouldSkipRewrite` must still skip: `/api/`, `/auth`, `/login`, `/register`, `/_next/`, `/favicon.ico`. Any new path that must never be rewritten (e.g. a new auth or API prefix) should be added there.
+
+### 2. New API routes under `/api/organization/[orgId]/...`
+
+- **Check:** Every handler must get context with **`getRequestContext(req, orgId)`** or **`getRequestContextAndError(req, orgId)`** (and handle null/errorResponse).
+- **Align:** Use **`ctx.tenant.orgId`** (resolved UUID) for all Prisma and tenant DB calls—**not** the route param `orgId`, which may be a slug. Example:
+  ```ts
+  const ctx = await getRequestContext(req, orgId);
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const resolvedOrgId = ctx.tenant.orgId;
+  // Use resolvedOrgId for prisma.organization.findUnique, userOrganization, getTenantClient, etc.
+  ```
+- **Check:** If the route checks “current user is member,” treat the **org owner** as a member even without a `UserOrganization` row (compare `organization.ownerId === ctx.user.id`).
+
+### 3. New dashboard client components (pages under `dashboard/[orgId]/...`)
+
+- **Check:** Components that need the current org must **not** derive it from `pathname` (e.g. regex on `/dashboard/([^/]+)/`), because on a tenant subdomain the path is short (e.g. `/audit`, `/processes`).
+- **Align:** Use **`useOrg()`** from `@/components/providers/org-provider` and use **`slug`** for API paths and **`getDashboardPath(slug, path)`** for links:
+  ```ts
+  const { slug } = useOrg();
+  apiClient.someMethod(slug, ...);
+  router.push(getDashboardPath(slug, "some/path"));
+  ```
+
+### 4. Links and redirects to dashboard or org
+
+- **Check:** Any `Link` `href` or `router.push()` to a dashboard route (processes, audit, settings, etc.) must work on both subdomain and path-based URLs.
+- **Align:** Use **`getDashboardPath(slug, path)`** for hrefs (e.g. `getDashboardPath(slug, "processes")` → `/processes` on subdomain, `/dashboard/stellixsoft/processes` on root).
+- **Check:** Redirect after login or org selection to the org dashboard must go to the **subdomain** when subdomain mode is on.
+- **Align:** Use **`getOrgDashboardUrl(slug)`** and full navigation (e.g. `window.location.href = getOrgDashboardUrl(slug)`) for that redirect—not `router.push('/dashboard/' + slug)`.
+
+### 5. NextAuth and cookies
+
+- **Check:** `src/lib/auth.ts` must keep cookie config that supports subdomains: **`domain: process.env.NEXTAUTH_COOKIE_DOMAIN`**, and session token name **`__Secure-next-auth.session-token`** in production, **`next-auth.session-token`** in development.
+- **Align:** If main changed the auth config, restore the cookie options above so the session is sent on tenant subdomains.
+
+### 6. Environment variables
+
+- **Check:** `.env` / `.env.local` still have: `NEXTAUTH_URL`, `NEXTAUTH_COOKIE_DOMAIN`, `NEXTAUTH_SECRET` or `AUTH_SECRET`, `NEXT_PUBLIC_USE_SUBDOMAIN`, `NEXT_PUBLIC_ROOT_DOMAIN` (and optionally `NEXT_PUBLIC_APP_PORT`).
+- **Align:** After pulling, re-add or keep these if they were removed or overwritten.
+
+### 7. Quick verification
+
+- Open **`app.lvh.me:3000`** → login → select org → should redirect to **`{slug}.lvh.me:3000`**.
+- On **`{slug}.lvh.me:3000`**, open Audits, Processes, Settings; URLs should stay on the subdomain and show short paths (e.g. `/audit`, `/processes`).
+- Call an org-scoped API from the subdomain; it should resolve the org from the host and return 200 (not 401/403 for a valid member/owner).
+
+---
 
 ## File reference
 
