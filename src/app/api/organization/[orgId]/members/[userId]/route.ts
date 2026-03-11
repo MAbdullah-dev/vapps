@@ -17,41 +17,39 @@ export async function PUT(
   const { orgId, userId } = await params;
   try {
     const ctx = await getRequestContext(req, orgId);
-    
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Get current user's role
+    const organization = await prisma.organization.findUnique({
+      where: { id: resolvedOrgId },
+      select: { ownerId: true },
+    });
+    if (!organization) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    const isOrgOwner = organization.ownerId === ctx.user.id;
     const currentUserMembership = await prisma.userOrganization.findUnique({
       where: {
         userId_organizationId: {
           userId: ctx.user.id,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
         },
       },
       select: { role: true },
     });
 
-    if (!currentUserMembership) {
+    if (!currentUserMembership && !isOrgOwner) {
       return NextResponse.json(
         { error: "You are not a member of this organization" },
         { status: 403 }
       );
     }
 
-    const currentUserRole = currentUserMembership.role;
+    const currentUserRole = (isOrgOwner ? "owner" : currentUserMembership!.role) as Role;
     const isSelfUpdate = ctx.user.id === userId;
-
-    // Get organization to check owner
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { ownerId: true },
-    });
-
-    if (!organization) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-    }
 
     // Prevent others from updating the owner (owner can update their own site/process/auditor)
     if (organization.ownerId === userId && !isSelfUpdate) {
@@ -61,17 +59,16 @@ export async function PUT(
       );
     }
 
-    // Check if user exists in organization
     const existingMembership = await prisma.userOrganization.findUnique({
       where: {
         userId_organizationId: {
           userId,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
         },
       },
     });
 
-    if (!existingMembership) {
+    if (!existingMembership && organization.ownerId !== userId) {
       return NextResponse.json(
         { error: "User is not a member of this organization" },
         { status: 404 }
@@ -81,12 +78,11 @@ export async function PUT(
     const body = await req.json();
     const { role, jobTitle, siteId, processId, name, additionalRoleIds } = body;
 
-    // Validate role if provided (self-update cannot change org role)
-    let normalizedRole = existingMembership.role;
+    const existingRole = existingMembership?.role ?? (organization.ownerId === userId ? "owner" : "member");
+    let normalizedRole = existingRole as Role;
     if (role && !isSelfUpdate) {
       normalizedRole = normalizeRole(role) as Role;
-      // Enforce hierarchy: cannot assign a role higher than your own
-      if (isRoleHigher(normalizedRole as Role, currentUserRole as Role)) {
+      if (isRoleHigher(normalizedRole, currentUserRole)) {
         return NextResponse.json(
           { error: "You cannot assign a role higher than your own." },
           { status: 403 }
@@ -94,7 +90,7 @@ export async function PUT(
       }
     }
     if (isSelfUpdate) {
-      normalizedRole = existingMembership.role;
+      normalizedRole = existingRole as Role;
     }
 
     const leadershipTier = roleToLeadershipTier(normalizedRole);
@@ -120,20 +116,21 @@ export async function PUT(
       }
     }
 
-    // Update UserOrganization (self-update never changes role/leadershipTier)
-    await prisma.userOrganization.update({
-      where: {
-        userId_organizationId: {
-          userId,
-          organizationId: orgId,
+    if (existingMembership) {
+      await prisma.userOrganization.update({
+        where: {
+          userId_organizationId: {
+            userId,
+            organizationId: resolvedOrgId,
+          },
         },
-      },
-      data: {
-        ...(!isSelfUpdate && role && { role: normalizedRole }),
-        ...(!isSelfUpdate && role && { leadershipTier }),
-        ...(jobTitle !== undefined && { jobTitle: jobTitle || null }),
-      },
-    });
+        data: {
+          ...(!isSelfUpdate && role && { role: normalizedRole }),
+          ...(!isSelfUpdate && role && { leadershipTier }),
+          ...(jobTitle !== undefined && { jobTitle: jobTitle || null }),
+        },
+      });
+    }
 
     // Update site/process assignments if provided
     if (ctx.tenant?.connectionString && (siteId !== undefined || processId !== undefined)) {
@@ -199,7 +196,7 @@ export async function PUT(
 
     logger.info("User updated in organization", {
       userId,
-      orgId,
+      orgId: resolvedOrgId,
       updatedBy: ctx.user.id,
       role: normalizedRole,
       jobTitle: jobTitle || null,
@@ -226,30 +223,38 @@ export async function DELETE(
   const { orgId, userId } = await params;
   try {
     const ctx = await getRequestContext(req, orgId);
-    
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
-    // Get current user's role
+    const organization = await prisma.organization.findUnique({
+      where: { id: resolvedOrgId },
+      select: { ownerId: true, permissions: true },
+    });
+    if (!organization) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    const isOrgOwner = organization.ownerId === ctx.user.id;
     const currentUserMembership = await prisma.userOrganization.findUnique({
       where: {
         userId_organizationId: {
           userId: ctx.user.id,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
         },
       },
       select: { role: true },
     });
 
-    if (!currentUserMembership) {
+    if (!currentUserMembership && !isOrgOwner) {
       return NextResponse.json(
         { error: "You are not a member of this organization" },
         { status: 403 }
       );
     }
 
-    const currentUserRole = currentUserMembership.role;
+    const currentUserRole = (isOrgOwner ? "owner" : currentUserMembership!.role) as Role;
 
     // Check if user is trying to delete themselves
     if (ctx.user.id === userId) {
@@ -257,16 +262,6 @@ export async function DELETE(
         { error: "You cannot remove yourself from the organization" },
         { status: 403 }
       );
-    }
-
-    // Get organization to check owner and permissions
-    const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { ownerId: true, permissions: true },
-    });
-
-    if (!organization) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
     // Org owner can do anything; otherwise require manage_teams
@@ -289,17 +284,16 @@ export async function DELETE(
       );
     }
 
-    // Check if user exists in organization
     const existingMembership = await prisma.userOrganization.findUnique({
       where: {
         userId_organizationId: {
           userId,
-          organizationId: orgId,
+          organizationId: resolvedOrgId,
         },
       },
     });
 
-    if (!existingMembership) {
+    if (!existingMembership && organization.ownerId !== userId) {
       return NextResponse.json(
         { error: "User is not a member of this organization" },
         { status: 404 }
@@ -324,18 +318,20 @@ export async function DELETE(
     }
 
     // Remove from UserOrganization (cascade will handle related data)
-    await prisma.userOrganization.delete({
-      where: {
-        userId_organizationId: {
-          userId,
-          organizationId: orgId,
+    if (existingMembership) {
+      await prisma.userOrganization.delete({
+        where: {
+          userId_organizationId: {
+            userId,
+            organizationId: resolvedOrgId,
+          },
         },
-      },
-    });
+      });
+    }
 
     logger.info("User removed from organization", {
       userId,
-      orgId,
+      orgId: resolvedOrgId,
       removedBy: ctx.user.id,
     });
 

@@ -19,10 +19,11 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const resolvedOrgId = ctx.tenant.orgId;
 
     // Get organization to identify owner
     const organization = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
 
@@ -35,7 +36,7 @@ export async function GET(
 
     // Fetch members (UserOrganization + User)
     const memberships = await prisma.userOrganization.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: resolvedOrgId },
       select: {
         id: true,
         userId: true,
@@ -52,7 +53,7 @@ export async function GET(
     // Fetch pending invitations; role comes from tenant (or master if migrated).
     // Include siteId, processId, name so we can show site/process for invited members.
     const pendingInvites = await prisma.invitation.findMany({
-      where: { organizationId: orgId, status: "pending" },
+      where: { organizationId: resolvedOrgId, status: "pending" },
       select: {
         id: true,
         email: true,

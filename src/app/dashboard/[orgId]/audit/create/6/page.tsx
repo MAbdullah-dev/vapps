@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { getDashboardPath } from "@/lib/subdomain";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
@@ -320,7 +321,7 @@ export default function CreateAuditStep6Page() {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
                 toast.success("Returned to Auditee for revision.");
               }
-              router.push(`/dashboard/${orgId}/audit`);
+              router.push(getDashboardPath(orgId, "audit"));
             } catch (e) {
               console.error(e);
               toast.error(finalDecision === "effective" ? "Failed to close audit." : "Failed to return to Auditee.");

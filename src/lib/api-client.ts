@@ -18,6 +18,7 @@ class ApiClient {
       headers: {
         "Content-Type": "application/json",
       },
+      withCredentials: true, // send cookies (session) on same- and subdomain requests
     });
 
     // Add response interceptor for error handling
@@ -107,7 +108,7 @@ class ApiClient {
    * Get all organizations for the current user
    */
   getOrganizations() {
-    return this.get<{ organizations: Array<{ id: string; name: string; role: string; createdAt: string; memberCount: number }> }>(
+    return this.get<{ organizations: Array<{ id: string; slug?: string; name: string; role: string; createdAt: string; memberCount: number }> }>(
       "/organization/list"
     );
   }
