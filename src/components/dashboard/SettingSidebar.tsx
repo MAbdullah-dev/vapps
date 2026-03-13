@@ -52,30 +52,30 @@ const SettingSidebar = () => {
       icon: Shield,
       path: `/dashboard/${orgId}/settings/permissions`,
     },
-    {
-      title: 'Authentication & Access',
-      subtitle: 'Login and security',
-      icon: Shield,
-      path: `/dashboard/${orgId}/settings/authentication-access`,
-    },
+    // {
+    //   title: 'Authentication & Access',
+    //   subtitle: 'Login and security',
+    //   icon: Shield,
+    //   path: `/dashboard/${orgId}/settings/authentication-access`,
+    // },
     {
       title: 'Billing & Subscription',
       subtitle: 'Plans and payments',
       icon: CreditCard,
       path: `/dashboard/${orgId}/settings/billing-subscription`,
     },
-    {
-      title: 'Integrations',
-      subtitle: 'Connected apps and APIs',
-      icon: Plug,
-      path: `/dashboard/${orgId}/settings/integrations`,
-    },
-    {
-      title: 'Notifications',
-      subtitle: 'Email and alerts',
-      icon: Bell,
-      path: `/dashboard/${orgId}/settings/notifications`,
-    },
+    // {
+    //   title: 'Integrations',
+    //   subtitle: 'Connected apps and APIs',
+    //   icon: Plug,
+    //   path: `/dashboard/${orgId}/settings/integrations`,
+    // },
+    // {
+    //   title: 'Notifications',
+    //   subtitle: 'Email and alerts',
+    //   icon: Bell,
+    //   path: `/dashboard/${orgId}/settings/notifications`,
+    // },
     {
       title: 'KPI & Reports',
       subtitle: 'Metrics and dashboards',
