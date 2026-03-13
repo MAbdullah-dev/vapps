@@ -26,32 +26,29 @@ export async function GET(
     const plans: any[] = [];
 
     await withTenantConnection(connectionString, async (client) => {
-      const tableCheck = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plans'`
-      );
+      const [tableCheck, hasChecklistIdCol, hasFindingsTable, hasKpiTable] = await Promise.all([
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plans'`),
+        client.query(`SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`),
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`),
+        client.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_program_kpis'`),
+      ]);
+
       if (tableCheck.rows.length === 0) {
         return;
       }
 
-      const hasChecklistIdCol = await client.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
-      );
       const checklistCol = hasChecklistIdCol.rows.length > 0 ? ", ap.checklist_id" : "";
+      const hasFindings = hasFindingsTable.rows.length > 0;
+      const hasKpi = hasKpiTable.rows.length > 0;
 
-      const hasFindingsTable = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`
-      );
-      const hasKpiTable = await client.query(
-        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_program_kpis'`
-      );
-      const findingsCols =
-        hasFindingsTable.rows.length > 0
-          ? ", (SELECT f.clause FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_clause, (SELECT f.subclauses FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) as first_subclauses"
-          : "";
-      const kpiCol =
-        hasKpiTable.rows.length > 0
-          ? ", (SELECT k.score FROM audit_program_kpis k WHERE k.audit_program_id = ap.audit_program_id ORDER BY k.kpia_number LIMIT 1) as kpi_score"
-          : "";
+      const findingsJoin = hasFindings
+        ? " LEFT JOIN LATERAL (SELECT clause AS first_clause, subclauses AS first_subclauses FROM audit_plan_findings f WHERE f.audit_plan_id = ap.id ORDER BY f.row_index ASC LIMIT 1) f ON true"
+        : "";
+      const findingsSelect = hasFindings ? ", f.first_clause, f.first_subclauses" : "";
+      const kpiJoin = hasKpi
+        ? " LEFT JOIN LATERAL (SELECT k.score AS kpi_score FROM audit_program_kpis k WHERE k.audit_program_id = ap.audit_program_id ORDER BY k.kpia_number LIMIT 1) k ON true"
+        : "";
+      const kpiSelect = hasKpi ? ", k.kpi_score" : "";
 
       const result = await client.query(
         `SELECT ap.id, ap.audit_program_id, ap.status, ap.lead_auditor_user_id, ap.auditee_user_id,
@@ -59,9 +56,10 @@ export async function GET(
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
                 (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
-                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsCols}${kpiCol}
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsSelect}${kpiSelect}
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
+         ${findingsJoin}${kpiJoin}
          WHERE ap.lead_auditor_user_id = $1
             OR EXISTS (SELECT 1 FROM audit_plan_assignments a WHERE a.audit_plan_id = ap.id AND a.user_id = $1)
             OR ap.auditee_user_id = $1

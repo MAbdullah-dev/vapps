@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
+import { useOrg } from "@/components/providers/org-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -530,20 +532,19 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
 }
 
 export default function AuditsContent() {
-  const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
-  const orgId = (pathname?.match(/\/dashboard\/([^/]+)\/audit/)?.[1]) ?? "";
+  const { slug } = useOrg();
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const [historyEntries, setHistoryEntries] = useState<AuditHistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const createAuditHref = `${pathname}/create/1`;
+  const createAuditHref = getDashboardPath(slug, "audit/create/1");
 
   const { data: plansData, isLoading: plansLoading } = useQuery({
-    queryKey: ["auditPlans", orgId],
-    queryFn: () => apiClient.getAuditPlans(orgId),
-    enabled: !!orgId,
+    queryKey: ["auditPlans", slug],
+    queryFn: () => apiClient.getAuditPlans(slug),
+    enabled: !!slug,
     staleTime: 60 * 1000,
   });
 
@@ -554,11 +555,11 @@ export default function AuditsContent() {
 
   const handleViewHistory = useCallback(
     async (audit: Audit) => {
-      if (!orgId || !audit.auditPlanId) return;
+      if (!slug || !audit.auditPlanId) return;
       setHistoryAudit(audit);
       setHistoryLoading(true);
       try {
-        const res = await apiClient.getAuditPlan(orgId, audit.auditPlanId);
+        const res = await apiClient.getAuditPlan(slug, audit.auditPlanId);
         const plan = (res as { plan?: any }).plan;
         if (plan) {
           setHistoryEntries(buildAuditHistoryEntries(plan, audit));
@@ -572,33 +573,33 @@ export default function AuditsContent() {
         setHistoryLoading(false);
       }
     },
-    [orgId]
+    [slug]
   );
 
   const handleEditAudit = useCallback(
     (audit: Audit, step: number) => {
-      if (audit.auditPlanId && orgId) {
+      if (audit.auditPlanId && slug) {
         const params = new URLSearchParams();
         params.set("auditPlanId", audit.auditPlanId);
         if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
         if (audit.criteria) params.set("criteria", audit.criteria);
-        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+        router.push(getDashboardPath(slug, `audit/create/${step}`) + (params.toString() ? `?${params.toString()}` : ""));
       }
     },
-    [orgId, router]
+    [slug, router]
   );
 
   const handleOpenStep = useCallback(
     (audit: Audit, step: number) => {
-      if (audit.auditPlanId && orgId) {
+      if (audit.auditPlanId && slug) {
         const params = new URLSearchParams();
         params.set("auditPlanId", audit.auditPlanId);
         if (audit.auditProgramId) params.set("programId", audit.auditProgramId);
         if (audit.criteria) params.set("criteria", audit.criteria);
-        router.push(`/dashboard/${orgId}/audit/create/${step}?${params.toString()}`);
+        router.push(getDashboardPath(slug, `audit/create/${step}`) + (params.toString() ? `?${params.toString()}` : ""));
       }
     },
-    [orgId, router]
+    [slug, router]
   );
 
   const columns = useMemo(
@@ -736,31 +737,45 @@ export default function AuditsContent() {
               </thead>
 
               <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => {
-                      const audit = row.original;
-                      if (!audit.auditPlanId) return;
-                      const step = getEditStep(audit, currentUserId);
-                      if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
-                      else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="p-3 text-gray-700 whitespace-nowrap"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
+                {plansLoading ? (
+                  <tr>
+                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                      Loading audits…
+                    </td>
                   </tr>
-                ))}
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                      No audits yet. Create one to get started.
+                    </td>
+                  </tr>
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const audit = row.original;
+                        if (!audit.auditPlanId) return;
+                        const step = getEditStep(audit, currentUserId);
+                        if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
+                        else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          key={cell.id}
+                          className="p-3 text-gray-700 whitespace-nowrap"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -780,7 +795,7 @@ export default function AuditsContent() {
         traceabilityId={historyAudit?.id ?? ""}
         entries={historyEntries ?? []}
         loading={historyLoading}
-        detailHistoryHref={historyAudit?.auditPlanId && orgId ? `/dashboard/${orgId}/audit/history?auditPlanId=${historyAudit.auditPlanId}` : null}
+        detailHistoryHref={historyAudit?.auditPlanId && slug ? `${getDashboardPath(slug, "audit/history")}?auditPlanId=${historyAudit.auditPlanId}` : null}
       />
     </>
   );

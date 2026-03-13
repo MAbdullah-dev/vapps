@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestContext } from "@/lib/request-context";
+import { getRequestContextAndError } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
-import { roleToLeadershipTier } from "@/lib/roles";
+import { roleToLeadershipTier, type Role } from "@/lib/roles";
+import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import crypto from "crypto";
 
 /**
@@ -17,27 +18,25 @@ export async function GET(
   try {
     const { orgId } = await params;
 
-    const ctx = await getRequestContext(req, orgId);
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { context: ctx, errorResponse } = await getRequestContextAndError(req, orgId);
+    if (errorResponse) return errorResponse;
+    const resolvedOrgId = ctx!.tenant.orgId;
     const { tenant } = ctx;
     const userRole = tenant.userRole;
 
-    const cacheKey = `sites:${orgId}:${ctx.user.id}`;
+    const cacheKey = `sites:${resolvedOrgId}:${ctx.user.id}`;
     const cached = cache.get<{ sites: any[]; userRole: string; organization: { id: string; name: string } }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }
 
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
     const userOrg = await prisma.userOrganization.findUnique({
       where: {
-        userId_organizationId: { userId: ctx.user.id, organizationId: orgId },
+        userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
       },
       select: { role: true, leadershipTier: true },
     });
@@ -48,7 +47,7 @@ export async function GET(
     const isOperationalLeadership = leadershipTier === "Operational";
     const isSupportLeadership = leadershipTier === "Support";
 
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(resolvedOrgId);
 
     try {
       let allowedSiteIds: string[] | null = null;
@@ -195,17 +194,14 @@ export async function POST(
     const body = await req.json();
     const { siteName, location } = body;
 
-    // Get request context (user + tenant) - single call, cached
-    const ctx = await getRequestContext(req, orgId);
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { context: ctx, errorResponse } = await getRequestContextAndError(req, orgId);
+    if (errorResponse) return errorResponse;
+    const resolvedOrgId = ctx!.tenant.orgId;
     const { tenant } = ctx;
 
     // Org owner can do anything; otherwise require manage_sites
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: resolvedOrgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -231,7 +227,7 @@ export async function POST(
 
     try {
       // Use pooled connection
-      const pool = await getTenantPool(orgId);
+      const pool = await getTenantPool(resolvedOrgId);
       const client = await pool.connect();
 
       try {
@@ -262,7 +258,7 @@ export async function POST(
         );
 
         // Clear cache after mutation
-        cache.delete(cacheKeys.orgSites(orgId));
+        cache.delete(cacheKeys.orgSites(resolvedOrgId));
 
         return NextResponse.json(
           {

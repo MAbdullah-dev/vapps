@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { apiClient } from "@/lib/api-client";
+import { getDashboardPath } from "@/lib/subdomain";
 
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -94,17 +95,18 @@ function formatRelativeTime(dateString: string): string {
 }
 
 /** Build href for notification so clicking navigates to the relevant screen. */
-function getNotificationHref(orgId: string | undefined, a: NotificationActivity): string | null {
-    if (!orgId) return null;
+function getNotificationHref(slug: string | undefined, a: NotificationActivity): string | null {
+    if (!slug) return null;
     if (a.entityType === "audit_plan" && a.entityId) {
-        return `/dashboard/${orgId}/audit/create/1?auditPlanId=${encodeURIComponent(a.entityId)}`;
+        const base = getDashboardPath(slug, "audit/create/1");
+        return `${base}?auditPlanId=${encodeURIComponent(a.entityId)}`;
     }
     if (a.processId) {
         const action = (a.action || "").toLowerCase();
-        if (action.includes("issue")) return `/dashboard/${orgId}/processes/${a.processId}/issues`;
-        if (action.includes("sprint")) return `/dashboard/${orgId}/processes/${a.processId}/backlog`;
-        if (action.includes("review") || action.includes("verification")) return `/dashboard/${orgId}/processes/${a.processId}/timeline`;
-        return `/dashboard/${orgId}/processes/${a.processId}`;
+        if (action.includes("issue")) return getDashboardPath(slug, `processes/${a.processId}/issues`);
+        if (action.includes("sprint")) return getDashboardPath(slug, `processes/${a.processId}/backlog`);
+        if (action.includes("review") || action.includes("verification")) return getDashboardPath(slug, `processes/${a.processId}/timeline`);
+        return getDashboardPath(slug, `processes/${a.processId}`);
     }
     return null;
 }
@@ -347,7 +349,7 @@ export default function Topbar() {
                     <DropdownMenuContent align="end" className="w-48 p-1">
 
                         <DropdownMenuItem asChild>
-                            <Link href={orgId ? `/dashboard/${orgId}/account` : "#"}>
+                            <Link href={orgId ? getDashboardPath(orgId, "account") : "#"}>
                                 Account Settings
                             </Link>
                         </DropdownMenuItem>

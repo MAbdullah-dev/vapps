@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,7 +90,7 @@ export default function AuditDetailHistoryPage() {
       <div className="p-6 max-w-4xl mx-auto">
         <p className="text-gray-600">Missing audit plan. Go back to the audit list and open Detail History for an audit.</p>
         <Button variant="outline" className="mt-4" asChild>
-          <Link href={`/dashboard/${orgId}/audit`}>Back to Audits</Link>
+          <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
       </div>
     );
@@ -100,7 +101,7 @@ export default function AuditDetailHistoryPage() {
       <div className="p-6 max-w-4xl mx-auto">
         <p className="text-gray-600">{planLoading ? "Loading…" : "Failed to load audit."}</p>
         <Button variant="outline" className="mt-4" asChild>
-          <Link href={`/dashboard/${orgId}/audit`}>Back to Audits</Link>
+          <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
       </div>
     );
@@ -111,7 +112,7 @@ export default function AuditDetailHistoryPage() {
       <div className="p-6 max-w-4xl mx-auto">
         <p className="text-gray-600">Audit plan not found.</p>
         <Button variant="outline" className="mt-4" asChild>
-          <Link href={`/dashboard/${orgId}/audit`}>Back to Audits</Link>
+          <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
       </div>
     );
@@ -168,7 +169,7 @@ export default function AuditDetailHistoryPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={`/dashboard/${orgId}/audit`}>
+            <Link href={getDashboardPath(orgId, "audit")}>
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -393,7 +394,7 @@ export default function AuditDetailHistoryPage() {
 
       <div className="pt-4">
         <Button variant="outline" asChild>
-          <Link href={`/dashboard/${orgId}/audit`}>Back to Audits</Link>
+          <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
       </div>
     </div>
