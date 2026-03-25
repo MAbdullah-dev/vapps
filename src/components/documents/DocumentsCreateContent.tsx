@@ -124,7 +124,14 @@ export default function DocumentsCreateContent() {
           )}
 
           {step === 3 && (
-            <ApprovalDocumentStep listHref={listHref} onBack={() => setStep(2)} />
+            <ApprovalDocumentStep
+              listHref={listHref}
+              title={title}
+              docType={docType}
+              site={site}
+              processName={processName}
+              onBack={() => setStep(2)}
+            />
           )}
         </CardContent>
       </Card>
