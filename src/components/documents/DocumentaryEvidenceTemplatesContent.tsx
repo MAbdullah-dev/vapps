@@ -57,6 +57,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
   const orgId = (params?.orgId as string) || "";
   const documentsHref = orgId ? getDashboardPath(orgId, "documents") : "/";
   const createHref = orgId ? getDashboardPath(orgId, "documents/create") : "/";
+  const captureHref = orgId ? getDashboardPath(orgId, "documents/documentary-evidence/capture") : "/";
 
   const [search, setSearch] = useState("");
 
@@ -246,7 +247,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                         asChild
                       >
                         <Link
-                          href={`${createHref}?template=${encodeURIComponent(row.referenceNumber)}`}
+                          href={`${captureHref}?template=${encodeURIComponent(row.referenceNumber)}`}
                         >
                           <PlayCircle className="size-4 shrink-0" />
                           Start Capture
