@@ -701,6 +701,9 @@ export default function DocumentsContent() {
   const params = useParams();
   const orgId = (params?.orgId as string) || "";
   const createDocumentHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
+  const documentaryEvidenceTemplatesHref = orgId
+    ? getDashboardPath(orgId, "documents/documentary-evidence")
+    : "#";
   const [selectedTable, setSelectedTable] = useState<string>("Master Document List");
   const [search, setSearch] = useState("");
 
@@ -821,26 +824,41 @@ export default function DocumentsContent() {
 
   return (
     <div className="space-y-6">
-      {/* Workflow header (same concept as audit) */}
-      <div className="bg-[#0A0A0A] rounded-xl px-6 py-5 flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <FileText size={20} className="text-white" />
-            <h1 className="text-xl sm:text-2xl font-semibold text-white">
-              Documentary Evidence Records
-            </h1>
+      <Card className="py-4">
+        <CardContent>
+          {/* Workflow header (same concept as audit) */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText size={20} />
+                <h1 className="text-xl sm:text-2xl font-semibold text-[#0A0A0A]">
+                  Document Management Tables
+                </h1>
+              </div>
+              <p className="text-sm text-[#9CA3AF] mt-1">
+                View and manage documents across different categories
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                asChild
+                className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#6366F1]/90 text-white"
+              >
+                <Link href={documentaryEvidenceTemplatesHref}>
+                  <FileText size={16} />
+                  Documentary Evidence Records
+                </Link>
+              </Button>
+              <Button asChild className="text-white flex items-center gap-2" variant="default">
+                <Link href={createDocumentHref}>
+                  <Plus size={16} />
+                  Create Document
+                </Link>
+              </Button>
+            </div>
           </div>
-          <p className="text-sm text-[#9CA3AF] mt-1">
-            View and manage documents across different categories
-          </p>
-        </div>
-        <Button asChild className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white flex items-center gap-2">
-          <Link href={createDocumentHref}>
-            <Plus size={16} />
-            Create Document
-          </Link>
-        </Button>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Select table */}
       <Card className="py-4">
@@ -898,7 +916,7 @@ export default function DocumentsContent() {
                   className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
                   placeholder={
                     selectedTable === "Documentary Evidence" ||
-                    selectedTable === "Records Disposal Log"
+                      selectedTable === "Records Disposal Log"
                       ? "Fetch..."
                       : "Search..."
                   }
