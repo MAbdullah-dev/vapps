@@ -93,8 +93,8 @@ export default function DocumentsCreateContent() {
         </CardContent>
       </Card>
 
-      <Card className="py-4">
-        <CardContent className="space-y-5">
+      {/* <Card className="py-4">
+        <CardContent className="space-y-5"> */}
           {step === 1 && (
             <CreateDocumentStep
               title={title}
@@ -133,8 +133,8 @@ export default function DocumentsCreateContent() {
               onBack={() => setStep(2)}
             />
           )}
-        </CardContent>
-      </Card>
+        {/* </CardContent>
+      </Card> */}
     </div>
   );
 }
