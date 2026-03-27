@@ -1,14 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type {
+  DocumentSavePayload,
+  DocumentWizardSnapshot,
+  ProcessOption,
+  SiteOption,
+  StandardOption,
+  Step1FormData,
+} from "@/components/documents/types";
 import {
   Calendar,
   CircleAlert,
@@ -20,9 +36,6 @@ import {
   Send,
   Unlock,
 } from "lucide-react";
-
-const TRANSFER_SITE_OPTIONS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const;
-const TRANSFER_PROCESS_OPTIONS = ["P1", "P2", "P3", "P4", "P5", "P6"] as const;
 
 function managementStandardLabel(value: string): string {
   switch (value) {
@@ -57,7 +70,16 @@ function countWords(text: string): number {
   return t.split(/\s+/).filter(Boolean).length;
 }
 
+function extractProcessCode(raw: string): string {
+  // Attempts to extract process segment codes like "P1", "P2", ... from process names.
+  const match = raw.match(/\b(P\d+)\b/i);
+  if (match?.[1]) return match[1].toUpperCase();
+  return raw.trim() ? raw.trim().slice(0, 4).toUpperCase() : "P1";
+}
+
 type CreateDocumentStepProps = {
+  orgId: string;
+  formData: Step1FormData;
   title: string;
   setTitle: (value: string) => void;
   docType: string;
@@ -68,10 +90,43 @@ type CreateDocumentStepProps = {
   setProcessName: (value: string) => void;
   description: string;
   setDescription: (value: string) => void;
-  onNext: () => void;
+  loginUserName: string;
+  organizationName: string;
+  organizationIdentification: string;
+  industryType: string;
+  otherIndustry: string;
+  setOtherIndustry: (value: string) => void;
+  siteId: string;
+  location: string;
+  processId: string;
+  processOwner: string;
+  setProcessOwner: (value: string) => void;
+  managementStandard: string;
+  setManagementStandard: (value: string) => void;
+  clause: string;
+  setClause: (value: string) => void;
+  subClause: string;
+  setSubClause: (value: string) => void;
+  standards: StandardOption[];
+  clauseOptions: string[];
+  subClauseOptions: string[];
+  isLoadingStandards: boolean;
+  isLoadingClauses: boolean;
+  sites: SiteOption[];
+  processes: ProcessOption[];
+  isLoadingContext: boolean;
+  isLoadingSites: boolean;
+  isLoadingProcesses: boolean;
+  canProceed: boolean;
+  isViewMode?: boolean;
+  initialWizard?: Partial<DocumentWizardSnapshot>;
+  onSubmitProceed: (payload: DocumentSavePayload) => void | Promise<void>;
+  onSaveDraft: (payload: DocumentSavePayload) => void | Promise<void>;
 };
 
 export default function CreateDocumentStep({
+  orgId,
+  formData,
   title,
   setTitle,
   docType,
@@ -82,17 +137,39 @@ export default function CreateDocumentStep({
   setProcessName,
   description,
   setDescription,
-  onNext,
+  loginUserName,
+  organizationName,
+  organizationIdentification,
+  industryType,
+  otherIndustry,
+  setOtherIndustry,
+  siteId,
+  location,
+  processId,
+  processOwner,
+  setProcessOwner,
+  managementStandard,
+  setManagementStandard,
+  clause,
+  setClause,
+  subClause,
+  setSubClause,
+  standards,
+  clauseOptions,
+  subClauseOptions,
+  isLoadingStandards,
+  isLoadingClauses,
+  sites,
+  processes,
+  isLoadingContext,
+  isLoadingSites,
+  isLoadingProcesses,
+  canProceed,
+  isViewMode = false,
+  initialWizard,
+  onSubmitProceed,
+  onSaveDraft,
 }: CreateDocumentStepProps) {
-  const [loginUserName, setLoginUserName] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [organizationIdentification, setOrganizationIdentification] = useState("");
-  const [industryType, setIndustryType] = useState("");
-  const [otherIndustry, setOtherIndustry] = useState("");
-  const [siteId, setSiteId] = useState("");
-  const [location, setLocation] = useState("");
-  const [processId, setProcessId] = useState("");
-  const [processOwner, setProcessOwner] = useState("");
   const [previousRefNumber, setPreviousRefNumber] = useState("");
   const [priorityLevel, setPriorityLevel] = useState<"high" | "low">("high");
   const [documentClassification, setDocumentClassification] = useState<"P" | "F" | "EXT">("P");
@@ -102,11 +179,11 @@ export default function CreateDocumentStep({
   const [revisionComment, setRevisionComment] = useState("");
   const [documentEditorContent, setDocumentEditorContent] = useState("");
   const [externalDocumentFileName, setExternalDocumentFileName] = useState("");
-  const [managementStandard, setManagementStandard] = useState("");
-  const [clause, setClause] = useState("");
-  const [subClause, setSubClause] = useState("");
   const [restriction, setRestriction] = useState<"unlocked" | "locked">("unlocked");
-  const [accessScope, setAccessScope] = useState("department-only");
+  const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
+  const [filePin, setFilePin] = useState("");
+  const [confirmFilePin, setConfirmFilePin] = useState("");
+  const [pinError, setPinError] = useState("");
   const [reasons, setReasons] = useState<string[]>([]);
   const [reasonComment, setReasonComment] = useState("");
   const [affectsOtherDocs, setAffectsOtherDocs] = useState<"yes" | "no">("no");
@@ -120,11 +197,62 @@ export default function CreateDocumentStep({
 
   const [transferSearchRef, setTransferSearchRef] = useState("");
   const [transferTargetSite, setTransferTargetSite] = useState("S1");
+  const [transferTargetSiteId, setTransferTargetSiteId] = useState("");
   const [transferTargetProcess, setTransferTargetProcess] = useState("P1");
+  const [transferTargetProcessId, setTransferTargetProcessId] = useState("");
+  const [transferProcessOptions, setTransferProcessOptions] = useState<
+    Array<{ id: string; name: string; code: string }>
+  >([]);
+  const [isLoadingTransferProcesses, setIsLoadingTransferProcesses] = useState(false);
   const [transferStandardChange, setTransferStandardChange] = useState("");
   const [transferDocumentClass, setTransferDocumentClass] = useState<"P" | "F" | "EXT">("P");
   const [transferInitiatorRequest, setTransferInitiatorRequest] = useState("");
   const [originatorConsent, setOriginatorConsent] = useState<"accepted" | "declined" | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!initialWizard) return;
+    if (typeof initialWizard.previousRefNumber === "string") setPreviousRefNumber(initialWizard.previousRefNumber);
+    if (initialWizard.priorityLevel === "high" || initialWizard.priorityLevel === "low") setPriorityLevel(initialWizard.priorityLevel);
+    if (initialWizard.documentClassification === "P" || initialWizard.documentClassification === "F" || initialWizard.documentClassification === "EXT") setDocumentClassification(initialWizard.documentClassification);
+    if (initialWizard.actionType === "create" || initialWizard.actionType === "revise" || initialWizard.actionType === "obsolete") setActionType(initialWizard.actionType);
+    if (initialWizard.reviseSubAction === "update" || initialWizard.reviseSubAction === "transfer") setReviseSubAction(initialWizard.reviseSubAction);
+    if (typeof initialWizard.searchCurrentDocumentRef === "string") setSearchCurrentDocumentRef(initialWizard.searchCurrentDocumentRef);
+    if (typeof initialWizard.revisionComment === "string") setRevisionComment(initialWizard.revisionComment);
+    if (typeof initialWizard.documentEditorContent === "string") setDocumentEditorContent(initialWizard.documentEditorContent);
+    if (typeof initialWizard.externalDocumentFileName === "string") setExternalDocumentFileName(initialWizard.externalDocumentFileName);
+    if (initialWizard.restriction === "locked" || initialWizard.restriction === "unlocked") setRestriction(initialWizard.restriction);
+    if (typeof initialWizard.filePin === "string") setFilePin(initialWizard.filePin);
+    if (typeof initialWizard.confirmFilePin === "string") setConfirmFilePin(initialWizard.confirmFilePin);
+    if (typeof initialWizard.pinError === "string") setPinError(initialWizard.pinError);
+    if (Array.isArray(initialWizard.reasons)) setReasons(initialWizard.reasons.filter((x) => typeof x === "string"));
+    if (typeof initialWizard.reasonComment === "string") setReasonComment(initialWizard.reasonComment);
+    if (initialWizard.affectsOtherDocs === "yes" || initialWizard.affectsOtherDocs === "no") setAffectsOtherDocs(initialWizard.affectsOtherDocs);
+    if (initialWizard.riskLevel === "high" || initialWizard.riskLevel === "medium" || initialWizard.riskLevel === "low") setRiskLevel(initialWizard.riskLevel);
+    if (typeof initialWizard.riskComments === "string") setRiskComments(initialWizard.riskComments);
+    if (initialWizard.trainingRequired === "yes" || initialWizard.trainingRequired === "no") setTrainingRequired(initialWizard.trainingRequired);
+    if (typeof initialWizard.trainingDetails === "string") setTrainingDetails(initialWizard.trainingDetails);
+    if (typeof initialWizard.planDate === "string") setPlanDate(initialWizard.planDate);
+    if (typeof initialWizard.actualDate === "string") setActualDate(initialWizard.actualDate);
+    if (typeof initialWizard.endDate === "string") setEndDate(initialWizard.endDate);
+    if (typeof initialWizard.transferSearchRef === "string") setTransferSearchRef(initialWizard.transferSearchRef);
+    if (typeof initialWizard.transferTargetSite === "string") setTransferTargetSite(initialWizard.transferTargetSite);
+    if (typeof initialWizard.transferTargetSiteId === "string") setTransferTargetSiteId(initialWizard.transferTargetSiteId);
+    if (typeof initialWizard.transferTargetProcess === "string") setTransferTargetProcess(initialWizard.transferTargetProcess);
+    if (typeof initialWizard.transferTargetProcessId === "string") setTransferTargetProcessId(initialWizard.transferTargetProcessId);
+    if (Array.isArray(initialWizard.transferProcessOptions)) {
+      setTransferProcessOptions(
+        initialWizard.transferProcessOptions.filter(
+          (x): x is { id: string; name: string; code: string } =>
+            !!x && typeof x.id === "string" && typeof x.name === "string" && typeof x.code === "string"
+        )
+      );
+    }
+    if (typeof initialWizard.transferStandardChange === "string") setTransferStandardChange(initialWizard.transferStandardChange);
+    if (initialWizard.transferDocumentClass === "P" || initialWizard.transferDocumentClass === "F" || initialWizard.transferDocumentClass === "EXT") setTransferDocumentClass(initialWizard.transferDocumentClass);
+    if (typeof initialWizard.transferInitiatorRequest === "string") setTransferInitiatorRequest(initialWizard.transferInitiatorRequest);
+    if (initialWizard.originatorConsent === "accepted" || initialWizard.originatorConsent === "declined" || initialWizard.originatorConsent === null) setOriginatorConsent(initialWizard.originatorConsent);
+  }, [initialWizard]);
 
   const reasonOptions = [
     "4M Change",
@@ -148,10 +276,97 @@ export default function CreateDocumentStep({
   const isReviseUpdate = actionType === "revise" && reviseSubAction === "update";
   const isReviseTransfer = actionType === "revise" && reviseSubAction === "transfer";
 
-  const currentSiteDisplay = site.trim() || "S1";
-  const currentProcessDisplay = processId.trim() || "P1";
+  const currentSiteDisplay = siteId.trim() || "S1";
+  const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
+  const currentProcessCode = extractProcessCode(currentProcessDisplay);
+  const transferSiteCodes = useMemo(() => {
+    const codes = Array.from(
+      new Set(sites.map((s) => s.code).filter((c) => Boolean(c && c.trim().length > 0)))
+    );
+    return codes.length > 0 ? codes : [currentSiteDisplay];
+  }, [sites, currentSiteDisplay]);
 
-  const previewDocRef = (() => {
+  // Map transfer target site code (e.g. "S1") => its DB site id (uuid).
+  useEffect(() => {
+    if (!sites.length) return;
+    const matched = sites.find((s) => s.code === transferTargetSite);
+    setTransferTargetSiteId(matched?.id ?? "");
+  }, [sites, transferTargetSite]);
+
+  // Dynamically load processes for the selected transfer target site.
+  useEffect(() => {
+    if (!isReviseTransfer) return;
+    if (!orgId) return;
+    if (!transferTargetSiteId) return;
+
+    let ignore = false;
+
+    async function loadTransferProcesses() {
+      setIsLoadingTransferProcesses(true);
+      try {
+        const shouldUseCurrentSiteProcesses = transferTargetSiteId === site;
+
+        if (shouldUseCurrentSiteProcesses) {
+          const fallback = processes.map((p) => ({
+            id: p.id,
+            name: p.name,
+            code: extractProcessCode(p.name),
+          }));
+          if (ignore) return;
+          setTransferProcessOptions(fallback);
+          const selected = fallback.find((x) => x.code === transferTargetProcess);
+          const first = fallback[0];
+          if (!selected && first) {
+            setTransferTargetProcess(first.code);
+            setTransferTargetProcessId(first.id);
+          } else if (selected) {
+            setTransferTargetProcessId(selected.id);
+          }
+          return;
+        }
+
+        const res = await fetch(
+          `/api/organization/${orgId}/processes?siteId=${encodeURIComponent(transferTargetSiteId)}`,
+          { credentials: "include" }
+        );
+        const json = res.ok ? await res.json() : { processes: [] };
+        const typed = (json ?? {}) as { processes?: Array<{ id: string; name: string }> };
+        const loaded = (typed.processes ?? []).map((p) => ({
+          id: String(p.id),
+          name: String(p.name ?? ""),
+          code: extractProcessCode(String(p.name ?? "")),
+        }));
+
+        if (ignore) return;
+        setTransferProcessOptions(loaded);
+
+        const selected = loaded.find((x) => x.code === transferTargetProcess);
+        const first = loaded[0];
+        if (!selected && first) {
+          setTransferTargetProcess(first.code);
+          setTransferTargetProcessId(first.id);
+        } else if (selected) {
+          setTransferTargetProcessId(selected.id);
+        }
+      } finally {
+        if (!ignore) setIsLoadingTransferProcesses(false);
+      }
+    }
+
+    void loadTransferProcesses();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    isReviseTransfer,
+    orgId,
+    transferTargetSiteId,
+    processes,
+    site,
+    transferTargetProcess,
+  ]);
+
+  const previewDocRef = useMemo(() => {
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
       return `${searchCurrentDocumentRef.trim()} → v2`;
     }
@@ -161,11 +376,126 @@ export default function CreateDocumentStep({
       const docSeg = cls === "EXT" ? "EXT" : docType;
       return `Doc/${y}/${transferTargetSite}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
     }
-    return `Doc/${new Date().getFullYear()}/${site || "S1"}/${processId || "P1"}/${documentClassification}/${docType}/v1`;
-  })();
+    return `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${processId || "P1"}/${documentClassification}/${docType}/v1`;
+  }, [
+    isReviseUpdate,
+    isReviseTransfer,
+    searchCurrentDocumentRef,
+    docType,
+    transferDocumentClass,
+    transferTargetSite,
+    transferTargetProcess,
+    siteId,
+    processId,
+    documentClassification,
+  ]);
+
+  const buildSavePayload = (): DocumentSavePayload => ({
+    savedAt: new Date().toISOString(),
+    previewDocRef,
+    formData: { ...formData },
+    wizard: {
+      previousRefNumber,
+      priorityLevel,
+      documentClassification,
+      actionType,
+      isReviseUpdate,
+      isReviseTransfer,
+      reviseSubAction,
+      searchCurrentDocumentRef,
+      revisionComment,
+      documentEditorContent,
+      externalDocumentFileName,
+      restriction,
+      hasPinSet: restriction === "locked" && filePin.length > 0,
+      filePin,
+      confirmFilePin,
+      pinError,
+      reasons,
+      reasonComment,
+      affectsOtherDocs,
+      riskLevel,
+      riskComments,
+      trainingRequired,
+      trainingDetails,
+      planDate,
+      actualDate,
+      endDate,
+      transferSearchRef,
+      transferTargetSite,
+      transferTargetSiteId,
+      transferTargetProcess,
+      transferTargetProcessId,
+      transferProcessOptions,
+      transferStandardChange,
+      transferDocumentClass,
+      transferInitiatorRequest,
+      originatorConsent,
+    },
+  });
+
+  const handleSaveDraftClick = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSaveDraft(buildSavePayload());
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmitProceedClick = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSubmitProceed(buildSavePayload());
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const flowTitle =
     actionType === "create" ? "Create" : actionType === "revise" ? "Revise" : "Obsolete";
+
+  const isReviseUpdateReady =
+    !isReviseUpdate ||
+    (searchCurrentDocumentRef.trim().length > 0 && reasons.length > 0);
+
+  const isReviseTransferReady =
+    !isReviseTransfer ||
+    (transferSearchRef.trim().length > 0 &&
+      originatorConsent !== null &&
+      Boolean(transferTargetSite.trim()) &&
+      Boolean(transferTargetProcess.trim()) &&
+      transferProcessOptions.some((p) => p.code === transferTargetProcess));
+
+  const handleLockSelection = () => {
+    setFilePin("");
+    setConfirmFilePin("");
+    setPinError("");
+    setIsPinDialogOpen(true);
+  };
+
+  const handleEditPin = () => {
+    setFilePin("");
+    setConfirmFilePin("");
+    setPinError("");
+    setIsPinDialogOpen(true);
+  };
+
+  const saveFilePin = () => {
+    const pinPattern = /^\d{4,8}$/;
+    if (!pinPattern.test(filePin)) {
+      setPinError("PIN must be 4 to 8 digits.");
+      return;
+    }
+    if (filePin !== confirmFilePin) {
+      setPinError("PIN and confirm PIN do not match.");
+      return;
+    }
+    setRestriction("locked");
+    setIsPinDialogOpen(false);
+  };
 
   return (
     <>
@@ -190,7 +520,8 @@ export default function CreateDocumentStep({
                   <Input
                     id="login-user-name"
                     value={loginUserName}
-                    onChange={(e) => setLoginUserName(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -198,7 +529,8 @@ export default function CreateDocumentStep({
                   <Input
                     id="organization-name"
                     value={organizationName}
-                    onChange={(e) => setOrganizationName(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                     placeholder="Organization name"
                   />
                 </div>
@@ -207,7 +539,8 @@ export default function CreateDocumentStep({
                   <Input
                     id="organization-identification"
                     value={organizationIdentification}
-                    onChange={(e) => setOrganizationIdentification(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -215,7 +548,8 @@ export default function CreateDocumentStep({
                   <Input
                     id="industry-type"
                     value={industryType}
-                    onChange={(e) => setIndustryType(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -237,19 +571,26 @@ export default function CreateDocumentStep({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-site">Site / Unit *</Label>
-                  <Input
-                    id="doc-site"
-                    value={site}
-                    onChange={(e) => setSite(e.target.value)}
-                    placeholder="e.g., S1"
-                  />
+                  <Select value={site} onValueChange={setSite} disabled={isLoadingContext || isLoadingSites}>
+                    <SelectTrigger id="doc-site">
+                      <SelectValue placeholder={isLoadingSites ? "Loading sites..." : "Select site"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites.map((siteOption) => (
+                        <SelectItem key={siteOption.id} value={siteOption.id}>
+                          {siteOption.code ? `${siteOption.code} - ${siteOption.name}` : siteOption.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="site-id">Site ID</Label>
                   <Input
                     id="site-id"
                     value={siteId}
-                    onChange={(e) => setSiteId(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -257,7 +598,8 @@ export default function CreateDocumentStep({
                   <Input
                     id="location"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
                     placeholder="e.g., Main Factory"
                   />
                 </div>
@@ -271,20 +613,39 @@ export default function CreateDocumentStep({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-process">Process / Area *</Label>
-                  <Input
-                    id="doc-process"
-                    value={processName}
-                    onChange={(e) => setProcessName(e.target.value)}
-                    placeholder="e.g., Quality Control"
-                  />
+                  <Select
+                    value={processId}
+                    onValueChange={setProcessName}
+                    disabled={!site || isLoadingProcesses}
+                  >
+                    <SelectTrigger id="doc-process">
+                      <SelectValue
+                        placeholder={
+                          !site
+                            ? "Select site first"
+                            : isLoadingProcesses
+                              ? "Loading processes..."
+                              : "Select process"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {processes.map((processOption) => (
+                        <SelectItem key={processOption.id} value={processOption.id}>
+                          {processOption.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="process-id">Process ID</Label>
                   <Input
                     id="process-id"
                     value={processId}
-                    onChange={(e) => setProcessId(e.target.value)}
-                    placeholder="e.g., P1"
+                    readOnly
+                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    placeholder="Auto-filled"
                   />
                 </div>
                 <div className="space-y-2">
@@ -503,14 +864,28 @@ export default function CreateDocumentStep({
                       onClick={() => {
                         setReviseSubAction(item.value);
                         if (item.value === "transfer") {
-                          const s = site.trim();
-                          const p = processId.trim();
-                          if (/^S[1-6]$/.test(s)) setTransferTargetSite(s);
-                          if (/^P[1-6]$/.test(p)) setTransferTargetProcess(p);
+                        // Start transfer from current site/process by default.
+                        setTransferTargetSite(currentSiteDisplay);
+                        setTransferTargetProcess(currentProcessCode);
+                        setTransferTargetProcessId("");
+                        setTransferProcessOptions([]);
+
+                        // Reset transfer-specific fields.
+                        setTransferSearchRef("");
+                        setTransferStandardChange("");
+                        setTransferInitiatorRequest("");
+                        setOriginatorConsent(null);
+
                           setTransferDocumentClass(documentClassification);
                           if (documentClassification === "P" || documentClassification === "F") {
                             setDocType(documentClassification);
                           }
+                        }
+                        if (item.value === "update") {
+                          // Fresh revision context.
+                          setSearchCurrentDocumentRef("");
+                          setReasons([]);
+                          setRevisionComment("");
                         }
                       }}
                       className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
@@ -663,13 +1038,18 @@ export default function CreateDocumentStep({
                 <div className="space-y-2">
                   <span className="text-xs text-[#6A7282]">Transfer to Site</span>
                   <div className="flex flex-wrap gap-2">
-                    {TRANSFER_SITE_OPTIONS.map((s) => {
+                    {transferSiteCodes.map((s) => {
                       const on = transferTargetSite === s;
                       return (
                         <button
                           key={s}
                           type="button"
-                          onClick={() => setTransferTargetSite(s)}
+                          onClick={() => {
+                            setTransferTargetSite(s);
+                            setTransferTargetProcess("P1");
+                            setTransferTargetProcessId("");
+                            setTransferProcessOptions([]);
+                          }}
                           className={`rounded-lg border px-3 py-2 text-sm font-medium min-w-[2.5rem] transition-colors ${
                             on
                               ? "border-[#22B323] bg-[#22B323] text-white"
@@ -699,23 +1079,30 @@ export default function CreateDocumentStep({
                 <div className="space-y-2">
                   <span className="text-xs text-[#6A7282]">Transfer to Process</span>
                   <div className="flex flex-wrap gap-2">
-                    {TRANSFER_PROCESS_OPTIONS.map((p) => {
-                      const on = transferTargetProcess === p;
-                      return (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setTransferTargetProcess(p)}
-                          className={`rounded-lg border px-3 py-2 text-sm font-medium min-w-[2.5rem] transition-colors ${
-                            on
-                              ? "border-[#22B323] bg-[#22B323] text-white"
-                              : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      );
-                    })}
+                    {isLoadingTransferProcesses && transferProcessOptions.length === 0 ? (
+                      <p className="text-xs text-[#6A7282]">Loading...</p>
+                    ) : (
+                      transferProcessOptions.map((p) => {
+                        const on = transferTargetProcess === p.code;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setTransferTargetProcess(p.code);
+                              setTransferTargetProcessId(p.id);
+                            }}
+                            className={`rounded-lg border px-3 py-2 text-sm font-medium min-w-[2.5rem] transition-colors ${
+                              on
+                                ? "border-[#22B323] bg-[#22B323] text-white"
+                                : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                            }`}
+                          >
+                            {p.code}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
@@ -876,13 +1263,14 @@ export default function CreateDocumentStep({
             <Label>Management System Standard *</Label>
             <Select value={managementStandard} onValueChange={setManagementStandard}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select standard" />
+                <SelectValue placeholder={isLoadingStandards ? "Loading standards..." : "Select standard"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="iso-9001">ISO 9001</SelectItem>
-                <SelectItem value="iso-14001">ISO 14001</SelectItem>
-                <SelectItem value="iso-45001">ISO 45001</SelectItem>
-                <SelectItem value="integrated">Integrated Management System</SelectItem>
+                {standards.map((standard) => (
+                  <SelectItem key={standard.id} value={standard.id}>
+                    {standard.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -890,30 +1278,47 @@ export default function CreateDocumentStep({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Clause</Label>
-              <Select value={clause} onValueChange={setClause}>
+              <Select
+                value={clause}
+                onValueChange={setClause}
+                disabled={!managementStandard || isLoadingClauses}
+              >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Clause" />
+                  <SelectValue
+                    placeholder={
+                      !managementStandard
+                        ? "Select standard first"
+                        : isLoadingClauses
+                          ? "Loading clauses..."
+                          : "Clause"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4">4. Context</SelectItem>
-                  <SelectItem value="5">5. Leadership</SelectItem>
-                  <SelectItem value="6">6. Planning</SelectItem>
-                  <SelectItem value="7">7. Support</SelectItem>
-                  <SelectItem value="8">8. Operation</SelectItem>
+                  {clauseOptions.map((clauseOption) => (
+                    <SelectItem key={clauseOption} value={clauseOption}>
+                      {clauseOption}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Sub-Clause</Label>
-              <Select value={subClause} onValueChange={setSubClause}>
+              <Select
+                value={subClause}
+                onValueChange={setSubClause}
+                disabled={!clause || isLoadingClauses}
+              >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sub-Clause" />
+                  <SelectValue placeholder={!clause ? "Select clause first" : "Sub-Clause"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4.1">4.1</SelectItem>
-                  <SelectItem value="4.2">4.2</SelectItem>
-                  <SelectItem value="8.5">8.5</SelectItem>
-                  <SelectItem value="8.6">8.6</SelectItem>
+                  {subClauseOptions.map((subClauseOption) => (
+                    <SelectItem key={subClauseOption} value={subClauseOption}>
+                      {subClauseOption}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -930,12 +1335,17 @@ export default function CreateDocumentStep({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 md:col-span-3">
               <Label>Document Restriction</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setRestriction("unlocked")}
+                  onClick={() => {
+                    setRestriction("unlocked");
+                    setFilePin("");
+                    setConfirmFilePin("");
+                    setPinError("");
+                  }}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "unlocked"
                       ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
                       : "border-[#E5E7EB] bg-white text-[#6A7282]"
@@ -945,7 +1355,7 @@ export default function CreateDocumentStep({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRestriction("locked")}
+                  onClick={handleLockSelection}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "locked"
                       ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
                       : "border-[#E5E7EB] bg-white text-[#6A7282]"
@@ -954,23 +1364,76 @@ export default function CreateDocumentStep({
                   <Lock size={14} /> Locked
                 </button>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Access Scope</Label>
-              <Select value={accessScope} onValueChange={setAccessScope}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="department-only">Department Only</SelectItem>
-                  <SelectItem value="organization-wide">Organization Wide</SelectItem>
-                  <SelectItem value="restricted-team">Restricted Team</SelectItem>
-                </SelectContent>
-              </Select>
+              {restriction === "locked" && filePin ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
+                  <p className="text-xs text-[#6A7282]">
+                    PIN configured for this file: {"*".repeat(filePin.length)}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleEditPin}
+                  >
+                    Edit PIN
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         </CardContent>
       </Card>
+      <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{restriction === "locked" && !!filePin ? "Update File PIN" : "Set File PIN"}</DialogTitle>
+            <DialogDescription>
+              Set a PIN to lock this document. Users will need this PIN to access or edit it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="file-pin">PIN</Label>
+              <Input
+                id="file-pin"
+                type="password"
+                inputMode="numeric"
+                value={filePin}
+                onChange={(e) => setFilePin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 4-8 digit PIN"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="file-pin-confirm">Confirm PIN</Label>
+              <Input
+                id="file-pin-confirm"
+                type="password"
+                inputMode="numeric"
+                value={confirmFilePin}
+                onChange={(e) => setConfirmFilePin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter PIN"
+              />
+            </div>
+            {pinError ? <p className="text-xs text-[#DC2626]">{pinError}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsPinDialogOpen(false);
+                if (!filePin) setRestriction("unlocked");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" className="bg-[#22B323] hover:bg-[#1a9825]" onClick={saveFilePin}>
+              {restriction === "locked" && !!filePin ? "Update PIN" : "Save PIN"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Eighth card under Step 1: Reasons for Document Change (hidden when Revise → Update — covered in 1.9) */}
       {!isReviseUpdate ? (
@@ -1291,19 +1754,45 @@ export default function CreateDocumentStep({
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-[#0A0A0A]">15. Submit Actions</h4>
-            <p className="text-sm text-[#6A7282]">Save as draft or proceed to review stage</p>
+            <p className="text-sm text-[#6A7282]">
+              Save as draft or submit; you will return to the document tables. Drafts can be edited later from
+              the table screen.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Button variant="outline" type="button" className="gap-2">
+            <Button
+              variant="outline"
+              type="button"
+              className="gap-2"
+              onClick={handleSaveDraftClick}
+              disabled={isViewMode || isSaving || isLoadingContext}
+            >
               <Save size={14} />
               Save as Draft
             </Button>
-            <Button type="button" className="bg-[#22B323] hover:bg-[#1a9825] gap-2" onClick={onNext}>
+            <Button
+              type="button"
+              className="bg-[#22B323] hover:bg-[#1a9825] gap-2 disabled:bg-[#A7D9A8] disabled:cursor-not-allowed"
+              onClick={handleSubmitProceedClick}
+              disabled={
+                isSaving ||
+                isViewMode ||
+                !canProceed ||
+                isLoadingContext ||
+                !isReviseUpdateReady ||
+                !isReviseTransferReady
+              }
+            >
               <Send size={14} />
               Submit &amp; Proceed
             </Button>
           </div>
+          {!canProceed ? (
+            <p className="text-xs text-[#6A7282]">
+              Select a site and process to proceed to review.
+            </p>
+          ) : null}
 
           <div className="rounded-md border border-[#BFDBFE] bg-[#EFF6FF] p-3">
             <div className="flex items-start gap-2">
@@ -1311,7 +1800,8 @@ export default function CreateDocumentStep({
               <div>
                 <p className="text-sm font-semibold text-[#1E40AF]">After Submission</p>
                 <p className="text-xs text-[#1D4ED8]">
-                  Document will move to REVIEW stage where the reviewer will perform 4M analysis and technical validation before forwarding to the approver.
+                  After submit, your entry is saved and you return to the document tables. Review and approval
+                  workflows can be connected here when the backend is ready.
                 </p>
               </div>
             </div>

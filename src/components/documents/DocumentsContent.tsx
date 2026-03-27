@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
 
 type MasterDocumentRow = {
+  id: string;
   documentRef: string;
   natureOfDocument: string;
   title: string;
@@ -64,10 +65,24 @@ type MasterDocumentRow = {
   kpi: string;
   docStatus: "In-Progress" | "Success" | "Pending" | "Fail";
   docPosition: "Draft" | "Active";
+  workflowStatus: "draft" | "in_review" | "in_approval" | "approved";
+};
+
+type DocumentsApiRecord = {
+  id: string;
+  status: "draft" | "submitted";
+  preview_doc_ref: string;
+  form_data: Record<string, unknown> | null;
+  wizard_data: Record<string, unknown> | null;
+  lifecycle_status?: "active" | "obsolete";
+  created_by_user_name: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
   {
+    id: "mock-master-1",
     documentRef: "Doc/2025/S1/P1/P/D1/v1",
     natureOfDocument: "New Document",
     title: "Environment Policy",
@@ -85,8 +100,10 @@ const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
     kpi: "Consistent",
     docStatus: "In-Progress",
     docPosition: "Draft",
+    workflowStatus: "draft",
   },
   {
+    id: "mock-master-2",
     documentRef: "Doc/2025/S1/P2/F/D6/v3",
     natureOfDocument: "Revision",
     title: "Production Schedule",
@@ -104,8 +121,10 @@ const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
     kpi: "Consistent",
     docStatus: "Success",
     docPosition: "Active",
+    workflowStatus: "approved",
   },
   {
+    id: "mock-master-3",
     documentRef: "Doc/2025/S1/P1/F/D9/v2",
     natureOfDocument: "New Document",
     title: "Parts Inspection",
@@ -123,8 +142,10 @@ const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
     kpi: "Pending",
     docStatus: "Pending",
     docPosition: "Draft",
+    workflowStatus: "in_approval",
   },
   {
+    id: "mock-master-4",
     documentRef: "Doc/2025/S1/P4/F/D11/v4",
     natureOfDocument: "Revision",
     title: "Supplier Evaluation",
@@ -142,6 +163,7 @@ const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
     kpi: "Inconsistent",
     docStatus: "Fail",
     docPosition: "Active",
+    workflowStatus: "approved",
   },
 ];
 
@@ -519,7 +541,19 @@ function DocPositionBadge({ position }: { position: MasterDocumentRow["docPositi
   );
 }
 
-function MasterDocumentRowActionsMenu() {
+function MasterDocumentRowActionsMenu({
+  editHref,
+  viewHref,
+  canEditDirectly,
+  reviseUpdateHref,
+  reviseTransferHref,
+}: {
+  editHref: string;
+  viewHref: string;
+  canEditDirectly: boolean;
+  reviseUpdateHref: string;
+  reviseTransferHref: string;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -535,14 +569,38 @@ function MasterDocumentRowActionsMenu() {
         align="end"
         className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
       >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Eye size={16} className="text-[#6A7282]" />
-          View
+        <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+          <Link href={viewHref}>
+            <Eye size={16} className="text-[#6A7282]" />
+            View
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Pencil size={16} className="text-[#6A7282]" />
-          Edit
-        </DropdownMenuItem>
+        {canEditDirectly ? (
+          <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+            <Link href={editHref}>
+              <Pencil size={16} className="text-[#6A7282]" />
+              Edit
+            </Link>
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+              Revision Required
+            </DropdownMenuLabel>
+            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+              <Link href={reviseUpdateHref}>
+                <Pencil size={16} className="text-[#6A7282]" />
+                Revise &amp; Update
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+              <Link href={reviseTransferHref}>
+                <Pencil size={16} className="text-[#6A7282]" />
+                Revise &amp; Transfer
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
           <Share2 size={16} />
           Share
@@ -701,24 +759,176 @@ export default function DocumentsContent() {
   const params = useParams();
   const orgId = (params?.orgId as string) || "";
   const createDocumentHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
+  const createDocumentBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
   const documentaryEvidenceTemplatesHref = orgId
     ? getDashboardPath(orgId, "documents/documentary-evidence")
     : "#";
   const [selectedTable, setSelectedTable] = useState<string>("Master Document List");
   const [search, setSearch] = useState("");
+  const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
+  const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadDocuments() {
+      if (!orgId) return;
+      try {
+        const [activeRes, obsoleteRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
+            credentials: "include",
+          }),
+          fetch(`/api/organization/${orgId}/documents?lifecycle=obsolete`, {
+            credentials: "include",
+          }),
+        ]);
+        const activeJson = activeRes.ok ? await activeRes.json() : { records: [] };
+        const obsoleteJson = obsoleteRes.ok ? await obsoleteRes.json() : { records: [] };
+        if (ignore) return;
+
+        const records = Array.isArray(activeJson?.records)
+          ? (activeJson.records as DocumentsApiRecord[])
+          : [];
+        const obsoleteRecords = Array.isArray(obsoleteJson?.records)
+          ? (obsoleteJson.records as DocumentsApiRecord[])
+          : [];
+
+        const formatDate = (value: string | null | undefined): string => {
+          if (!value) return "-";
+          const d = new Date(value);
+          if (Number.isNaN(d.getTime())) return "-";
+          const dd = String(d.getDate()).padStart(2, "0");
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const yyyy = d.getFullYear();
+          return `${dd}-${mm}-${yyyy}`;
+        };
+
+        const pickDocNumber = (documentRef: string): string => {
+          const parts = documentRef.split("/").filter(Boolean);
+          if (parts.length < 2) return "-";
+          return parts[parts.length - 2] ?? "-";
+        };
+
+        const pickVersion = (documentRef: string): string => {
+          const parts = documentRef.split("/").filter(Boolean);
+          if (parts.length < 1) return "-";
+          return parts[parts.length - 1] ?? "-";
+        };
+
+        const mapped: MasterDocumentRow[] = records.map((row) => {
+          const formData = (row.form_data ?? {}) as Record<string, unknown>;
+          const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
+
+          const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+          const actionType = String(wizard.actionType ?? "").toLowerCase();
+          const natureOfDocument =
+            actionType === "revise"
+              ? "Revision"
+              : actionType === "obsolete"
+                ? "Obsolete"
+                : "New Document";
+
+          const standardRaw = String(formData.managementStandard ?? "").trim();
+          const standard = standardRaw || "-";
+
+          const workflowRaw = String((row as { workflow_status?: string }).workflow_status ?? "draft")
+            .toLowerCase()
+            .trim();
+          const workflowStatus: MasterDocumentRow["workflowStatus"] =
+            workflowRaw === "approved"
+              ? "approved"
+              : workflowRaw === "in_approval"
+                ? "in_approval"
+                : workflowRaw === "in_review"
+                  ? "in_review"
+                  : "draft";
+          const status: MasterDocumentRow["docStatus"] =
+            workflowStatus === "approved"
+              ? "Success"
+              : workflowStatus === "in_approval"
+                ? "Pending"
+                : workflowStatus === "in_review"
+                  ? "In-Progress"
+                  : "In-Progress";
+          const position: MasterDocumentRow["docPosition"] =
+            workflowStatus === "approved" ? "Active" : "Draft";
+          return {
+            id: row.id,
+            documentRef,
+            natureOfDocument,
+            title: String(formData.title ?? "").trim() || "-",
+            type: String(wizard.documentClassification ?? formData.docType ?? "").trim() || "-",
+            site: String(formData.siteId ?? formData.site ?? "").trim() || "-",
+            process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
+            standard,
+            clause: String(formData.clause ?? "").trim() || "-",
+            subclause: String(formData.subClause ?? "").trim() || "-",
+            docNumber: pickDocNumber(documentRef),
+            version: pickVersion(documentRef),
+            planDate: String(wizard.planDate ?? "").trim() ? formatDate(String(wizard.planDate)) : "-",
+            releaseDate: row.status === "submitted" ? formatDate(row.updated_at || row.created_at) : "-",
+            reviewDue: "-",
+            kpi: String(wizard.riskLevel ?? "Consistent").trim() || "Consistent",
+            docStatus: status,
+            docPosition: position,
+            workflowStatus,
+          };
+        });
+        const mappedObsolete: ObsoleteDocumentRow[] = obsoleteRecords.map((row) => {
+          const formData = (row.form_data ?? {}) as Record<string, unknown>;
+          const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
+          const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+          const parts = documentRef.split("/").filter(Boolean);
+          const docNumber = parts.length >= 2 ? parts[parts.length - 2] ?? "-" : "-";
+          const version = parts.length >= 1 ? parts[parts.length - 1] ?? "-" : "-";
+          const typeRaw = String(wizard.documentClassification ?? formData.docType ?? "P")
+            .toUpperCase()
+            .trim();
+          const type: "P" | "F" | "EXT" =
+            typeRaw === "EXT" ? "EXT" : typeRaw === "F" ? "F" : "P";
+          return {
+            documentRef,
+            title: String(formData.title ?? "").trim() || "-",
+            type,
+            processOwner: String(formData.processName ?? formData.processId ?? "-"),
+            standard: String(formData.managementStandard ?? "-"),
+            site: String(formData.siteId ?? formData.site ?? "-"),
+            docNumber,
+            version,
+            obsoletedBy: String(row.created_by_user_name ?? "-"),
+            obsoleteDate: formatDate(row.updated_at || row.created_at),
+            replacedBy: "-",
+            archivedLocation: "Cloud",
+          };
+        });
+
+        setMasterApiRows(mapped);
+        setObsoleteApiRows(mappedObsolete);
+      } catch {
+        if (!ignore) {
+          setMasterApiRows([]);
+          setObsoleteApiRows([]);
+        }
+      }
+    }
+
+    void loadDocuments();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   const masterDocumentsForTable = useMemo((): MasterDocumentRow[] => {
     switch (selectedTable) {
       case "Master Document List":
-        return MASTER_DOCUMENT_LIST_MOCK;
+        return masterApiRows.length > 0 ? masterApiRows : MASTER_DOCUMENT_LIST_MOCK;
       case "Obsolete Document Register":
       case "Documentary Evidence":
       case "Records Disposal Log":
         return [];
       default:
-        return MASTER_DOCUMENT_LIST_MOCK;
+        return masterApiRows.length > 0 ? masterApiRows : MASTER_DOCUMENT_LIST_MOCK;
     }
-  }, [selectedTable]);
+  }, [masterApiRows, selectedTable]);
 
   const filteredMaster = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -752,8 +962,9 @@ export default function DocumentsContent() {
   const filteredObsolete = useMemo(() => {
     if (selectedTable !== "Obsolete Document Register") return [];
     const q = search.trim().toLowerCase();
-    if (!q) return OBSOLETE_DOCUMENT_REGISTER_MOCK;
-    return OBSOLETE_DOCUMENT_REGISTER_MOCK.filter((row) => {
+    const source = obsoleteApiRows.length > 0 ? obsoleteApiRows : OBSOLETE_DOCUMENT_REGISTER_MOCK;
+    if (!q) return source;
+    return source.filter((row) => {
       const haystack = [
         row.documentRef,
         row.title,
@@ -772,7 +983,7 @@ export default function DocumentsContent() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [selectedTable, search]);
+  }, [selectedTable, search, obsoleteApiRows]);
 
   const filteredDocumentaryEvidence = useMemo(() => {
     if (selectedTable !== "Documentary Evidence") return [];
@@ -965,7 +1176,7 @@ export default function DocumentsContent() {
                 </TableHeader>
                 <TableBody>
                   {filteredMaster.map((doc) => (
-                    <TableRow key={doc.documentRef}>
+                    <TableRow key={doc.id}>
                       <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
                         {doc.documentRef}
                       </TableCell>
@@ -994,7 +1205,13 @@ export default function DocumentsContent() {
                         <DocPositionBadge position={doc.docPosition} />
                       </TableCell>
                       <TableCell className="text-center">
-                        <MasterDocumentRowActionsMenu />
+                        <MasterDocumentRowActionsMenu
+                          viewHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=view`}
+                          editHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit`}
+                          canEditDirectly={doc.workflowStatus !== "approved"}
+                          reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
+                          reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

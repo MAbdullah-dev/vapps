@@ -16,8 +16,13 @@ type ReviewDocumentStepProps = {
   site: string;
   processName: string;
   description: string;
+  processOwner?: string;
+  managementStandard?: string;
+  clause?: string;
+  subClause?: string;
+  processId?: string;
   onBack: () => void;
-  onNext: () => void;
+  onNext: (payload: { comments: string; decision: "effective" | "ineffective" | null }) => void;
 };
 
 export default function ReviewDocumentStep({
@@ -26,6 +31,11 @@ export default function ReviewDocumentStep({
   site,
   processName,
   description,
+  processOwner,
+  managementStandard,
+  clause,
+  subClause,
+  processId,
   onBack,
   onNext,
 }: ReviewDocumentStepProps) {
@@ -76,19 +86,19 @@ export default function ReviewDocumentStep({
           </div>
           <div>
             <p className="text-[#6B7280]">Doc Owner:</p>
-            <p className="font-semibold text-[#111827]">Manager Manufacturing</p>
+            <p className="font-semibold text-[#111827]">{processOwner || "Manager Manufacturing"}</p>
           </div>
           <div>
             <p className="text-[#6B7280]">Standard:</p>
-            <p className="font-semibold text-[#111827]">ISO 9001</p>
+            <p className="font-semibold text-[#111827]">{managementStandard || "ISO 9001"}</p>
           </div>
           <div>
             <p className="text-[#6B7280]">Clause:</p>
-            <p className="font-semibold text-[#111827]">4.1</p>
+            <p className="font-semibold text-[#111827]">{clause || "4.1"}</p>
           </div>
           <div>
             <p className="text-[#6B7280]">Sub-Clause</p>
-            <p className="font-semibold text-[#111827]">4.1.6</p>
+            <p className="font-semibold text-[#111827]">{subClause || "4.1.6"}</p>
           </div>
           <div>
             <p className="text-[#6B7280]">Site:</p>
@@ -100,7 +110,7 @@ export default function ReviewDocumentStep({
           </div>
           <div>
             <p className="text-[#6B7280]">Doc#:</p>
-            <p className="font-semibold text-[#111827]">D6</p>
+            <p className="font-semibold text-[#111827]">{processId || "D6"}</p>
           </div>
           <div>
             <p className="text-[#6B7280]">Version:</p>
@@ -357,7 +367,10 @@ export default function ReviewDocumentStep({
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext} disabled={!reviewAcknowledged || !verificationOutcome}>
+        <Button
+          onClick={() => onNext({ comments: reviewComments, decision: verificationOutcome })}
+          disabled={!reviewAcknowledged || !verificationOutcome}
+        >
           Send to Approval
         </Button>
       </div>
