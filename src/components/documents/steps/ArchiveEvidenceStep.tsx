@@ -272,8 +272,10 @@ export default function ArchiveEvidenceStep({
             <FileText className="mr-2 h-4 w-4" />
             Preview PDF
           </Button>
-
-          <div className="flex justify-between items-center pt-2 border-t border-[#E5E7EB]">
+        </CardContent>
+      </Card>
+      
+      <div className="flex justify-between items-center">
             <Button type="button" variant="outline" onClick={onBack} className="gap-2">
               <ArrowLeft className="h-4 w-4" />
               Back
@@ -287,8 +289,6 @@ export default function ArchiveEvidenceStep({
               Confirm Archive &amp; Generate PDF
             </Button>
           </div>
-        </CardContent>
-      </Card>
     </>
   );
 }
