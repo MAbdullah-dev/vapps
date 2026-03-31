@@ -572,7 +572,7 @@ export default function CreateDocumentStep({
                 <div className="space-y-2">
                   <Label htmlFor="doc-site">Site / Unit *</Label>
                   <Select value={site} onValueChange={setSite} disabled={isLoadingContext || isLoadingSites}>
-                    <SelectTrigger id="doc-site">
+                    <SelectTrigger id="doc-site" className="w-full">
                       <SelectValue placeholder={isLoadingSites ? "Loading sites..." : "Select site"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -618,7 +618,7 @@ export default function CreateDocumentStep({
                     onValueChange={setProcessName}
                     disabled={!site || isLoadingProcesses}
                   >
-                    <SelectTrigger id="doc-process">
+                    <SelectTrigger id="doc-process" className="w-full">
                       <SelectValue
                         placeholder={
                           !site
@@ -691,7 +691,7 @@ export default function CreateDocumentStep({
                 <div className="space-y-2">
                   <Label>Document Type</Label>
                   <Select value={docType} onValueChange={setDocType}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
