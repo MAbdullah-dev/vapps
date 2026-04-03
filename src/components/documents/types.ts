@@ -16,11 +16,24 @@ export type StandardOption = {
   name: string;
 };
 
+/** Who must fix the draft after an ineffective decision (stored in form_data). */
+export type DocumentCorrectionPhase =
+  | "none"
+  | "awaiting_creator_after_review"
+  | "awaiting_reviewer_after_approval";
+
 export type Step1FormData = {
   title: string;
   docType: string;
   description: string;
   loginUserName: string;
+  /** Current user id from profile — used with processOwnerUserId / approverUserId for access checks. */
+  loginUserId: string;
+  /** Original author of the document (set on first save). */
+  createdByUserId: string;
+  createdByUserName: string;
+  /** After review/approval returns; drives who may edit during correction. */
+  correctionPhase: DocumentCorrectionPhase;
   organizationName: string;
   organizationIdentification: string;
   industryType: string;
@@ -31,6 +44,12 @@ export type Step1FormData = {
   processName: string;
   processId: string;
   processOwner: string;
+  /** Member user id for Process Owner (matches teamMembers[].id). */
+  processOwnerUserId: string;
+  /** Top-tier approver selected at creation (excludes process owner). */
+  approverName: string;
+  /** Member user id for Approver. */
+  approverUserId: string;
   managementStandard: string;
   clause: string;
   subClause: string;
@@ -74,6 +93,8 @@ export type DocumentWizardSnapshot = {
   transferDocumentClass: "P" | "F" | "EXT";
   transferInitiatorRequest: string;
   originatorConsent: "accepted" | "declined" | null;
+  /** Allocated Doc# segment (e.g. D3) for preview path; persisted for table display. */
+  documentNumberSegment?: string;
 };
 
 export type DocumentSaveStatus = "draft" | "submitted";

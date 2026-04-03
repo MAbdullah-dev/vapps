@@ -5,13 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, CheckCircle, FileText, Save, Search } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle, FileText, Save, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
-import { cn } from "@/lib/utils";
+import { cn, documentActorMatches } from "@/lib/utils";
 import CreateDocumentStep from "@/components/documents/steps/CreateDocumentStep";
 import ReviewDocumentStep from "@/components/documents/steps/ReviewDocumentStep";
 import ApprovalDocumentStep from "@/components/documents/steps/ApprovalDocumentStep";
 import type {
+  DocumentCorrectionPhase,
   DocumentSavePayload,
   DocumentWizardSnapshot,
   ProcessOption,
@@ -40,6 +41,40 @@ type ChecklistQuestionsApiResponse = {
 
 type Step = 1 | 2 | 3;
 
+type RecordWorkflowStatus = "draft" | "in_review" | "in_approval" | "approved" | "";
+
+function normalizeRecordWorkflow(raw: string | undefined | null): RecordWorkflowStatus {
+  const x = String(raw ?? "").toLowerCase();
+  if (x === "draft" || x === "in_review" || x === "in_approval" || x === "approved") return x;
+  return "";
+}
+
+function inferCorrectionPhaseFromNotices(
+  saved: Partial<Step1FormData> | undefined,
+  workflowRaw: string | undefined,
+  reviewNotice: { returnedAt?: string } | null | undefined,
+  approvalNotice: { returnedAt?: string } | null | undefined
+): DocumentCorrectionPhase {
+  const fromSaved = saved?.correctionPhase;
+  if (
+    fromSaved === "awaiting_creator_after_review" ||
+    fromSaved === "awaiting_reviewer_after_approval"
+  ) {
+    return fromSaved;
+  }
+  if ((workflowRaw ?? "").toLowerCase() !== "draft") return "none";
+  const ar = approvalNotice?.returnedAt;
+  const rr = reviewNotice?.returnedAt;
+  if (ar && rr) {
+    return new Date(ar) > new Date(rr)
+      ? "awaiting_reviewer_after_approval"
+      : "awaiting_creator_after_review";
+  }
+  if (ar) return "awaiting_reviewer_after_approval";
+  if (rr) return "awaiting_creator_after_review";
+  return "none";
+}
+
 export default function DocumentsCreateContent() {
   const params = useParams();
   const router = useRouter();
@@ -48,15 +83,22 @@ export default function DocumentsCreateContent() {
   const recordId = searchParams?.get("recordId") ?? "";
   const mode = (searchParams?.get("mode") ?? "create").toLowerCase();
   const revisionType = (searchParams?.get("revisionType") ?? "").toLowerCase();
+  const requestedStepParam = searchParams?.get("step") ?? "1";
+  const initialStep: Step =
+    requestedStepParam === "3" ? 3 : requestedStepParam === "2" ? 2 : 1;
   const isEditMode = mode === "edit" && Boolean(recordId);
   const isViewMode = mode === "view" && Boolean(recordId);
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(initialStep);
   const [formData, setFormData] = useState<Step1FormData>({
     title: "",
     docType: "P",
     description: "",
     loginUserName: "",
+    loginUserId: "",
+    createdByUserId: "",
+    createdByUserName: "",
+    correctionPhase: "none",
     organizationName: "",
     organizationIdentification: "",
     industryType: "",
@@ -67,6 +109,9 @@ export default function DocumentsCreateContent() {
     processName: "",
     processId: "",
     processOwner: "",
+    processOwnerUserId: "",
+    approverName: "",
+    approverUserId: "",
     managementStandard: "",
     clause: "",
     subClause: "",
@@ -83,8 +128,22 @@ export default function DocumentsCreateContent() {
   const [isLoadingClauses, setIsLoadingClauses] = useState(false);
   const [isHydratingRecord, setIsHydratingRecord] = useState(false);
   const [initialWizardData, setInitialWizardData] = useState<Partial<DocumentWizardSnapshot> | null>(null);
+  const [previewDocRefFromRecord, setPreviewDocRefFromRecord] = useState<string | null>(null);
   const [activeRecordId, setActiveRecordId] = useState<string>(recordId);
   const [isApprovedRecord, setIsApprovedRecord] = useState(false);
+  const [reviewReturnNotice, setReviewReturnNotice] = useState<{
+    comments: string;
+    decision: "effective" | "ineffective" | null;
+    returnedAt: string;
+    reviewerName: string | null;
+  } | null>(null);
+  const [approvalReturnNotice, setApprovalReturnNotice] = useState<{
+    comments: string;
+    decision: "effective" | "ineffective" | null;
+    returnedAt: string;
+    approverName: string | null;
+  } | null>(null);
+  const [recordWorkflowStatus, setRecordWorkflowStatus] = useState<RecordWorkflowStatus>("");
 
   const steps = useMemo(
     () => [
@@ -96,7 +155,120 @@ export default function DocumentsCreateContent() {
   );
 
   const listHref = orgId ? getDashboardPath(orgId, "documents") : "/";
-  const canProceedStep1 = Boolean(formData.site && formData.processName);
+  const canProceedStep1 = Boolean(
+    formData.site && formData.processName && formData.processOwner.trim() && formData.approverName.trim()
+  );
+
+  const canAccessReviewStep = useMemo(
+    () =>
+      documentActorMatches(
+        formData.loginUserId,
+        formData.loginUserName,
+        formData.processOwnerUserId,
+        formData.processOwner
+      ),
+    [formData.loginUserId, formData.loginUserName, formData.processOwnerUserId, formData.processOwner]
+  );
+  const canAccessApprovalStep = useMemo(
+    () =>
+      documentActorMatches(
+        formData.loginUserId,
+        formData.loginUserName,
+        formData.approverUserId,
+        formData.approverName
+      ),
+    [formData.loginUserId, formData.loginUserName, formData.approverUserId, formData.approverName]
+  );
+
+  const correctionPhase: DocumentCorrectionPhase = formData.correctionPhase ?? "none";
+
+  const hasPersistedRecord = Boolean(recordId || activeRecordId);
+  const wf = normalizeRecordWorkflow(recordWorkflowStatus);
+
+  const isDocCreator = useMemo(
+    () =>
+      documentActorMatches(
+        formData.loginUserId,
+        formData.loginUserName,
+        formData.createdByUserId,
+        formData.createdByUserName
+      ),
+    [
+      formData.loginUserId,
+      formData.loginUserName,
+      formData.createdByUserId,
+      formData.createdByUserName,
+    ]
+  );
+
+  const isDocumentStakeholder = useMemo(
+    () => isDocCreator || canAccessReviewStep || canAccessApprovalStep,
+    [isDocCreator, canAccessReviewStep, canAccessApprovalStep]
+  );
+
+  /** Only the author may edit Create, except Process Owner during approval-return correction. */
+  const createStepEditable =
+    !isViewMode &&
+    (hasPersistedRecord
+      ? (correctionPhase === "awaiting_creator_after_review" && isDocCreator) ||
+        (correctionPhase === "awaiting_reviewer_after_approval" && canAccessReviewStep) ||
+        (correctionPhase === "none" && (wf === "draft" || wf === "") && isDocCreator) ||
+        (isEditMode && isApprovedRecord && isDocCreator)
+      : true);
+
+  const createStepReadOnly = isViewMode || !createStepEditable;
+
+  /** Only Process Owner may act on Review while document is in review. */
+  const reviewStepInteractive = canAccessReviewStep && wf === "in_review";
+  const reviewReadOnlyObserver = !reviewStepInteractive && isDocumentStakeholder;
+
+  /** Only designated Approver may act on Approval while document is in approval. */
+  const approvalStepInteractive = canAccessApprovalStep && wf === "in_approval";
+  const approvalReadOnlyObserver = !approvalStepInteractive && isDocumentStakeholder;
+
+  const isLoggedIn = Boolean(formData.loginUserId?.trim() || formData.loginUserName?.trim());
+
+  /**
+   * Any logged-in user with a saved record can switch tabs to view. If id/name matching fails for
+   * Process Owner / Approver, they still need to reach Review to see the amber “restricted” message
+   * or sign in with the right account — tabs must not stay greyed out for that reason alone.
+   */
+  const canNavigateToStep = (target: Step) => {
+    if (!hasPersistedRecord) return target === 1;
+    if (!isLoggedIn) return false;
+    return target === 1 || target === 2 || target === 3;
+  };
+
+  useEffect(() => {
+    if (isHydratingRecord) return;
+    if (!formData.loginUserName?.trim() && !formData.loginUserId?.trim()) return;
+    if (!canNavigateToStep(step)) {
+      const first: Step = canNavigateToStep(1)
+        ? 1
+        : canNavigateToStep(2)
+          ? 2
+          : canNavigateToStep(3)
+            ? 3
+            : 1;
+      setStep(first);
+    }
+  }, [
+    step,
+    isHydratingRecord,
+    formData.loginUserName,
+    formData.loginUserId,
+    formData.processOwner,
+    recordId,
+    activeRecordId,
+    hasPersistedRecord,
+    isLoggedIn,
+    correctionPhase,
+    recordWorkflowStatus,
+    canAccessReviewStep,
+    canAccessApprovalStep,
+    router,
+    listHref,
+  ]);
 
   useEffect(() => {
     let ignore = false;
@@ -129,7 +301,10 @@ export default function DocumentsCreateContent() {
         setSites(loadedSites);
         setFormData((prev) => ({
           ...prev,
+          loginUserId: String(profileJson?.id ?? prev.loginUserId ?? ""),
           loginUserName: String(profileJson?.name ?? prev.loginUserName ?? ""),
+          createdByUserId: prev.createdByUserId || String(profileJson?.id ?? ""),
+          createdByUserName: prev.createdByUserName || String(profileJson?.name ?? ""),
           organizationName: String(
             orgInfoJson?.organizationInfo?.name ??
               typedSitesJson.organization?.name ??
@@ -293,6 +468,15 @@ export default function DocumentsCreateContent() {
   }, [orgId, formData.managementStandard, formData.clause]);
 
   useEffect(() => {
+    if (!recordId) {
+      setReviewReturnNotice(null);
+      setApprovalReturnNotice(null);
+      setRecordWorkflowStatus("");
+      setPreviewDocRefFromRecord(null);
+    }
+  }, [recordId]);
+
+  useEffect(() => {
     let ignore = false;
     async function loadExistingRecord() {
       if (!orgId || !recordId) return;
@@ -305,15 +489,85 @@ export default function DocumentsCreateContent() {
         const json = res.ok ? await res.json() : { records: [] };
         if (ignore) return;
         const rows = Array.isArray(json?.records) ? json.records : [];
+        const notice = json?.reviewReturnNotice as
+          | {
+              comments?: string;
+              decision?: "effective" | "ineffective" | null;
+              returnedAt?: string;
+              reviewerName?: string | null;
+            }
+          | null
+          | undefined;
+        if (notice && typeof notice === "object") {
+          setReviewReturnNotice({
+            comments: String(notice.comments ?? ""),
+            decision:
+              notice.decision === "ineffective"
+                ? "ineffective"
+                : notice.decision === "effective"
+                  ? "effective"
+                  : null,
+            returnedAt: String(notice.returnedAt ?? ""),
+            reviewerName: notice.reviewerName ?? null,
+          });
+        } else {
+          setReviewReturnNotice(null);
+        }
+        const approvalNotice = json?.approvalReturnNotice as
+          | {
+              comments?: string;
+              decision?: "effective" | "ineffective" | null;
+              returnedAt?: string;
+              approverName?: string | null;
+            }
+          | null
+          | undefined;
+        if (approvalNotice && typeof approvalNotice === "object") {
+          setApprovalReturnNotice({
+            comments: String(approvalNotice.comments ?? ""),
+            decision:
+              approvalNotice.decision === "ineffective"
+                ? "ineffective"
+                : approvalNotice.decision === "effective"
+                  ? "effective"
+                  : null,
+            returnedAt: String(approvalNotice.returnedAt ?? ""),
+            approverName: approvalNotice.approverName ?? null,
+          });
+        } else {
+          setApprovalReturnNotice(null);
+        }
         const row = rows[0] as {
           form_data?: Partial<Step1FormData>;
           wizard_data?: Partial<DocumentWizardSnapshot>;
           workflow_status?: string;
+          created_by_user_id?: string | null;
+          created_by_user_name?: string | null;
+          preview_doc_ref?: string;
         } | undefined;
+        setPreviewDocRefFromRecord(
+          row?.preview_doc_ref?.trim() ? String(row.preview_doc_ref).trim() : null
+        );
+        setRecordWorkflowStatus(normalizeRecordWorkflow(row?.workflow_status));
         if (row?.form_data) {
+          const saved = row.form_data as Partial<Step1FormData>;
           setFormData((prev) => ({
             ...prev,
-            ...row.form_data,
+            ...saved,
+            loginUserId: prev.loginUserId,
+            loginUserName: prev.loginUserName,
+            createdByUserId: String(
+              saved.createdByUserId ?? row.created_by_user_id ?? prev.createdByUserId ?? ""
+            ),
+            createdByUserName: String(
+              saved.createdByUserName ?? row.created_by_user_name ?? prev.createdByUserName ?? ""
+            ),
+            correctionPhase: inferCorrectionPhaseFromNotices(
+              saved,
+              row.workflow_status,
+              notice,
+              approvalNotice
+            ),
           }));
         }
         const baseWizard = row?.wizard_data ?? null;
@@ -344,12 +598,12 @@ export default function DocumentsCreateContent() {
   };
 
   const redirectToDocuments = () => {
-    // User requested return to documents table after submit/draft.
-    router.push("/documents");
+    router.push(listHref);
   };
 
   const handleSubmitProceed = async (payload: DocumentSavePayload) => {
     let createdId = "";
+    let submittedOk = false;
     try {
       if (!orgId) throw new Error("Missing orgId");
       const res = await fetch(`/api/organization/${orgId}/documents`, {
@@ -366,12 +620,15 @@ export default function DocumentsCreateContent() {
       if (!res.ok) throw new Error("Failed to save submitted document");
       const json = await res.json();
       createdId = String(json?.id ?? "");
+      setReviewReturnNotice(null);
+      setApprovalReturnNotice(null);
+      submittedOk = true;
     } catch {
       // Temporary fallback so users do not lose data while backend/table rollout continues.
       appendDocumentRecord(orgId || "tenant", "submitted", payload);
     }
     if (createdId) setActiveRecordId(createdId);
-    setStep(2);
+    if (submittedOk) redirectToDocuments();
   };
 
   const handleSaveDraft = async (payload: DocumentSavePayload) => {
@@ -397,41 +654,100 @@ export default function DocumentsCreateContent() {
 
   const handleReviewSubmit = async (payload: { comments: string; decision: "effective" | "ineffective" | null }) => {
     if (!orgId || !activeRecordId) {
-      setStep(3);
+      if (payload.decision === "ineffective") {
+        setRecordWorkflowStatus("draft");
+        setField("correctionPhase", "awaiting_creator_after_review");
+        setStep(1);
+        setReviewReturnNotice({
+          comments: payload.comments,
+          decision: "ineffective",
+          returnedAt: new Date().toISOString(),
+          reviewerName: formData.loginUserName?.trim() || null,
+        });
+      } else {
+        redirectToDocuments();
+      }
       return;
     }
+    const isIneffective = payload.decision === "ineffective";
     try {
-      await fetch(`/api/organization/${orgId}/documents`, {
+      const res = await fetch(`/api/organization/${orgId}/documents`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recordId: activeRecordId,
-          action: "review-submit",
+          action: isIneffective ? "review-return" : "review-submit",
           comments: payload.comments,
           decision: payload.decision,
         }),
       });
-    } finally {
-      setStep(3);
+      if (!res.ok) return;
+      if (isIneffective) {
+        setRecordWorkflowStatus("draft");
+        setField("correctionPhase", "awaiting_creator_after_review");
+        setStep(1);
+        setReviewReturnNotice({
+          comments: payload.comments,
+          decision: "ineffective",
+          returnedAt: new Date().toISOString(),
+          reviewerName: formData.loginUserName?.trim() || null,
+        });
+      } else {
+        redirectToDocuments();
+      }
+    } catch {
+      return;
     }
   };
 
   const handleApproveFinish = async (payload: { comments: string; decision: "effective" | "ineffective" | null }) => {
-    if (orgId && activeRecordId) {
-      await fetch(`/api/organization/${orgId}/documents`, {
+    const isIneffective = payload.decision === "ineffective";
+    if (!orgId || !activeRecordId) {
+      if (isIneffective) {
+        setRecordWorkflowStatus("draft");
+        setField("correctionPhase", "awaiting_reviewer_after_approval");
+        setStep(1);
+        setApprovalReturnNotice({
+          comments: payload.comments,
+          decision: "ineffective",
+          returnedAt: new Date().toISOString(),
+          approverName: formData.loginUserName?.trim() || null,
+        });
+      } else {
+        redirectToDocuments();
+      }
+      return;
+    }
+    try {
+      const res = await fetch(`/api/organization/${orgId}/documents`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recordId: activeRecordId,
-          action: "approve",
+          action: isIneffective ? "approval-return" : "approve",
           comments: payload.comments,
           decision: payload.decision,
         }),
       });
+      if (!res.ok) return;
+    } catch {
+      return;
     }
-    redirectToDocuments();
+    if (isIneffective) {
+      setRecordWorkflowStatus("draft");
+      setField("correctionPhase", "awaiting_reviewer_after_approval");
+      setStep(1);
+      setApprovalReturnNotice({
+        comments: payload.comments,
+        decision: "ineffective",
+        returnedAt: new Date().toISOString(),
+        approverName: formData.loginUserName?.trim() || null,
+      });
+    } else {
+      redirectToDocuments();
+    }
   };
 
   return (
@@ -456,14 +772,20 @@ export default function DocumentsCreateContent() {
               const isCurrent = step === s;
               const isDone = step > s;
               const DisplayIcon = isDone ? Check : Icon;
+              const navAllowed = canNavigateToStep(s) || s === step;
               return (
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setStep(s)}
+                  disabled={!navAllowed}
+                  onClick={() => {
+                    if (!canNavigateToStep(s)) return;
+                    setStep(s);
+                  }}
                   className={cn(
                     "rounded-lg border px-4 py-3 transition-all",
                     "flex flex-col items-center justify-center min-h-[92px] gap-2",
+                    !navAllowed && "opacity-40 cursor-not-allowed",
                     isCurrent
                       ? "bg-[#22B323] border-[#22B323] text-white"
                       : isDone
@@ -490,6 +812,66 @@ export default function DocumentsCreateContent() {
           </div>
         </CardContent>
       </Card>
+
+      {reviewReturnNotice ? (
+        <div
+          role="status"
+          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[#991B1B] shadow-sm"
+        >
+          <div className="flex gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" aria-hidden />
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-semibold text-[#7F1D1D]">
+                Document marked ineffective — returned for correction
+                {reviewReturnNotice.reviewerName ? (
+                  <span className="font-normal text-[#991B1B]">
+                    {" "}
+                    (Reviewer: {reviewReturnNotice.reviewerName})
+                  </span>
+                ) : null}
+              </p>
+              {reviewReturnNotice.comments.trim() ? (
+                <p className="text-sm leading-relaxed text-[#7F1D1D]">
+                  <span className="font-medium text-[#991B1B]">Reviewer comment: </span>
+                  {reviewReturnNotice.comments.trim()}
+                </p>
+              ) : (
+                <p className="text-sm text-[#991B1B]">No additional comment was provided.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {approvalReturnNotice ? (
+        <div
+          role="status"
+          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[#991B1B] shadow-sm"
+        >
+          <div className="flex gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" aria-hidden />
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-semibold text-[#7F1D1D]">
+                Approval marked ineffective — returned for correction
+                {approvalReturnNotice.approverName ? (
+                  <span className="font-normal text-[#991B1B]">
+                    {" "}
+                    (Approver: {approvalReturnNotice.approverName})
+                  </span>
+                ) : null}
+              </p>
+              {approvalReturnNotice.comments.trim() ? (
+                <p className="text-sm leading-relaxed text-[#7F1D1D]">
+                  <span className="font-medium text-[#991B1B]">Approver comment: </span>
+                  {approvalReturnNotice.comments.trim()}
+                </p>
+              ) : (
+                <p className="text-sm text-[#991B1B]">No additional comment was provided.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* <Card className="py-4">
         <CardContent className="space-y-5"> */}
@@ -525,6 +907,7 @@ export default function DocumentsCreateContent() {
               description={formData.description}
               setDescription={(value) => setField("description", value)}
               loginUserName={formData.loginUserName}
+              loginUserId={formData.loginUserId}
               organizationName={formData.organizationName}
               organizationIdentification={formData.organizationIdentification}
               industryType={formData.industryType}
@@ -535,6 +918,12 @@ export default function DocumentsCreateContent() {
               processId={formData.processId}
               processOwner={formData.processOwner}
               setProcessOwner={(value) => setField("processOwner", value)}
+              processOwnerUserId={formData.processOwnerUserId}
+              setProcessOwnerUserId={(value) => setField("processOwnerUserId", value)}
+              approverName={formData.approverName}
+              setApproverName={(value) => setField("approverName", value)}
+              approverUserId={formData.approverUserId}
+              setApproverUserId={(value) => setField("approverUserId", value)}
               managementStandard={formData.managementStandard}
               setManagementStandard={(value) => {
                 setFormData((prev) => ({
@@ -564,9 +953,11 @@ export default function DocumentsCreateContent() {
               isLoadingContext={isLoadingContext}
               isLoadingSites={isLoadingSites}
               isLoadingProcesses={isLoadingProcesses}
-              canProceed={canProceedStep1 && !isHydratingRecord && !isViewMode}
-              isViewMode={isViewMode}
+              canProceed={canProceedStep1 && !isHydratingRecord && !isViewMode && !createStepReadOnly}
+              isViewMode={isViewMode || createStepReadOnly}
               initialWizard={initialWizardData ?? undefined}
+              initialPreviewDocRef={previewDocRefFromRecord ?? undefined}
+              recordId={recordId || undefined}
               onSubmitProceed={handleSubmitProceed}
               onSaveDraft={handleSaveDraft}
             />
@@ -580,10 +971,14 @@ export default function DocumentsCreateContent() {
               processName={formData.processName}
               description={formData.description}
               processOwner={formData.processOwner}
+              processOwnerUserId={formData.processOwnerUserId}
+              loginUserName={formData.loginUserName}
+              loginUserId={formData.loginUserId}
               managementStandard={formData.managementStandard}
               clause={formData.clause}
               subClause={formData.subClause}
               processId={formData.processId}
+              readOnlyObserver={reviewReadOnlyObserver}
               onBack={() => setStep(1)}
               onNext={handleReviewSubmit}
             />
@@ -597,10 +992,15 @@ export default function DocumentsCreateContent() {
               site={formData.siteId || formData.site}
               processName={formData.processName}
               processOwner={formData.processOwner}
+              designatedApproverName={formData.approverName}
+              designatedApproverUserId={formData.approverUserId}
+              loginUserName={formData.loginUserName}
+              loginUserId={formData.loginUserId}
               managementStandard={formData.managementStandard}
               clause={formData.clause}
               subClause={formData.subClause}
               processId={formData.processId}
+              readOnlyObserver={approvalReadOnlyObserver}
               onBack={() => setStep(2)}
               onApprove={handleApproveFinish}
             />

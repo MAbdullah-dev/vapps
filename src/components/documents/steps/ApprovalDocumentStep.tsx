@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Download } from "lucide-react";
+import { AlertTriangle, Check, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
+import { cn, documentActorMatches } from "@/lib/utils";
 
 type ApprovalDocumentStepProps = {
   listHref: string;
@@ -18,12 +19,30 @@ type ApprovalDocumentStepProps = {
   site: string;
   processName: string;
   processOwner?: string;
+  /** Approver chosen in Create Document — only this user may approve. */
+  designatedApproverName: string;
+  designatedApproverUserId?: string;
+  /** Logged-in user display name — must match designated approver to submit. */
+  loginUserName?: string;
+  loginUserId?: string;
   managementStandard?: string;
   clause?: string;
   subClause?: string;
   processId?: string;
+  /** Author or reviewer viewing Approval read-only; only the approver may submit. */
+  readOnlyObserver?: boolean;
   onBack: () => void;
   onApprove: (payload: { comments: string; decision: "effective" | "ineffective" | null }) => Promise<void> | void;
+};
+
+type MemberOption = {
+  id: string;
+  name: string;
+  leadershipTier?: string;
+  systemRole?: string;
+  jobTitle?: string;
+  isOwner?: boolean;
+  status?: "Active" | "Invited";
 };
 
 const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
@@ -35,15 +54,21 @@ export default function ApprovalDocumentStep({
   site,
   processName,
   processOwner,
+  designatedApproverName,
+  designatedApproverUserId,
+  loginUserName,
+  loginUserId,
   managementStandard,
   clause,
   subClause,
   processId,
+  readOnlyObserver = false,
   onBack,
   onApprove,
 }: ApprovalDocumentStepProps) {
-  const [approverName, setApproverName] = useState("Director Ahmed (CEO)");
-  const [approverRole, setApproverRole] = useState("CEO");
+  const params = useParams();
+  const orgId = (params?.orgId as string) || "";
+  const [approverRole, setApproverRole] = useState("");
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [verificationOutcome, setVerificationOutcome] = useState<"effective" | "ineffective" | null>(null);
   const [verificationComments, setVerificationComments] = useState("");
@@ -64,8 +89,88 @@ export default function ApprovalDocumentStep({
     return docType || "-";
   }, [docType]);
 
+  const canPerformApproval = useMemo(
+    () =>
+      documentActorMatches(
+        loginUserId,
+        loginUserName,
+        designatedApproverUserId,
+        designatedApproverName
+      ),
+    [loginUserId, loginUserName, designatedApproverUserId, designatedApproverName]
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadApproverRole() {
+      const name = (designatedApproverName ?? "").trim();
+      if (!orgId || !name) {
+        setApproverRole("");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/members`, { credentials: "include" });
+        const json = res.ok ? await res.json() : {};
+        if (ignore) return;
+        const members = (Array.isArray(json?.teamMembers)
+          ? json.teamMembers
+          : Array.isArray(json?.members)
+            ? json.members
+            : []) as MemberOption[];
+        const token = name.toLowerCase();
+        const match = members.find((m) => {
+          const n = (m.name ?? "").trim().toLowerCase();
+          const j = (m.jobTitle ?? "").trim().toLowerCase();
+          const r = (m.systemRole ?? "").trim().toLowerCase();
+          return n === token || (token.length > 0 && (j === token || r === token));
+        });
+        setApproverRole(
+          match ? match.jobTitle || match.systemRole || match.leadershipTier || "" : ""
+        );
+      } catch {
+        if (!ignore) setApproverRole("");
+      }
+    }
+    void loadApproverRole();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, designatedApproverName]);
+
+  const showRestrictedAlert = !canPerformApproval && !readOnlyObserver;
+
   return (
     <div className="space-y-5">
+      {readOnlyObserver ? (
+        <div
+          role="status"
+          className="flex gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+          <div>
+            <p className="font-semibold">View only</p>
+            <p className="mt-1 text-sky-900/90">
+              You can review Create and Review content from the other tabs. This Approval tab is read-only for your
+              account. Only the designated Approver may submit approval when the document is in approval.
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {showRestrictedAlert ? (
+        <div
+          role="alert"
+          className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
+          <div>
+            <p className="font-semibold">Approval restricted</p>
+            <p className="mt-1 text-amber-900/90">
+              Only the Approver chosen in Create Document may complete this step. Sign in as{" "}
+              <span className="font-medium">{designatedApproverName || "—"}</span>, or use Back.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] font-normal">
@@ -150,30 +255,24 @@ export default function ApprovalDocumentStep({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-bold text-[#111827]">Approver Name</Label>
-            <Select value={approverName} onValueChange={setApproverName}>
-              <SelectTrigger className="w-full border-[#E5E7EB]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Director Ahmed (CEO)">Director Ahmed (CEO)</SelectItem>
-                <SelectItem value="Director Ahmed (CTO)">Director Ahmed (CTO)</SelectItem>
-                <SelectItem value="Manager Manufacturing">Manager Manufacturing</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              readOnly
+              tabIndex={-1}
+              value={designatedApproverName}
+              placeholder="Set in Create Document (Approver)"
+              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+            />
+            <p className="text-xs text-[#6B7280]">System value from Create Document (Approver)</p>
           </div>
           <div className="space-y-2">
             <Label className="font-bold text-[#111827]">Role / Designation</Label>
-            <Select value={approverRole} onValueChange={setApproverRole}>
-              <SelectTrigger className="w-full border-[#E5E7EB]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CEO">CEO</SelectItem>
-                <SelectItem value="CTO">CTO</SelectItem>
-                <SelectItem value="Director">Director</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              readOnly
+              tabIndex={-1}
+              value={approverRole}
+              placeholder="System generated job title"
+              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+            />
           </div>
         </div>
       </div>
@@ -218,6 +317,7 @@ export default function ApprovalDocumentStep({
             id="approval-ack"
             checked={approvalAcknowledged}
             onCheckedChange={(v) => setApprovalAcknowledged(v === true)}
+            disabled={!canPerformApproval || readOnlyObserver}
             className="mt-1"
           />
           <div className="min-w-0 space-y-1">
@@ -247,8 +347,10 @@ export default function ApprovalDocumentStep({
             <button
               type="button"
               onClick={() => setVerificationOutcome("effective")}
+              disabled={!canPerformApproval || readOnlyObserver}
               className={cn(
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
+                (!canPerformApproval || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
                   ? "border-[#16A34A] bg-[#F0FDF4]"
                   : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
@@ -273,8 +375,10 @@ export default function ApprovalDocumentStep({
             <button
               type="button"
               onClick={() => setVerificationOutcome("ineffective")}
+              disabled={!canPerformApproval || readOnlyObserver}
               className={cn(
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
+                (!canPerformApproval || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
                   ? "border-[#DC2626] bg-[#FEF2F2]"
                   : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
@@ -300,13 +404,24 @@ export default function ApprovalDocumentStep({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-bold text-[#111827]">Comments</Label>
+          <Label htmlFor="approval-comments" className="text-sm font-bold text-[#111827]">
+            Comments <span className="text-red-600">*</span>
+          </Label>
           <Textarea
+            id="approval-comments"
             value={verificationComments}
             onChange={(e) => setVerificationComments(e.target.value)}
-            placeholder="Enter your review comments here..."
+            readOnly={!canPerformApproval || readOnlyObserver}
+            required={canPerformApproval && !readOnlyObserver}
+            aria-required={canPerformApproval && !readOnlyObserver}
+            placeholder="Enter your approval comments here (required)…"
             className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
           />
+          {canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
+            <p className="text-xs text-amber-800" role="status">
+              Comments are required before you can submit approval.
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
@@ -326,16 +441,20 @@ export default function ApprovalDocumentStep({
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        {approvalAcknowledged && verificationOutcome ? (
+        {approvalAcknowledged &&
+        verificationOutcome &&
+        canPerformApproval &&
+        !readOnlyObserver &&
+        verificationComments.trim() ? (
           <Button
             type="button"
             onClick={() => onApprove({ comments: verificationComments, decision: verificationOutcome })}
           >
-            Approve &amp; Finish
+            {verificationOutcome === "ineffective" ? "Send to Approval" : "Approve & Finish"}
           </Button>
         ) : (
           <Button type="button" disabled>
-            Approve &amp; Finish
+            {verificationOutcome === "ineffective" ? "Send to Approval" : "Approve & Finish"}
           </Button>
         )}
       </div>

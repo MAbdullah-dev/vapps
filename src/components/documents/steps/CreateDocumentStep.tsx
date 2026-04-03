@@ -36,6 +36,7 @@ import {
   Send,
   Unlock,
 } from "lucide-react";
+import { documentActorMatches } from "@/lib/utils";
 
 function managementStandardLabel(value: string): string {
   switch (value) {
@@ -77,6 +78,34 @@ function extractProcessCode(raw: string): string {
   return raw.trim() ? raw.trim().slice(0, 4).toUpperCase() : "P1";
 }
 
+/** First path segment like D1, D12 (not P/F). */
+function parseDocNumberSegment(documentRef: string): string | null {
+  const parts = documentRef.split("/").filter(Boolean);
+  for (const seg of parts) {
+    const m = /^D(\d+)$/i.exec(String(seg).trim());
+    if (m) return `D${m[1]}`;
+  }
+  return null;
+}
+
+function maxDocNumberAcrossRef(ref: string): number {
+  const parts = ref.split("/").filter(Boolean);
+  let max = 0;
+  for (const seg of parts) {
+    const m = /^D(\d+)$/i.exec(String(seg).trim());
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
+}
+
+type ProcessOwnerMemberOption = {
+  id: string;
+  name: string;
+  leadershipTier?: string;
+  isOwner?: boolean;
+  status?: "Active" | "Invited";
+};
+
 type CreateDocumentStepProps = {
   orgId: string;
   formData: Step1FormData;
@@ -91,6 +120,7 @@ type CreateDocumentStepProps = {
   description: string;
   setDescription: (value: string) => void;
   loginUserName: string;
+  loginUserId: string;
   organizationName: string;
   organizationIdentification: string;
   industryType: string;
@@ -101,6 +131,12 @@ type CreateDocumentStepProps = {
   processId: string;
   processOwner: string;
   setProcessOwner: (value: string) => void;
+  processOwnerUserId: string;
+  setProcessOwnerUserId: (value: string) => void;
+  approverName: string;
+  setApproverName: (value: string) => void;
+  approverUserId: string;
+  setApproverUserId: (value: string) => void;
   managementStandard: string;
   setManagementStandard: (value: string) => void;
   clause: string;
@@ -120,6 +156,10 @@ type CreateDocumentStepProps = {
   canProceed: boolean;
   isViewMode?: boolean;
   initialWizard?: Partial<DocumentWizardSnapshot>;
+  /** When editing, used to keep Doc# in sync with saved preview_doc_ref. */
+  initialPreviewDocRef?: string;
+  /** Present when editing an existing record — skips allocating a new D#. */
+  recordId?: string;
   onSubmitProceed: (payload: DocumentSavePayload) => void | Promise<void>;
   onSaveDraft: (payload: DocumentSavePayload) => void | Promise<void>;
 };
@@ -138,6 +178,7 @@ export default function CreateDocumentStep({
   description,
   setDescription,
   loginUserName,
+  loginUserId,
   organizationName,
   organizationIdentification,
   industryType,
@@ -148,6 +189,12 @@ export default function CreateDocumentStep({
   processId,
   processOwner,
   setProcessOwner,
+  processOwnerUserId,
+  setProcessOwnerUserId,
+  approverName,
+  setApproverName,
+  approverUserId,
+  setApproverUserId,
   managementStandard,
   setManagementStandard,
   clause,
@@ -167,9 +214,12 @@ export default function CreateDocumentStep({
   canProceed,
   isViewMode = false,
   initialWizard,
+  initialPreviewDocRef,
+  recordId,
   onSubmitProceed,
   onSaveDraft,
 }: CreateDocumentStepProps) {
+  const [pathDocNumber, setPathDocNumber] = useState("D1");
   const [previousRefNumber, setPreviousRefNumber] = useState("");
   const [priorityLevel, setPriorityLevel] = useState<"high" | "low">("high");
   const [documentClassification, setDocumentClassification] = useState<"P" | "F" | "EXT">("P");
@@ -209,6 +259,127 @@ export default function CreateDocumentStep({
   const [transferInitiatorRequest, setTransferInitiatorRequest] = useState("");
   const [originatorConsent, setOriginatorConsent] = useState<"accepted" | "declined" | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [processOwnerOptions, setProcessOwnerOptions] = useState<ProcessOwnerMemberOption[]>([]);
+  const [approverOptions, setApproverOptions] = useState<ProcessOwnerMemberOption[]>([]);
+  const [isLoadingProcessOwners, setIsLoadingProcessOwners] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadProcessOwnerCandidates() {
+      if (!orgId) {
+        setProcessOwnerOptions([]);
+        setApproverOptions([]);
+        setIsLoadingProcessOwners(false);
+        return;
+      }
+      setIsLoadingProcessOwners(true);
+      try {
+        const res = await fetch(`/api/organization/${orgId}/members`, { credentials: "include" });
+        const json = res.ok ? await res.json() : {};
+        if (ignore) return;
+        const raw = Array.isArray(json?.teamMembers)
+          ? (json.teamMembers as ProcessOwnerMemberOption[])
+          : Array.isArray(json?.members)
+            ? (json.members as ProcessOwnerMemberOption[])
+            : [];
+        const filtered = raw.filter((m) => {
+          const tier = String(m.leadershipTier ?? "").trim().toLowerCase();
+          const isTopOrMiddle = tier === "top" || tier === "operational" || tier === "middle";
+          const isActive = (m.status ?? "Active") === "Active";
+          const isCreatingUser = documentActorMatches(loginUserId, loginUserName, m.id, m.name);
+          return isTopOrMiddle && isActive && !m.isOwner && !isCreatingUser;
+        });
+        setProcessOwnerOptions(filtered);
+
+        const ownerToken = (processOwner ?? "").trim().toLowerCase();
+        const ownerId = (processOwnerUserId ?? "").trim();
+        const approverFiltered = raw.filter((m) => {
+          const tier = String(m.leadershipTier ?? "").trim().toLowerCase();
+          const isTopOnly = tier === "top";
+          const isActive = (m.status ?? "Active") === "Active";
+          const currentName = (m.name ?? "").trim().toLowerCase();
+          const isProcessOwnerPick =
+            (ownerToken.length > 0 && currentName === ownerToken) ||
+            (ownerId.length > 0 && m.id === ownerId);
+          const isCreatingUser = documentActorMatches(loginUserId, loginUserName, m.id, m.name);
+          return isTopOnly && isActive && !m.isOwner && !isProcessOwnerPick && !isCreatingUser;
+        });
+        setApproverOptions(approverFiltered);
+      } catch {
+        if (!ignore) {
+          setProcessOwnerOptions([]);
+          setApproverOptions([]);
+        }
+      } finally {
+        if (!ignore) setIsLoadingProcessOwners(false);
+      }
+    }
+    void loadProcessOwnerCandidates();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, processOwner, processOwnerUserId, loginUserName, loginUserId]);
+
+  useEffect(() => {
+    if (documentActorMatches(loginUserId, loginUserName, processOwnerUserId, processOwner)) {
+      setProcessOwner("");
+      setProcessOwnerUserId("");
+    }
+  }, [loginUserId, loginUserName, processOwnerUserId, processOwner, setProcessOwner, setProcessOwnerUserId]);
+
+  useEffect(() => {
+    if (documentActorMatches(loginUserId, loginUserName, approverUserId, approverName)) {
+      setApproverName("");
+      setApproverUserId("");
+    }
+  }, [loginUserId, loginUserName, approverUserId, approverName, setApproverName, setApproverUserId]);
+
+  useEffect(() => {
+    const a = approverName.trim();
+    const o = processOwner.trim();
+    const sameById =
+      processOwnerUserId.trim().length > 0 &&
+      approverUserId.trim().length > 0 &&
+      processOwnerUserId === approverUserId;
+    const sameByName = a && o && a.toLowerCase() === o.toLowerCase();
+    if (sameById || sameByName) {
+      setApproverName("");
+      setApproverUserId("");
+    }
+  }, [
+    processOwner,
+    approverName,
+    processOwnerUserId,
+    approverUserId,
+    setApproverName,
+    setApproverUserId,
+  ]);
+
+  useEffect(() => {
+    if (!processOwner.trim()) return;
+    if (processOwnerUserId.trim()) return;
+    const m = processOwnerOptions.find((x) => x.name === processOwner);
+    if (m?.id) setProcessOwnerUserId(m.id);
+  }, [processOwner, processOwnerUserId, processOwnerOptions, setProcessOwnerUserId]);
+
+  useEffect(() => {
+    if (!approverName.trim()) return;
+    if (approverUserId.trim()) return;
+    const m = approverOptions.find((x) => x.name === approverName);
+    if (m?.id) setApproverUserId(m.id);
+  }, [approverName, approverUserId, approverOptions, setApproverUserId]);
+
+  const handleProcessOwnerChange = (name: string) => {
+    setProcessOwner(name);
+    const m = processOwnerOptions.find((x) => x.name === name);
+    setProcessOwnerUserId(m?.id ?? "");
+  };
+
+  const handleApproverChange = (name: string) => {
+    setApproverName(name);
+    const m = approverOptions.find((x) => x.name === name);
+    setApproverUserId(m?.id ?? "");
+  };
 
   useEffect(() => {
     if (!initialWizard) return;
@@ -252,6 +423,10 @@ export default function CreateDocumentStep({
     if (initialWizard.transferDocumentClass === "P" || initialWizard.transferDocumentClass === "F" || initialWizard.transferDocumentClass === "EXT") setTransferDocumentClass(initialWizard.transferDocumentClass);
     if (typeof initialWizard.transferInitiatorRequest === "string") setTransferInitiatorRequest(initialWizard.transferInitiatorRequest);
     if (initialWizard.originatorConsent === "accepted" || initialWizard.originatorConsent === "declined" || initialWizard.originatorConsent === null) setOriginatorConsent(initialWizard.originatorConsent);
+    if (typeof initialWizard.documentNumberSegment === "string") {
+      const m = /^D(\d+)$/i.exec(initialWizard.documentNumberSegment.trim());
+      if (m) setPathDocNumber(`D${m[1]}`);
+    }
   }, [initialWizard]);
 
   const reasonOptions = [
@@ -366,6 +541,43 @@ export default function CreateDocumentStep({
     transferTargetProcess,
   ]);
 
+  useEffect(() => {
+    const ref = initialPreviewDocRef?.trim();
+    if (!ref) return;
+    const parsed = parseDocNumberSegment(ref);
+    if (parsed) setPathDocNumber(parsed);
+  }, [initialPreviewDocRef]);
+
+  useEffect(() => {
+    if (!orgId || recordId) return;
+    let ignore = false;
+    async function allocateNext() {
+      try {
+        const [activeRes, obsoleteRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, { credentials: "include" }),
+          fetch(`/api/organization/${orgId}/documents?lifecycle=obsolete`, { credentials: "include" }),
+        ]);
+        const activeJson = activeRes.ok ? await activeRes.json() : { records: [] };
+        const obsoleteJson = obsoleteRes.ok ? await obsoleteRes.json() : { records: [] };
+        const rows = [
+          ...(Array.isArray(activeJson?.records) ? activeJson.records : []),
+          ...(Array.isArray(obsoleteJson?.records) ? obsoleteJson.records : []),
+        ] as Array<{ preview_doc_ref?: string }>;
+        let max = 0;
+        for (const row of rows) {
+          max = Math.max(max, maxDocNumberAcrossRef(String(row.preview_doc_ref ?? "")));
+        }
+        if (!ignore) setPathDocNumber(`D${max + 1}`);
+      } catch {
+        if (!ignore) setPathDocNumber("D1");
+      }
+    }
+    void allocateNext();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, recordId]);
+
   const previewDocRef = useMemo(() => {
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
       return `${searchCurrentDocumentRef.trim()} → v2`;
@@ -373,15 +585,15 @@ export default function CreateDocumentStep({
     if (isReviseTransfer) {
       const y = new Date().getFullYear();
       const cls = transferDocumentClass;
-      const docSeg = cls === "EXT" ? "EXT" : docType;
+      const docSeg = cls === "EXT" ? "EXT" : pathDocNumber;
       return `Doc/${y}/${transferTargetSite}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
     }
-    return `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${processId || "P1"}/${documentClassification}/${docType}/v1`;
+    return `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${processId || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
   }, [
     isReviseUpdate,
     isReviseTransfer,
     searchCurrentDocumentRef,
-    docType,
+    pathDocNumber,
     transferDocumentClass,
     transferTargetSite,
     transferTargetProcess,
@@ -431,6 +643,7 @@ export default function CreateDocumentStep({
       transferDocumentClass,
       transferInitiatorRequest,
       originatorConsent,
+      documentNumberSegment: pathDocNumber,
     },
   });
 
@@ -468,6 +681,14 @@ export default function CreateDocumentStep({
       Boolean(transferTargetSite.trim()) &&
       Boolean(transferTargetProcess.trim()) &&
       transferProcessOptions.some((p) => p.code === transferTargetProcess));
+
+  /** Resubmit after review/approval return — do not block on revise sub-flow fields. */
+  const bypassReviseSubmitGuards =
+    formData.correctionPhase === "awaiting_creator_after_review" ||
+    formData.correctionPhase === "awaiting_reviewer_after_approval";
+
+  const reviseSubmitGuardsSatisfied =
+    bypassReviseSubmitGuards || (isReviseUpdateReady && isReviseTransferReady);
 
   const handleLockSelection = () => {
     setFilePin("");
@@ -649,14 +870,82 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="process-owner">Process Owner *</Label>
-                  <Input
-                    id="process-owner"
-                    value={processOwner}
-                    onChange={(e) => setProcessOwner(e.target.value)}
-                    placeholder="e.g., Quality Manager"
-                  />
+                  <Label htmlFor="process-owner">Process Owner / Responsible Person *</Label>
+                  <Select
+                    value={processOwner || undefined}
+                    onValueChange={handleProcessOwnerChange}
+                    disabled={isViewMode || isLoadingProcessOwners}
+                  >
+                    <SelectTrigger id="process-owner" className="w-full">
+                      <SelectValue
+                        placeholder={
+                          isLoadingProcessOwners ? "Loading users..." : "Select process owner"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {processOwner.trim() &&
+                      !processOwnerOptions.some((m) => m.name === processOwner) ? (
+                        <SelectItem key="__current-owner" value={processOwner}>
+                          {processOwner}
+                        </SelectItem>
+                      ) : null}
+                      {processOwnerOptions.length > 0 ? (
+                        processOwnerOptions.map((member) => (
+                          <SelectItem key={member.id} value={member.name}>
+                            {member.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-[#6B7280]">
+                          No eligible top or middle-tier users available
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-[#6A7282]">
+                    Top/middle tier only. The person creating this document cannot be Process Owner.
+                  </p>
                 </div>
+              </div>
+              <div className="space-y-2 max-w-xl">
+                <Label htmlFor="doc-approver">Approver *</Label>
+                <Select
+                  value={approverName || undefined}
+                  onValueChange={handleApproverChange}
+                  disabled={isViewMode || isLoadingProcessOwners}
+                >
+                  <SelectTrigger id="doc-approver" className="w-full">
+                    <SelectValue
+                      placeholder={
+                        isLoadingProcessOwners ? "Loading users..." : "Select approver (top tier)"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approverName.trim() &&
+                    !approverOptions.some((m) => m.name === approverName) ? (
+                      <SelectItem key="__current-approver" value={approverName}>
+                        {approverName}
+                      </SelectItem>
+                    ) : null}
+                    {approverOptions.length > 0 ? (
+                      approverOptions.map((member) => (
+                        <SelectItem key={member.id} value={member.name}>
+                          {member.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-[#6B7280]">
+                        No eligible top-tier approvers available
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[#6A7282]">
+                  Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be
+                  approver.
+                </p>
               </div>
             </div>
 
@@ -1780,8 +2069,7 @@ export default function CreateDocumentStep({
                 isViewMode ||
                 !canProceed ||
                 isLoadingContext ||
-                !isReviseUpdateReady ||
-                !isReviseTransferReady
+                !reviseSubmitGuardsSatisfied
               }
             >
               <Send size={14} />

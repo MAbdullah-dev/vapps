@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,16 @@ import {
 import { Check, FileText, PlayCircle, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 
+type DocumentsApiRecord = {
+  id: string;
+  status: "draft" | "submitted";
+  preview_doc_ref: string;
+  form_data: Record<string, unknown> | null;
+  wizard_data: Record<string, unknown> | null;
+};
+
 type FRecordTemplate = {
+  recordId: string;
   referenceNumber: string;
   formTitle: string;
   site: string;
@@ -29,28 +38,36 @@ type FRecordTemplate = {
   version: string;
 };
 
-const F_RECORD_TEMPLATES_MOCK: FRecordTemplate[] = [
-  {
-    referenceNumber: "Doc/2025/S1/P4/F/D5/v1",
-    formTitle: "Inspection Checklist",
-    site: "S1",
-    process: "P4",
-    standard: "ISO 9001",
-    clause: "8.6 Release",
-    subclause: "8.6.1 Product Release",
-    version: "v1",
-  },
-  {
-    referenceNumber: "Doc/2025/S1/P2/F/D6/v3",
-    formTitle: "Production Schedule Form",
-    site: "S1",
-    process: "P2",
-    standard: "ISO 9001",
-    clause: "8.5 Production",
-    subclause: "8.5.1 Control of Production",
-    version: "v3",
-  },
-];
+function pickVersion(documentRef: string): string {
+  const parts = documentRef.split("/").filter(Boolean);
+  if (parts.length < 1) return "-";
+  return parts[parts.length - 1] ?? "-";
+}
+
+function isFTypeDocument(row: DocumentsApiRecord): boolean {
+  const formData = (row.form_data ?? {}) as Record<string, unknown>;
+  const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
+  const t = String(wizard.documentClassification ?? formData.docType ?? "")
+    .trim()
+    .toUpperCase();
+  return t === "F";
+}
+
+function mapRecordToTemplate(row: DocumentsApiRecord): FRecordTemplate {
+  const formData = (row.form_data ?? {}) as Record<string, unknown>;
+  const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+  return {
+    recordId: row.id,
+    referenceNumber: documentRef,
+    formTitle: String(formData.title ?? "").trim() || "-",
+    site: String(formData.siteId ?? formData.site ?? "").trim() || "-",
+    process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
+    standard: String(formData.managementStandard ?? "").trim() || "-",
+    clause: String(formData.clause ?? "").trim() || "-",
+    subclause: String(formData.subClause ?? "").trim() || "-",
+    version: pickVersion(documentRef),
+  };
+}
 
 export default function DocumentaryEvidenceTemplatesContent() {
   const params = useParams();
@@ -60,11 +77,43 @@ export default function DocumentaryEvidenceTemplatesContent() {
   const captureHref = orgId ? getDashboardPath(orgId, "documents/documentary-evidence/capture") : "/";
 
   const [search, setSearch] = useState("");
+  const [templates, setTemplates] = useState<FRecordTemplate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      if (!orgId) {
+        setTemplates([]);
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
+          credentials: "include",
+        });
+        const json = res.ok ? await res.json() : { records: [] };
+        if (ignore) return;
+        const records = Array.isArray(json?.records) ? (json.records as DocumentsApiRecord[]) : [];
+        const fOnly = records.filter((r) => isFTypeDocument(r));
+        setTemplates(fOnly.map(mapRecordToTemplate));
+      } catch {
+        if (!ignore) setTemplates([]);
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return F_RECORD_TEMPLATES_MOCK;
-    return F_RECORD_TEMPLATES_MOCK.filter((row) => {
+    if (!q) return templates;
+    return templates.filter((row) => {
       const haystack = [
         row.referenceNumber,
         row.formTitle,
@@ -79,7 +128,13 @@ export default function DocumentaryEvidenceTemplatesContent() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [search]);
+  }, [search, templates]);
+
+  const emptyMessage = isLoading
+    ? "Loading templates…"
+    : templates.length === 0
+      ? "No F-type (Form) documents found in the active Master Document List. Create an F document from Documents, then it will appear here."
+      : "No templates match your search.";
 
   return (
     <div className="space-y-6">
@@ -143,7 +198,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
             <h2 className="text-base font-semibold text-[#0A0A0A]">
               Available F-Record Templates
               <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({filtered.length} active)
+                ({isLoading ? "…" : filtered.length} active F-type)
               </span>
             </h2>
             <div className="relative w-full sm:w-[280px]">
@@ -155,6 +210,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search templates..."
+                disabled={isLoading || templates.length === 0}
                 className="h-10 pl-9 bg-[#F9FAFB] border-[#E5E7EB]"
               />
             </div>
@@ -203,13 +259,13 @@ export default function DocumentaryEvidenceTemplatesContent() {
                       colSpan={10}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
-                      No templates match your search.
+                      {emptyMessage}
                     </TableCell>
                   </TableRow>
                 ) : null}
                 {filtered.map((row) => (
                   <TableRow
-                    key={row.referenceNumber}
+                    key={row.recordId}
                     className="border-b border-border bg-background hover:bg-muted/20"
                   >
                     <TableCell className="text-sm font-medium text-foreground whitespace-nowrap">
@@ -247,7 +303,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                         asChild
                       >
                         <Link
-                          href={`${captureHref}?template=${encodeURIComponent(row.referenceNumber)}`}
+                          href={`${captureHref}?template=${encodeURIComponent(row.referenceNumber)}&recordId=${encodeURIComponent(row.recordId)}`}
                         >
                           <PlayCircle className="size-4 shrink-0" />
                           Start Capture
@@ -259,7 +315,6 @@ export default function DocumentaryEvidenceTemplatesContent() {
               </TableBody>
             </Table>
           </div>
-
         </CardContent>
       </Card>
 

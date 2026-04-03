@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Download } from "lucide-react";
+import { AlertTriangle, Check, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn, documentActorMatches } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type ReviewDocumentStepProps = {
@@ -17,12 +18,28 @@ type ReviewDocumentStepProps = {
   processName: string;
   description: string;
   processOwner?: string;
+  processOwnerUserId?: string;
   managementStandard?: string;
   clause?: string;
   subClause?: string;
   processId?: string;
+  /** Logged-in user display name — must match Process Owner to submit review. */
+  loginUserName?: string;
+  loginUserId?: string;
+  /** Approver viewing Create + Review read-only while Process Owner corrects after approval return. */
+  readOnlyObserver?: boolean;
   onBack: () => void;
   onNext: (payload: { comments: string; decision: "effective" | "ineffective" | null }) => void;
+};
+
+type MemberOption = {
+  id: string;
+  name: string;
+  leadershipTier: string;
+  systemRole?: string;
+  jobTitle?: string;
+  isOwner?: boolean;
+  status?: "Active" | "Invited";
 };
 
 export default function ReviewDocumentStep({
@@ -32,15 +49,20 @@ export default function ReviewDocumentStep({
   processName,
   description,
   processOwner,
+  processOwnerUserId,
   managementStandard,
   clause,
   subClause,
   processId,
+  loginUserName,
+  loginUserId,
+  readOnlyObserver = false,
   onBack,
   onNext,
 }: ReviewDocumentStepProps) {
-  const [reviewerName, setReviewerName] = useState("Director Ahmed (CTO)");
-  const [reviewerRole, setReviewerRole] = useState("CTO");
+  const params = useParams();
+  const orgId = (params?.orgId as string) || "";
+  const [reviewerRole, setReviewerRole] = useState("");
   const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
   const [verificationOutcome, setVerificationOutcome] = useState<"effective" | "ineffective" | null>(null);
   const [reviewComments, setReviewComments] = useState("");
@@ -61,8 +83,80 @@ export default function ReviewDocumentStep({
     return docType || "-";
   }, [docType]);
 
+  const canPerformReview = useMemo(
+    () =>
+      documentActorMatches(loginUserId, loginUserName, processOwnerUserId, processOwner),
+    [loginUserId, loginUserName, processOwnerUserId, processOwner]
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadRoleForProcessOwner() {
+      const owner = (processOwner ?? "").trim();
+      if (!orgId || !owner) {
+        setReviewerRole("");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/members`, { credentials: "include" });
+        const json = res.ok ? await res.json() : { teamMembers: [] };
+        if (ignore) return;
+        const members = Array.isArray(json?.teamMembers) ? (json.teamMembers as MemberOption[]) : [];
+        const token = owner.toLowerCase();
+        const match = members.find((m) => {
+          const name = (m.name ?? "").trim().toLowerCase();
+          const job = (m.jobTitle ?? "").trim().toLowerCase();
+          const role = (m.systemRole ?? "").trim().toLowerCase();
+          return name === token || (token.length > 0 && (job === token || role === token));
+        });
+        setReviewerRole(
+          match ? match.jobTitle || match.systemRole || match.leadershipTier || "" : ""
+        );
+      } catch {
+        if (!ignore) setReviewerRole("");
+      }
+    }
+    void loadRoleForProcessOwner();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, processOwner]);
+
+  const showRestrictedAlert = !canPerformReview && !readOnlyObserver;
+
   return (
     <div className="space-y-5">
+      {readOnlyObserver ? (
+        <div
+          role="status"
+          className="flex gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+          <div>
+            <p className="font-semibold">View only</p>
+            <p className="mt-1 text-sky-900/90">
+              You can open this tab to verify content (for example after checking Create Document). All fields below are
+              read-only for your account. Only the assigned Process Owner may enter or change review decisions when this
+              document is in review.
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {showRestrictedAlert ? (
+        <div
+          role="alert"
+          className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
+          <div>
+            <p className="font-semibold">Review restricted</p>
+            <p className="mt-1 text-amber-900/90">
+              Only the Process Owner / Responsible Person chosen in Create Document may complete this review. Sign in as{" "}
+              <span className="font-medium">{processOwner || "—"}</span>, or use Back and ask them to review.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
         <div className="flex items-center gap-3">
@@ -134,28 +228,24 @@ export default function ReviewDocumentStep({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Reviewer Name</Label>
-            <Select value={reviewerName} onValueChange={setReviewerName}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Director Ahmed (CTO)">Director Ahmed (CTO)</SelectItem>
-                <SelectItem value="Manager Manufacturing">Manager Manufacturing</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              readOnly
+              tabIndex={-1}
+              value={processOwner ?? ""}
+              placeholder="Set in Create Document (Process Owner / Responsible Person)"
+              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+            />
+            <p className="text-xs text-[#6B7280]">System value from Process Owner / Responsible Person</p>
           </div>
           <div className="space-y-2">
             <Label>Role / Designation</Label>
-            <Select value={reviewerRole} onValueChange={setReviewerRole}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CTO">CTO</SelectItem>
-                <SelectItem value="Director">Director</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              readOnly
+              tabIndex={-1}
+              value={reviewerRole}
+              placeholder="System generated role"
+              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+            />
           </div>
         </div>
 
@@ -261,6 +351,7 @@ export default function ReviewDocumentStep({
             id="review-ack"
             checked={reviewAcknowledged}
             onCheckedChange={(v) => setReviewAcknowledged(v === true)}
+            disabled={!canPerformReview || readOnlyObserver}
             className="mt-1"
           />
           <div className="space-y-1 min-w-0">
@@ -286,8 +377,10 @@ export default function ReviewDocumentStep({
             <button
               type="button"
               onClick={() => setVerificationOutcome("effective")}
+              disabled={!canPerformReview || readOnlyObserver}
               className={cn(
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
+                (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
                   ? "border-[#16A34A] bg-[#F0FDF4]"
                   : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
@@ -312,8 +405,10 @@ export default function ReviewDocumentStep({
             <button
               type="button"
               onClick={() => setVerificationOutcome("ineffective")}
+              disabled={!canPerformReview || readOnlyObserver}
               className={cn(
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
+                (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
                   ? "border-[#DC2626] bg-[#FEF2F2]"
                   : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
@@ -341,13 +436,24 @@ export default function ReviewDocumentStep({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-bold text-[#111827]">Comments</Label>
+          <Label htmlFor="review-comments" className="text-sm font-bold text-[#111827]">
+            Comments <span className="text-red-600">*</span>
+          </Label>
           <Textarea
+            id="review-comments"
             value={reviewComments}
             onChange={(e) => setReviewComments(e.target.value)}
-            placeholder="Enter your review comments here..."
+            readOnly={!canPerformReview || readOnlyObserver}
+            required={canPerformReview && !readOnlyObserver}
+            aria-required={canPerformReview && !readOnlyObserver}
+            placeholder="Enter your review comments here (required)…"
             className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
           />
+          {canPerformReview && !readOnlyObserver && !reviewComments.trim() ? (
+            <p className="text-xs text-amber-800" role="status">
+              Comments are required before you can submit this review.
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
@@ -369,9 +475,15 @@ export default function ReviewDocumentStep({
         </Button>
         <Button
           onClick={() => onNext({ comments: reviewComments, decision: verificationOutcome })}
-          disabled={!reviewAcknowledged || !verificationOutcome}
+          disabled={
+            readOnlyObserver ||
+            !canPerformReview ||
+            !reviewAcknowledged ||
+            !verificationOutcome ||
+            !reviewComments.trim()
+          }
         >
-          Send to Approval
+          {verificationOutcome === "ineffective" ? "Send to Review" : "Send to Approval"}
         </Button>
       </div>
     </div>

@@ -64,7 +64,7 @@ type MasterDocumentRow = {
   reviewDue: string;
   kpi: string;
   docStatus: "In-Progress" | "Success" | "Pending" | "Fail";
-  docPosition: "Draft" | "Active";
+  docPosition: "Draft" | "Review Pending" | "Approval Pending" | "Active" | "Needs Review Again";
   workflowStatus: "draft" | "in_review" | "in_approval" | "approved";
 };
 
@@ -76,9 +76,54 @@ type DocumentsApiRecord = {
   wizard_data: Record<string, unknown> | null;
   lifecycle_status?: "active" | "obsolete";
   created_by_user_name: string | null;
+  reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+function normalizeDocNumberSeg(value: unknown): string | null {
+  const m = /^D(\d+)$/i.exec(String(value ?? "").trim());
+  return m ? `D${m[1]}` : null;
+}
+
+/** Finds D1, D12 in preview_doc_ref (path segment or embedded). */
+function pickDocNumberFromRef(documentRef: string): string | null {
+  const ref = documentRef.trim();
+  if (!ref) return null;
+  const slash = ref.match(/\/D(\d+)(?:\/|$)/i);
+  if (slash) return `D${slash[1]}`;
+  const word = ref.match(/\bD(\d+)\b/i);
+  if (word) return `D${word[1]}`;
+  for (const seg of ref.split("/").filter(Boolean)) {
+    const m = /^D(\d+)$/i.exec(String(seg).trim());
+    if (m) return `D${m[1]}`;
+  }
+  return null;
+}
+
+/** Prefer wizard + ref; assign sequential D# after max existing for rows with no D# (legacy paths). */
+function buildDocNumberResolver(records: DocumentsApiRecord[]) {
+  const explicit = (row: DocumentsApiRecord): string | null => {
+    const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
+    const ref = String(row.preview_doc_ref ?? "").trim();
+    const w = normalizeDocNumberSeg(wizard.documentNumberSegment);
+    if (w) return w;
+    return pickDocNumberFromRef(ref);
+  };
+  let max = 0;
+  for (const row of records) {
+    const n = explicit(row);
+    if (n) {
+      const m = /^D(\d+)$/i.exec(n);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+  }
+  const missing = records
+    .filter((r) => !explicit(r))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const map = new Map(missing.map((r, i) => [r.id, `D${max + i + 1}`]));
+  return (row: DocumentsApiRecord) => explicit(row) ?? map.get(row.id) ?? "-";
+}
 
 const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
   {
@@ -533,7 +578,15 @@ function DocPositionBadge({ position }: { position: MasterDocumentRow["docPositi
     <span
       className={cn(
         "inline-flex rounded-md px-2.5 py-1 text-xs font-semibold text-white",
-        position === "Draft" ? "bg-orange-500" : "bg-neutral-700"
+        position === "Draft"
+          ? "bg-orange-500"
+          : position === "Review Pending"
+            ? "bg-amber-600"
+            : position === "Approval Pending"
+              ? "bg-blue-600"
+              : position === "Needs Review Again"
+                ? "bg-red-600"
+            : "bg-neutral-700"
       )}
     >
       {position}
@@ -547,13 +600,18 @@ function MasterDocumentRowActionsMenu({
   canEditDirectly,
   reviseUpdateHref,
   reviseTransferHref,
+  workflowStatus,
 }: {
   editHref: string;
   viewHref: string;
   canEditDirectly: boolean;
   reviseUpdateHref: string;
   reviseTransferHref: string;
+  workflowStatus: MasterDocumentRow["workflowStatus"];
 }) {
+  const workflowStep =
+    workflowStatus === "in_review" ? "2" : workflowStatus === "in_approval" ? "3" : "1";
+  const workflowHref = `${editHref}&step=${workflowStep}`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -617,9 +675,14 @@ function MasterDocumentRowActionsMenu({
         <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
           Workflow
         </DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
-          <Send size={16} />
-          Submit for Review
+        <DropdownMenuItem
+          asChild
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+        >
+          <Link href={workflowHref}>
+            <Send size={16} />
+            {workflowStatus === "in_review" ? "Submit for Approval" : "Submit for Review"}
+          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -802,11 +865,8 @@ export default function DocumentsContent() {
           return `${dd}-${mm}-${yyyy}`;
         };
 
-        const pickDocNumber = (documentRef: string): string => {
-          const parts = documentRef.split("/").filter(Boolean);
-          if (parts.length < 2) return "-";
-          return parts[parts.length - 2] ?? "-";
-        };
+        const resolveMasterDocNumber = buildDocNumberResolver(records);
+        const resolveObsoleteDocNumber = buildDocNumberResolver(obsoleteRecords);
 
         const pickVersion = (documentRef: string): string => {
           const parts = documentRef.split("/").filter(Boolean);
@@ -830,6 +890,22 @@ export default function DocumentsContent() {
           const standardRaw = String(formData.managementStandard ?? "").trim();
           const standard = standardRaw || "-";
 
+          const reviewedAtRaw = String((row as { reviewed_at?: string | null }).reviewed_at ?? "").trim();
+          const reviewedAtDate = reviewedAtRaw ? new Date(reviewedAtRaw) : null;
+          const isValidReviewedAt = Boolean(reviewedAtDate && !Number.isNaN(reviewedAtDate.getTime()));
+          const reviewDueDate = isValidReviewedAt
+            ? new Date(
+                reviewedAtDate!.getFullYear() + 1,
+                reviewedAtDate!.getMonth(),
+                reviewedAtDate!.getDate(),
+                reviewedAtDate!.getHours(),
+                reviewedAtDate!.getMinutes(),
+                reviewedAtDate!.getSeconds(),
+                reviewedAtDate!.getMilliseconds()
+              )
+            : null;
+          const isReviewExpired = Boolean(reviewDueDate && Date.now() >= reviewDueDate.getTime());
+
           const workflowRaw = String((row as { workflow_status?: string }).workflow_status ?? "draft")
             .toLowerCase()
             .trim();
@@ -842,7 +918,9 @@ export default function DocumentsContent() {
                   ? "in_review"
                   : "draft";
           const status: MasterDocumentRow["docStatus"] =
-            workflowStatus === "approved"
+            workflowStatus === "approved" && isReviewExpired
+              ? "Pending"
+              : workflowStatus === "approved"
               ? "Success"
               : workflowStatus === "in_approval"
                 ? "Pending"
@@ -850,7 +928,15 @@ export default function DocumentsContent() {
                   ? "In-Progress"
                   : "In-Progress";
           const position: MasterDocumentRow["docPosition"] =
-            workflowStatus === "approved" ? "Active" : "Draft";
+            workflowStatus === "approved" && isReviewExpired
+              ? "Needs Review Again"
+              : workflowStatus === "approved"
+              ? "Active"
+              : workflowStatus === "in_approval"
+                ? "Approval Pending"
+                : workflowStatus === "in_review"
+                ? "Review Pending"
+                : "Draft";
           return {
             id: row.id,
             documentRef,
@@ -862,11 +948,11 @@ export default function DocumentsContent() {
             standard,
             clause: String(formData.clause ?? "").trim() || "-",
             subclause: String(formData.subClause ?? "").trim() || "-",
-            docNumber: pickDocNumber(documentRef),
+            docNumber: resolveMasterDocNumber(row),
             version: pickVersion(documentRef),
             planDate: String(wizard.planDate ?? "").trim() ? formatDate(String(wizard.planDate)) : "-",
             releaseDate: row.status === "submitted" ? formatDate(row.updated_at || row.created_at) : "-",
-            reviewDue: "-",
+            reviewDue: reviewDueDate ? formatDate(reviewDueDate.toISOString()) : "-",
             kpi: String(wizard.riskLevel ?? "Consistent").trim() || "Consistent",
             docStatus: status,
             docPosition: position,
@@ -878,7 +964,7 @@ export default function DocumentsContent() {
           const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
           const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
           const parts = documentRef.split("/").filter(Boolean);
-          const docNumber = parts.length >= 2 ? parts[parts.length - 2] ?? "-" : "-";
+          const docNumber = resolveObsoleteDocNumber(row);
           const version = parts.length >= 1 ? parts[parts.length - 1] ?? "-" : "-";
           const typeRaw = String(wizard.documentClassification ?? formData.docType ?? "P")
             .toUpperCase()
@@ -1211,6 +1297,7 @@ export default function DocumentsContent() {
                           canEditDirectly={doc.workflowStatus !== "approved"}
                           reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
                           reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
+                          workflowStatus={doc.workflowStatus}
                         />
                       </TableCell>
                     </TableRow>
