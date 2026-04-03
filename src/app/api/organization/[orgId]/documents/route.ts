@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContextAndError } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
+import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
 import { documentActorMatches } from "@/lib/utils";
 
 type RequestUser = { id: string; name: string | null };
@@ -51,9 +52,17 @@ type SaveDocumentBody = {
 
 type UpdateWorkflowBody = {
   recordId?: string;
-  action?: "review-submit" | "review-return" | "approval-return" | "approve";
+  action?:
+    | "review-submit"
+    | "review-return"
+    | "approval-return"
+    | "approve"
+    | "annual-review-request"
+    | "annual-review-accept"
+    | "annual-review-decline";
   comments?: string;
   decision?: "effective" | "ineffective" | null;
+  message?: string;
 };
 
 export async function GET(
@@ -90,6 +99,7 @@ export async function GET(
       reviewed_at: string | null;
       created_at: string;
       updated_at: string;
+      obsolete_at: string | null;
     }> = [];
 
     let reviewReturnNotice: {
@@ -115,6 +125,11 @@ export async function GET(
       if (tableCheck.rows.length === 0) {
         throw new Error("document_module_records table does not exist. Run tenant migration 020.");
       }
+
+      await client.query(
+        `ALTER TABLE document_module_records
+           ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
+      );
 
       const lifecycleColCheck = await client.query(
         `SELECT 1 FROM information_schema.columns
@@ -146,6 +161,35 @@ export async function GET(
          WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'reviewed_at'`
       );
       const hasReviewedAt = reviewedAtColCheck.rows.length > 0;
+      const obsoleteAtColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'obsolete_at'`
+      );
+      const hasObsoleteAt = obsoleteAtColCheck.rows.length > 0;
+
+      const isListFetch = !(requestedId?.trim() ?? "");
+      if (isListFetch && hasLifecycle) {
+        const obsoleteAgePredicate = hasObsoleteAt
+          ? "COALESCE(x.obsolete_at, x.updated_at) < NOW() - INTERVAL '3 years'"
+          : "x.updated_at < NOW() - INTERVAL '3 years'";
+        if (hasSupersedes) {
+          await client.query(
+            `UPDATE document_module_records r
+             SET supersedes_record_id = NULL
+             WHERE r.supersedes_record_id IN (
+               SELECT x.id FROM document_module_records x
+               WHERE x.lifecycle_status = 'obsolete' AND ${obsoleteAgePredicate}
+             )`
+          );
+        }
+        const deleteAgeExpr = hasObsoleteAt
+          ? "COALESCE(obsolete_at, updated_at) < NOW() - INTERVAL '3 years'"
+          : "updated_at < NOW() - INTERVAL '3 years'";
+        await client.query(
+          `DELETE FROM document_module_records
+           WHERE lifecycle_status = 'obsolete' AND ${deleteAgeExpr}`
+        );
+      }
 
       const result = await client.query<{
         id: string;
@@ -163,6 +207,7 @@ export async function GET(
         reviewed_at: string | null;
         created_at: string;
         updated_at: string;
+        obsolete_at: string | null;
       }>(
         `SELECT
           id::text,
@@ -179,7 +224,8 @@ export async function GET(
           ${hasReviewedBy ? "reviewed_by_user_name" : "NULL::text AS reviewed_by_user_name"},
           ${hasReviewedAt ? "reviewed_at::text" : "NULL::text AS reviewed_at"},
           created_at::text,
-          updated_at::text
+          updated_at::text,
+          ${hasObsoleteAt ? "obsolete_at::text" : "NULL::text AS obsolete_at"}
          FROM document_module_records
          WHERE ($1::text IS NULL OR id::text = $1::text)
            AND (
@@ -315,6 +361,10 @@ export async function POST(
       await client.query(
         `ALTER TABLE document_module_records
            ADD COLUMN IF NOT EXISTS superseded_by_record_id UUID NULL`
+      );
+      await client.query(
+        `ALTER TABLE document_module_records
+           ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
       );
       await client.query(
         `ALTER TABLE document_module_records
@@ -654,7 +704,17 @@ export async function PATCH(
     if (!recordId || !action) {
       return NextResponse.json({ error: "recordId and action are required" }, { status: 400 });
     }
-    if (!["review-return", "review-submit", "approval-return", "approve"].includes(action)) {
+    if (
+      ![
+        "review-return",
+        "review-submit",
+        "approval-return",
+        "approve",
+        "annual-review-request",
+        "annual-review-accept",
+        "annual-review-decline",
+      ].includes(action)
+    ) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
@@ -663,8 +723,19 @@ export async function PATCH(
     let forbiddenResponse: NextResponse | null = null;
 
     await withTenantConnection(connectionString, async (client) => {
-      const access = await client.query<{ form_data: unknown }>(
-        `SELECT form_data FROM document_module_records WHERE id::text = $1::text`,
+      await client.query(
+        `ALTER TABLE document_module_records
+           ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
+      );
+
+      const access = await client.query<{
+        form_data: unknown;
+        workflow_status: string;
+        reviewed_at: string | null;
+        created_by_user_id: string | null;
+      }>(
+        `SELECT form_data, workflow_status, reviewed_at::text, created_by_user_id
+         FROM document_module_records WHERE id::text = $1::text`,
         [recordId]
       );
       if (access.rows.length === 0) {
@@ -672,8 +743,164 @@ export async function PATCH(
         return;
       }
       const formDataRow = access.rows[0].form_data as Record<string, unknown> | null;
+      const rowWorkflow = String(access.rows[0].workflow_status ?? "").toLowerCase();
+      const reviewedAtIso = access.rows[0].reviewed_at;
       const actorName = context.user.name;
       const actorId = context.user.id;
+
+      const mergeAnnualRevalidation = (
+        base: Record<string, unknown> | null,
+        patch: Record<string, unknown>
+      ): string => {
+        const fd =
+          typeof base === "object" && base !== null && !Array.isArray(base)
+            ? { ...base }
+            : {};
+        const prev =
+          typeof fd.annualReviewRevalidation === "object" &&
+          fd.annualReviewRevalidation !== null &&
+          !Array.isArray(fd.annualReviewRevalidation)
+            ? { ...(fd.annualReviewRevalidation as Record<string, unknown>) }
+            : {};
+        fd.annualReviewRevalidation = { ...prev, ...patch };
+        return JSON.stringify(fd);
+      };
+
+      if (action === "annual-review-request") {
+        if (rowWorkflow !== "approved") {
+          forbiddenResponse = NextResponse.json(
+            { error: "Annual review can only be requested for approved documents." },
+            { status: 400 }
+          );
+          return;
+        }
+        if (!isAnnualReviewOverdue(reviewedAtIso)) {
+          forbiddenResponse = NextResponse.json(
+            { error: "Annual review is only required one year after the last review date." },
+            { status: 400 }
+          );
+          return;
+        }
+        const current = formDataRow?.annualReviewRevalidation as Record<string, unknown> | undefined;
+        const st = String(current?.status ?? "none");
+        if (st === "pending") {
+          forbiddenResponse = NextResponse.json(
+            { error: "A re-review request is already pending with the document creator." },
+            { status: 409 }
+          );
+          return;
+        }
+        const payload = mergeAnnualRevalidation(formDataRow, {
+          status: "pending",
+          requestedByUserId: actorId,
+          requestedByUserName: actorName ?? "",
+          requestedAt: new Date().toISOString(),
+          message: String(body.message ?? "").trim().slice(0, 2000),
+        });
+        await client.query(
+          `UPDATE document_module_records
+           SET form_data = $2::jsonb,
+               updated_by_user_id = $3,
+               updated_by_user_name = $4,
+               updated_at = NOW()
+           WHERE id::text = $1::text`,
+          [recordId, payload, actorId, actorName]
+        );
+        workflowStatus = "approved";
+        await client.query(
+          `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)
+           VALUES ($1::uuid, 'annual_review_requested', $2, $3, $4::jsonb)`,
+          [recordId, actorId, actorName, JSON.stringify({ message: body.message ?? "" })]
+        );
+        return;
+      }
+
+      if (action === "annual-review-accept") {
+        const creatorId = String(formDataRow?.createdByUserId ?? "").trim();
+        const creatorName = String(formDataRow?.createdByUserName ?? "");
+        if (!documentActorMatches(actorId, actorName, creatorId, creatorName)) {
+          forbiddenResponse = NextResponse.json(
+            { error: "Only the document creator may accept a re-review request." },
+            { status: 403 }
+          );
+          return;
+        }
+        const current = formDataRow?.annualReviewRevalidation as Record<string, unknown> | undefined;
+        if (String(current?.status ?? "") !== "pending") {
+          forbiddenResponse = NextResponse.json(
+            { error: "There is no pending re-review request to accept." },
+            { status: 400 }
+          );
+          return;
+        }
+        if (rowWorkflow !== "approved") {
+          forbiddenResponse = NextResponse.json({ error: "Document is not in an approvable state." }, { status: 400 });
+          return;
+        }
+        const payload = mergeAnnualRevalidation(formDataRow, {
+          status: "accepted",
+          creatorDecisionAt: new Date().toISOString(),
+        });
+        const updated = await client.query<{ workflow_status: "in_review" }>(
+          `UPDATE document_module_records
+           SET workflow_status = 'in_review',
+               form_data = $2::jsonb,
+               updated_by_user_id = $3,
+               updated_by_user_name = $4,
+               updated_at = NOW()
+           WHERE id::text = $1::text
+           RETURNING workflow_status`,
+          [recordId, payload, actorId, actorName]
+        );
+        workflowStatus = (updated.rows[0]?.workflow_status as "in_review") ?? "in_review";
+        await client.query(
+          `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)
+           VALUES ($1::uuid, 'annual_review_accepted', $2, $3, '{}'::jsonb)`,
+          [recordId, actorId, actorName]
+        );
+        return;
+      }
+
+      if (action === "annual-review-decline") {
+        const creatorId = String(formDataRow?.createdByUserId ?? "").trim();
+        const creatorName = String(formDataRow?.createdByUserName ?? "");
+        if (!documentActorMatches(actorId, actorName, creatorId, creatorName)) {
+          forbiddenResponse = NextResponse.json(
+            { error: "Only the document creator may decline a re-review request." },
+            { status: 403 }
+          );
+          return;
+        }
+        const current = formDataRow?.annualReviewRevalidation as Record<string, unknown> | undefined;
+        if (String(current?.status ?? "") !== "pending") {
+          forbiddenResponse = NextResponse.json(
+            { error: "There is no pending re-review request to decline." },
+            { status: 400 }
+          );
+          return;
+        }
+        const payload = mergeAnnualRevalidation(formDataRow, {
+          status: "declined",
+          creatorDecisionAt: new Date().toISOString(),
+        });
+        await client.query(
+          `UPDATE document_module_records
+           SET form_data = $2::jsonb,
+               updated_by_user_id = $3,
+               updated_by_user_name = $4,
+               updated_at = NOW()
+           WHERE id::text = $1::text`,
+          [recordId, payload, actorId, actorName]
+        );
+        workflowStatus = "approved";
+        await client.query(
+          `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)
+           VALUES ($1::uuid, 'annual_review_declined', $2, $3, '{}'::jsonb)`,
+          [recordId, actorId, actorName]
+        );
+        return;
+      }
+
       if (action === "review-return" || action === "review-submit") {
         const designatedOwnerId = String(formDataRow?.processOwnerUserId ?? "").trim();
         const designatedOwnerName = String(formDataRow?.processOwner ?? "");
@@ -814,6 +1041,7 @@ export async function PATCH(
             `UPDATE document_module_records
              SET lifecycle_status = 'obsolete',
                  superseded_by_record_id = $2::uuid,
+                 obsolete_at = NOW(),
                  updated_by_user_id = $3,
                  updated_by_user_name = $4,
                  updated_at = NOW()
@@ -821,6 +1049,22 @@ export async function PATCH(
             [supersedes, recordId, context.user.id, context.user.name]
           );
         }
+
+        const clearedAnnual = {
+          ...(typeof formDataRow === "object" && formDataRow !== null && !Array.isArray(formDataRow)
+            ? { ...formDataRow }
+            : {}),
+          annualReviewRevalidation: { status: "none" as const },
+        };
+        await client.query(
+          `UPDATE document_module_records
+           SET form_data = $2::jsonb,
+               updated_by_user_id = $3,
+               updated_by_user_name = $4,
+               updated_at = NOW()
+           WHERE id::text = $1::text`,
+          [recordId, JSON.stringify(clearedAnnual), context.user.id, context.user.name]
+        );
 
         await client.query(
           `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)

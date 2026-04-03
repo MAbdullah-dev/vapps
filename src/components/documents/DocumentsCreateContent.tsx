@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Check, CheckCircle, FileText, Save, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
+import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
 import { cn, documentActorMatches } from "@/lib/utils";
 import CreateDocumentStep from "@/components/documents/steps/CreateDocumentStep";
 import ReviewDocumentStep from "@/components/documents/steps/ReviewDocumentStep";
@@ -21,6 +23,7 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 import { appendDocumentRecord } from "@/lib/documentLocalStorage";
+import { toast } from "sonner";
 
 type SitesApiResponse = {
   sites?: Array<{ id: string; name: string; code?: string; location?: string | null }>;
@@ -144,6 +147,9 @@ export default function DocumentsCreateContent() {
     approverName: string | null;
   } | null>(null);
   const [recordWorkflowStatus, setRecordWorkflowStatus] = useState<RecordWorkflowStatus>("");
+  const [reviewedAtIso, setReviewedAtIso] = useState<string | null>(null);
+  const [annualRequestNote, setAnnualRequestNote] = useState("");
+  const [annualReviewActionBusy, setAnnualReviewActionBusy] = useState(false);
 
   const steps = useMemo(
     () => [
@@ -227,6 +233,85 @@ export default function DocumentsCreateContent() {
   const approvalReadOnlyObserver = !approvalStepInteractive && isDocumentStakeholder;
 
   const isLoggedIn = Boolean(formData.loginUserId?.trim() || formData.loginUserName?.trim());
+
+  const showAnnualReReviewGate = useMemo(
+    () =>
+      hasPersistedRecord &&
+      wf === "approved" &&
+      Boolean(reviewedAtIso) &&
+      isAnnualReviewOverdue(reviewedAtIso),
+    [hasPersistedRecord, wf, reviewedAtIso]
+  );
+
+  const annualRvStatus = formData.annualReviewRevalidation?.status ?? "none";
+
+  const runAnnualReviewAction = async (
+    patchAction: "annual-review-request" | "annual-review-accept" | "annual-review-decline",
+    requestMessage?: string
+  ) => {
+    if (!orgId || !activeRecordId) return;
+    setAnnualReviewActionBusy(true);
+    try {
+      const res = await fetch(`/api/organization/${orgId}/documents`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordId: activeRecordId,
+          action: patchAction,
+          message: requestMessage,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        const msg =
+          typeof payload.error === "string" && payload.error.trim()
+            ? payload.error
+            : "Could not update annual review. Please try again.";
+        toast.error(msg);
+        return;
+      }
+      if (patchAction === "annual-review-request") {
+        toast.success("Re-review request sent to the document creator.");
+        setFormData((prev) => ({
+          ...prev,
+          annualReviewRevalidation: {
+            status: "pending",
+            requestedByUserId: prev.loginUserId,
+            requestedByUserName: prev.loginUserName,
+            requestedAt: new Date().toISOString(),
+            message: (requestMessage ?? "").trim().slice(0, 2000),
+          },
+        }));
+        setAnnualRequestNote("");
+      } else if (patchAction === "annual-review-accept") {
+        toast.success("Re-review accepted. The document is now in review.");
+        setRecordWorkflowStatus("in_review");
+        setFormData((prev) => ({
+          ...prev,
+          annualReviewRevalidation: {
+            ...prev.annualReviewRevalidation,
+            status: "accepted",
+            creatorDecisionAt: new Date().toISOString(),
+          },
+        }));
+      } else {
+        toast.success("Re-review request declined.");
+        setFormData((prev) => ({
+          ...prev,
+          annualReviewRevalidation: {
+            ...prev.annualReviewRevalidation,
+            status: "declined",
+            creatorDecisionAt: new Date().toISOString(),
+          },
+        }));
+      }
+    } catch {
+      toast.error("Network error. Check your connection and try again.");
+    } finally {
+      setAnnualReviewActionBusy(false);
+    }
+  };
 
   /**
    * Any logged-in user with a saved record can switch tabs to view. If id/name matching fails for
@@ -473,6 +558,7 @@ export default function DocumentsCreateContent() {
       setApprovalReturnNotice(null);
       setRecordWorkflowStatus("");
       setPreviewDocRefFromRecord(null);
+      setReviewedAtIso(null);
     }
   }, [recordId]);
 
@@ -544,10 +630,13 @@ export default function DocumentsCreateContent() {
           created_by_user_id?: string | null;
           created_by_user_name?: string | null;
           preview_doc_ref?: string;
+          reviewed_at?: string | null;
         } | undefined;
         setPreviewDocRefFromRecord(
           row?.preview_doc_ref?.trim() ? String(row.preview_doc_ref).trim() : null
         );
+        const ra = String(row?.reviewed_at ?? "").trim();
+        setReviewedAtIso(ra || null);
         setRecordWorkflowStatus(normalizeRecordWorkflow(row?.workflow_status));
         if (row?.form_data) {
           const saved = row.form_data as Partial<Step1FormData>;
@@ -870,6 +959,93 @@ export default function DocumentsCreateContent() {
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {showAnnualReReviewGate && !isHydratingRecord ? (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 shadow-sm"
+          role="region"
+          aria-label="Annual document re-review"
+        >
+          <p className="font-semibold text-amber-900">Annual re-review required</p>
+          <p className="mt-2 leading-relaxed text-amber-950/90">
+            At least one year has passed since the last review on this approved document. The Process
+            Owner may perform review again only after the document creator accepts a re-review request.
+          </p>
+          {annualRvStatus === "pending" ? (
+            isDocCreator ? (
+              <div className="mt-4 space-y-3">
+                <p>
+                  <span className="font-medium">
+                    {formData.annualReviewRevalidation?.requestedByUserName?.trim() || "A user"}
+                  </span>{" "}
+                  asked to start a new review cycle.
+                </p>
+                {formData.annualReviewRevalidation?.message?.trim() ? (
+                  <div className="rounded-md border border-amber-200/80 bg-white/70 px-3 py-2 text-amber-950">
+                    {formData.annualReviewRevalidation.message}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-amber-700 text-white hover:bg-amber-800"
+                    disabled={annualReviewActionBusy}
+                    onClick={() => void runAnnualReviewAction("annual-review-accept")}
+                  >
+                    Accept — allow Process Owner to review
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300"
+                    disabled={annualReviewActionBusy}
+                    onClick={() => void runAnnualReviewAction("annual-review-decline")}
+                  >
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-amber-900/90">
+                Waiting for{" "}
+                <span className="font-medium">
+                  {formData.createdByUserName?.trim() || "the document creator"}
+                </span>{" "}
+                to accept the re-review request before the Process Owner can continue.
+              </p>
+            )
+          ) : (
+            <div className="mt-4 space-y-3">
+              {annualRvStatus === "declined" ? (
+                <p className="text-amber-900">
+                  The creator declined the previous request. You may send another request.
+                </p>
+              ) : null}
+              <Textarea
+                value={annualRequestNote}
+                onChange={(e) => setAnnualRequestNote(e.target.value)}
+                placeholder="Optional note to the document creator (why re-review is needed)"
+                rows={3}
+                className="max-w-xl border-amber-200 bg-white/80 text-amber-950 placeholder:text-amber-800/50"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="bg-amber-700 text-white hover:bg-amber-800"
+                disabled={annualReviewActionBusy || !isLoggedIn}
+                onClick={() => void runAnnualReviewAction("annual-review-request", annualRequestNote)}
+              >
+                Send re-review request to document creator
+              </Button>
+              {!isLoggedIn ? (
+                <p className="text-xs text-amber-800/80">Sign in to send a request.</p>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : null}
 

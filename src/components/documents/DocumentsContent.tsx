@@ -125,94 +125,8 @@ function buildDocNumberResolver(records: DocumentsApiRecord[]) {
   return (row: DocumentsApiRecord) => explicit(row) ?? map.get(row.id) ?? "-";
 }
 
-const MASTER_DOCUMENT_LIST_MOCK: MasterDocumentRow[] = [
-  {
-    id: "mock-master-1",
-    documentRef: "Doc/2025/S1/P1/P/D1/v1",
-    natureOfDocument: "New Document",
-    title: "Environment Policy",
-    type: "P",
-    site: "S1",
-    process: "P1-Quality",
-    standard: "14001",
-    clause: "4.0 Context",
-    subclause: "4.2 Interested Parties",
-    docNumber: "D1",
-    version: "v1",
-    planDate: "05-09-2025",
-    releaseDate: "-",
-    reviewDue: "-",
-    kpi: "Consistent",
-    docStatus: "In-Progress",
-    docPosition: "Draft",
-    workflowStatus: "draft",
-  },
-  {
-    id: "mock-master-2",
-    documentRef: "Doc/2025/S1/P2/F/D6/v3",
-    natureOfDocument: "Revision",
-    title: "Production Schedule",
-    type: "F",
-    site: "S1",
-    process: "P2-Manufacturing",
-    standard: "9001",
-    clause: "8.5 Production",
-    subclause: "8.5 Planning",
-    docNumber: "D6",
-    version: "v3",
-    planDate: "11-09-2025",
-    releaseDate: "11-09-2025",
-    reviewDue: "11-09-2026",
-    kpi: "Consistent",
-    docStatus: "Success",
-    docPosition: "Active",
-    workflowStatus: "approved",
-  },
-  {
-    id: "mock-master-3",
-    documentRef: "Doc/2025/S1/P1/F/D9/v2",
-    natureOfDocument: "New Document",
-    title: "Parts Inspection",
-    type: "F",
-    site: "S1",
-    process: "P1-Quality",
-    standard: "9001",
-    clause: "8.0 Planning",
-    subclause: "8.6 Objectives",
-    docNumber: "D9",
-    version: "v2",
-    planDate: "15-09-2025",
-    releaseDate: "15-09-2025",
-    reviewDue: "-",
-    kpi: "Pending",
-    docStatus: "Pending",
-    docPosition: "Draft",
-    workflowStatus: "in_approval",
-  },
-  {
-    id: "mock-master-4",
-    documentRef: "Doc/2025/S1/P4/F/D11/v4",
-    natureOfDocument: "Revision",
-    title: "Supplier Evaluation",
-    type: "F",
-    site: "S1",
-    process: "P5-Supply Chain",
-    standard: "9001",
-    clause: "8.0 Improvement",
-    subclause: "8.6 Objectives",
-    docNumber: "D11",
-    version: "v4",
-    planDate: "20-08-2025",
-    releaseDate: "20-08-2025",
-    reviewDue: "20-09-2025",
-    kpi: "Inconsistent",
-    docStatus: "Fail",
-    docPosition: "Active",
-    workflowStatus: "approved",
-  },
-];
-
 type ObsoleteDocumentRow = {
+  id: string;
   documentRef: string;
   title: string;
   type: "P" | "F" | "EXT";
@@ -245,60 +159,6 @@ type DocumentaryEvidenceRow = {
   recordRank: "Verified" | "Captured" | "Archived";
 };
 
-const DOCUMENTARY_EVIDENCE_MOCK: DocumentaryEvidenceRow[] = [
-  {
-    documentRef: "Doc/2025/S1/P4/F/D5/v1",
-    title: "Inspection Checklist",
-    processOwner: "P4",
-    batchLot: "001",
-    yearMonth: "2025/09",
-    site: "S1",
-    docNumber: "D5",
-    version: "v1",
-    captureBy: "Mr. Ali",
-    captureDate: "10-01-2025",
-    verifyBy: "Ms. Noor",
-    verifyDate: "12-01-2025",
-    kpi: "Consistent",
-    recordStatus: "Success",
-    recordRank: "Verified",
-  },
-  {
-    documentRef: "Doc/2025/S1/P2/F/D6/v3",
-    title: "Production Schedule Form",
-    processOwner: "P2",
-    batchLot: "042",
-    yearMonth: "2025/09",
-    site: "S1",
-    docNumber: "D6",
-    version: "v3",
-    captureBy: "Mr. Khan",
-    captureDate: "05-02-2025",
-    verifyBy: null,
-    verifyDate: null,
-    kpi: "Pending",
-    recordStatus: "Pending",
-    recordRank: "Captured",
-  },
-  {
-    documentRef: "Doc/2025/S1/P1/F/D7/v1",
-    title: "Calibration Record",
-    processOwner: "P1",
-    batchLot: "100",
-    yearMonth: "2025/03",
-    site: "S1",
-    docNumber: "D7",
-    version: "v1",
-    captureBy: "Ms. Ayesha",
-    captureDate: "18-03-2025",
-    verifyBy: "Mr. Zaid",
-    verifyDate: "20-03-2025",
-    kpi: "Inconsistent",
-    recordStatus: "Fail",
-    recordRank: "Archived",
-  },
-];
-
 type RecordsDisposalRow = {
   recordId: string;
   description: string;
@@ -308,81 +168,6 @@ type RecordsDisposalRow = {
   disposalMethod: "Delete" | "Shred";
   storageMedia: "Cloud" | "Physical" | "Local Server";
 };
-
-const RECORDS_DISPOSAL_LOG_MOCK: RecordsDisposalRow[] = [
-  {
-    recordId: "2020",
-    description: "Training Records 2017",
-    disposedBy: "Mr. abc",
-    disposalDate: "12-12-2020",
-    retentionPeriod: "3 Years",
-    disposalMethod: "Delete",
-    storageMedia: "Cloud",
-  },
-  {
-    recordId: "2021",
-    description: "QA Audit Files 2019",
-    disposedBy: "Ms. Noor",
-    disposalDate: "01-06-2021",
-    retentionPeriod: "Lifetime",
-    disposalMethod: "Shred",
-    storageMedia: "Local Server",
-  },
-  {
-    recordId: "2022",
-    description: "Supplier Contracts",
-    disposedBy: "Mr. Khan",
-    disposalDate: "15-03-2022",
-    retentionPeriod: "1 Year",
-    disposalMethod: "Delete",
-    storageMedia: "Physical",
-  },
-];
-
-const OBSOLETE_DOCUMENT_REGISTER_MOCK: ObsoleteDocumentRow[] = [
-  {
-    documentRef: "Doc/2025/S1/P1/P/D1/v1",
-    title: "Inventory Policy (Old)",
-    type: "P",
-    processOwner: "P1-Quality",
-    standard: "ISO 14001",
-    site: "S1",
-    docNumber: "D1",
-    version: "v1",
-    obsoletedBy: "Mr. Abc",
-    obsoleteDate: "01-12-2025",
-    replacedBy: "Mr. Xyz",
-    archivedLocation: "Cloud",
-  },
-  {
-    documentRef: "Doc/2025/S1/P2/F/D6/v3",
-    title: "Production Schedule (Superseded)",
-    type: "F",
-    processOwner: "P2-Manufacturing",
-    standard: "ISO 9001",
-    site: "S1",
-    docNumber: "D6",
-    version: "v3",
-    obsoletedBy: "Mr. Def",
-    obsoleteDate: "15-11-2025",
-    replacedBy: "—",
-    archivedLocation: "Local Server",
-  },
-  {
-    documentRef: "Doc/2025/S1/P1/F/D9/v2",
-    title: "Parts Inspection (Archive)",
-    type: "F",
-    processOwner: "P1-Quality",
-    standard: "ISO 9001",
-    site: "S1",
-    docNumber: "D9",
-    version: "v2",
-    obsoletedBy: "Mr. Ghi",
-    obsoleteDate: "03-10-2025",
-    replacedBy: "Mr. Jkl",
-    archivedLocation: "Cloud",
-  },
-];
 
 function ObsoleteTypeBadge({ type }: { type: ObsoleteDocumentRow["type"] }) {
   const map: Record<ObsoleteDocumentRow["type"], string> = {
@@ -830,11 +615,18 @@ export default function DocumentsContent() {
   const [search, setSearch] = useState("");
   const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
   const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
+  const [documentsLoaded, setDocumentsLoaded] = useState(() => !orgId);
 
   useEffect(() => {
     let ignore = false;
     async function loadDocuments() {
-      if (!orgId) return;
+      if (!orgId) {
+        setMasterApiRows([]);
+        setObsoleteApiRows([]);
+        setDocumentsLoaded(true);
+        return;
+      }
+      setDocumentsLoaded(false);
       try {
         const [activeRes, obsoleteRes] = await Promise.all([
           fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
@@ -972,6 +764,7 @@ export default function DocumentsContent() {
           const type: "P" | "F" | "EXT" =
             typeRaw === "EXT" ? "EXT" : typeRaw === "F" ? "F" : "P";
           return {
+            id: row.id,
             documentRef,
             title: String(formData.title ?? "").trim() || "-",
             type,
@@ -994,6 +787,8 @@ export default function DocumentsContent() {
           setMasterApiRows([]);
           setObsoleteApiRows([]);
         }
+      } finally {
+        if (!ignore) setDocumentsLoaded(true);
       }
     }
 
@@ -1006,13 +801,13 @@ export default function DocumentsContent() {
   const masterDocumentsForTable = useMemo((): MasterDocumentRow[] => {
     switch (selectedTable) {
       case "Master Document List":
-        return masterApiRows.length > 0 ? masterApiRows : MASTER_DOCUMENT_LIST_MOCK;
+        return masterApiRows;
       case "Obsolete Document Register":
       case "Documentary Evidence":
       case "Records Disposal Log":
         return [];
       default:
-        return masterApiRows.length > 0 ? masterApiRows : MASTER_DOCUMENT_LIST_MOCK;
+        return masterApiRows;
     }
   }, [masterApiRows, selectedTable]);
 
@@ -1048,7 +843,7 @@ export default function DocumentsContent() {
   const filteredObsolete = useMemo(() => {
     if (selectedTable !== "Obsolete Document Register") return [];
     const q = search.trim().toLowerCase();
-    const source = obsoleteApiRows.length > 0 ? obsoleteApiRows : OBSOLETE_DOCUMENT_REGISTER_MOCK;
+    const source = obsoleteApiRows;
     if (!q) return source;
     return source.filter((row) => {
       const haystack = [
@@ -1070,54 +865,6 @@ export default function DocumentsContent() {
       return haystack.includes(q);
     });
   }, [selectedTable, search, obsoleteApiRows]);
-
-  const filteredDocumentaryEvidence = useMemo(() => {
-    if (selectedTable !== "Documentary Evidence") return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return DOCUMENTARY_EVIDENCE_MOCK;
-    return DOCUMENTARY_EVIDENCE_MOCK.filter((row) => {
-      const haystack = [
-        row.documentRef,
-        row.title,
-        row.processOwner,
-        row.batchLot,
-        row.yearMonth,
-        row.site,
-        row.docNumber,
-        row.version,
-        row.captureBy,
-        row.captureDate,
-        row.verifyBy ?? "",
-        row.verifyDate ?? "",
-        row.kpi,
-        row.recordStatus,
-        row.recordRank,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [selectedTable, search]);
-
-  const filteredRecordsDisposal = useMemo(() => {
-    if (selectedTable !== "Records Disposal Log") return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return RECORDS_DISPOSAL_LOG_MOCK;
-    return RECORDS_DISPOSAL_LOG_MOCK.filter((row) => {
-      const haystack = [
-        row.recordId,
-        row.description,
-        row.disposedBy,
-        row.disposalDate,
-        row.retentionPeriod,
-        row.disposalMethod,
-        row.storageMedia,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [selectedTable, search]);
 
   return (
     <div className="space-y-6">
@@ -1188,6 +935,34 @@ export default function DocumentsContent() {
       {/* Main list */}
       <Card>
         <CardContent className="space-y-4">
+          {selectedTable === "Obsolete Document Register" ? (
+            <div
+              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              role="note"
+            >
+              <p className="font-semibold text-[#1E40AF]">Superseded versions and retention</p>
+              <p className="mt-2 leading-relaxed">
+                When a <span className="font-medium">new version</span> of a document is created as a revision and{" "}
+                <span className="font-medium">approved</span>, the previous version is moved here automatically (it
+                stays linked to the new active record). Obsolete rows are{" "}
+                <span className="font-medium">permanently deleted</span> once{" "}
+                <span className="font-medium">three years</span> have passed since they became obsolete; cleanup runs
+                when document lists are loaded.
+              </p>
+            </div>
+          ) : null}
+          {selectedTable === "Master Document List" ? (
+            <div
+              className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#4B5563]"
+              role="note"
+            >
+              <p className="leading-relaxed">
+                Revising an <span className="font-medium">approved</span> document creates a new version; when that new
+                version completes approval, the prior version appears in the{" "}
+                <span className="font-medium">Obsolete Document Register</span>.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-[#0A0A0A]">
@@ -1211,12 +986,7 @@ export default function DocumentsContent() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
-                  placeholder={
-                    selectedTable === "Documentary Evidence" ||
-                      selectedTable === "Records Disposal Log"
-                      ? "Fetch..."
-                      : "Search..."
-                  }
+                  placeholder="Search..."
                 />
               </div>
 
@@ -1261,47 +1031,65 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMaster.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
-                        {doc.documentRef}
-                      </TableCell>
-                      <TableCell className="text-sm text-[#0A0A0A]">{doc.natureOfDocument}</TableCell>
-                      <TableCell className="text-sm text-[#0A0A0A] max-w-[200px]">{doc.title}</TableCell>
-                      <TableCell>
-                        <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl text-[#0A0A0A]">
-                          {doc.type}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm">{doc.site}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{doc.process}</TableCell>
-                      <TableCell className="text-sm">{doc.standard}</TableCell>
-                      <TableCell className="text-sm max-w-[120px]">{doc.clause}</TableCell>
-                      <TableCell className="text-sm max-w-[160px]">{doc.subclause}</TableCell>
-                      <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.docNumber}</TableCell>
-                      <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.version}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
-                      <TableCell className="text-sm">{doc.kpi}</TableCell>
-                      <TableCell>
-                        <DocStatusBadge status={doc.docStatus} />
-                      </TableCell>
-                      <TableCell>
-                        <DocPositionBadge position={doc.docPosition} />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <MasterDocumentRowActionsMenu
-                          viewHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=view`}
-                          editHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit`}
-                          canEditDirectly={doc.workflowStatus !== "approved"}
-                          reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
-                          reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
-                          workflowStatus={doc.workflowStatus}
-                        />
+                  {!documentsLoaded && orgId ? (
+                    <TableRow>
+                      <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading documents…
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : filteredMaster.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
+                        {!orgId
+                          ? "Open this page from your organization dashboard to load documents."
+                          : masterApiRows.length === 0
+                            ? "No active documents yet. Use Create Document to add one."
+                            : "No documents match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredMaster.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
+                          {doc.documentRef}
+                        </TableCell>
+                        <TableCell className="text-sm text-[#0A0A0A]">{doc.natureOfDocument}</TableCell>
+                        <TableCell className="text-sm text-[#0A0A0A] max-w-[200px]">{doc.title}</TableCell>
+                        <TableCell>
+                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl text-[#0A0A0A]">
+                            {doc.type}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm">{doc.site}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{doc.process}</TableCell>
+                        <TableCell className="text-sm">{doc.standard}</TableCell>
+                        <TableCell className="text-sm max-w-[120px]">{doc.clause}</TableCell>
+                        <TableCell className="text-sm max-w-[160px]">{doc.subclause}</TableCell>
+                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.docNumber}</TableCell>
+                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.version}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
+                        <TableCell className="text-sm">{doc.kpi}</TableCell>
+                        <TableCell>
+                          <DocStatusBadge status={doc.docStatus} />
+                        </TableCell>
+                        <TableCell>
+                          <DocPositionBadge position={doc.docPosition} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <MasterDocumentRowActionsMenu
+                            viewHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=view`}
+                            editHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit`}
+                            canEditDirectly={doc.workflowStatus !== "approved"}
+                            reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
+                            reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
+                            workflowStatus={doc.workflowStatus}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             ) : selectedTable === "Obsolete Document Register" ? (
@@ -1332,9 +1120,26 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredObsolete.map((row) => (
+                  {!documentsLoaded && orgId ? (
+                    <TableRow>
+                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredObsolete.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                        {!orgId
+                          ? "Open this page from your organization dashboard to load documents."
+                          : obsoleteApiRows.length === 0
+                            ? "No obsolete documents. Superseded versions appear here after a new revision is approved."
+                            : "No obsolete documents match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredObsolete.map((row) => (
                     <TableRow
-                      key={row.documentRef}
+                      key={row.id}
                       className="border-b border-border bg-background hover:bg-muted/30"
                     >
                       <TableCell className="px-3 py-2.5 pl-4 text-sm font-medium text-foreground whitespace-nowrap">
@@ -1365,7 +1170,8 @@ export default function DocumentsContent() {
                         <ObsoleteDocumentRowActionsMenu />
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             ) : selectedTable === "Documentary Evidence" ? (
@@ -1413,57 +1219,12 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDocumentaryEvidence.map((row) => (
-                    <TableRow
-                      key={row.documentRef}
-                      className="border-b border-border bg-background hover:bg-muted/30"
-                    >
-                      <TableCell className="px-3 py-2.5 pl-4 text-sm font-medium text-foreground whitespace-nowrap">
-                        {row.documentRef}
-                      </TableCell>
-                      <TableCell className="max-w-[12rem] px-3 py-2.5 text-sm text-foreground whitespace-normal">
-                        {row.title}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.processOwner}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm tabular-nums text-foreground">
-                        {row.batchLot}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm whitespace-nowrap text-foreground">
-                        {row.yearMonth}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.site}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">{row.docNumber}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.version}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.captureBy}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm whitespace-nowrap text-foreground">
-                        {row.captureDate}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-muted-foreground">
-                        {row.verifyBy ?? "—"}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm whitespace-nowrap text-muted-foreground">
-                        {row.verifyDate ?? "—"}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-center">
-                        <EvidenceKpiText kpi={row.kpi} />
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-center">
-                        <div className="flex justify-center">
-                          <EvidenceRecordStatusBadge status={row.recordStatus} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-center">
-                        <div className="flex justify-center">
-                          <EvidenceRecordRankBadge rank={row.recordRank} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 pr-4 text-center">
-                        <div className="flex justify-center">
-                          <DocumentaryEvidenceRowActionsMenu />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  <TableRow>
+                    <TableCell colSpan={16} className="py-12 text-center text-sm text-muted-foreground">
+                      No documentary evidence records loaded yet. This view will use captured F-type records when the
+                      API is connected.
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             ) : selectedTable === "Records Disposal Log" ? (
@@ -1491,37 +1252,11 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRecordsDisposal.map((row) => (
-                    <TableRow
-                      key={row.recordId + row.disposalDate}
-                      className="border-b border-border bg-background hover:bg-muted/30"
-                    >
-                      <TableCell className="px-3 py-2.5 pl-4 text-sm font-bold text-foreground tabular-nums">
-                        {row.recordId}
-                      </TableCell>
-                      <TableCell className="max-w-[14rem] px-3 py-2.5 text-sm text-foreground whitespace-normal">
-                        {row.description}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.disposedBy}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-sm whitespace-nowrap text-foreground">
-                        {row.disposalDate}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <RetentionPeriodBadge label={row.retentionPeriod} />
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <DisposalMethodBadge method={row.disposalMethod} />
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <StorageMediaCell media={row.storageMedia} />
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 pr-4 text-center">
-                        <div className="flex justify-center">
-                          <RecordsDisposalRowActionsMenu />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                      No disposal log entries yet. This view will list disposed records when the API is connected.
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             ) : (
@@ -1545,28 +1280,46 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMaster.map((doc) => (
-                    <TableRow key={doc.documentRef}>
-                      <TableCell className="font-medium text-[#0A0A0A]">{doc.documentRef}</TableCell>
-                      <TableCell>{doc.natureOfDocument}</TableCell>
-                      <TableCell>{doc.title}</TableCell>
-                      <TableCell>
-                        <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl">
-                          {doc.type}
-                        </span>
+                  {!documentsLoaded && orgId ? (
+                    <TableRow>
+                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading documents…
                       </TableCell>
-                      <TableCell>{doc.site}</TableCell>
-                      <TableCell>{doc.process}</TableCell>
-                      <TableCell>{doc.standard}</TableCell>
-                      <TableCell>{doc.clause}</TableCell>
-                      <TableCell>{doc.subclause}</TableCell>
-                      <TableCell className="font-semibold">{doc.docNumber}</TableCell>
-                      <TableCell className="font-semibold">{doc.version}</TableCell>
-                      <TableCell>{doc.planDate}</TableCell>
-                      <TableCell>{doc.releaseDate}</TableCell>
-                      <TableCell>{doc.reviewDue}</TableCell>
                     </TableRow>
-                  ))}
+                  ) : filteredMaster.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                        {!orgId
+                          ? "Open this page from your organization dashboard to load documents."
+                          : masterApiRows.length === 0
+                            ? "No active documents yet."
+                            : "No documents match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredMaster.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium text-[#0A0A0A]">{doc.documentRef}</TableCell>
+                        <TableCell>{doc.natureOfDocument}</TableCell>
+                        <TableCell>{doc.title}</TableCell>
+                        <TableCell>
+                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl">
+                            {doc.type}
+                          </span>
+                        </TableCell>
+                        <TableCell>{doc.site}</TableCell>
+                        <TableCell>{doc.process}</TableCell>
+                        <TableCell>{doc.standard}</TableCell>
+                        <TableCell>{doc.clause}</TableCell>
+                        <TableCell>{doc.subclause}</TableCell>
+                        <TableCell className="font-semibold">{doc.docNumber}</TableCell>
+                        <TableCell className="font-semibold">{doc.version}</TableCell>
+                        <TableCell>{doc.planDate}</TableCell>
+                        <TableCell>{doc.releaseDate}</TableCell>
+                        <TableCell>{doc.reviewDue}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             )}

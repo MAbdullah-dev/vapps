@@ -22,6 +22,16 @@ export type DocumentCorrectionPhase =
   | "awaiting_creator_after_review"
   | "awaiting_reviewer_after_approval";
 
+/** Creator must accept before Process Owner can re-review after the annual cycle (stored in form_data). */
+export type AnnualReviewRevalidation = {
+  status: "none" | "pending" | "accepted" | "declined";
+  requestedByUserId?: string;
+  requestedByUserName?: string;
+  requestedAt?: string;
+  creatorDecisionAt?: string;
+  message?: string;
+};
+
 export type Step1FormData = {
   title: string;
   docType: string;
@@ -53,6 +63,7 @@ export type Step1FormData = {
   managementStandard: string;
   clause: string;
   subClause: string;
+  annualReviewRevalidation?: AnnualReviewRevalidation;
 };
 
 /** Persisted wizard-only fields from CreateDocumentStep. */
