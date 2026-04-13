@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "tenant:get": "node scripts/get-tenant.js"
+    "tenant:get": "node scripts/get-tenant.js",
+    "tenant:migrate-pending": "node scripts/run-pending-tenant-migrations.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.952.0",
@@ -55,6 +56,7 @@
     "date-fns": "^4.1.0",
     "froala-editor": "^4.7.1",
     "jotai": "^2.17.0",
+    "jspdf": "^4.2.1",
     "lodash.groupby": "^4.6.0",
     "lodash.throttle": "^4.1.1",
     "lucide-react": "^0.554.0",

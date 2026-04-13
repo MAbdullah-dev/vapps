@@ -1,33 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Archive, Check, FileText, Save, ShieldCheck } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getDashboardPath } from "@/lib/subdomain";
-import { cn } from "@/lib/utils";
+import {
+  isSupportLeadershipTier,
+  isTopOrOperationalLeadershipTier,
+} from "@/lib/documentaryEvidenceAccess";
 import CaptureEvidenceStep from "@/components/documents/steps/CaptureEvidenceStep";
-import VerifyEvidenceStep from "@/components/documents/steps/VerifyEvidenceStep";
-import ArchiveEvidenceStep from "@/components/documents/steps/ArchiveEvidenceStep";
 
-type CaptureStep = {
-  key: "capture" | "verify" | "archive";
-  label: string;
-  icon: typeof FileText;
+type EvidenceRow = {
+  workflow_status?: string;
+  capture_data?: Record<string, unknown>;
+  designated_verifier_user_id?: string;
+  designated_verifier_name?: string;
 };
 
-const STEPS: CaptureStep[] = [
-  { key: "capture", label: "Capture", icon: FileText },
-  { key: "verify", label: "Verify", icon: ShieldCheck },
-  { key: "archive", label: "Archive", icon: Archive },
-];
-
-const STEP_ORDER: CaptureStep["key"][] = ["capture", "verify", "archive"];
-
-function stepIndex(key: CaptureStep["key"]): number {
-  return STEP_ORDER.indexOf(key) + 1;
+function parseCaptureData(v: unknown): Record<string, unknown> {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+  if (typeof v === "string" && v.trim()) {
+    try {
+      const p = JSON.parse(v) as unknown;
+      if (p && typeof p === "object" && !Array.isArray(p)) return p as Record<string, unknown>;
+    } catch {
+      /* ignore */
+    }
+  }
+  return {};
 }
 
 export default function DocumentaryEvidenceCaptureContent() {
@@ -38,7 +41,129 @@ export default function DocumentaryEvidenceCaptureContent() {
   const documentsHref = orgId ? getDashboardPath(orgId, "documents") : "/";
   const recordsHref = orgId ? getDashboardPath(orgId, "documents/documentary-evidence") : "/";
   const templateRef = searchParams.get("template") || "Doc/2025/S1/P1/P/D1/v1";
-  const [currentStep, setCurrentStep] = useState<CaptureStep["key"]>("capture");
+  const templateRecordId = searchParams.get("recordId")?.trim() ?? "";
+  const evidenceFromUrl = searchParams.get("evidenceRecordId")?.trim() ?? "";
+  const mode = searchParams.get("mode")?.trim().toLowerCase() ?? "";
+
+  const [evidenceRecordId, setEvidenceRecordId] = useState<string | null>(evidenceFromUrl || null);
+  const [evidenceRow, setEvidenceRow] = useState<EvidenceRow | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(Boolean(evidenceFromUrl));
+
+  const [meReady, setMeReady] = useState(false);
+  const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
+
+  const isSupport = isSupportLeadershipTier(leadershipTier);
+  const isVerifierTier = isTopOrOperationalLeadershipTier(leadershipTier);
+
+  useEffect(() => {
+    setEvidenceRecordId(evidenceFromUrl || null);
+  }, [evidenceFromUrl]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadMe() {
+      if (!orgId) {
+        if (!ignore) {
+          setLeadershipTier(undefined);
+          setMeReady(true);
+        }
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/me`, { credentials: "include" });
+        const j = res.ok ? await res.json() : {};
+        if (!ignore) setLeadershipTier(typeof j.leadershipTier === "string" ? j.leadershipTier : undefined);
+      } catch {
+        if (!ignore) setLeadershipTier(undefined);
+      } finally {
+        if (!ignore) setMeReady(true);
+      }
+    }
+    void loadMe();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadEv() {
+      if (!orgId || !evidenceFromUrl) {
+        if (!ignore) {
+          setEvidenceLoading(false);
+          setEvidenceRow(null);
+        }
+        return;
+      }
+      setEvidenceLoading(true);
+      try {
+        const res = await fetch(
+          `/api/organization/${orgId}/documentary-evidence-records?id=${encodeURIComponent(evidenceFromUrl)}`,
+          { credentials: "include" }
+        );
+        const j = (await res.json().catch(() => ({}))) as { records?: EvidenceRow[] };
+        const row = res.ok && Array.isArray(j.records) && j.records[0] ? j.records[0] : null;
+        if (!ignore) setEvidenceRow(row);
+      } catch {
+        if (!ignore) setEvidenceRow(null);
+      } finally {
+        if (!ignore) setEvidenceLoading(false);
+      }
+    }
+    void loadEv();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, evidenceFromUrl]);
+
+  const workflow = String(evidenceRow?.workflow_status ?? "").trim();
+
+  const readOnly = Boolean(
+    mode === "view" ||
+      workflow === "capture_submitted" ||
+      workflow === "completed" ||
+      (!isSupport && isVerifierTier)
+  );
+
+  const canUseCapturePage =
+    isSupport || (isVerifierTier && mode === "view" && Boolean(evidenceFromUrl) && !evidenceLoading);
+
+  const serverCapture = evidenceRow ? parseCaptureData(evidenceRow.capture_data) : null;
+  const serverDesignatedVerifierUserId = String(evidenceRow?.designated_verifier_user_id ?? "").trim() || undefined;
+  const serverDesignatedVerifierName = String(evidenceRow?.designated_verifier_name ?? "").trim() || undefined;
+
+  const handleCaptureSubmit = useCallback(() => {
+    router.push(recordsHref);
+  }, [router, recordsHref]);
+
+  if (!meReady || (Boolean(evidenceFromUrl) && evidenceLoading)) {
+    return (
+      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] px-6 py-16">
+        <Loader2 className="h-10 w-10 animate-spin text-[#22B323]" aria-hidden />
+        <p className="text-sm font-medium text-[#374151]">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!canUseCapturePage) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-amber-200 bg-amber-50/90">
+          <CardContent className="py-10 text-center space-y-3">
+            <h2 className="text-lg font-semibold text-amber-950">Capture is restricted</h2>
+            <p className="text-sm text-amber-900/90 max-w-md mx-auto leading-relaxed">
+              Only <span className="font-medium">Support Leadership</span> can enter and edit capture data. Top and
+              Operational leadership can open capture from the templates table in <span className="font-medium">view</span>{" "}
+              mode after submission.
+            </p>
+            <Button asChild variant="outline" className="mt-2 border-amber-300 bg-white">
+              <Link href={recordsHref}>Back to templates</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -47,57 +172,29 @@ export default function DocumentaryEvidenceCaptureContent() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-[36px] leading-tight font-bold text-[#111827]">Documentary Evidence Records</h2>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Save size={14} />
-                Save Draft
-              </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link href={documentsHref}>Exit to Dashboard</Link>
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {STEPS.map(({ key, label, icon: Icon }) => {
-              const s = stepIndex(key);
-              const active = stepIndex(currentStep);
-              const isCurrent = active === s;
-              const isDone = active > s;
-              const DisplayIcon = isDone ? Check : Icon;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setCurrentStep(key)}
-                  className={cn(
-                    "rounded-lg border px-4 py-3 transition-all",
-                    "flex flex-col items-center justify-center min-h-[92px] gap-2",
-                    isCurrent
-                      ? "bg-[#22B323] border-[#22B323] text-white"
-                      : isDone
-                        ? "bg-[#EEFFF3] border-[#22B323] text-[#15803D]"
-                        : "bg-[#F3F4F6] border-[#E5E7EB] text-[#6B7280] hover:bg-[#EBEEF2]"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-8 w-8 rounded-full border flex items-center justify-center",
-                      isCurrent
-                        ? "border-white/70 bg-white/15"
-                        : isDone
-                          ? "border-[#22B323] bg-[#22B323]"
-                          : "border-[#D1D5DB] bg-white"
-                    )}
-                  >
-                    <DisplayIcon
-                      size={15}
-                      className={cn(isCurrent || isDone ? "text-white" : "text-[#9CA3AF]")}
-                    />
-                  </span>
-                  <span className="text-xs font-medium">{label}</span>
-                </button>
-              );
-            })}
+          {readOnly ? (
+            <div className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+              <span className="font-semibold">View only.</span> Capture has been submitted or completed; fields cannot be
+              edited here.
+            </div>
+          ) : null}
+
+          <div className="max-w-md">
+            <div
+              className="rounded-lg border px-4 py-3 bg-[#22B323] border-[#22B323] text-white flex flex-col items-center justify-center min-h-[92px] gap-2"
+              aria-current="step"
+            >
+              <span className="h-8 w-8 rounded-full border border-white/70 bg-white/15 flex items-center justify-center">
+                <FileText size={15} className="text-white" />
+              </span>
+              <span className="text-xs font-medium text-center leading-snug">Capture</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -116,67 +213,23 @@ export default function DocumentaryEvidenceCaptureContent() {
             </Link>
           </li>
           <li className="text-[#9CA3AF]">›</li>
-          <li>
-            {currentStep === "capture" ? (
-              <span className="font-semibold text-[#111827]">Capture</span>
-            ) : (
-              <button
-                type="button"
-                className="text-[#6B7280] hover:text-[#111827]"
-                onClick={() => setCurrentStep("capture")}
-              >
-                Capture
-              </button>
-            )}
-          </li>
-          {(currentStep === "verify" || currentStep === "archive") && (
-            <>
-              <li className="text-[#9CA3AF]">›</li>
-              <li>
-                {currentStep === "verify" ? (
-                  <span className="font-semibold text-[#111827]">Verify</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-[#6B7280] hover:text-[#111827]"
-                    onClick={() => setCurrentStep("verify")}
-                  >
-                    Verify
-                  </button>
-                )}
-              </li>
-            </>
-          )}
-          {currentStep === "archive" && (
-            <>
-              <li className="text-[#9CA3AF]">›</li>
-              <li className="font-semibold text-[#111827]">Archive</li>
-            </>
-          )}
+          <li className="font-semibold text-[#111827]">{readOnly ? "View capture" : "Capture"}</li>
         </ol>
       </nav>
 
-      {currentStep === "capture" && (
-        <CaptureEvidenceStep
-          templateRef={templateRef}
-          templatesHref={recordsHref}
-          onSubmit={() => setCurrentStep("verify")}
-        />
-      )}
-      {currentStep === "verify" && (
-        <VerifyEvidenceStep
-          templateRef={templateRef}
-          onBack={() => setCurrentStep("capture")}
-          onSubmit={() => setCurrentStep("archive")}
-        />
-      )}
-      {currentStep === "archive" && (
-        <ArchiveEvidenceStep
-          templateRef={templateRef}
-          onBack={() => setCurrentStep("verify")}
-          onConfirmArchive={() => router.push(recordsHref)}
-        />
-      )}
+      <CaptureEvidenceStep
+        orgId={orgId}
+        templateRecordId={templateRecordId}
+        templateRef={templateRef}
+        templatesHref={recordsHref}
+        evidenceRecordId={evidenceRecordId}
+        onEvidenceRecordIdChange={(id) => setEvidenceRecordId(id)}
+        onSubmit={handleCaptureSubmit}
+        readOnly={readOnly}
+        serverCapture={serverCapture}
+        serverDesignatedVerifierUserId={serverDesignatedVerifierUserId}
+        serverDesignatedVerifierName={serverDesignatedVerifierName}
+      />
     </div>
   );
 }

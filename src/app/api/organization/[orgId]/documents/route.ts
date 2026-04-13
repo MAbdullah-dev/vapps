@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContextAndError } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
+import {
+  documentHasLockedPin,
+  isDocumentRecordCreator,
+  sanitizeWizardDataForClient,
+  viewerNeedsDocumentWorkflowPinGate,
+  workflowPinMatches,
+} from "@/lib/documentWorkflowPin";
 import { documentActorMatches } from "@/lib/utils";
 
 type RequestUser = { id: string; name: string | null };
@@ -63,6 +70,8 @@ type UpdateWorkflowBody = {
   comments?: string;
   decision?: "effective" | "ineffective" | null;
   message?: string;
+  /** Required for review/approve actions when the document is locked with a PIN (not required for the initiator). */
+  documentPin?: string;
 };
 
 export async function GET(
@@ -299,7 +308,38 @@ export async function GET(
       }
     });
 
-    return NextResponse.json({ records: rows, reviewReturnNotice, approvalReturnNotice }, { status: 200 });
+    const viewerId = context.user.id;
+    const viewerName = context.user.name;
+    const publicRecords = rows.map((row) => {
+      const formData =
+        typeof row.form_data === "object" && row.form_data !== null && !Array.isArray(row.form_data)
+          ? (row.form_data as Record<string, unknown>)
+          : {};
+      const creator = isDocumentRecordCreator(
+        viewerId,
+        viewerName,
+        formData,
+        row.created_by_user_id,
+        row.created_by_user_name
+      );
+      return {
+        ...row,
+        wizard_data: sanitizeWizardDataForClient(row.wizard_data, creator),
+        documentWorkflowPinGate: viewerNeedsDocumentWorkflowPinGate({
+          viewerId,
+          viewerName,
+          formData,
+          wizard: row.wizard_data,
+          rowCreatedByUserId: row.created_by_user_id,
+          rowCreatedByUserName: row.created_by_user_name,
+        }),
+      };
+    });
+
+    return NextResponse.json(
+      { records: publicRecords, reviewReturnNotice, approvalReturnNotice },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching document module records:", error);
     return NextResponse.json({ error: "Failed to fetch document records" }, { status: 500 });
@@ -730,11 +770,13 @@ export async function PATCH(
 
       const access = await client.query<{
         form_data: unknown;
+        wizard_data: unknown;
         workflow_status: string;
         reviewed_at: string | null;
         created_by_user_id: string | null;
+        created_by_user_name: string | null;
       }>(
-        `SELECT form_data, workflow_status, reviewed_at::text, created_by_user_id
+        `SELECT form_data, wizard_data, workflow_status, reviewed_at::text, created_by_user_id, created_by_user_name
          FROM document_module_records WHERE id::text = $1::text`,
         [recordId]
       );
@@ -928,6 +970,35 @@ export async function PATCH(
             { status: 403 }
           );
           return;
+        }
+      }
+
+      const wizardForPin = access.rows[0].wizard_data;
+      if (
+        action === "review-return" ||
+        action === "review-submit" ||
+        action === "approval-return" ||
+        action === "approve"
+      ) {
+        if (documentHasLockedPin(wizardForPin)) {
+          const creator = isDocumentRecordCreator(
+            actorId,
+            actorName,
+            formDataRow,
+            access.rows[0].created_by_user_id,
+            access.rows[0].created_by_user_name
+          );
+          if (!creator && !workflowPinMatches(wizardForPin, String(body.documentPin ?? ""))) {
+            forbiddenResponse = NextResponse.json(
+              {
+                error:
+                  "This document is PIN-protected. Enter the correct document PIN to perform this action.",
+                code: "DOCUMENT_PIN_REQUIRED",
+              },
+              { status: 403 }
+            );
+            return;
+          }
         }
       }
 

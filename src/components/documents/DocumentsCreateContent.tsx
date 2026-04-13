@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Check, CheckCircle, FileText, Save, Search } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle, FileText, Loader2, Save, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
 import { cn, documentActorMatches } from "@/lib/utils";
 import CreateDocumentStep from "@/components/documents/steps/CreateDocumentStep";
 import ReviewDocumentStep from "@/components/documents/steps/ReviewDocumentStep";
 import ApprovalDocumentStep from "@/components/documents/steps/ApprovalDocumentStep";
+import DocumentWorkflowPinGate from "@/components/documents/DocumentWorkflowPinGate";
 import type {
   DocumentCorrectionPhase,
   DocumentSavePayload,
@@ -50,6 +51,21 @@ function normalizeRecordWorkflow(raw: string | undefined | null): RecordWorkflow
   const x = String(raw ?? "").toLowerCase();
   if (x === "draft" || x === "in_review" || x === "in_approval" || x === "approved") return x;
   return "";
+}
+
+function DocumentWorkflowHydrationPlaceholder({ stepLabel }: { stepLabel: "Review" | "Approval" }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] px-6 py-24 text-center"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <Loader2 className="h-9 w-9 animate-spin text-[#22B323]" aria-hidden />
+      <p className="text-sm font-medium text-[#374151]">Loading document…</p>
+      <p className="max-w-sm text-xs text-[#6B7280]">Securing access for {stepLabel}. Please wait.</p>
+    </div>
+  );
 }
 
 function inferCorrectionPhaseFromNotices(
@@ -129,7 +145,8 @@ export default function DocumentsCreateContent() {
   const [subClauseOptions, setSubClauseOptions] = useState<string[]>([]);
   const [isLoadingStandards, setIsLoadingStandards] = useState(false);
   const [isLoadingClauses, setIsLoadingClauses] = useState(false);
-  const [isHydratingRecord, setIsHydratingRecord] = useState(false);
+  /** True while fetching a saved record; start true when URL has recordId so Review/Approval never paint before PIN gate is known. */
+  const [isHydratingRecord, setIsHydratingRecord] = useState(() => Boolean(recordId));
   const [initialWizardData, setInitialWizardData] = useState<Partial<DocumentWizardSnapshot> | null>(null);
   const [previewDocRefFromRecord, setPreviewDocRefFromRecord] = useState<string | null>(null);
   const [activeRecordId, setActiveRecordId] = useState<string>(recordId);
@@ -150,6 +167,10 @@ export default function DocumentsCreateContent() {
   const [reviewedAtIso, setReviewedAtIso] = useState<string | null>(null);
   const [annualRequestNote, setAnnualRequestNote] = useState("");
   const [annualReviewActionBusy, setAnnualReviewActionBusy] = useState(false);
+  /** Server: Process Owner / Approver on a locked PIN document must verify before Review/Approval UI. */
+  const [workflowPinGateRequired, setWorkflowPinGateRequired] = useState(false);
+  const [workflowPinGateSatisfied, setWorkflowPinGateSatisfied] = useState(true);
+  const workflowPinForPatchesRef = useRef("");
 
   const steps = useMemo(
     () => [
@@ -559,13 +580,38 @@ export default function DocumentsCreateContent() {
       setRecordWorkflowStatus("");
       setPreviewDocRefFromRecord(null);
       setReviewedAtIso(null);
+      setWorkflowPinGateRequired(false);
+      setWorkflowPinGateSatisfied(true);
+      workflowPinForPatchesRef.current = "";
+    }
+  }, [recordId]);
+
+  const showWorkflowPinWall =
+    hasPersistedRecord &&
+    workflowPinGateRequired &&
+    !workflowPinGateSatisfied &&
+    (step === 2 || step === 3);
+
+  /** Before the first fetch resolves we do not know documentWorkflowPinGate — avoid flashing Review/Approval content. */
+  const showWorkflowStepsHydrationShell =
+    Boolean(recordId) && isHydratingRecord && (step === 2 || step === 3);
+
+  useLayoutEffect(() => {
+    if (recordId) {
+      setIsHydratingRecord(true);
+    } else {
+      setIsHydratingRecord(false);
     }
   }, [recordId]);
 
   useEffect(() => {
     let ignore = false;
     async function loadExistingRecord() {
-      if (!orgId || !recordId) return;
+      if (!recordId) {
+        if (!ignore) setIsHydratingRecord(false);
+        return;
+      }
+      if (!orgId) return;
       setIsHydratingRecord(true);
       try {
         const res = await fetch(
@@ -631,6 +677,7 @@ export default function DocumentsCreateContent() {
           created_by_user_name?: string | null;
           preview_doc_ref?: string;
           reviewed_at?: string | null;
+          documentWorkflowPinGate?: boolean;
         } | undefined;
         setPreviewDocRefFromRecord(
           row?.preview_doc_ref?.trim() ? String(row.preview_doc_ref).trim() : null
@@ -672,6 +719,10 @@ export default function DocumentsCreateContent() {
         setInitialWizardData(forcedRevisionWizard);
         setActiveRecordId(recordId);
         setIsApprovedRecord(approved);
+        const pinGate = row?.documentWorkflowPinGate === true;
+        setWorkflowPinGateRequired(pinGate);
+        setWorkflowPinGateSatisfied(!pinGate);
+        workflowPinForPatchesRef.current = "";
       } finally {
         if (!ignore) setIsHydratingRecord(false);
       }
@@ -769,9 +820,18 @@ export default function DocumentsCreateContent() {
           action: isIneffective ? "review-return" : "review-submit",
           comments: payload.comments,
           decision: payload.decision,
+          ...(workflowPinGateRequired ? { documentPin: workflowPinForPatchesRef.current } : {}),
         }),
       });
-      if (!res.ok) return;
+      const patchJson = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (!res.ok) {
+        const msg =
+          typeof patchJson.error === "string" && patchJson.error.trim()
+            ? patchJson.error
+            : "Could not update review.";
+        toast.error(msg);
+        return;
+      }
       if (isIneffective) {
         setRecordWorkflowStatus("draft");
         setField("correctionPhase", "awaiting_creator_after_review");
@@ -818,9 +878,18 @@ export default function DocumentsCreateContent() {
           action: isIneffective ? "approval-return" : "approve",
           comments: payload.comments,
           decision: payload.decision,
+          ...(workflowPinGateRequired ? { documentPin: workflowPinForPatchesRef.current } : {}),
         }),
       });
-      if (!res.ok) return;
+      const patchJson = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (!res.ok) {
+        const msg =
+          typeof patchJson.error === "string" && patchJson.error.trim()
+            ? patchJson.error
+            : "Could not update approval.";
+        toast.error(msg);
+        return;
+      }
     } catch {
       return;
     }
@@ -1139,48 +1208,72 @@ export default function DocumentsCreateContent() {
             />
           )}
 
-          {step === 2 && (
-            <ReviewDocumentStep
-              title={formData.title}
-              docType={formData.docType}
-              site={formData.siteId || formData.site}
-              processName={formData.processName}
-              description={formData.description}
-              processOwner={formData.processOwner}
-              processOwnerUserId={formData.processOwnerUserId}
-              loginUserName={formData.loginUserName}
-              loginUserId={formData.loginUserId}
-              managementStandard={formData.managementStandard}
-              clause={formData.clause}
-              subClause={formData.subClause}
-              processId={formData.processId}
-              readOnlyObserver={reviewReadOnlyObserver}
-              onBack={() => setStep(1)}
-              onNext={handleReviewSubmit}
-            />
-          )}
+          {step === 2 &&
+            (showWorkflowStepsHydrationShell ? (
+              <DocumentWorkflowHydrationPlaceholder stepLabel="Review" />
+            ) : showWorkflowPinWall && orgId && activeRecordId ? (
+              <DocumentWorkflowPinGate
+                orgId={orgId}
+                recordId={activeRecordId}
+                onVerified={(pin) => {
+                  workflowPinForPatchesRef.current = pin;
+                  setWorkflowPinGateSatisfied(true);
+                }}
+              />
+            ) : (
+              <ReviewDocumentStep
+                title={formData.title}
+                docType={formData.docType}
+                site={formData.siteId || formData.site}
+                processName={formData.processName}
+                description={formData.description}
+                processOwner={formData.processOwner}
+                processOwnerUserId={formData.processOwnerUserId}
+                loginUserName={formData.loginUserName}
+                loginUserId={formData.loginUserId}
+                managementStandard={formData.managementStandard}
+                clause={formData.clause}
+                subClause={formData.subClause}
+                processId={formData.processId}
+                readOnlyObserver={reviewReadOnlyObserver}
+                onBack={() => setStep(1)}
+                onNext={handleReviewSubmit}
+              />
+            ))}
 
-          {step === 3 && (
-            <ApprovalDocumentStep
-              listHref={listHref}
-              title={formData.title}
-              docType={formData.docType}
-              site={formData.siteId || formData.site}
-              processName={formData.processName}
-              processOwner={formData.processOwner}
-              designatedApproverName={formData.approverName}
-              designatedApproverUserId={formData.approverUserId}
-              loginUserName={formData.loginUserName}
-              loginUserId={formData.loginUserId}
-              managementStandard={formData.managementStandard}
-              clause={formData.clause}
-              subClause={formData.subClause}
-              processId={formData.processId}
-              readOnlyObserver={approvalReadOnlyObserver}
-              onBack={() => setStep(2)}
-              onApprove={handleApproveFinish}
-            />
-          )}
+          {step === 3 &&
+            (showWorkflowStepsHydrationShell ? (
+              <DocumentWorkflowHydrationPlaceholder stepLabel="Approval" />
+            ) : showWorkflowPinWall && orgId && activeRecordId ? (
+              <DocumentWorkflowPinGate
+                orgId={orgId}
+                recordId={activeRecordId}
+                onVerified={(pin) => {
+                  workflowPinForPatchesRef.current = pin;
+                  setWorkflowPinGateSatisfied(true);
+                }}
+              />
+            ) : (
+              <ApprovalDocumentStep
+                listHref={listHref}
+                title={formData.title}
+                docType={formData.docType}
+                site={formData.siteId || formData.site}
+                processName={formData.processName}
+                processOwner={formData.processOwner}
+                designatedApproverName={formData.approverName}
+                designatedApproverUserId={formData.approverUserId}
+                loginUserName={formData.loginUserName}
+                loginUserId={formData.loginUserId}
+                managementStandard={formData.managementStandard}
+                clause={formData.clause}
+                subClause={formData.subClause}
+                processId={formData.processId}
+                readOnlyObserver={approvalReadOnlyObserver}
+                onBack={() => setStep(2)}
+                onApprove={handleApproveFinish}
+              />
+            ))}
         {/* </CardContent>
       </Card> */}
     </div>

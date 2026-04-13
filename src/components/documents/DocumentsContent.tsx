@@ -617,6 +617,23 @@ export default function DocumentsContent() {
   const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(() => !orgId);
 
+  type EvidenceRecordRow = {
+    id: string;
+    template_record_id: string;
+    template_preview_ref: string;
+    workflow_status: string;
+    capture_data: Record<string, unknown>;
+    verify_archive_data: Record<string, unknown>;
+    designated_verifier_user_id: string;
+    designated_verifier_name: string;
+    support_user_id: string;
+    support_user_name: string;
+    created_at: string;
+    updated_at: string;
+  };
+  const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
+  const [evidenceLoaded, setEvidenceLoaded] = useState(false);
+
   useEffect(() => {
     let ignore = false;
     async function loadDocuments() {
@@ -798,6 +815,94 @@ export default function DocumentsContent() {
     };
   }, [orgId]);
 
+  useEffect(() => {
+    let ignore = false;
+    async function loadEvidence() {
+      if (!orgId || (selectedTable !== "Documentary Evidence" && selectedTable !== "Records Disposal Log")) {
+        return;
+      }
+      setEvidenceLoaded(false);
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documentary-evidence-records`, {
+          credentials: "include",
+        });
+        const j = (await res.json().catch(() => ({}))) as { records?: EvidenceRecordRow[] };
+        if (!ignore) {
+          const rows = res.ok && Array.isArray(j.records) ? j.records : [];
+          setEvidenceRows(rows.filter((r) => {
+            const ws = String(r.workflow_status ?? "").trim();
+            return ws === "capture_submitted" || ws === "completed";
+          }));
+        }
+      } catch {
+        if (!ignore) setEvidenceRows([]);
+      } finally {
+        if (!ignore) setEvidenceLoaded(true);
+      }
+    }
+    void loadEvidence();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, selectedTable]);
+
+  const evidenceCapturedOnly = useMemo(
+    () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "capture_submitted"),
+    [evidenceRows]
+  );
+
+  const evidenceCompletedOnly = useMemo(
+    () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "completed"),
+    [evidenceRows]
+  );
+
+  const filteredEvidence = useMemo(() => {
+    if (selectedTable !== "Documentary Evidence") return [];
+    const source = evidenceCapturedOnly;
+    const q = search.trim().toLowerCase();
+    if (!q) return source;
+    return source.filter((row) => {
+      const cd = row.capture_data ?? {};
+      const haystack = [
+        row.template_preview_ref,
+        String(cd.templateRef ?? ""),
+        String(cd.capturedData ?? ""),
+        String(cd.shift ?? ""),
+        String(cd.lotBatchSerial ?? ""),
+        row.designated_verifier_name,
+        row.support_user_name,
+        row.workflow_status,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [selectedTable, search, evidenceCapturedOnly]);
+
+  const filteredDisposal = useMemo(() => {
+    if (selectedTable !== "Records Disposal Log") return [];
+    const source = evidenceCompletedOnly;
+    const q = search.trim().toLowerCase();
+    if (!q) return source;
+    return source.filter((row) => {
+      const cd = row.capture_data ?? {};
+      const va = row.verify_archive_data ?? {};
+      const haystack = [
+        row.template_preview_ref,
+        String(cd.templateRef ?? ""),
+        String(cd.capturedData ?? ""),
+        String(cd.lotBatchSerial ?? ""),
+        row.designated_verifier_name,
+        row.support_user_name,
+        String(va.archiveLocation ?? ""),
+        String(va.retentionPeriod ?? ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [selectedTable, search, evidenceCompletedOnly]);
+
   const masterDocumentsForTable = useMemo((): MasterDocumentRow[] => {
     switch (selectedTable) {
       case "Master Document List":
@@ -948,6 +1053,32 @@ export default function DocumentsContent() {
                 <span className="font-medium">permanently deleted</span> once{" "}
                 <span className="font-medium">three years</span> have passed since they became obsolete; cleanup runs
                 when document lists are loaded.
+              </p>
+            </div>
+          ) : null}
+          {selectedTable === "Documentary Evidence" ? (
+            <div
+              className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]"
+              role="note"
+            >
+              <p className="font-semibold text-[#15803D]">Captured F-type evidence records — awaiting verification</p>
+              <p className="mt-2 leading-relaxed">
+                This table shows F-type documentary evidence records where the <span className="font-medium">capture step is complete</span> but
+                verification is still pending. Once the designated verifier completes Verify &amp; Archive, the record moves to the{" "}
+                <span className="font-medium">Records Disposal Log</span>.
+              </p>
+            </div>
+          ) : null}
+          {selectedTable === "Records Disposal Log" ? (
+            <div
+              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              role="note"
+            >
+              <p className="font-semibold text-[#1E40AF]">Completed evidence records — verified &amp; archived</p>
+              <p className="mt-2 leading-relaxed">
+                Records appear here once <span className="font-medium">both</span> steps are finished: capture by Support Leadership and
+                verification by the designated Top/Operational verifier. Each row shows the retention period and archive location
+                set during verification.
               </p>
             </div>
           ) : null}
@@ -1199,32 +1330,90 @@ export default function DocumentsContent() {
                     <ObsoleteRegisterColumnHead
                       align="center"
                       title="KPI"
-                      hint="<30d Green · >30d Yellow · >40d Red"
+                      hint="≤30d Green · >30d Yellow · >40d Red"
                     />
                     <ObsoleteRegisterColumnHead
                       align="center"
                       title="Record Status"
                       hint="Success / Pending / Fail"
                     />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title="Record Rank"
-                      hint="Verified / Captured / Archived"
-                    />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title="Actions"
-                      hint="(View | Edit | Share | Download)"
-                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={16} className="py-12 text-center text-sm text-muted-foreground">
-                      No documentary evidence records loaded yet. This view will use captured F-type records when the
-                      API is connected.
-                    </TableCell>
-                  </TableRow>
+                  {!evidenceLoaded ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading evidence records…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredEvidence.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                        {evidenceCapturedOnly.length === 0
+                          ? "No documentary evidence records loaded yet. This view will use captured F-type records when the API is connected."
+                          : "No records match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredEvidence.map((row) => {
+                      const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+                      const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+                      const ref = row.template_preview_ref || String(cd.templateRef ?? "");
+                      const refParts = ref.split("/").filter(Boolean);
+                      const version = refParts.length > 0 ? refParts[refParts.length - 1] : "-";
+                      const site = refParts.length > 2 ? refParts[2] : "-";
+                      const processOwner = refParts.length > 3 ? refParts[3] : "-";
+                      const docNum = refParts.length > 5 ? refParts[5] : "-";
+                      const title = String(cd.capturedData ?? "").trim().slice(0, 60) || "-";
+                      const batch = String(cd.lotBatchSerial ?? "").trim() || "-";
+                      const captureDateObj = row.created_at ? new Date(row.created_at) : null;
+                      const yearMonth = captureDateObj
+                        ? `${captureDateObj.getFullYear()}/${String(captureDateObj.getMonth() + 1).padStart(2, "0")}`
+                        : "-";
+                      const captureBy = String(row.support_user_name ?? "").trim() || "-";
+                      const captureDate = captureDateObj
+                        ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "-";
+                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || "—";
+                      const verifyDate = va.completedAt
+                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "—";
+                      const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
+                      const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
+                      const kpiColor = daysSinceCapture > 40 ? "text-red-600" : daysSinceCapture > 30 ? "text-amber-600" : "text-[#22B323]";
+                      const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
+                      const statusBg = daysSinceCapture > 40 ? "bg-red-500" : daysSinceCapture > 30 ? "bg-amber-500" : "bg-[#22B323]";
+
+                      return (
+                        <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
+                          <TableCell className="px-3 py-2.5 text-sm font-medium text-foreground whitespace-nowrap">
+                            {ref || "-"}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[180px]">
+                            {title}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{processOwner}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{batch}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{yearMonth}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{site}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">{docNum}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{version}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{captureBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{captureDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{verifyBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{verifyDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <span className={cn("text-sm font-semibold", kpiColor)}>{kpiLabel}</span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <span className={cn("inline-block rounded-md px-3 py-1 text-xs font-semibold text-white", statusBg)}>
+                              {statusLabel}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             ) : selectedTable === "Records Disposal Log" ? (
@@ -1252,11 +1441,97 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
-                      No disposal log entries yet. This view will list disposed records when the API is connected.
-                    </TableCell>
-                  </TableRow>
+                  {!evidenceLoaded ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading disposal records…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredDisposal.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                        {evidenceCompletedOnly.length === 0
+                          ? "No disposal log entries yet. This view will list disposed records when the API is connected."
+                          : "No records match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDisposal.map((row) => {
+                      const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+                      const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+                      const shortId = row.id.slice(0, 4);
+                      const desc = String(cd.capturedData ?? "").trim().slice(0, 80) || "-";
+                      const disposedBy = String(row.designated_verifier_name ?? "").trim() || "-";
+                      const disposalDate = va.completedAt
+                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : row.updated_at
+                          ? new Date(row.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                          : "-";
+                      const retention = String(va.retentionPeriod ?? "").trim() || "3 Years";
+                      const storageRaw = String(va.archiveLocation ?? "").trim().toLowerCase();
+                      const isShred = storageRaw.includes("shred") || storageRaw.includes("physical");
+                      const disposalMethod = isShred ? "Shred" : "Delete";
+                      const disposalMethodColor = isShred
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-red-50 text-red-700 border-red-200";
+                      const storage = String(va.archiveLocation ?? "").trim() || "Cloud";
+                      const storageIcon = storage.toLowerCase().includes("cloud")
+                        ? Cloud
+                        : storage.toLowerCase().includes("server")
+                          ? Server
+                          : storage.toLowerCase().includes("physical")
+                            ? HardDrive
+                            : Cloud;
+                      const StorageIcon = storageIcon;
+
+                      return (
+                        <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
+                          <TableCell className="px-3 py-2.5 text-sm font-semibold text-foreground">{shortId}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[220px]">{desc}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{disposedBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{disposalDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{retention}</TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium", disposalMethodColor)}>
+                              <Scissors className="h-3 w-3" />
+                              {disposalMethod}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+                              <StorageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              {storage}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <Eye className="h-4 w-4" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <Share2 className="h-4 w-4" /> Share
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <FileDown className="h-4 w-4" /> Download PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <FileSpreadsheet className="h-4 w-4" /> Download Excel
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             ) : (
@@ -1394,7 +1669,7 @@ export default function DocumentsContent() {
                 <div>Checklists</div>
                 <div>
                   <span className="font-medium text-[#0A0A0A]">Lifecycle:</span>{" "}
-                  Draft + Capture -&gt; Verify -&gt; Archive -&gt; Dispose
+                  Draft + Capture -&gt; Verify &amp; Archive -&gt; Dispose
                 </div>
               </div>
             </div>
