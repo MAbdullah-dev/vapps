@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +28,7 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 import {
-  Calendar,
+  Calendar as CalendarIcon,
   CircleAlert,
   Lock,
   Paperclip,
@@ -36,7 +38,8 @@ import {
   Send,
   Unlock,
 } from "lucide-react";
-import { documentActorMatches } from "@/lib/utils";
+import { format } from "date-fns";
+import { cn, documentActorMatches } from "@/lib/utils";
 
 function managementStandardLabel(value: string): string {
   switch (value) {
@@ -244,6 +247,21 @@ export default function CreateDocumentStep({
   const [planDate, setPlanDate] = useState("");
   const [actualDate, setActualDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const parseDateInput = (value: string): Date | undefined => {
+    if (!value) return undefined;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return undefined;
+    return new Date(year, month - 1, day);
+  };
+
+  const toDateInput = (value?: Date): string => {
+    if (!value) return "";
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const [transferSearchRef, setTransferSearchRef] = useState("");
   const [transferTargetSite, setTransferTargetSite] = useState("S1");
@@ -1972,43 +1990,85 @@ export default function CreateDocumentStep({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label htmlFor="plan-date">Document Plan Date *</Label>
-              <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A7282]" />
-                <Input
-                  id="plan-date"
-                  type="date"
-                  value={planDate}
-                  onChange={(e) => setPlanDate(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="plan-date"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !planDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    {planDate ? format(parseDateInput(planDate) as Date, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={parseDateInput(planDate)}
+                    onSelect={(date) => setPlanDate(toDateInput(date))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <p className="text-xs text-[#6A7282]">System generated</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="actual-date">Actual Date</Label>
-              <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A7282]" />
-                <Input
-                  id="actual-date"
-                  type="date"
-                  value={actualDate}
-                  onChange={(e) => setActualDate(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="actual-date"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !actualDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    {actualDate ? format(parseDateInput(actualDate) as Date, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={parseDateInput(actualDate)}
+                    onSelect={(date) => setActualDate(toDateInput(date))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">End Date</Label>
-              <div className="relative">
-                <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A7282]" />
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="end-date"
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    {endDate ? format(parseDateInput(endDate) as Date, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={parseDateInput(endDate)}
+                    onSelect={(date) => setEndDate(toDateInput(date))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </CardContent>

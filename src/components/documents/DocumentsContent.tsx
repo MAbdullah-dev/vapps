@@ -1145,7 +1145,7 @@ export default function DocumentsContent() {
                       <TableCell className="px-3 py-2.5 pl-4 text-sm font-medium text-foreground whitespace-nowrap">
                         {row.documentRef}
                       </TableCell>
-                      <TableCell className="max-w-[14rem] px-3 py-2.5 text-sm text-foreground whitespace-normal">
+                      <TableCell className="max-w-56 px-3 py-2.5 text-sm text-foreground whitespace-normal">
                         {row.title}
                       </TableCell>
                       <TableCell className="px-3 py-2.5">
