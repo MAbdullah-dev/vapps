@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import jsPDF from "jspdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +46,7 @@ import {
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type MasterDocumentRow = {
   id: string;
@@ -66,6 +68,10 @@ type MasterDocumentRow = {
   docStatus: "In-Progress" | "Success" | "Pending" | "Fail";
   docPosition: "Draft" | "Review Pending" | "Approval Pending" | "Active" | "Needs Review Again";
   workflowStatus: "draft" | "in_review" | "in_approval" | "approved";
+  createdByName?: string;
+  processOwnerName?: string;
+  approverName?: string;
+  mainContent?: string;
 };
 
 type DocumentsApiRecord = {
@@ -74,12 +80,65 @@ type DocumentsApiRecord = {
   preview_doc_ref: string;
   form_data: Record<string, unknown> | null;
   wizard_data: Record<string, unknown> | null;
+  workflow_status?: "draft" | "in_review" | "in_approval" | "approved";
   lifecycle_status?: "active" | "obsolete";
   created_by_user_name: string | null;
   reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 150);
+}
+
+function sanitizeFilePart(value: string): string {
+  return value.replace(/[^\w.-]+/g, "_").slice(0, 80) || "document";
+}
+
+function pTypeDocument(docType: string): boolean {
+  return String(docType ?? "").trim().toUpperCase() === "P";
+}
+
+function htmlToPlain(value: string): string {
+  const s = String(value ?? "");
+  if (!s.trim()) return "";
+  return s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .split("\n")
+    .map((x) => x.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
 
 function normalizeDocNumberSeg(value: unknown): string | null {
   const m = /^D(\d+)$/i.exec(String(value ?? "").trim());
@@ -380,23 +439,43 @@ function DocPositionBadge({ position }: { position: MasterDocumentRow["docPositi
 }
 
 function MasterDocumentRowActionsMenu({
+  row,
   editHref,
   viewHref,
   canEditDirectly,
   reviseUpdateHref,
   reviseTransferHref,
   workflowStatus,
+  onShare,
+  onDownloadPdf,
+  onDownloadExcel,
 }: {
+  row: MasterDocumentRow;
   editHref: string;
   viewHref: string;
   canEditDirectly: boolean;
   reviseUpdateHref: string;
   reviseTransferHref: string;
   workflowStatus: MasterDocumentRow["workflowStatus"];
+  onShare: (row: MasterDocumentRow, viewHref: string) => void | Promise<void>;
+  onDownloadPdf: (row: MasterDocumentRow) => void;
+  onDownloadExcel: (row: MasterDocumentRow) => void;
 }) {
   const workflowStep =
-    workflowStatus === "in_review" ? "2" : workflowStatus === "in_approval" ? "3" : "1";
+    workflowStatus === "in_review"
+      ? "2"
+      : workflowStatus === "in_approval"
+        ? "3"
+        : workflowStatus === "approved"
+          ? "2"
+          : "1";
   const workflowHref = `${editHref}&step=${workflowStep}`;
+  const workflowLabel =
+    workflowStatus === "in_review"
+      ? "Submit for Approval"
+      : workflowStatus === "in_approval"
+        ? "Open Approval"
+        : "Submit for Review";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -444,15 +523,24 @@ function MasterDocumentRowActionsMenu({
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+          onSelect={() => void onShare(row, viewHref)}
+        >
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
+          onSelect={() => onDownloadPdf(row)}
+        >
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]"
+          onSelect={() => onDownloadExcel(row)}
+        >
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
@@ -466,7 +554,7 @@ function MasterDocumentRowActionsMenu({
         >
           <Link href={workflowHref}>
             <Send size={16} />
-            {workflowStatus === "in_review" ? "Submit for Approval" : "Submit for Review"}
+            {workflowLabel}
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -616,6 +704,7 @@ export default function DocumentsContent() {
   const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
   const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(() => !orgId);
+  const [organizationName, setOrganizationName] = useState("Company Name");
 
   type EvidenceRecordRow = {
     id: string;
@@ -766,6 +855,13 @@ export default function DocumentsContent() {
             docStatus: status,
             docPosition: position,
             workflowStatus,
+            createdByName: String(row.created_by_user_name ?? "").trim() || "-",
+            processOwnerName: String(formData.processOwner ?? "").trim() || "-",
+            approverName: String(formData.approverName ?? "").trim() || "-",
+            mainContent:
+              String(wizard.documentEditorContent ?? "").trim() ||
+              String(formData.description ?? "").trim() ||
+              "",
           };
         });
         const mappedObsolete: ObsoleteDocumentRow[] = obsoleteRecords.map((row) => {
@@ -845,6 +941,32 @@ export default function DocumentsContent() {
       ignore = true;
     };
   }, [orgId, selectedTable]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadOrgInfo() {
+      if (!orgId) {
+        if (!ignore) setOrganizationName("Company Name");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/organization-info`, { credentials: "include" });
+        const j = res.ok ? await res.json() : {};
+        if (ignore) return;
+        const oi = (j?.organizationInfo && typeof j.organizationInfo === "object")
+          ? (j.organizationInfo as Record<string, unknown>)
+          : {};
+        const orgNm = String(oi.name ?? oi.organizationName ?? oi.companyName ?? "").trim();
+        setOrganizationName(orgNm || "Company Name");
+      } catch {
+        if (!ignore) setOrganizationName("Company Name");
+      }
+    }
+    void loadOrgInfo();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   const evidenceCapturedOnly = useMemo(
     () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "capture_submitted"),
@@ -970,6 +1092,271 @@ export default function DocumentsContent() {
       return haystack.includes(q);
     });
   }, [selectedTable, search, obsoleteApiRows]);
+
+  const downloadMasterRowPdf = (docRow: MasterDocumentRow) => {
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const isP = pTypeDocument(docRow.type);
+      const ref = docRow.documentRef || "-";
+      const title = docRow.title || "-";
+      const site = docRow.site || "[sys]";
+      const process = docRow.process || "[sys]";
+      const standard = docRow.standard || "[sys]";
+      const clause = docRow.clause || "[sys]";
+      const subClause = docRow.subclause || "[sys]";
+      const createdBy = String(docRow.createdByName ?? "").trim() || "—";
+      const reviewedBy = String(docRow.processOwnerName ?? "").trim() || "—";
+      const approvedBy = String(docRow.approverName ?? "").trim() || "—";
+      const createdDate = docRow.planDate !== "-" ? docRow.planDate : docRow.releaseDate;
+      const reviewedDate = docRow.workflowStatus === "draft" ? "-" : (docRow.releaseDate !== "-" ? docRow.releaseDate : "-");
+      const approvedDate =
+        docRow.workflowStatus === "approved" ? (docRow.releaseDate !== "-" ? docRow.releaseDate : "-") : "-";
+      const captureBy = createdBy;
+      const verifyBy = docRow.workflowStatus === "approved" ? approvedBy : reviewedBy;
+      const verifyDate = docRow.workflowStatus === "approved" ? approvedDate : reviewedDate;
+      const commentsText = `Workflow: ${docRow.docPosition} (${docRow.docStatus})`;
+      const bodyText = htmlToPlain(docRow.mainContent ?? "") || title;
+
+      // Header strip
+      pdf.setFillColor(245, 245, 245);
+      pdf.rect(7, 6, 196, 18, "F");
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.3);
+      pdf.rect(7, 6, 196, 18);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      if (isP) {
+        pdf.setTextColor(109, 40, 217); // violet
+      } else {
+        pdf.setTextColor(234, 88, 12); // orange
+      }
+      pdf.text(organizationName, 8, 12.5);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text(`Ref# ${ref}`, 201, 12.5, { align: "right" });
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0);
+      pdf.text(
+        isP ? "Policy/Procedure/SOP Title:" : "Form/Blank Template Title:",
+        8,
+        19.5
+      );
+      pdf.text(title, isP ? 62 : 47, 19.5);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8.5);
+      pdf.text(
+        `Standard: ${standard}   |   Clause: ${clause}   |   Subclause: ${subClause}`,
+        201,
+        19.5,
+        { align: "right" }
+      );
+
+      if (!isP) {
+        pdf.setDrawColor(160);
+        pdf.line(7, 24.5, 203, 24.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(
+          `Lot/Batch/Serial# ${docRow.docNumber || "[sys]"} | Std Clause Ref# ${clause} | Shift: ${process} | Records Archive: ${docRow.releaseDate || "Year / Month"} | System Date: ${docRow.releaseDate || "dd-mm-yy"} | Time: 00-00`,
+          8,
+          28
+        );
+      }
+
+      // Body area
+      pdf.setDrawColor(190);
+      pdf.setLineWidth(0.3);
+      pdf.rect(7, 30, 196, 240);
+      const contentLines = pdf.splitTextToSize(bodyText, 160) as string[];
+      const trimmedLines = contentLines.slice(0, 18);
+      const blockHeight = Math.max(trimmedLines.length * 6, 14);
+      const startY = 150 - blockHeight / 2;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10.5);
+      if (isP) {
+        pdf.setTextColor(14, 165, 233);
+      } else {
+        pdf.setTextColor(234, 88, 12);
+      }
+      pdf.text(trimmedLines, 104, startY, { align: "center" });
+
+      // Footer lane
+      pdf.setFillColor(245, 245, 245);
+      pdf.rect(7, 271, 196, 13, "F");
+      pdf.setDrawColor(180);
+      pdf.rect(7, 271, 196, 13);
+
+      const box = (x: number, y: number) => {
+        pdf.setLineWidth(0.25);
+        pdf.rect(x, y, 3.2, 3.2);
+      };
+      const arrow = "→";
+
+      pdf.setTextColor(0);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      if (isP) {
+        box(9, 279.3);
+        pdf.text(`Created By: ${createdBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
+        pdf.text(arrow, 64, 282.1);
+        box(70, 279.3);
+        pdf.text(`Reviewed By: ${reviewedBy}   ID#${docRow.docNumber || "00"}   Date: ${reviewedDate}`, 74.3, 282.1);
+        pdf.text(arrow, 126, 282.1);
+        box(134, 279.3);
+        pdf.text(`Approved By: ${approvedBy}   ID#${docRow.docNumber || "00"}   Date: ${approvedDate}`, 138.3, 282.1);
+      } else {
+        box(9, 279.3);
+        pdf.text(`Capture By: ${captureBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
+        pdf.text(arrow, 100, 282.1);
+        box(126, 279.3);
+        pdf.text(`Verified By: ${verifyBy}   ID#${docRow.docNumber || "00"}   Date: ${verifyDate || "-"}`, 130.3, 282.1);
+
+        box(9, 283.6);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("DISCARD", 13.3, 286.1);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Comments (if any): ${commentsText}`, 33, 286.1);
+      }
+
+      const filename = `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.pdf`;
+      pdf.save(filename);
+      toast.success("PDF downloaded.");
+    } catch {
+      toast.error("Could not generate PDF for this row.");
+    }
+  };
+
+  const downloadMasterRowExcel = (docRow: MasterDocumentRow) => {
+    const isP = pTypeDocument(docRow.type);
+    const titleLabel = isP ? "Policy/Procedure/SOP Title" : "Form/Blank Template Title";
+    const stepLane = isP
+      ? "Created By: Abc  |  Reviewed By: Abc  |  Approved By: Abc"
+      : "Capture By: Mr. Abc  |  Verified By: Mr. Abc  |  DISCARD";
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial, sans-serif; }
+    .sheet { width: 1200px; border: 1px solid #bfbfbf; }
+    .header { background: #f5f5f5; border-bottom: 1px solid #bfbfbf; padding: 8px; }
+    .topline { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; }
+    .title { margin-top: 8px; font-size: 16px; font-weight: 700; }
+    .meta { margin-top: 6px; font-size: 12px; text-align: right; }
+    .body { height: 560px; border-top: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; position: relative; }
+    .watermark {
+      position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-22deg);
+      color: ${isP ? "#0ea5e9" : "#ea580c"}; font-size: 36px; font-weight: 700; opacity: 0.8;
+      border: 2px solid #111; padding: 10px 18px;
+    }
+    .footer { background: #f5f5f5; padding: 8px; font-size: 12px; border-top: 1px solid #bfbfbf; }
+    .small { font-size: 11px; color: #374151; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div class="topline">
+        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">Company Name</span>
+        <span>Ref# ${docRow.documentRef}</span>
+      </div>
+      <div class="title">${titleLabel}: ${docRow.title}</div>
+      <div class="meta">Standard: ${docRow.standard} | Clause: ${docRow.clause} | Subclause: ${docRow.subclause}</div>
+    </div>
+    <div class="body">
+      <div class="watermark">Body of the Template ${isP ? "Procedure" : "form"}/ SAMPLE</div>
+    </div>
+    <div class="footer">
+      ${stepLane}
+      ${!isP ? `<div class="small">Comments (if any): Verified the checklist and found OK</div>` : ""}
+    </div>
+  </div>
+</body>
+</html>`;
+    downloadTextFile(
+      `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.xls`,
+      html,
+      "application/vnd.ms-excel;charset=utf-8"
+    );
+    toast.success("Excel file downloaded.");
+  };
+
+  const downloadMasterTableExcel = () => {
+    const headers = [
+      "Document Ref",
+      "Nature of Document",
+      "Title",
+      "Type",
+      "Site",
+      "Process",
+      "Standard",
+      "Clause",
+      "Subclause",
+      "Doc#",
+      "Version",
+      "Plan Date",
+      "Release Date",
+      "Review Due",
+      "KPI",
+      "Doc Status",
+      "Doc Position",
+      "Workflow Status",
+    ];
+    const rows = filteredMaster.map((docRow) => [
+      docRow.documentRef,
+      docRow.natureOfDocument,
+      docRow.title,
+      docRow.type,
+      docRow.site,
+      docRow.process,
+      docRow.standard,
+      docRow.clause,
+      docRow.subclause,
+      docRow.docNumber,
+      docRow.version,
+      docRow.planDate,
+      docRow.releaseDate,
+      docRow.reviewDue,
+      docRow.kpi,
+      docRow.docStatus,
+      docRow.docPosition,
+      docRow.workflowStatus,
+    ]);
+    const csv = [headers, ...rows].map((line) => line.map(csvCell).join(",")).join("\n");
+    downloadTextFile("master-document-list.csv", `${csv}\n`, "text/csv;charset=utf-8");
+    toast.success("Master document list exported.");
+  };
+
+  const shareMasterRow = async (docRow: MasterDocumentRow, viewHref: string) => {
+    const absoluteUrl =
+      typeof window !== "undefined" ? new URL(viewHref, window.location.origin).toString() : viewHref;
+    const shareText = `Document: ${docRow.documentRef}\nTitle: ${docRow.title}\nStatus: ${docRow.docPosition}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          title: docRow.title || "Document",
+          text: shareText,
+          url: absoluteUrl,
+        });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${absoluteUrl}`);
+        toast.success("Share link copied to clipboard.");
+        return;
+      }
+      toast.message(`Share URL: ${absoluteUrl}`);
+    } catch {
+      toast.error("Could not share this document.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1121,7 +1508,12 @@ export default function DocumentsContent() {
                 />
               </div>
 
-              <Button variant="outline" className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={downloadMasterTableExcel}
+                disabled={selectedTable !== "Master Document List" || filteredMaster.length === 0}
+              >
                 <Download size={16} />
                 Download Excel Sheet
               </Button>
@@ -1210,12 +1602,16 @@ export default function DocumentsContent() {
                         </TableCell>
                         <TableCell className="text-center">
                           <MasterDocumentRowActionsMenu
+                            row={doc}
                             viewHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=view`}
                             editHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit`}
                             canEditDirectly={doc.workflowStatus !== "approved"}
                             reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
                             reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
                             workflowStatus={doc.workflowStatus}
+                            onShare={shareMasterRow}
+                            onDownloadPdf={downloadMasterRowPdf}
+                            onDownloadExcel={downloadMasterRowExcel}
                           />
                         </TableCell>
                       </TableRow>

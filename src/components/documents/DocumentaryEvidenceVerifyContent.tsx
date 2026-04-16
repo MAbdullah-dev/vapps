@@ -15,6 +15,7 @@ import {
 import VerifyArchiveEvidenceStep, {
   type DesignatedVerifier,
 } from "@/components/documents/steps/VerifyArchiveEvidenceStep";
+import type { EvidencePdfData } from "@/lib/generateDocumentaryEvidencePdf";
 
 type EvidenceRow = {
   id?: string;
@@ -25,6 +26,9 @@ type EvidenceRow = {
   verify_archive_data?: Record<string, unknown>;
   designated_verifier_user_id?: string;
   designated_verifier_name?: string;
+  support_user_id?: string;
+  support_user_name?: string;
+  created_at?: string;
 };
 
 function parseJsonish<T extends Record<string, unknown>>(v: unknown): T {
@@ -59,6 +63,7 @@ export default function DocumentaryEvidenceVerifyContent() {
   const [evidence, setEvidence] = useState<EvidenceRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pdfTemplateMeta, setPdfTemplateMeta] = useState<Partial<EvidencePdfData>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -126,10 +131,83 @@ export default function DocumentaryEvidenceVerifyContent() {
     };
   }, [orgId, evidenceRecordId]);
 
+  useEffect(() => {
+    if (!orgId || !templateRecordId) {
+      setPdfTemplateMeta({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [docRes, orgRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/documents?id=${encodeURIComponent(templateRecordId)}`, {
+            credentials: "include",
+          }),
+          fetch(`/api/organization/${orgId}/organization-info`, { credentials: "include" }),
+        ]);
+        const docJ = docRes.ok ? await docRes.json() : {};
+        const orgJ = orgRes.ok ? await orgRes.json() : {};
+        if (cancelled) return;
+        const row = Array.isArray(docJ?.records) ? docJ.records[0] : null;
+        const fd =
+          row?.form_data && typeof row.form_data === "object" && !Array.isArray(row.form_data)
+            ? (row.form_data as Record<string, unknown>)
+            : {};
+        const oi =
+          orgJ?.organizationInfo && typeof orgJ.organizationInfo === "object"
+            ? (orgJ.organizationInfo as Record<string, unknown>)
+            : {};
+        const orgName = String(oi.organizationName ?? oi.companyName ?? oi.name ?? "").trim();
+        setPdfTemplateMeta({
+          companyName: orgName || undefined,
+          formTitle: String(fd.title ?? "").trim() || undefined,
+          siteLabel: String(fd.siteId ?? "").trim() || undefined,
+          processLabel: String(fd.processName ?? "").trim() || undefined,
+          standardLabel: String(fd.managementStandard ?? "").trim() || undefined,
+          clauseLabel: String(fd.clause ?? "").trim() || undefined,
+          subClauseLabel: String(fd.subClause ?? "").trim() || undefined,
+        });
+      } catch {
+        if (!cancelled) setPdfTemplateMeta({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, templateRecordId]);
+
   const captureData = useMemo(() => parseJsonish<Record<string, unknown>>(evidence?.capture_data), [evidence]);
   const verifyData = useMemo(() => parseJsonish<Record<string, unknown>>(evidence?.verify_archive_data), [evidence]);
 
   const initialCapturedText = String(captureData.capturedData ?? "").trim();
+
+  const pdfContext = useMemo((): Partial<EvidencePdfData> => {
+    const savedAt = String(captureData.savedAt ?? "").trim();
+    const created = String(evidence?.created_at ?? "").trim();
+    const iso = savedAt || created;
+    let captureDateLabel: string | undefined;
+    let captureTimeLabel: string | undefined;
+    if (iso) {
+      const d = new Date(iso);
+      if (!Number.isNaN(d.getTime())) {
+        const p = (n: number) => String(n).padStart(2, "0");
+        captureDateLabel = `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+        captureTimeLabel = `${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+      }
+    }
+    const arch = new Date();
+    const recordsArchiveYm = `${arch.getFullYear()} / ${String(arch.getMonth() + 1).padStart(2, "0")}`;
+    return {
+      ...pdfTemplateMeta,
+      lotBatchSerial: String(captureData.lotBatchSerial ?? "").trim() || undefined,
+      shiftLabel: String(captureData.shift ?? "").trim() || undefined,
+      captureByName: String(evidence?.support_user_name ?? "").trim() || undefined,
+      captureByUserId: String(evidence?.support_user_id ?? "").trim() || undefined,
+      captureDateLabel,
+      captureTimeLabel,
+      recordsArchiveYm,
+    };
+  }, [pdfTemplateMeta, captureData, evidence]);
 
   const designatedVerifier: DesignatedVerifier | null = useMemo(() => {
     const uid = String(evidence?.designated_verifier_user_id ?? "").trim();
@@ -279,6 +357,7 @@ export default function DocumentaryEvidenceVerifyContent() {
           initialCapturedData={initialCapturedText}
           designatedVerifier={designatedVerifier}
           stepMode="edit"
+          pdfContext={pdfContext}
           onBack={() => router.push(recordsHref)}
           onConfirmComplete={() => router.push(recordsHref)}
         />
@@ -318,6 +397,7 @@ export default function DocumentaryEvidenceVerifyContent() {
           initialVerificationComments={String(verifyData.verificationComments ?? "").trim()}
           initialArchiveLocation={String(verifyData.archiveLocation ?? "").trim()}
           initialRetentionPeriod={String(verifyData.retentionPeriod ?? "").trim()}
+          pdfContext={pdfContext}
           onBack={() => router.push(recordsHref)}
           onConfirmComplete={() => router.push(recordsHref)}
         />

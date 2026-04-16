@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../styles/_variables.scss";
+@import "../styles/_keyframe-animations.scss";
 
 /* Explicitly register source paths for Tailwind v4 content detection (fixes Next.js class scanning) */
 @source "../**/*.{ts,tsx,js,jsx}";
@@ -219,6 +221,15 @@
     font-family: var(--font-poppins);
     font-size: var(--fs-small);
   }
+}
+
+/* Tiptap empty placeholder (see Placeholder extension `emptyEditorClass`) */
+.rich-text-editor-root .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
 
 @import "../styles/Auth.css";

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { isTopOrOperationalLeadershipTier } from "@/lib/documentaryEvidenceAccess";
 import { toast } from "sonner";
 
@@ -38,6 +39,8 @@ type CaptureEvidenceStepProps = {
   readOnly?: boolean;
   /** Hydrate fields from tenant `capture_data` JSON (and verifier from row). */
   serverCapture?: Record<string, unknown> | null;
+  /** Hydrate from source template document editor content when capture is first opened. */
+  serverTemplateDocumentEditorContent?: string;
   serverDesignatedVerifierUserId?: string;
   serverDesignatedVerifierName?: string;
 };
@@ -52,6 +55,7 @@ export default function CaptureEvidenceStep({
   onSubmit,
   readOnly = false,
   serverCapture = null,
+  serverTemplateDocumentEditorContent,
   serverDesignatedVerifierUserId,
   serverDesignatedVerifierName,
 }: CaptureEvidenceStepProps) {
@@ -138,6 +142,13 @@ export default function CaptureEvidenceStep({
     setCapturedData(String(serverCapture.capturedData ?? ""));
     setAdditionalNotes(String(serverCapture.additionalNotes ?? ""));
   }, [serverCapture]);
+
+  useEffect(() => {
+    const sourceContent = String(serverTemplateDocumentEditorContent ?? "");
+    if (!sourceContent.trim()) return;
+    // Prefill only when capture text is still empty, so user edits are never overridden.
+    setCapturedData((prev) => (prev.trim().length > 0 ? prev : sourceContent));
+  }, [serverTemplateDocumentEditorContent]);
 
   useEffect(() => {
     if (!serverDesignatedVerifierUserId?.trim()) return;
@@ -546,13 +557,15 @@ export default function CaptureEvidenceStep({
             <p className="text-sm text-[#6B7280] mt-1">Documentary Evidence</p>
           </div>
 
-          <Textarea
-            value={capturedData}
-            onChange={(e) => setCapturedData(e.target.value)}
-            readOnly={readOnly}
-            placeholder=""
-            className="min-h-[160px] resize-none bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280] placeholder:text-[#9CA3AF]"
-          />
+          <div className="overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F9FAFB]">
+            <RichTextEditor
+              value={capturedData}
+              onChange={setCapturedData}
+              readOnly={readOnly}
+              minHeight={160}
+              showToolbar={!readOnly}
+            />
+          </div>
         </CardContent>
       </Card>
 

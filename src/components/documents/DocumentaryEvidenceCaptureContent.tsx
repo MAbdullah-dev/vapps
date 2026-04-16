@@ -20,6 +20,10 @@ type EvidenceRow = {
   designated_verifier_name?: string;
 };
 
+type DocumentRow = {
+  wizard_data?: Record<string, unknown>;
+};
+
 function parseCaptureData(v: unknown): Record<string, unknown> {
   if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
   if (typeof v === "string" && v.trim()) {
@@ -48,6 +52,7 @@ export default function DocumentaryEvidenceCaptureContent() {
   const [evidenceRecordId, setEvidenceRecordId] = useState<string | null>(evidenceFromUrl || null);
   const [evidenceRow, setEvidenceRow] = useState<EvidenceRow | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(Boolean(evidenceFromUrl));
+  const [templateEditorContent, setTemplateEditorContent] = useState("");
 
   const [meReady, setMeReady] = useState(false);
   const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
@@ -115,6 +120,37 @@ export default function DocumentaryEvidenceCaptureContent() {
       ignore = true;
     };
   }, [orgId, evidenceFromUrl]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadTemplateDocumentContent() {
+      if (!orgId || !templateRecordId) {
+        if (!ignore) setTemplateEditorContent("");
+        return;
+      }
+      try {
+        const res = await fetch(
+          `/api/organization/${orgId}/documents?id=${encodeURIComponent(templateRecordId)}`,
+          { credentials: "include" }
+        );
+        const j = (await res.json().catch(() => ({}))) as { records?: DocumentRow[] };
+        const row = res.ok && Array.isArray(j.records) && j.records[0] ? j.records[0] : null;
+        const wizard =
+          row?.wizard_data && typeof row.wizard_data === "object" && !Array.isArray(row.wizard_data)
+            ? row.wizard_data
+            : {};
+        const editorContent =
+          typeof wizard.documentEditorContent === "string" ? wizard.documentEditorContent : "";
+        if (!ignore) setTemplateEditorContent(editorContent);
+      } catch {
+        if (!ignore) setTemplateEditorContent("");
+      }
+    }
+    void loadTemplateDocumentContent();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, templateRecordId]);
 
   const workflow = String(evidenceRow?.workflow_status ?? "").trim();
 
@@ -227,6 +263,7 @@ export default function DocumentaryEvidenceCaptureContent() {
         onSubmit={handleCaptureSubmit}
         readOnly={readOnly}
         serverCapture={serverCapture}
+        serverTemplateDocumentEditorContent={templateEditorContent}
         serverDesignatedVerifierUserId={serverDesignatedVerifierUserId}
         serverDesignatedVerifierName={serverDesignatedVerifierName}
       />

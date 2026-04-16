@@ -14,6 +14,7 @@ import {
   generateDocumentaryEvidencePdf,
   type EvidencePdfData,
 } from "@/lib/generateDocumentaryEvidencePdf";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 export type DesignatedVerifier = {
   userId: string;
@@ -31,6 +32,8 @@ type VerifyArchiveEvidenceStepProps = {
   initialVerificationComments?: string;
   initialArchiveLocation?: string;
   initialRetentionPeriod?: string;
+  /** Optional org/template/capture metadata for the single-page PDF layout. */
+  pdfContext?: Partial<EvidencePdfData>;
   onBack: () => void;
   onConfirmComplete: () => void;
 };
@@ -45,13 +48,12 @@ export default function VerifyArchiveEvidenceStep({
   initialVerificationComments = "",
   initialArchiveLocation = "",
   initialRetentionPeriod = "",
+  pdfContext,
   onBack,
   onConfirmComplete,
 }: VerifyArchiveEvidenceStepProps) {
   const reference = templateRef;
   const readOnly = stepMode === "readonly-completed";
-  /** Capture was entered by Support; verifier (and completed view) may review only — never edit here. */
-  const captureDetailReadOnly = true;
   const [capturedData, setCapturedData] = useState(initialCapturedData);
   const [verificationComments, setVerificationComments] = useState(
     readOnly ? initialVerificationComments : ""
@@ -95,10 +97,22 @@ export default function VerifyArchiveEvidenceStep({
   }, [retentionPeriod, now]);
 
   const handlePreviewPdf = useCallback(() => {
+    const stamp = (() => {
+      const n = new Date();
+      const p = (x: number) => String(x).padStart(2, "0");
+      return {
+        systemDateLabel: `${p(n.getDate())}-${p(n.getMonth() + 1)}-${n.getFullYear()}`,
+        systemTimeLabel: `${p(n.getHours())}-${p(n.getMinutes())}-${p(n.getSeconds())}`,
+        verifyDateLabel: `${p(n.getDate())}-${p(n.getMonth() + 1)}-${n.getFullYear()}`,
+        verifyTimeLabel: `${p(n.getHours())}-${p(n.getMinutes())}-${p(n.getSeconds())}`,
+      };
+    })();
     const pdfData: EvidencePdfData = {
+      ...stamp,
+      ...pdfContext,
       recordId: evidenceRecordId ? `REC-${evidenceRecordId.slice(0, 8).toUpperCase()}` : "REC-000000",
       reference,
-      formTitle: "Inspection Checklist",
+      formTitle: (pdfContext?.formTitle && pdfContext.formTitle.trim()) || "Inspection Checklist",
       capturedData: capturedData.trim() || "—",
       verifierName: designatedVerifier.name,
       verifierUserId: designatedVerifier.userId,
@@ -135,6 +149,7 @@ export default function VerifyArchiveEvidenceStep({
     previewRetention,
     archiveDateLabel,
     retentionExpiryLabel,
+    pdfContext,
   ]);
 
   const saveVerifyArchiveToTenant = async () => {
@@ -248,13 +263,18 @@ export default function VerifyArchiveEvidenceStep({
                 : "View only — reference while you verify. Support staff entered this during capture; it cannot be edited here."}
             </p>
           </div>
-          <Textarea
-            value={capturedData}
-            readOnly={captureDetailReadOnly}
-            tabIndex={-1}
-            placeholder=""
-            className="min-h-[160px] resize-none cursor-default bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
-          />
+          <div
+            className="overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F9FAFB]"
+            aria-readonly="true"
+          >
+            <RichTextEditor
+              value={capturedData}
+              onChange={() => {}}
+              readOnly
+              minHeight={160}
+              showToolbar={false}
+            />
+          </div>
         </CardContent>
       </Card>
 

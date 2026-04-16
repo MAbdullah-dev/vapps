@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
@@ -19,10 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import "froala-editor/css/froala_editor.pkgd.min.css";
-import "froala-editor/css/froala_style.min.css";
-
-const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -925,11 +921,11 @@ export default function CreateAuditStep3Page() {
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence Seen</Label>
                   <div className={cn("overflow-hidden rounded-lg border", canEditRowDialog ? "border-gray-200" : "border-gray-200 opacity-75")}>
-                    <FroalaEditor
-                      tag="textarea"
-                      model={rowDialogDraft.evidence ?? ""}
-                      onModelChange={(v: string) => setRowDialogDraft((d) => (d ? { ...d, evidence: v } : d))}
-                      config={{ heightMin: 120, charCounterCount: true, placeholderText: "Evidence seen..." }}
+                    <RichTextEditor
+                      value={rowDialogDraft.evidence ?? ""}
+                      onChange={(v: string) => setRowDialogDraft((d) => (d ? { ...d, evidence: v } : d))}
+                      placeholder="Evidence seen..."
+                      minHeight={120}
                     />
                   </div>
                 </div>
@@ -1410,15 +1406,11 @@ export default function CreateAuditStep3Page() {
           <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.7 EVIDENCE SEEN</Label>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-gray-200")}>
-              <FroalaEditor
-                tag="textarea"
-                model={complianceDetails.evidenceSeen ?? ""}
-                onModelChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
-                config={{
-                  heightMin: 120,
-                  placeholderText: "Document detailed findings, interview notes, and physical evidence observed...",
-                  charCounterCount: true,
-                }}
+              <RichTextEditor
+                value={complianceDetails.evidenceSeen ?? ""}
+                onChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
+                placeholder="Document detailed findings, interview notes, and physical evidence observed..."
+                minHeight={120}
               />
             </div>
             {fieldErrors.evidenceSeen && (
@@ -1482,15 +1474,11 @@ export default function CreateAuditStep3Page() {
               RISK JUSTIFICATION & COMMENTS (MANDATORY)
             </Label>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-gray-200")}>
-              <FroalaEditor
-                tag="textarea"
-                model={riskJustification}
-                onModelChange={setRiskJustification}
-                config={{
-                  heightMin: 100,
-                  placeholderText: "Explain the rationale behind the selected risk level...",
-                  charCounterCount: true,
-                }}
+              <RichTextEditor
+                value={riskJustification}
+                onChange={setRiskJustification}
+                placeholder="Explain the rationale behind the selected risk level..."
+                minHeight={100}
               />
             </div>
             {fieldErrors.riskJustification && (
@@ -1693,15 +1681,11 @@ export default function CreateAuditStep3Page() {
               </span>
             </div>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-gray-200")}>
-              <FroalaEditor
-                tag="textarea"
-                model={statementOfNonconformity}
-                onModelChange={setStatementOfNonconformity}
-                config={{
-                  heightMin: 200,
-                  placeholderText: "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed.",
-                  charCounterCount: true,
-                }}
+              <RichTextEditor
+                value={statementOfNonconformity}
+                onChange={setStatementOfNonconformity}
+                placeholder="Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
+                minHeight={200}
               />
             </div>
             {fieldErrors.statementOfNonconformity && (
@@ -1892,15 +1876,11 @@ export default function CreateAuditStep3Page() {
             MANDATORY EXPLANATION: WHY MA OR MI?
           </p>
           <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-gray-200")}>
-            <FroalaEditor
-              tag="textarea"
-              model={justificationForClassification}
-              onModelChange={setJustificationForClassification}
-              config={{
-                heightMin: 140,
-                placeholderText: "Provide a logical justification based on the severity of the deviation and its impact on the management system...",
-                charCounterCount: true,
-              }}
+            <RichTextEditor
+              value={justificationForClassification}
+              onChange={setJustificationForClassification}
+              placeholder="Provide a logical justification based on the severity of the deviation and its impact on the management system..."
+              minHeight={140}
             />
           </div>
           {fieldErrors.justificationForClassification && (

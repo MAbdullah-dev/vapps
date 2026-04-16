@@ -49,12 +49,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-import dynamic from "next/dynamic";
-const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
-
-// Only import CSS - JS plugins are loaded by react-froala-wysiwyg dynamically
-import "froala-editor/css/froala_editor.pkgd.min.css";
-import "froala-editor/css/froala_style.min.css";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
@@ -477,7 +472,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
 
 
 
-  const base = getDashboardPath(orgId, `processes/${processId}`);
+  const base = getDashboardPath(String(orgId), `processes/${String(processId)}`);
 
   // Fetch process data to get siteId
   useEffect(() => {
@@ -551,7 +546,7 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
     <div className="w-full">
       {/* Header */}
       <Link
-        href={getDashboardPath(orgId, "processes")}
+        href={getDashboardPath(String(orgId), "processes")}
         className="flex items-center gap-2 mb-5 cursor-pointer w-fit hover:opacity-80 transition-opacity"
       >
         <ArrowLeft /> Processes
@@ -1075,24 +1070,15 @@ export default function ProcessLayout({ children }: { children: React.ReactNode 
                 </Popover>
               </div>
 
-              {/* Froala Editor */}
               <div>
                 <Label className="mb-2">Description</Label>
-                <FroalaEditor
-                  tag="textarea"
-                  model={editorContent}
-                  onModelChange={setEditorContent}
-                  config={{
-                    heightMin: 200,
-                    heightMax: 300,
-                    widthMin: 200,
-                    placeholderText: "Enter issue description...",
-                    imageUploadURL: "/api/files/froala/upload",
-                    imageUploadMethod: "POST",
-                    imageAllowedTypes: ["jpeg", "jpg", "png", "webp"],
-                    imageMaxSize: 5 * 1024 * 1024,
-                    readOnly: isViewOnly,
-                  }}
+                <RichTextEditor
+                  value={editorContent}
+                  onChange={setEditorContent}
+                  readOnly={isViewOnly}
+                  placeholder="Enter issue description..."
+                  minHeight={200}
+                  showToolbar={!isViewOnly}
                 />
               </div>
 

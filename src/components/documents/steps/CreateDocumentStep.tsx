@@ -37,6 +37,7 @@ import {
   Unlock,
 } from "lucide-react";
 import { documentActorMatches } from "@/lib/utils";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 function managementStandardLabel(value: string): string {
   switch (value) {
@@ -453,6 +454,12 @@ export default function CreateDocumentStep({
 
   const isReviseUpdate = actionType === "revise" && reviseSubAction === "update";
   const isReviseTransfer = actionType === "revise" && reviseSubAction === "transfer";
+
+  const documentEditorPlaceholder = isReviseTransfer
+    ? "Document body for the transferred record…"
+    : isReviseUpdate
+      ? "Document body appears here after revision…"
+      : "Enter or paste document content…";
 
   const currentSiteDisplay = siteId.trim() || "S1";
   const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
@@ -1912,7 +1919,7 @@ export default function CreateDocumentStep({
         </CardContent>
       </Card>
 
-      {/* Twelfth card: always shown — EXT uses upload; P/F use textarea */}
+      {/* Twelfth card: always shown — EXT uses upload; P/F use rich text editor */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -1950,19 +1957,14 @@ export default function CreateDocumentStep({
               </label>
             </div>
           ) : (
-            <Textarea
-              id="document-editor-main"
-              value={documentEditorContent}
-              onChange={(e) => setDocumentEditorContent(e.target.value)}
-              placeholder={
-                isReviseTransfer
-                  ? "Document body for the transferred record…"
-                  : isReviseUpdate
-                    ? "Document body appears here after revision…"
-                    : "Enter or paste document content…"
-              }
-              className="min-h-[220px] resize-y bg-[#F9FAFB] border-[#E5E7EB]"
-            />
+            <div id="document-editor-main" className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
+              <RichTextEditor
+                value={documentEditorContent}
+                onChange={setDocumentEditorContent}
+                placeholder={documentEditorPlaceholder}
+                minHeight={220}
+              />
+            </div>
           )}
         </CardContent>
       </Card>
