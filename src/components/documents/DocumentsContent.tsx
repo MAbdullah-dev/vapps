@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import jsPDF from "jspdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +46,7 @@ import {
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type MasterDocumentRow = {
   id: string;
@@ -66,6 +68,10 @@ type MasterDocumentRow = {
   docStatus: "In-Progress" | "Success" | "Pending" | "Fail";
   docPosition: "Draft" | "Review Pending" | "Approval Pending" | "Active" | "Needs Review Again";
   workflowStatus: "draft" | "in_review" | "in_approval" | "approved";
+  createdByName?: string;
+  processOwnerName?: string;
+  approverName?: string;
+  mainContent?: string;
 };
 
 type DocumentsApiRecord = {
@@ -74,12 +80,65 @@ type DocumentsApiRecord = {
   preview_doc_ref: string;
   form_data: Record<string, unknown> | null;
   wizard_data: Record<string, unknown> | null;
+  workflow_status?: "draft" | "in_review" | "in_approval" | "approved";
   lifecycle_status?: "active" | "obsolete";
   created_by_user_name: string | null;
   reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 150);
+}
+
+function sanitizeFilePart(value: string): string {
+  return value.replace(/[^\w.-]+/g, "_").slice(0, 80) || "document";
+}
+
+function pTypeDocument(docType: string): boolean {
+  return String(docType ?? "").trim().toUpperCase() === "P";
+}
+
+function htmlToPlain(value: string): string {
+  const s = String(value ?? "");
+  if (!s.trim()) return "";
+  return s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .split("\n")
+    .map((x) => x.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
 
 function normalizeDocNumberSeg(value: unknown): string | null {
   const m = /^D(\d+)$/i.exec(String(value ?? "").trim());
@@ -380,23 +439,43 @@ function DocPositionBadge({ position }: { position: MasterDocumentRow["docPositi
 }
 
 function MasterDocumentRowActionsMenu({
+  row,
   editHref,
   viewHref,
   canEditDirectly,
   reviseUpdateHref,
   reviseTransferHref,
   workflowStatus,
+  onShare,
+  onDownloadPdf,
+  onDownloadExcel,
 }: {
+  row: MasterDocumentRow;
   editHref: string;
   viewHref: string;
   canEditDirectly: boolean;
   reviseUpdateHref: string;
   reviseTransferHref: string;
   workflowStatus: MasterDocumentRow["workflowStatus"];
+  onShare: (row: MasterDocumentRow, viewHref: string) => void | Promise<void>;
+  onDownloadPdf: (row: MasterDocumentRow) => void;
+  onDownloadExcel: (row: MasterDocumentRow) => void;
 }) {
   const workflowStep =
-    workflowStatus === "in_review" ? "2" : workflowStatus === "in_approval" ? "3" : "1";
+    workflowStatus === "in_review"
+      ? "2"
+      : workflowStatus === "in_approval"
+        ? "3"
+        : workflowStatus === "approved"
+          ? "2"
+          : "1";
   const workflowHref = `${editHref}&step=${workflowStep}`;
+  const workflowLabel =
+    workflowStatus === "in_review"
+      ? "Submit for Approval"
+      : workflowStatus === "in_approval"
+        ? "Open Approval"
+        : "Submit for Review";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -444,15 +523,24 @@ function MasterDocumentRowActionsMenu({
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+          onSelect={() => void onShare(row, viewHref)}
+        >
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
+          onSelect={() => onDownloadPdf(row)}
+        >
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]"
+          onSelect={() => onDownloadExcel(row)}
+        >
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
@@ -466,7 +554,7 @@ function MasterDocumentRowActionsMenu({
         >
           <Link href={workflowHref}>
             <Send size={16} />
-            {workflowStatus === "in_review" ? "Submit for Approval" : "Submit for Review"}
+            {workflowLabel}
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -616,6 +704,24 @@ export default function DocumentsContent() {
   const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
   const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(() => !orgId);
+  const [organizationName, setOrganizationName] = useState("Company Name");
+
+  type EvidenceRecordRow = {
+    id: string;
+    template_record_id: string;
+    template_preview_ref: string;
+    workflow_status: string;
+    capture_data: Record<string, unknown>;
+    verify_archive_data: Record<string, unknown>;
+    designated_verifier_user_id: string;
+    designated_verifier_name: string;
+    support_user_id: string;
+    support_user_name: string;
+    created_at: string;
+    updated_at: string;
+  };
+  const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
+  const [evidenceLoaded, setEvidenceLoaded] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -749,6 +855,13 @@ export default function DocumentsContent() {
             docStatus: status,
             docPosition: position,
             workflowStatus,
+            createdByName: String(row.created_by_user_name ?? "").trim() || "-",
+            processOwnerName: String(formData.processOwner ?? "").trim() || "-",
+            approverName: String(formData.approverName ?? "").trim() || "-",
+            mainContent:
+              String(wizard.documentEditorContent ?? "").trim() ||
+              String(formData.description ?? "").trim() ||
+              "",
           };
         });
         const mappedObsolete: ObsoleteDocumentRow[] = obsoleteRecords.map((row) => {
@@ -797,6 +910,120 @@ export default function DocumentsContent() {
       ignore = true;
     };
   }, [orgId]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadEvidence() {
+      if (!orgId || (selectedTable !== "Documentary Evidence" && selectedTable !== "Records Disposal Log")) {
+        return;
+      }
+      setEvidenceLoaded(false);
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documentary-evidence-records`, {
+          credentials: "include",
+        });
+        const j = (await res.json().catch(() => ({}))) as { records?: EvidenceRecordRow[] };
+        if (!ignore) {
+          const rows = res.ok && Array.isArray(j.records) ? j.records : [];
+          setEvidenceRows(rows.filter((r) => {
+            const ws = String(r.workflow_status ?? "").trim();
+            return ws === "capture_submitted" || ws === "completed";
+          }));
+        }
+      } catch {
+        if (!ignore) setEvidenceRows([]);
+      } finally {
+        if (!ignore) setEvidenceLoaded(true);
+      }
+    }
+    void loadEvidence();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId, selectedTable]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadOrgInfo() {
+      if (!orgId) {
+        if (!ignore) setOrganizationName("Company Name");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/organization-info`, { credentials: "include" });
+        const j = res.ok ? await res.json() : {};
+        if (ignore) return;
+        const oi = (j?.organizationInfo && typeof j.organizationInfo === "object")
+          ? (j.organizationInfo as Record<string, unknown>)
+          : {};
+        const orgNm = String(oi.name ?? oi.organizationName ?? oi.companyName ?? "").trim();
+        setOrganizationName(orgNm || "Company Name");
+      } catch {
+        if (!ignore) setOrganizationName("Company Name");
+      }
+    }
+    void loadOrgInfo();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
+
+  const evidenceCapturedOnly = useMemo(
+    () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "capture_submitted"),
+    [evidenceRows]
+  );
+
+  const evidenceCompletedOnly = useMemo(
+    () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "completed"),
+    [evidenceRows]
+  );
+
+  const filteredEvidence = useMemo(() => {
+    if (selectedTable !== "Documentary Evidence") return [];
+    const source = evidenceCapturedOnly;
+    const q = search.trim().toLowerCase();
+    if (!q) return source;
+    return source.filter((row) => {
+      const cd = row.capture_data ?? {};
+      const haystack = [
+        row.template_preview_ref,
+        String(cd.templateRef ?? ""),
+        String(cd.capturedData ?? ""),
+        String(cd.shift ?? ""),
+        String(cd.lotBatchSerial ?? ""),
+        row.designated_verifier_name,
+        row.support_user_name,
+        row.workflow_status,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [selectedTable, search, evidenceCapturedOnly]);
+
+  const filteredDisposal = useMemo(() => {
+    if (selectedTable !== "Records Disposal Log") return [];
+    const source = evidenceCompletedOnly;
+    const q = search.trim().toLowerCase();
+    if (!q) return source;
+    return source.filter((row) => {
+      const cd = row.capture_data ?? {};
+      const va = row.verify_archive_data ?? {};
+      const haystack = [
+        row.template_preview_ref,
+        String(cd.templateRef ?? ""),
+        String(cd.capturedData ?? ""),
+        String(cd.lotBatchSerial ?? ""),
+        row.designated_verifier_name,
+        row.support_user_name,
+        String(va.archiveLocation ?? ""),
+        String(va.retentionPeriod ?? ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [selectedTable, search, evidenceCompletedOnly]);
 
   const masterDocumentsForTable = useMemo((): MasterDocumentRow[] => {
     switch (selectedTable) {
@@ -865,6 +1092,271 @@ export default function DocumentsContent() {
       return haystack.includes(q);
     });
   }, [selectedTable, search, obsoleteApiRows]);
+
+  const downloadMasterRowPdf = (docRow: MasterDocumentRow) => {
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const isP = pTypeDocument(docRow.type);
+      const ref = docRow.documentRef || "-";
+      const title = docRow.title || "-";
+      const site = docRow.site || "[sys]";
+      const process = docRow.process || "[sys]";
+      const standard = docRow.standard || "[sys]";
+      const clause = docRow.clause || "[sys]";
+      const subClause = docRow.subclause || "[sys]";
+      const createdBy = String(docRow.createdByName ?? "").trim() || "—";
+      const reviewedBy = String(docRow.processOwnerName ?? "").trim() || "—";
+      const approvedBy = String(docRow.approverName ?? "").trim() || "—";
+      const createdDate = docRow.planDate !== "-" ? docRow.planDate : docRow.releaseDate;
+      const reviewedDate = docRow.workflowStatus === "draft" ? "-" : (docRow.releaseDate !== "-" ? docRow.releaseDate : "-");
+      const approvedDate =
+        docRow.workflowStatus === "approved" ? (docRow.releaseDate !== "-" ? docRow.releaseDate : "-") : "-";
+      const captureBy = createdBy;
+      const verifyBy = docRow.workflowStatus === "approved" ? approvedBy : reviewedBy;
+      const verifyDate = docRow.workflowStatus === "approved" ? approvedDate : reviewedDate;
+      const commentsText = `Workflow: ${docRow.docPosition} (${docRow.docStatus})`;
+      const bodyText = htmlToPlain(docRow.mainContent ?? "") || title;
+
+      // Header strip
+      pdf.setFillColor(245, 245, 245);
+      pdf.rect(7, 6, 196, 18, "F");
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.3);
+      pdf.rect(7, 6, 196, 18);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      if (isP) {
+        pdf.setTextColor(109, 40, 217); // violet
+      } else {
+        pdf.setTextColor(234, 88, 12); // orange
+      }
+      pdf.text(organizationName, 8, 12.5);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text(`Ref# ${ref}`, 201, 12.5, { align: "right" });
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0);
+      pdf.text(
+        isP ? "Policy/Procedure/SOP Title:" : "Form/Blank Template Title:",
+        8,
+        19.5
+      );
+      pdf.text(title, isP ? 62 : 47, 19.5);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8.5);
+      pdf.text(
+        `Standard: ${standard}   |   Clause: ${clause}   |   Subclause: ${subClause}`,
+        201,
+        19.5,
+        { align: "right" }
+      );
+
+      if (!isP) {
+        pdf.setDrawColor(160);
+        pdf.line(7, 24.5, 203, 24.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(
+          `Lot/Batch/Serial# ${docRow.docNumber || "[sys]"} | Std Clause Ref# ${clause} | Shift: ${process} | Records Archive: ${docRow.releaseDate || "Year / Month"} | System Date: ${docRow.releaseDate || "dd-mm-yy"} | Time: 00-00`,
+          8,
+          28
+        );
+      }
+
+      // Body area
+      pdf.setDrawColor(190);
+      pdf.setLineWidth(0.3);
+      pdf.rect(7, 30, 196, 240);
+      const contentLines = pdf.splitTextToSize(bodyText, 160) as string[];
+      const trimmedLines = contentLines.slice(0, 18);
+      const blockHeight = Math.max(trimmedLines.length * 6, 14);
+      const startY = 150 - blockHeight / 2;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10.5);
+      if (isP) {
+        pdf.setTextColor(14, 165, 233);
+      } else {
+        pdf.setTextColor(234, 88, 12);
+      }
+      pdf.text(trimmedLines, 104, startY, { align: "center" });
+
+      // Footer lane
+      pdf.setFillColor(245, 245, 245);
+      pdf.rect(7, 271, 196, 13, "F");
+      pdf.setDrawColor(180);
+      pdf.rect(7, 271, 196, 13);
+
+      const box = (x: number, y: number) => {
+        pdf.setLineWidth(0.25);
+        pdf.rect(x, y, 3.2, 3.2);
+      };
+      const arrow = "→";
+
+      pdf.setTextColor(0);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      if (isP) {
+        box(9, 279.3);
+        pdf.text(`Created By: ${createdBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
+        pdf.text(arrow, 64, 282.1);
+        box(70, 279.3);
+        pdf.text(`Reviewed By: ${reviewedBy}   ID#${docRow.docNumber || "00"}   Date: ${reviewedDate}`, 74.3, 282.1);
+        pdf.text(arrow, 126, 282.1);
+        box(134, 279.3);
+        pdf.text(`Approved By: ${approvedBy}   ID#${docRow.docNumber || "00"}   Date: ${approvedDate}`, 138.3, 282.1);
+      } else {
+        box(9, 279.3);
+        pdf.text(`Capture By: ${captureBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
+        pdf.text(arrow, 100, 282.1);
+        box(126, 279.3);
+        pdf.text(`Verified By: ${verifyBy}   ID#${docRow.docNumber || "00"}   Date: ${verifyDate || "-"}`, 130.3, 282.1);
+
+        box(9, 283.6);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("DISCARD", 13.3, 286.1);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Comments (if any): ${commentsText}`, 33, 286.1);
+      }
+
+      const filename = `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.pdf`;
+      pdf.save(filename);
+      toast.success("PDF downloaded.");
+    } catch {
+      toast.error("Could not generate PDF for this row.");
+    }
+  };
+
+  const downloadMasterRowExcel = (docRow: MasterDocumentRow) => {
+    const isP = pTypeDocument(docRow.type);
+    const titleLabel = isP ? "Policy/Procedure/SOP Title" : "Form/Blank Template Title";
+    const stepLane = isP
+      ? "Created By: Abc  |  Reviewed By: Abc  |  Approved By: Abc"
+      : "Capture By: Mr. Abc  |  Verified By: Mr. Abc  |  DISCARD";
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial, sans-serif; }
+    .sheet { width: 1200px; border: 1px solid #bfbfbf; }
+    .header { background: #f5f5f5; border-bottom: 1px solid #bfbfbf; padding: 8px; }
+    .topline { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; }
+    .title { margin-top: 8px; font-size: 16px; font-weight: 700; }
+    .meta { margin-top: 6px; font-size: 12px; text-align: right; }
+    .body { height: 560px; border-top: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; position: relative; }
+    .watermark {
+      position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-22deg);
+      color: ${isP ? "#0ea5e9" : "#ea580c"}; font-size: 36px; font-weight: 700; opacity: 0.8;
+      border: 2px solid #111; padding: 10px 18px;
+    }
+    .footer { background: #f5f5f5; padding: 8px; font-size: 12px; border-top: 1px solid #bfbfbf; }
+    .small { font-size: 11px; color: #374151; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div class="topline">
+        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">Company Name</span>
+        <span>Ref# ${docRow.documentRef}</span>
+      </div>
+      <div class="title">${titleLabel}: ${docRow.title}</div>
+      <div class="meta">Standard: ${docRow.standard} | Clause: ${docRow.clause} | Subclause: ${docRow.subclause}</div>
+    </div>
+    <div class="body">
+      <div class="watermark">Body of the Template ${isP ? "Procedure" : "form"}/ SAMPLE</div>
+    </div>
+    <div class="footer">
+      ${stepLane}
+      ${!isP ? `<div class="small">Comments (if any): Verified the checklist and found OK</div>` : ""}
+    </div>
+  </div>
+</body>
+</html>`;
+    downloadTextFile(
+      `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.xls`,
+      html,
+      "application/vnd.ms-excel;charset=utf-8"
+    );
+    toast.success("Excel file downloaded.");
+  };
+
+  const downloadMasterTableExcel = () => {
+    const headers = [
+      "Document Ref",
+      "Nature of Document",
+      "Title",
+      "Type",
+      "Site",
+      "Process",
+      "Standard",
+      "Clause",
+      "Subclause",
+      "Doc#",
+      "Version",
+      "Plan Date",
+      "Release Date",
+      "Review Due",
+      "KPI",
+      "Doc Status",
+      "Doc Position",
+      "Workflow Status",
+    ];
+    const rows = filteredMaster.map((docRow) => [
+      docRow.documentRef,
+      docRow.natureOfDocument,
+      docRow.title,
+      docRow.type,
+      docRow.site,
+      docRow.process,
+      docRow.standard,
+      docRow.clause,
+      docRow.subclause,
+      docRow.docNumber,
+      docRow.version,
+      docRow.planDate,
+      docRow.releaseDate,
+      docRow.reviewDue,
+      docRow.kpi,
+      docRow.docStatus,
+      docRow.docPosition,
+      docRow.workflowStatus,
+    ]);
+    const csv = [headers, ...rows].map((line) => line.map(csvCell).join(",")).join("\n");
+    downloadTextFile("master-document-list.csv", `${csv}\n`, "text/csv;charset=utf-8");
+    toast.success("Master document list exported.");
+  };
+
+  const shareMasterRow = async (docRow: MasterDocumentRow, viewHref: string) => {
+    const absoluteUrl =
+      typeof window !== "undefined" ? new URL(viewHref, window.location.origin).toString() : viewHref;
+    const shareText = `Document: ${docRow.documentRef}\nTitle: ${docRow.title}\nStatus: ${docRow.docPosition}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          title: docRow.title || "Document",
+          text: shareText,
+          url: absoluteUrl,
+        });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${absoluteUrl}`);
+        toast.success("Share link copied to clipboard.");
+        return;
+      }
+      toast.message(`Share URL: ${absoluteUrl}`);
+    } catch {
+      toast.error("Could not share this document.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -951,6 +1443,32 @@ export default function DocumentsContent() {
               </p>
             </div>
           ) : null}
+          {selectedTable === "Documentary Evidence" ? (
+            <div
+              className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]"
+              role="note"
+            >
+              <p className="font-semibold text-[#15803D]">Captured F-type evidence records — awaiting verification</p>
+              <p className="mt-2 leading-relaxed">
+                This table shows F-type documentary evidence records where the <span className="font-medium">capture step is complete</span> but
+                verification is still pending. Once the designated verifier completes Verify &amp; Archive, the record moves to the{" "}
+                <span className="font-medium">Records Disposal Log</span>.
+              </p>
+            </div>
+          ) : null}
+          {selectedTable === "Records Disposal Log" ? (
+            <div
+              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              role="note"
+            >
+              <p className="font-semibold text-[#1E40AF]">Completed evidence records — verified &amp; archived</p>
+              <p className="mt-2 leading-relaxed">
+                Records appear here once <span className="font-medium">both</span> steps are finished: capture by Support Leadership and
+                verification by the designated Top/Operational verifier. Each row shows the retention period and archive location
+                set during verification.
+              </p>
+            </div>
+          ) : null}
           {selectedTable === "Master Document List" ? (
             <div
               className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#4B5563]"
@@ -990,7 +1508,12 @@ export default function DocumentsContent() {
                 />
               </div>
 
-              <Button variant="outline" className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={downloadMasterTableExcel}
+                disabled={selectedTable !== "Master Document List" || filteredMaster.length === 0}
+              >
                 <Download size={16} />
                 Download Excel Sheet
               </Button>
@@ -1079,12 +1602,16 @@ export default function DocumentsContent() {
                         </TableCell>
                         <TableCell className="text-center">
                           <MasterDocumentRowActionsMenu
+                            row={doc}
                             viewHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=view`}
                             editHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit`}
                             canEditDirectly={doc.workflowStatus !== "approved"}
                             reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
                             reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
                             workflowStatus={doc.workflowStatus}
+                            onShare={shareMasterRow}
+                            onDownloadPdf={downloadMasterRowPdf}
+                            onDownloadExcel={downloadMasterRowExcel}
                           />
                         </TableCell>
                       </TableRow>
@@ -1199,32 +1726,90 @@ export default function DocumentsContent() {
                     <ObsoleteRegisterColumnHead
                       align="center"
                       title="KPI"
-                      hint="<30d Green · >30d Yellow · >40d Red"
+                      hint="≤30d Green · >30d Yellow · >40d Red"
                     />
                     <ObsoleteRegisterColumnHead
                       align="center"
                       title="Record Status"
                       hint="Success / Pending / Fail"
                     />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title="Record Rank"
-                      hint="Verified / Captured / Archived"
-                    />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title="Actions"
-                      hint="(View | Edit | Share | Download)"
-                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={16} className="py-12 text-center text-sm text-muted-foreground">
-                      No documentary evidence records loaded yet. This view will use captured F-type records when the
-                      API is connected.
-                    </TableCell>
-                  </TableRow>
+                  {!evidenceLoaded ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading evidence records…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredEvidence.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                        {evidenceCapturedOnly.length === 0
+                          ? "No documentary evidence records loaded yet. This view will use captured F-type records when the API is connected."
+                          : "No records match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredEvidence.map((row) => {
+                      const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+                      const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+                      const ref = row.template_preview_ref || String(cd.templateRef ?? "");
+                      const refParts = ref.split("/").filter(Boolean);
+                      const version = refParts.length > 0 ? refParts[refParts.length - 1] : "-";
+                      const site = refParts.length > 2 ? refParts[2] : "-";
+                      const processOwner = refParts.length > 3 ? refParts[3] : "-";
+                      const docNum = refParts.length > 5 ? refParts[5] : "-";
+                      const title = String(cd.capturedData ?? "").trim().slice(0, 60) || "-";
+                      const batch = String(cd.lotBatchSerial ?? "").trim() || "-";
+                      const captureDateObj = row.created_at ? new Date(row.created_at) : null;
+                      const yearMonth = captureDateObj
+                        ? `${captureDateObj.getFullYear()}/${String(captureDateObj.getMonth() + 1).padStart(2, "0")}`
+                        : "-";
+                      const captureBy = String(row.support_user_name ?? "").trim() || "-";
+                      const captureDate = captureDateObj
+                        ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "-";
+                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || "—";
+                      const verifyDate = va.completedAt
+                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "—";
+                      const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
+                      const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
+                      const kpiColor = daysSinceCapture > 40 ? "text-red-600" : daysSinceCapture > 30 ? "text-amber-600" : "text-[#22B323]";
+                      const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
+                      const statusBg = daysSinceCapture > 40 ? "bg-red-500" : daysSinceCapture > 30 ? "bg-amber-500" : "bg-[#22B323]";
+
+                      return (
+                        <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
+                          <TableCell className="px-3 py-2.5 text-sm font-medium text-foreground whitespace-nowrap">
+                            {ref || "-"}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[180px]">
+                            {title}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{processOwner}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{batch}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{yearMonth}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{site}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">{docNum}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{version}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{captureBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{captureDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{verifyBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{verifyDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <span className={cn("text-sm font-semibold", kpiColor)}>{kpiLabel}</span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <span className={cn("inline-block rounded-md px-3 py-1 text-xs font-semibold text-white", statusBg)}>
+                              {statusLabel}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             ) : selectedTable === "Records Disposal Log" ? (
@@ -1252,11 +1837,97 @@ export default function DocumentsContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
-                      No disposal log entries yet. This view will list disposed records when the API is connected.
-                    </TableCell>
-                  </TableRow>
+                  {!evidenceLoaded ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                        Loading disposal records…
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredDisposal.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                        {evidenceCompletedOnly.length === 0
+                          ? "No disposal log entries yet. This view will list disposed records when the API is connected."
+                          : "No records match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDisposal.map((row) => {
+                      const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+                      const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+                      const shortId = row.id.slice(0, 4);
+                      const desc = String(cd.capturedData ?? "").trim().slice(0, 80) || "-";
+                      const disposedBy = String(row.designated_verifier_name ?? "").trim() || "-";
+                      const disposalDate = va.completedAt
+                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : row.updated_at
+                          ? new Date(row.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                          : "-";
+                      const retention = String(va.retentionPeriod ?? "").trim() || "3 Years";
+                      const storageRaw = String(va.archiveLocation ?? "").trim().toLowerCase();
+                      const isShred = storageRaw.includes("shred") || storageRaw.includes("physical");
+                      const disposalMethod = isShred ? "Shred" : "Delete";
+                      const disposalMethodColor = isShred
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-red-50 text-red-700 border-red-200";
+                      const storage = String(va.archiveLocation ?? "").trim() || "Cloud";
+                      const storageIcon = storage.toLowerCase().includes("cloud")
+                        ? Cloud
+                        : storage.toLowerCase().includes("server")
+                          ? Server
+                          : storage.toLowerCase().includes("physical")
+                            ? HardDrive
+                            : Cloud;
+                      const StorageIcon = storageIcon;
+
+                      return (
+                        <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
+                          <TableCell className="px-3 py-2.5 text-sm font-semibold text-foreground">{shortId}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[220px]">{desc}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{disposedBy}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{disposalDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{retention}</TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium", disposalMethodColor)}>
+                              <Scissors className="h-3 w-3" />
+                              {disposalMethod}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+                              <StorageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              {storage}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <Eye className="h-4 w-4" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <Share2 className="h-4 w-4" /> Share
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <FileDown className="h-4 w-4" /> Download PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="gap-2 text-sm">
+                                  <FileSpreadsheet className="h-4 w-4" /> Download Excel
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             ) : (
@@ -1394,7 +2065,7 @@ export default function DocumentsContent() {
                 <div>Checklists</div>
                 <div>
                   <span className="font-medium text-[#0A0A0A]">Lifecycle:</span>{" "}
-                  Draft + Capture -&gt; Verify -&gt; Archive -&gt; Dispose
+                  Draft + Capture -&gt; Verify &amp; Archive -&gt; Dispose
                 </div>
               </div>
             </div>

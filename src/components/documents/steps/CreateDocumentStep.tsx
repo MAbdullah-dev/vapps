@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn, documentActorMatches } from "@/lib/utils";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 function managementStandardLabel(value: string): string {
   switch (value) {
@@ -314,13 +315,16 @@ export default function CreateDocumentStep({
         const approverFiltered = raw.filter((m) => {
           const tier = String(m.leadershipTier ?? "").trim().toLowerCase();
           const isTopOnly = tier === "top";
+          const isOrgOwner = Boolean(m.isOwner);
           const isActive = (m.status ?? "Active") === "Active";
           const currentName = (m.name ?? "").trim().toLowerCase();
           const isProcessOwnerPick =
             (ownerToken.length > 0 && currentName === ownerToken) ||
             (ownerId.length > 0 && m.id === ownerId);
           const isCreatingUser = documentActorMatches(loginUserId, loginUserName, m.id, m.name);
-          return isTopOnly && isActive && !m.isOwner && !isProcessOwnerPick && !isCreatingUser;
+          // Top-tier approvers include org owner (previously excluded via !m.isOwner).
+          const canBeApprover = isTopOnly || isOrgOwner;
+          return canBeApprover && isActive && !isProcessOwnerPick && !isCreatingUser;
         });
         setApproverOptions(approverFiltered);
       } catch {
@@ -468,6 +472,12 @@ export default function CreateDocumentStep({
 
   const isReviseUpdate = actionType === "revise" && reviseSubAction === "update";
   const isReviseTransfer = actionType === "revise" && reviseSubAction === "transfer";
+
+  const documentEditorPlaceholder = isReviseTransfer
+    ? "Document body for the transferred record…"
+    : isReviseUpdate
+      ? "Document body appears here after revision…"
+      : "Enter or paste document content…";
 
   const currentSiteDisplay = siteId.trim() || "S1";
   const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
@@ -1638,7 +1648,10 @@ export default function CreateDocumentStep({
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-[#0A0A0A]">7. Document Restriction (Security)</h4>
-            <p className="text-sm text-[#6A7282]">Lock confidential documents with PIN protection</p>
+            <p className="text-sm text-[#6A7282]">
+              Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter
+              this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
@@ -1924,7 +1937,7 @@ export default function CreateDocumentStep({
         </CardContent>
       </Card>
 
-      {/* Twelfth card: always shown — EXT uses upload; P/F use textarea */}
+      {/* Twelfth card: always shown — EXT uses upload; P/F use rich text editor */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -1962,19 +1975,14 @@ export default function CreateDocumentStep({
               </label>
             </div>
           ) : (
-            <Textarea
-              id="document-editor-main"
-              value={documentEditorContent}
-              onChange={(e) => setDocumentEditorContent(e.target.value)}
-              placeholder={
-                isReviseTransfer
-                  ? "Document body for the transferred record…"
-                  : isReviseUpdate
-                    ? "Document body appears here after revision…"
-                    : "Enter or paste document content…"
-              }
-              className="min-h-[220px] resize-y bg-[#F9FAFB] border-[#E5E7EB]"
-            />
+            <div id="document-editor-main" className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
+              <RichTextEditor
+                value={documentEditorContent}
+                onChange={setDocumentEditorContent}
+                placeholder={documentEditorPlaceholder}
+                minHeight={220}
+              />
+            </div>
           )}
         </CardContent>
       </Card>

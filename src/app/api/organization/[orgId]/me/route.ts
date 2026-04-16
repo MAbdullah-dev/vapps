@@ -50,6 +50,7 @@ export async function GET(
       (membership?.jobTitle && membership.jobTitle.trim()) || (isOwner ? "Owner" : null);
 
     return NextResponse.json({
+      userId: ctx.user.id,
       leadershipTier,
       systemRole,
       jobTitle,

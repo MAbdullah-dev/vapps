@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useRef, useState, useEffect, useMemo } from "react";
@@ -17,12 +16,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { apiClient } from "@/lib/api-client";
-
-import "froala-editor/css/froala_editor.pkgd.min.css";
-import "froala-editor/css/froala_style.min.css";
-
-const FroalaEditor = dynamic(() => import("react-froala-wysiwyg"), { ssr: false });
 
 export default function CreateAuditStep4Page() {
   const params = useParams();
@@ -32,6 +27,10 @@ export default function CreateAuditStep4Page() {
   const programId = searchParams.get("programId") ?? "";
   const criteria = searchParams.get("criteria") ?? "";
   const auditPlanId = searchParams.get("auditPlanId") ?? "";
+  const step4ImageUploadUrl =
+    orgId && auditPlanId
+      ? `/api/files/audit-upload?orgId=${encodeURIComponent(orgId)}&auditPlanId=${encodeURIComponent(auditPlanId)}&step=4`
+      : "/api/files/froala/upload";
   const stepQuery = (() => {
     const p = new URLSearchParams();
     if (programId) p.set("programId", programId);
@@ -517,21 +516,12 @@ export default function CreateAuditStep4Page() {
         </div>
 
         <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <FroalaEditor
-            tag="textarea"
-            model={rootCauseNarrative}
-            onModelChange={setRootCauseNarrative}
-            config={{
-              heightMin: 180,
-              placeholderText: "Enter the comprehensive root cause analysis narrative...",
-              charCounterCount: true,
-              imageUploadURL: orgId && auditPlanId
-                ? `/api/files/audit-upload?orgId=${encodeURIComponent(orgId)}&auditPlanId=${encodeURIComponent(auditPlanId)}&step=4`
-                : "/api/files/froala/upload",
-              imageUploadMethod: "POST",
-              imageAllowedTypes: ["jpeg", "jpg", "png", "webp"],
-              imageMaxSize: 5 * 1024 * 1024,
-            }}
+          <RichTextEditor
+            value={rootCauseNarrative}
+            onChange={setRootCauseNarrative}
+            placeholder="Enter the comprehensive root cause analysis narrative..."
+            minHeight={180}
+            imageUploadUrl={step4ImageUploadUrl}
           />
         </div>
 
