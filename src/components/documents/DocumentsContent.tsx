@@ -88,14 +88,6 @@ type DocumentsApiRecord = {
   updated_at: string;
 };
 
-function csvCell(v: unknown): string {
-  const s = String(v ?? "");
-  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
-
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -109,6 +101,81 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, 150);
+}
+
+function escapeHtmlCell(v: unknown): string {
+  const s = String(v ?? "");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Excel opens this HTML table as a worksheet (same pattern as per-row Excel export in this file). */
+function downloadExcelTable(filename: string, headers: string[], rows: unknown[][]): void {
+  const thead = `<tr>${headers.map((h) => `<th>${escapeHtmlCell(h)}</th>`).join("")}</tr>`;
+  const tbody = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtmlCell(cell)}</td>`).join("")}</tr>`)
+    .join("");
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8" /></head>
+<body>
+<table border="1" cellspacing="0" cellpadding="4">${thead}${tbody}</table>
+</body>
+</html>`;
+  downloadTextFile(filename, html, "application/vnd.ms-excel;charset=utf-8");
+}
+
+/**
+ * execCommand copy must run from a real click on a focusable control. Radix `onSelect` on
+ * menu items often runs after focus moves, which makes this return false — use a native
+ * `<button onClick>` + `modal={false}` on the menu root instead.
+ */
+function copyTextToClipboardSync(text: string): boolean {
+  if (typeof document === "undefined" || !text) return false;
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "absolute";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    ta.style.fontSize = "12pt";
+    ta.style.contain = "strict";
+    document.body.appendChild(ta);
+    ta.focus({ preventScroll: true });
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function copyShareUrlToClipboard(absoluteUrl: string): void {
+  const showManualFallback = () => {
+    toast.message("Copy this link", {
+      description: absoluteUrl,
+      duration: 25_000,
+    });
+  };
+
+  if (copyTextToClipboardSync(absoluteUrl)) {
+    toast.success("Link copied to clipboard.");
+    return;
+  }
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText && window.isSecureContext) {
+    void navigator.clipboard.writeText(absoluteUrl).then(
+      () => toast.success("Link copied to clipboard."),
+      showManualFallback
+    );
+    return;
+  }
+  showManualFallback();
 }
 
 function sanitizeFilePart(value: string): string {
@@ -477,7 +544,7 @@ function MasterDocumentRowActionsMenu({
         ? "Open Approval"
         : "Submit for Review";
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -523,12 +590,17 @@ function MasterDocumentRowActionsMenu({
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuItem
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
-          onSelect={() => void onShare(row, viewHref)}
-        >
-          <Share2 size={16} />
-          Share
+        <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            onClick={() => {
+              void onShare(row, viewHref);
+            }}
+          >
+            <Share2 size={16} />
+            Share
+          </button>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
@@ -562,9 +634,9 @@ function MasterDocumentRowActionsMenu({
   );
 }
 
-function ObsoleteDocumentRowActionsMenu() {
+function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -584,9 +656,15 @@ function ObsoleteDocumentRowActionsMenu() {
           <Eye size={16} className="text-[#0A0A0A]" />
           View
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
-          <Share2 size={16} />
-          Share
+        <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            onClick={() => onShare()}
+          >
+            <Share2 size={16} />
+            Share
+          </button>
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
           <FileDown size={16} />
@@ -603,7 +681,7 @@ function ObsoleteDocumentRowActionsMenu() {
 
 function DocumentaryEvidenceRowActionsMenu() {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -654,7 +732,7 @@ function DocumentaryEvidenceRowActionsMenu() {
 
 function RecordsDisposalRowActionsMenu() {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -1288,74 +1366,217 @@ export default function DocumentsContent() {
     toast.success("Excel file downloaded.");
   };
 
-  const downloadMasterTableExcel = () => {
-    const headers = [
-      "Document Ref",
-      "Nature of Document",
-      "Title",
-      "Type",
-      "Site",
-      "Process",
-      "Standard",
-      "Clause",
-      "Subclause",
-      "Doc#",
-      "Version",
-      "Plan Date",
-      "Release Date",
-      "Review Due",
-      "KPI",
-      "Doc Status",
-      "Doc Position",
-      "Workflow Status",
-    ];
-    const rows = filteredMaster.map((docRow) => [
-      docRow.documentRef,
-      docRow.natureOfDocument,
-      docRow.title,
-      docRow.type,
-      docRow.site,
-      docRow.process,
-      docRow.standard,
-      docRow.clause,
-      docRow.subclause,
-      docRow.docNumber,
-      docRow.version,
-      docRow.planDate,
-      docRow.releaseDate,
-      docRow.reviewDue,
-      docRow.kpi,
-      docRow.docStatus,
-      docRow.docPosition,
-      docRow.workflowStatus,
-    ]);
-    const csv = [headers, ...rows].map((line) => line.map(csvCell).join(",")).join("\n");
-    downloadTextFile("master-document-list.csv", `${csv}\n`, "text/csv;charset=utf-8");
-    toast.success("Master document list exported.");
+  const downloadCurrentTableExcel = () => {
+    if (!orgId) return;
+
+    if (selectedTable === "Master Document List") {
+      if (filteredMaster.length === 0) return;
+      const headers = [
+        "Document Ref.",
+        "Nature of Document",
+        "Title",
+        "Type",
+        "Site",
+        "Process",
+        "Standard",
+        "Clause",
+        "Subclause",
+        "Doc#",
+        "Version",
+        "Plan Date",
+        "Release Date",
+        "Review Due (Lifecycle in Years)",
+        "KPI",
+        "Doc Status",
+        "Doc Position",
+        "Workflow Status",
+      ];
+      const rows = filteredMaster.map((docRow) => [
+        docRow.documentRef,
+        docRow.natureOfDocument,
+        docRow.title,
+        docRow.type,
+        docRow.site,
+        docRow.process,
+        docRow.standard,
+        docRow.clause,
+        docRow.subclause,
+        docRow.docNumber,
+        docRow.version,
+        docRow.planDate,
+        docRow.releaseDate,
+        docRow.reviewDue,
+        docRow.kpi,
+        docRow.docStatus,
+        docRow.docPosition,
+        docRow.workflowStatus,
+      ]);
+      downloadExcelTable("master-document-list.xls", headers, rows);
+      toast.success("Excel file downloaded.");
+      return;
+    }
+
+    if (selectedTable === "Obsolete Document Register") {
+      if (filteredObsolete.length === 0) return;
+      const headers = [
+        "Document Ref.",
+        "Title",
+        "Type",
+        "Process Owner",
+        "Standard",
+        "Site",
+        "Doc#",
+        "Version",
+        "Obsoleted By",
+        "Obsolete Date",
+        "Replaced By",
+        "Archived Location",
+      ];
+      const rows = filteredObsolete.map((row) => [
+        row.documentRef,
+        row.title,
+        row.type,
+        row.processOwner,
+        row.standard,
+        row.site,
+        row.docNumber,
+        row.version,
+        row.obsoletedBy,
+        row.obsoleteDate,
+        row.replacedBy,
+        row.archivedLocation,
+      ]);
+      downloadExcelTable("obsolete-document-register.xls", headers, rows);
+      toast.success("Excel file downloaded.");
+      return;
+    }
+
+    if (selectedTable === "Documentary Evidence") {
+      if (filteredEvidence.length === 0) return;
+      const headers = [
+        "Document Ref.",
+        "Title",
+        "Process Owner",
+        "Batch/Lot#",
+        "Year/Month",
+        "Site",
+        "Doc#",
+        "Version",
+        "Capture By",
+        "Capture Date",
+        "Verify By",
+        "Verify Date",
+        "KPI",
+        "Record Status",
+      ];
+      const rows = filteredEvidence.map((row) => {
+        const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+        const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+        const ref = row.template_preview_ref || String(cd.templateRef ?? "");
+        const refParts = ref.split("/").filter(Boolean);
+        const version = refParts.length > 0 ? refParts[refParts.length - 1] ?? "-" : "-";
+        const site = refParts.length > 2 ? refParts[2] ?? "-" : "-";
+        const processOwner = refParts.length > 3 ? refParts[3] ?? "-" : "-";
+        const docNum = refParts.length > 5 ? refParts[5] ?? "-" : "-";
+        const title = String(cd.capturedData ?? "").trim().slice(0, 60) || "-";
+        const batch = String(cd.lotBatchSerial ?? "").trim() || "-";
+        const captureDateObj = row.created_at ? new Date(row.created_at) : null;
+        const yearMonth = captureDateObj
+          ? `${captureDateObj.getFullYear()}/${String(captureDateObj.getMonth() + 1).padStart(2, "0")}`
+          : "-";
+        const captureBy = String(row.support_user_name ?? "").trim() || "-";
+        const captureDate = captureDateObj
+          ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+          : "-";
+        const verifyBy = String(row.designated_verifier_name ?? "").trim() || "—";
+        const verifyDate = va.completedAt
+          ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+          : "—";
+        const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
+        const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
+        const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
+        return [
+          ref || "-",
+          title,
+          processOwner,
+          batch,
+          yearMonth,
+          site,
+          docNum,
+          version,
+          captureBy,
+          captureDate,
+          verifyBy,
+          verifyDate,
+          kpiLabel,
+          statusLabel,
+        ];
+      });
+      downloadExcelTable("documentary-evidence.xls", headers, rows);
+      toast.success("Excel file downloaded.");
+      return;
+    }
+
+    if (selectedTable === "Records Disposal Log") {
+      if (filteredDisposal.length === 0) return;
+      const headers = [
+        "Record ID",
+        "Description",
+        "Disposed By",
+        "Disposal Date",
+        "Retention Period",
+        "Disposal Method",
+        "Storage Media",
+      ];
+      const rows = filteredDisposal.map((row) => {
+        const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
+        const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
+        const shortId = row.id.slice(0, 4);
+        const desc = String(cd.capturedData ?? "").trim().slice(0, 80) || "-";
+        const disposedBy = String(row.designated_verifier_name ?? "").trim() || "-";
+        const disposalDate = va.completedAt
+          ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+          : row.updated_at
+            ? new Date(row.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+            : "-";
+        const retention = String(va.retentionPeriod ?? "").trim() || "3 Years";
+        const storageRaw = String(va.archiveLocation ?? "").trim().toLowerCase();
+        const isShred = storageRaw.includes("shred") || storageRaw.includes("physical");
+        const disposalMethod = isShred ? "Shred" : "Delete";
+        const storage = String(va.archiveLocation ?? "").trim() || "Cloud";
+        return [shortId, desc, disposedBy, disposalDate, retention, disposalMethod, storage];
+      });
+      downloadExcelTable("records-disposal-log.xls", headers, rows);
+      toast.success("Excel file downloaded.");
+    }
   };
 
-  const shareMasterRow = async (docRow: MasterDocumentRow, viewHref: string) => {
+  const shareMasterRow = (_docRow: MasterDocumentRow, viewHref: string) => {
     const absoluteUrl =
       typeof window !== "undefined" ? new URL(viewHref, window.location.origin).toString() : viewHref;
-    const shareText = `Document: ${docRow.documentRef}\nTitle: ${docRow.title}\nStatus: ${docRow.docPosition}`;
-    try {
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({
-          title: docRow.title || "Document",
-          text: shareText,
-          url: absoluteUrl,
-        });
-        return;
-      }
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${shareText}\n${absoluteUrl}`);
-        toast.success("Share link copied to clipboard.");
-        return;
-      }
-      toast.message(`Share URL: ${absoluteUrl}`);
-    } catch {
-      toast.error("Could not share this document.");
+    copyShareUrlToClipboard(absoluteUrl);
+  };
+
+  const copyDocumentViewLink = (recordId: string) => {
+    if (!orgId) {
+      toast.error("Could not copy link.");
+      return;
     }
+    const relativePath = `${createDocumentBaseHref}?recordId=${encodeURIComponent(recordId)}&mode=view`;
+    const absoluteUrl =
+      typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
+    copyShareUrlToClipboard(absoluteUrl);
+  };
+
+  const copyDisposalShareLink = (recordId: string) => {
+    if (!orgId) {
+      toast.error("Could not copy link.");
+      return;
+    }
+    const relativePath = `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?evidenceRecordId=${encodeURIComponent(recordId)}`;
+    const absoluteUrl =
+      typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
+    copyShareUrlToClipboard(absoluteUrl);
   };
 
   return (
@@ -1378,7 +1599,7 @@ export default function DocumentsContent() {
             <div className="flex items-center gap-2">
               <Button
                 asChild
-                className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#6366F1]/90 text-white"
+                className="flex items-center gap-2 bg-transparent hover:bg-transparent border border-[#5ea500] text-[#5ea500]"
               >
                 <Link href={documentaryEvidenceTemplatesHref}>
                   <FileText size={16} />
@@ -1511,8 +1732,14 @@ export default function DocumentsContent() {
               <Button
                 variant="outline"
                 className="flex items-center gap-2"
-                onClick={downloadMasterTableExcel}
-                disabled={selectedTable !== "Master Document List" || filteredMaster.length === 0}
+                onClick={downloadCurrentTableExcel}
+                disabled={
+                  !orgId ||
+                  (selectedTable === "Master Document List" && filteredMaster.length === 0) ||
+                  (selectedTable === "Obsolete Document Register" && filteredObsolete.length === 0) ||
+                  (selectedTable === "Documentary Evidence" && filteredEvidence.length === 0) ||
+                  (selectedTable === "Records Disposal Log" && filteredDisposal.length === 0)
+                }
               >
                 <Download size={16} />
                 Download Excel Sheet
@@ -1694,7 +1921,7 @@ export default function DocumentsContent() {
                         <ArchivedLocationBadge label={row.archivedLocation} />
                       </TableCell>
                       <TableCell className="px-3 py-2.5 pr-4 text-center">
-                        <ObsoleteDocumentRowActionsMenu />
+                        <ObsoleteDocumentRowActionsMenu onShare={() => void copyDocumentViewLink(row.id)} />
                       </TableCell>
                     </TableRow>
                     ))
@@ -1900,7 +2127,7 @@ export default function DocumentsContent() {
                             </span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                   <MoreVertical className="h-4 w-4" />
@@ -1912,8 +2139,14 @@ export default function DocumentsContent() {
                                 <DropdownMenuItem className="gap-2 text-sm">
                                   <Eye className="h-4 w-4" /> View
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="gap-2 text-sm">
-                                  <Share2 className="h-4 w-4" /> Share
+                                <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
+                                  <button
+                                    type="button"
+                                    className="relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                                    onClick={() => copyDisposalShareLink(row.id)}
+                                  >
+                                    <Share2 className="h-4 w-4" /> Share
+                                  </button>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2 text-sm">
                                   <FileDown className="h-4 w-4" /> Download PDF

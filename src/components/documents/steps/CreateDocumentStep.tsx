@@ -1004,28 +1004,14 @@ export default function CreateDocumentStep({
 
             <div className="space-y-3">
               <h5 className="text-lg font-semibold text-[#0A0A0A]">Document Details</h5>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Document Type</Label>
-                  <Select value={docType} onValueChange={setDocType}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="P">Type P (Maintained Document)</SelectItem>
-                      <SelectItem value="F">Type F (Retained Record)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="doc-description">Description</Label>
-                  <Textarea
-                    id="doc-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Write document scope..."
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-description">Description</Label>
+                <Textarea
+                  id="doc-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Write document scope..."
+                />
               </div>
             </div>
           </div>
