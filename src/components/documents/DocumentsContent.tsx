@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import jsPDF from "jspdf";
+import { generateMasterDocumentListPdfAsync } from "@/lib/masterDocumentPdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,7 +48,7 @@ import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-type MasterDocumentRow = {
+export type MasterDocumentRow = {
   id: string;
   documentRef: string;
   natureOfDocument: string;
@@ -72,6 +72,15 @@ type MasterDocumentRow = {
   processOwnerName?: string;
   approverName?: string;
   mainContent?: string;
+  createdByUserId?: string;
+  processOwnerUserId?: string;
+  approverUserId?: string;
+  /** From DB when review completed */
+  reviewedByRecordName?: string;
+  approvedByRecordName?: string;
+  approvedByUserId?: string;
+  reviewedAtLabel?: string;
+  approvedAtLabel?: string;
 };
 
 type DocumentsApiRecord = {
@@ -82,8 +91,13 @@ type DocumentsApiRecord = {
   wizard_data: Record<string, unknown> | null;
   workflow_status?: "draft" | "in_review" | "in_approval" | "approved";
   lifecycle_status?: "active" | "obsolete";
+  created_by_user_id?: string | null;
   created_by_user_name: string | null;
+  reviewed_by_user_name?: string | null;
   reviewed_at?: string | null;
+  approved_at?: string | null;
+  approved_by_user_name?: string | null;
+  approved_by_user_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -458,7 +472,7 @@ function MasterDocumentRowActionsMenu({
   reviseTransferHref: string;
   workflowStatus: MasterDocumentRow["workflowStatus"];
   onShare: (row: MasterDocumentRow, viewHref: string) => void | Promise<void>;
-  onDownloadPdf: (row: MasterDocumentRow) => void;
+  onDownloadPdf: (row: MasterDocumentRow) => void | Promise<void>;
   onDownloadExcel: (row: MasterDocumentRow) => void;
 }) {
   const workflowStep =
@@ -532,7 +546,9 @@ function MasterDocumentRowActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
-          onSelect={() => onDownloadPdf(row)}
+          onSelect={() => {
+            void onDownloadPdf(row);
+          }}
         >
           <FileDown size={16} />
           Download PDF
@@ -862,6 +878,16 @@ export default function DocumentsContent() {
               String(wizard.documentEditorContent ?? "").trim() ||
               String(formData.description ?? "").trim() ||
               "",
+            createdByUserId: String(row.created_by_user_id ?? "").trim(),
+            processOwnerUserId: String(formData.processOwnerUserId ?? "").trim(),
+            approverUserId: String(formData.approverUserId ?? "").trim(),
+            reviewedByRecordName: String(row.reviewed_by_user_name ?? "").trim(),
+            approvedByRecordName: String(row.approved_by_user_name ?? "").trim(),
+            approvedByUserId: String(row.approved_by_user_id ?? "").trim(),
+            reviewedAtLabel: reviewedAtRaw ? formatDate(reviewedAtRaw) : "",
+            approvedAtLabel: String((row as DocumentsApiRecord).approved_at ?? "").trim()
+              ? formatDate(String((row as DocumentsApiRecord).approved_at))
+              : "",
           };
         });
         const mappedObsolete: ObsoleteDocumentRow[] = obsoleteRecords.map((row) => {
@@ -1093,138 +1119,40 @@ export default function DocumentsContent() {
     });
   }, [selectedTable, search, obsoleteApiRows]);
 
-  const downloadMasterRowPdf = (docRow: MasterDocumentRow) => {
+  const downloadMasterRowPdf = async (docRow: MasterDocumentRow) => {
     try {
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const isP = pTypeDocument(docRow.type);
-      const ref = docRow.documentRef || "-";
-      const title = docRow.title || "-";
-      const site = docRow.site || "[sys]";
-      const process = docRow.process || "[sys]";
-      const standard = docRow.standard || "[sys]";
-      const clause = docRow.clause || "[sys]";
-      const subClause = docRow.subclause || "[sys]";
-      const createdBy = String(docRow.createdByName ?? "").trim() || "—";
-      const reviewedBy = String(docRow.processOwnerName ?? "").trim() || "—";
-      const approvedBy = String(docRow.approverName ?? "").trim() || "—";
-      const createdDate = docRow.planDate !== "-" ? docRow.planDate : docRow.releaseDate;
-      const reviewedDate = docRow.workflowStatus === "draft" ? "-" : (docRow.releaseDate !== "-" ? docRow.releaseDate : "-");
-      const approvedDate =
-        docRow.workflowStatus === "approved" ? (docRow.releaseDate !== "-" ? docRow.releaseDate : "-") : "-";
-      const captureBy = createdBy;
-      const verifyBy = docRow.workflowStatus === "approved" ? approvedBy : reviewedBy;
-      const verifyDate = docRow.workflowStatus === "approved" ? approvedDate : reviewedDate;
-      const commentsText = `Workflow: ${docRow.docPosition} (${docRow.docStatus})`;
-      const bodyText = htmlToPlain(docRow.mainContent ?? "") || title;
-
-      // Header strip
-      pdf.setFillColor(245, 245, 245);
-      pdf.rect(7, 6, 196, 18, "F");
-      pdf.setDrawColor(180);
-      pdf.setLineWidth(0.3);
-      pdf.rect(7, 6, 196, 18);
-
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(12);
-      if (isP) {
-        pdf.setTextColor(109, 40, 217); // violet
-      } else {
-        pdf.setTextColor(234, 88, 12); // orange
-      }
-      pdf.text(organizationName, 8, 12.5);
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8.5);
-      pdf.setTextColor(17, 24, 39);
-      pdf.text(`Ref# ${ref}`, 201, 12.5, { align: "right" });
-
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(0);
-      pdf.text(
-        isP ? "Policy/Procedure/SOP Title:" : "Form/Blank Template Title:",
-        8,
-        19.5
+      const pdf = await generateMasterDocumentListPdfAsync(
+        {
+          documentRef: docRow.documentRef,
+          title: docRow.title,
+          type: docRow.type,
+          site: docRow.site,
+          process: docRow.process,
+          standard: docRow.standard,
+          clause: docRow.clause,
+          subclause: docRow.subclause,
+          docNumber: docRow.docNumber,
+          version: docRow.version,
+          planDate: docRow.planDate,
+          releaseDate: docRow.releaseDate,
+          workflowStatus: docRow.workflowStatus,
+          docPosition: docRow.docPosition,
+          docStatus: docRow.docStatus,
+          mainContent: docRow.mainContent ?? "",
+          createdByName: docRow.createdByName ?? "",
+          processOwnerName: docRow.processOwnerName ?? "",
+          approverName: docRow.approverName ?? "",
+          reviewedByRecordName: docRow.reviewedByRecordName ?? "",
+          approvedByRecordName: docRow.approvedByRecordName ?? "",
+          createdByUserId: docRow.createdByUserId ?? "",
+          processOwnerUserId: docRow.processOwnerUserId ?? "",
+          approverUserId: docRow.approverUserId ?? "",
+          approvedByUserId: docRow.approvedByUserId ?? "",
+          reviewedAtLabel: docRow.reviewedAtLabel ?? "",
+          approvedAtLabel: docRow.approvedAtLabel ?? "",
+        },
+        organizationName
       );
-      pdf.text(title, isP ? 62 : 47, 19.5);
-
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8.5);
-      pdf.text(
-        `Standard: ${standard}   |   Clause: ${clause}   |   Subclause: ${subClause}`,
-        201,
-        19.5,
-        { align: "right" }
-      );
-
-      if (!isP) {
-        pdf.setDrawColor(160);
-        pdf.line(7, 24.5, 203, 24.5);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(31, 41, 55);
-        pdf.text(
-          `Lot/Batch/Serial# ${docRow.docNumber || "[sys]"} | Std Clause Ref# ${clause} | Shift: ${process} | Records Archive: ${docRow.releaseDate || "Year / Month"} | System Date: ${docRow.releaseDate || "dd-mm-yy"} | Time: 00-00`,
-          8,
-          28
-        );
-      }
-
-      // Body area
-      pdf.setDrawColor(190);
-      pdf.setLineWidth(0.3);
-      pdf.rect(7, 30, 196, 240);
-      const contentLines = pdf.splitTextToSize(bodyText, 160) as string[];
-      const trimmedLines = contentLines.slice(0, 18);
-      const blockHeight = Math.max(trimmedLines.length * 6, 14);
-      const startY = 150 - blockHeight / 2;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10.5);
-      if (isP) {
-        pdf.setTextColor(14, 165, 233);
-      } else {
-        pdf.setTextColor(234, 88, 12);
-      }
-      pdf.text(trimmedLines, 104, startY, { align: "center" });
-
-      // Footer lane
-      pdf.setFillColor(245, 245, 245);
-      pdf.rect(7, 271, 196, 13, "F");
-      pdf.setDrawColor(180);
-      pdf.rect(7, 271, 196, 13);
-
-      const box = (x: number, y: number) => {
-        pdf.setLineWidth(0.25);
-        pdf.rect(x, y, 3.2, 3.2);
-      };
-      const arrow = "→";
-
-      pdf.setTextColor(0);
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      if (isP) {
-        box(9, 279.3);
-        pdf.text(`Created By: ${createdBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
-        pdf.text(arrow, 64, 282.1);
-        box(70, 279.3);
-        pdf.text(`Reviewed By: ${reviewedBy}   ID#${docRow.docNumber || "00"}   Date: ${reviewedDate}`, 74.3, 282.1);
-        pdf.text(arrow, 126, 282.1);
-        box(134, 279.3);
-        pdf.text(`Approved By: ${approvedBy}   ID#${docRow.docNumber || "00"}   Date: ${approvedDate}`, 138.3, 282.1);
-      } else {
-        box(9, 279.3);
-        pdf.text(`Capture By: ${captureBy}   ID#${docRow.docNumber || "00"}   Date: ${createdDate || "-"}`, 13.3, 282.1);
-        pdf.text(arrow, 100, 282.1);
-        box(126, 279.3);
-        pdf.text(`Verified By: ${verifyBy}   ID#${docRow.docNumber || "00"}   Date: ${verifyDate || "-"}`, 130.3, 282.1);
-
-        box(9, 283.6);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("DISCARD", 13.3, 286.1);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(`Comments (if any): ${commentsText}`, 33, 286.1);
-      }
-
       const filename = `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.pdf`;
       pdf.save(filename);
       toast.success("PDF downloaded.");
@@ -1236,9 +1164,23 @@ export default function DocumentsContent() {
   const downloadMasterRowExcel = (docRow: MasterDocumentRow) => {
     const isP = pTypeDocument(docRow.type);
     const titleLabel = isP ? "Policy/Procedure/SOP Title" : "Form/Blank Template Title";
+    const wf = docRow.workflowStatus;
+    const hasReviewed = wf === "in_approval" || wf === "approved";
+    const hasApproved = wf === "approved";
+    const revLabel = hasReviewed
+      ? String(docRow.reviewedByRecordName || docRow.processOwnerName || "").trim() || "na"
+      : "na";
+    const appLabel = hasApproved
+      ? String(docRow.approvedByRecordName || docRow.approverName || "").trim() || "na"
+      : "na";
+    const capLabel = String(docRow.createdByName ?? "").trim() || "na";
+    const verLabel = hasApproved ? appLabel : "na";
     const stepLane = isP
-      ? "Created By: Abc  |  Reviewed By: Abc  |  Approved By: Abc"
-      : "Capture By: Mr. Abc  |  Verified By: Mr. Abc  |  DISCARD";
+      ? `Created By: ${capLabel} | Reviewed By: ${revLabel} | Approved By: ${appLabel}`
+      : `Capture By: ${capLabel} | Verified By: ${verLabel} | DISCARD`;
+    const bodyPlain = htmlToPlain(docRow.mainContent ?? "") || docRow.title || "—";
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -1250,12 +1192,7 @@ export default function DocumentsContent() {
     .topline { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; }
     .title { margin-top: 8px; font-size: 16px; font-weight: 700; }
     .meta { margin-top: 6px; font-size: 12px; text-align: right; }
-    .body { height: 560px; border-top: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; position: relative; }
-    .watermark {
-      position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-22deg);
-      color: ${isP ? "#0ea5e9" : "#ea580c"}; font-size: 36px; font-weight: 700; opacity: 0.8;
-      border: 2px solid #111; padding: 10px 18px;
-    }
+    .body { min-height: 360px; border-top: 1px solid #d4d4d4; border-bottom: 1px solid #d4d4d4; padding: 16px; font-size: 12px; white-space: pre-wrap; color: #111827; }
     .footer { background: #f5f5f5; padding: 8px; font-size: 12px; border-top: 1px solid #bfbfbf; }
     .small { font-size: 11px; color: #374151; margin-top: 4px; }
   </style>
@@ -1264,18 +1201,16 @@ export default function DocumentsContent() {
   <div class="sheet">
     <div class="header">
       <div class="topline">
-        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">Company Name</span>
-        <span>Ref# ${docRow.documentRef}</span>
+        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">${esc(organizationName || "Company Name")}</span>
+        <span>Ref# ${esc(docRow.documentRef)}</span>
       </div>
-      <div class="title">${titleLabel}: ${docRow.title}</div>
-      <div class="meta">Standard: ${docRow.standard} | Clause: ${docRow.clause} | Subclause: ${docRow.subclause}</div>
+      <div class="title">${titleLabel}: ${esc(docRow.title)}</div>
+      <div class="meta">Site: ${esc(docRow.site)} | Process: ${esc(docRow.process)} | Standard: ${esc(docRow.standard)} | Clause: ${esc(docRow.clause)} | Subclause: ${esc(docRow.subclause)}</div>
     </div>
-    <div class="body">
-      <div class="watermark">Body of the Template ${isP ? "Procedure" : "form"}/ SAMPLE</div>
-    </div>
+    <div class="body">${esc(bodyPlain)}</div>
     <div class="footer">
       ${stepLane}
-      ${!isP ? `<div class="small">Comments (if any): Verified the checklist and found OK</div>` : ""}
+      ${!isP ? `<div class="small">Comments (if any): Workflow ${esc(docRow.docPosition)} (${esc(docRow.docStatus)})</div>` : ""}
     </div>
   </div>
 </body>

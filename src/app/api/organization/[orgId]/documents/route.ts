@@ -106,6 +106,9 @@ export async function GET(
       created_by_user_name: string | null;
       reviewed_by_user_name: string | null;
       reviewed_at: string | null;
+      approved_at: string | null;
+      approved_by_user_name: string | null;
+      approved_by_user_id: string | null;
       created_at: string;
       updated_at: string;
       obsolete_at: string | null;
@@ -175,6 +178,21 @@ export async function GET(
          WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'obsolete_at'`
       );
       const hasObsoleteAt = obsoleteAtColCheck.rows.length > 0;
+      const approvedAtColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'approved_at'`
+      );
+      const hasApprovedAt = approvedAtColCheck.rows.length > 0;
+      const approvedByNameColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'approved_by_user_name'`
+      );
+      const hasApprovedByName = approvedByNameColCheck.rows.length > 0;
+      const approvedByIdColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'approved_by_user_id'`
+      );
+      const hasApprovedById = approvedByIdColCheck.rows.length > 0;
 
       const isListFetch = !(requestedId?.trim() ?? "");
       if (isListFetch && hasLifecycle) {
@@ -214,6 +232,9 @@ export async function GET(
         created_by_user_name: string | null;
         reviewed_by_user_name: string | null;
         reviewed_at: string | null;
+        approved_at: string | null;
+        approved_by_user_name: string | null;
+        approved_by_user_id: string | null;
         created_at: string;
         updated_at: string;
         obsolete_at: string | null;
@@ -232,6 +253,9 @@ export async function GET(
           created_by_user_name,
           ${hasReviewedBy ? "reviewed_by_user_name" : "NULL::text AS reviewed_by_user_name"},
           ${hasReviewedAt ? "reviewed_at::text" : "NULL::text AS reviewed_at"},
+          ${hasApprovedAt ? "approved_at::text" : "NULL::text AS approved_at"},
+          ${hasApprovedByName ? "approved_by_user_name" : "NULL::text AS approved_by_user_name"},
+          ${hasApprovedById ? "approved_by_user_id" : "NULL::text AS approved_by_user_id"},
           created_at::text,
           updated_at::text,
           ${hasObsoleteAt ? "obsolete_at::text" : "NULL::text AS obsolete_at"}

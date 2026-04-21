@@ -148,7 +148,7 @@ export default function ResolvePage() {
         {/* Logo */}
         <div className="mb-6 flex justify-center">
           <Image
-            src="/images/logo.png"
+            src="/Images/logo.png"
             alt="Logo"
             width={140}
             height={60}

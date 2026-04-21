@@ -214,7 +214,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     <aside className="hidden md:flex flex-col w-[20%] bg-white h-[90vh]">
 
       <div className="border-b pb-3 p-5">
-        <Image className="mb-3" src="/images/logo.png" alt="Vercel Logo" width={95} height={40} />
+        <Image className="mb-3" src="/Images/logo.png" alt="Vercel Logo" width={95} height={40} />
 
         <div className="relative">
           {isLoading ? (
