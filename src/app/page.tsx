@@ -236,10 +236,9 @@ const HomePage = () => {
             )}
 
             {/* Join Existing Organization Card */}
-            <div className={`option-card ${hasOwnedOrg ? 'w-full md:w-1/2' : 'w-full md:w-1/2'} bg-white rounded-2xl shadow-lg p-6 border-2 border-[#0000001A] py-8 
+            {/* <div className={`option-card ${hasOwnedOrg ? 'w-full md:w-1/2' : 'w-full md:w-1/2'} bg-white rounded-2xl shadow-lg p-6 border-2 border-[#0000001A] py-8 
       flex flex-col justify-between`}>
 
-              {/* Top content */}
               <div className="flex flex-col items-center ">
                 <div className="card-icon w-20 h-20 rounded-full flex items-center justify-center 
           bg-[linear-gradient(135deg,#2B7FFF_0%,#4F39F6_100%)]
@@ -294,7 +293,6 @@ const HomePage = () => {
                 </div>
               </div>
 
-              {/* Button at bottom */}
               <Dialog>
                 <form>
                   <DialogTrigger asChild>
@@ -348,7 +346,7 @@ const HomePage = () => {
               </Dialog>
 
 
-            </div>
+            </div> */}
           </div>
 
           {/* Support Text */}
