@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
       {
-        name: "vapps",
+        name: "vie",
         script: "npm",
         args: "start",
         env: {

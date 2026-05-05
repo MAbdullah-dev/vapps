@@ -83,14 +83,14 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
   };
 
   return (
-    <div className="border border-[#E5E7EB] bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] p-8 rounded-2xl max-w-[400px] w-full mx-auto">
+    <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       {/* Heading */}
       <div className="text-center mb-8">
         <h1 className="text-xl mb-2">Welcome Back</h1>
         {inviteToken ? (
-          <p className="text-base text-[#4A5565]">Log in to accept your invitation</p>
+          <p className="text-base text-muted-foreground">Log in to accept your invitation</p>
         ) : (
-          <p className="text-base text-[#4A5565]">Login to your account</p>
+          <p className="text-base text-muted-foreground">Login to your account</p>
         )}
       </div>
 
@@ -125,7 +125,7 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -145,7 +145,7 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
 
           <Link
             href="/auth/forgot-password"
-            className="text-sm text-[#4F39F6] hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             Forgot password?
           </Link>
@@ -160,7 +160,7 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
       {/* Divider */}
       <div className="flex items-center gap-4 my-6">
         <Separator className="flex-1" />
-        <span className="text-sm text-gray-500">or continue with</span>
+        <span className="text-sm text-muted-foreground">or continue with</span>
         <Separator className="flex-1" />
       </div>
 
@@ -184,11 +184,11 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
       </div>
 
       {/* Switch */}
-      <div className="text-center mt-6 text-sm text-gray-600">
+      <div className="text-center mt-6 text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
         <button
           onClick={onSwitch}
-          className="text-[#16A34A] hover:underline"
+          className="text-primary hover:underline"
         >
           Sign Up
         </button>

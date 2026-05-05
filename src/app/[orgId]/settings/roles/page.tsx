@@ -11,7 +11,7 @@
  * 
  * RBAC = System authority
  * - System roles (Admin, Manager, Member) are derived from Leadership levels
- * - RBAC controls what actions users can perform in VApps
+ * - RBAC controls what actions users can perform in Vie
  * - Separate from Leadership but derived from it
  * 
  * Site = Scope

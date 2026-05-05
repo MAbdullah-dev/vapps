@@ -19,11 +19,18 @@ export interface Step1Data {
   industry?: string;
 }
 
+/** Optional checklist items saved with each process (stored in tenant `processes.description` as JSON). */
+export interface ProcessDefinitionInput {
+  name: string;
+  items: string[];
+}
+
 export interface Step2Site {
   siteName: string;
   siteCode: string;
   location: string;
   processes?: string[];
+  processDefinitions?: ProcessDefinitionInput[];
 }
 export interface Step2Data {
   sites: Step2Site[];

@@ -47,6 +47,14 @@ const createOrganizationSchema = z.object({
           siteCode: z.string().optional(),
           location: z.string(),
           processes: z.array(z.string()).optional(),
+          processDefinitions: z
+            .array(
+              z.object({
+                name: z.string(),
+                items: z.array(z.string()).optional().default([]),
+              })
+            )
+            .optional(),
         })
       ).optional().default([]),
     })

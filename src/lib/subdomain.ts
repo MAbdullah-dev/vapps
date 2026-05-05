@@ -22,8 +22,8 @@ export function getOrgDashboardUrl(slug: string): string {
 const RESERVED_SUBDOMAINS = ["app", "www", "localhost"];
 
 /**
- * Whether the current origin is a tenant subdomain (e.g. stellixsoft.vapps.click or stellixsoft.lvh.me).
- * Apex domain (vapps.click) or www.vapps.click is main app, not tenant.
+ * Whether the current origin is a tenant subdomain (e.g. stellixsoft.vie.click or stellixsoft.lvh.me).
+ * Apex domain (vie.click) or www.vie.click is main app, not tenant.
  * Only valid on the client (uses window).
  */
 function isTenantSubdomain(): boolean {

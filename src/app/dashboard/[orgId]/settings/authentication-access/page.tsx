@@ -31,7 +31,7 @@ export default function AuthenticationAccessPage() {
   // Auth0 Configuration
   const [auth0Domain, setAuth0Domain] = useState("acme-corp.us.auth0.com");
   const [clientId, setClientId] = useState("x3K9mN7pQ2vR8wL5");
-  const [callbackUrl, setCallbackUrl] = useState("https://acme.vapps.io/auth/callback");
+  const [callbackUrl, setCallbackUrl] = useState("https://acme.vie.io/auth/callback");
   
   // Password Policy
   const [minLength, setMinLength] = useState("8");
@@ -59,7 +59,7 @@ export default function AuthenticationAccessPage() {
     // Reset to original values
     setAuth0Domain("acme-corp.us.auth0.com");
     setClientId("x3K9mN7pQ2vR8wL5");
-    setCallbackUrl("https://acme.vapps.io/auth/callback");
+    setCallbackUrl("https://acme.vie.io/auth/callback");
     setMinLength("8");
     setPasswordAge("90");
     setSessionTimeout("60");

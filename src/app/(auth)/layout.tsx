@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ThemeToggle from "@/components/common/ThemeToggle";
 export default function AuthLayout({
   children,
 }: {
@@ -7,8 +8,11 @@ export default function AuthLayout({
 }) {
   return <>
     <section className="auth">
-      <div className="flex flex-col md:flex-row min-h-screen">
-        <div className="content-column md:w-1/2 flex flex-col justify-center items-center h-[50vh] md:h-screen">
+      <div className="flex flex-col md:flex-row min-h-screen relative">
+        <div className="absolute top-3 right-3 z-20">
+          <ThemeToggle />
+        </div>
+        <div className="content-column md:w-1/2 flex flex-col justify-center items-center h-[50vh] md:h-screen bg-muted text-foreground">
           <Image
           className="mb-6"
             src="/svgs/logo.svg"
@@ -16,11 +20,11 @@ export default function AuthLayout({
             width={220}
             height={93}
           />
-          <h1 className="text-2xl mb-3">Welcome to VApps</h1>
-          <p className="text-base">Get started by creating or joining a team</p>
+          <h1 className="text-2xl mb-3">Welcome to Vie</h1>
+          <p className="text-base text-muted-foreground">Get started by creating or joining a team</p>
 
           <div className="flex justify-center gap-4 mt-16">
-            <div className="flex gap-2.5 p-2.5 bg-white border border-[#787878] rounded-[6px] cursor-pointer">
+            <div className="flex gap-2.5 p-2.5 bg-card border border-border rounded-[6px] cursor-pointer">
               <Image
                 src="/svgs/playstore.svg"
                 alt="play-store-icon"
@@ -32,7 +36,7 @@ export default function AuthLayout({
                 <p className="font-medium text-md leading-[0.9]">Google Play</p>
               </div>
             </div>
-            <div className="flex gap-2.5 p-2.5  bg-white border border-[#787878] rounded-[6px] cursor-pointer">
+            <div className="flex gap-2.5 p-2.5 bg-card border border-border rounded-[6px] cursor-pointer">
               <Image
                 src="/svgs/apple.svg"
                 alt="apple-store-icon"
@@ -46,9 +50,14 @@ export default function AuthLayout({
             </div>
           </div>
         </div>
-        <div className="form-column md:w-1/2 flex flex-col justify-center py-10 md:py-0 px-6">
+        <div className="form-column md:w-1/2 flex flex-col justify-center py-10 md:py-0 px-6 bg-background text-foreground">
           {children}
-          <p className="text-[#FFFFFF] mt-8 max-w-[400px] w-full text-center mx-auto">By continuing, you agree to our <Link href="/terms" className="text-[#406140]">Terms of Service</Link> and <Link href="/privacy" className="text-[#406140]">Privacy Policy</Link></p>
+          <p className="text-muted-foreground mt-8 max-w-[400px] w-full text-center mx-auto">
+            By continuing, you agree to our{" "}
+            <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
+          </p>
         </div>
       </div>
     </section>

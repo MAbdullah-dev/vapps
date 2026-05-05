@@ -46,15 +46,15 @@ This app supports organization access via subdomains. The Next.js middleware (vi
 
    So API routes, NextAuth, and auth pages work the same on every host.
 
-### Apex domain as main app (e.g. vapps.click)
+### Apex domain as main app (e.g. vie.click)
 
-When **`NEXT_PUBLIC_ROOT_DOMAIN`** is set (e.g. `vapps.click` in production), the **apex domain** and **www** are treated as the main app (no rewrite):
+When **`NEXT_PUBLIC_ROOT_DOMAIN`** is set (e.g. `vie.click` in production), the **apex domain** and **www** are treated as the main app (no rewrite):
 
-- **`vapps.click`** → login, auth (`/auth`, `/auth/signin`, etc.), org list. **No rewrite.**
-- **`www.vapps.click`** → same as apex (main app). **No rewrite.**
-- **`{orgslug}.vapps.click`** → tenant dashboard. Rewritten to `/dashboard/{orgslug}`.
+- **`vie.click`** → login, auth (`/auth`, `/auth/signin`, etc.), org list. **No rewrite.**
+- **`www.vie.click`** → same as apex (main app). **No rewrite.**
+- **`{orgslug}.vie.click`** → tenant dashboard. Rewritten to `/dashboard/{orgslug}`.
 
-So users open **`https://vapps.click`** to sign in and see the org list; when they click an org they are sent to **`https://stellixsoft.vapps.click`** (or whatever the org slug is). No need for `app.vapps.click`—the bare domain is the main app.
+So users open **`https://vie.click`** to sign in and see the org list; when they click an org they are sent to **`https://stellixsoft.vie.click`** (or whatever the org slug is). No need for `app.vie.click`—the bare domain is the main app.
 
 ## Organization from host in API routes
 
@@ -151,15 +151,15 @@ Set these in your production environment (e.g. Vercel, Railway, or your server `
 | `NEXT_PUBLIC_USE_SUBDOMAIN` | `true` | Enables subdomain redirects and short URLs. |
 | `NEXT_PUBLIC_ROOT_DOMAIN` | `yourdomain.com` | **No leading dot, no protocol.** Used to build tenant URLs: `https://{slug}.yourdomain.com`. |
 
-Example with **apex domain** (vapps.click = login + org list, orgslug.vapps.click = tenant):
+Example with **apex domain** (vie.click = login + org list, orgslug.vie.click = tenant):
 
 ```env
 NODE_ENV=production
-NEXTAUTH_URL=https://vapps.click
-NEXTAUTH_COOKIE_DOMAIN=.vapps.click
+NEXTAUTH_URL=https://vie.click
+NEXTAUTH_COOKIE_DOMAIN=.vie.click
 NEXTAUTH_SECRET=your-production-secret-min-32-chars
 NEXT_PUBLIC_USE_SUBDOMAIN=true
-NEXT_PUBLIC_ROOT_DOMAIN=vapps.click
+NEXT_PUBLIC_ROOT_DOMAIN=vie.click
 ```
 
 Example with **subdomain for login** (app.yourdomain.com = main app):
@@ -173,11 +173,11 @@ NEXT_PUBLIC_USE_SUBDOMAIN=true
 NEXT_PUBLIC_ROOT_DOMAIN=yourdomain.com
 ```
 
-- **Main app URL:** Use one fixed subdomain for the “main app” (login + org list). The code treats **`app`**, **`www`**, and **`localhost`** as reserved (no rewrite). **Apex (e.g. vapps.click):** Set `NEXT_PUBLIC_ROOT_DOMAIN=vapps.click` and `NEXTAUTH_URL=https://vapps.click`. Then `vapps.click` and `www.vapps.click` = main app; tenant dashboards = `https://{orgslug}.vapps.click`. **Or use a subdomain for login:** `NEXTAUTH_URL=https://app.yourdomain.com` and tenant dashboards = `https://{org-slug}.yourdomain.com`.
+- **Main app URL:** Use one fixed subdomain for the “main app” (login + org list). The code treats **`app`**, **`www`**, and **`localhost`** as reserved (no rewrite). **Apex (e.g. vie.click):** Set `NEXT_PUBLIC_ROOT_DOMAIN=vie.click` and `NEXTAUTH_URL=https://vie.click`. Then `vie.click` and `www.vie.click` = main app; tenant dashboards = `https://{orgslug}.vie.click`. **Or use a subdomain for login:** `NEXTAUTH_URL=https://app.yourdomain.com` and tenant dashboards = `https://{org-slug}.yourdomain.com`.
 
 ### 2. DNS
 
-- **Main app (login/org list):** Point your main app host to the server (e.g. **`vapps.click`** and **`www.vapps.click`** for apex, or **`app.yourdomain.com`** if using a subdomain for login).
+- **Main app (login/org list):** Point your main app host to the server (e.g. **`vie.click`** and **`www.vie.click`** for apex, or **`app.yourdomain.com`** if using a subdomain for login).
 - **Tenant subdomains:** Either:
   - **Wildcard:** Create an **A** or **CNAME** record for **`*.yourdomain.com`** pointing to your app’s IP or hostname. Then any subdomain (e.g. `stellixsoft.yourdomain.com`) reaches your app.
   - **Explicit:** Add an A/CNAME for each org subdomain (e.g. `acme.yourdomain.com`). Only practical if you have few, fixed tenants.
@@ -210,14 +210,14 @@ The app reads the subdomain from the request **host** (see `src/proxy.ts` and `s
 
 ### 6. Production checklist
 
-- [ ] `NEXTAUTH_URL` is **HTTPS** and is your main app URL (e.g. `https://vapps.click` for apex, or `https://app.yourdomain.com`).
-- [ ] `NEXTAUTH_COOKIE_DOMAIN=.vapps.click` or `.yourdomain.com` (leading dot; your real domain).
+- [ ] `NEXTAUTH_URL` is **HTTPS** and is your main app URL (e.g. `https://vie.click` for apex, or `https://app.yourdomain.com`).
+- [ ] `NEXTAUTH_COOKIE_DOMAIN=.vie.click` or `.yourdomain.com` (leading dot; your real domain).
 - [ ] `NEXTAUTH_SECRET` or `AUTH_SECRET` set to a strong secret (≥32 chars).
-- [ ] `NEXT_PUBLIC_USE_SUBDOMAIN=true` and `NEXT_PUBLIC_ROOT_DOMAIN=vapps.click` (or your domain).
-- [ ] DNS: main app host (e.g. `vapps.click`, `www.vapps.click`) and `*.vapps.click` (or `*.yourdomain.com`) point to your app.
-- [ ] SSL in place for the main app host and wildcard (e.g. `vapps.click` and `*.vapps.click`).
+- [ ] `NEXT_PUBLIC_USE_SUBDOMAIN=true` and `NEXT_PUBLIC_ROOT_DOMAIN=vie.click` (or your domain).
+- [ ] DNS: main app host (e.g. `vie.click`, `www.vie.click`) and `*.vie.click` (or `*.yourdomain.com`) point to your app.
+- [ ] SSL in place for the main app host and wildcard (e.g. `vie.click` and `*.vie.click`).
 - [ ] Reverse proxy forwards **Host** (or **X-Forwarded-Host**) to the app.
-- [ ] Test: open `https://vapps.click` → login → select org → redirect to `https://{slug}.vapps.click`; session and API calls work.
+- [ ] Test: open `https://vie.click` → login → select org → redirect to `https://{slug}.vie.click`; session and API calls work.
 
 ## Frontend navigation (subdomain vs path)
 

@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Users,
   FileText,
+  Bug,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -69,8 +70,13 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   // On subdomain use short paths (/processes); otherwise /dashboard/slug/processes
   const link = (path: string) => getDashboardPath(slug, path);
 
-  // Documents is now a standalone module (like `audit`), not process-scoped.
+  const pathNoQuery = pathname.split("?")[0];
+  /** Org-level `/issues` module — supports nested tabs under `/issues/*`. */
+  const isStandaloneIssuesActive = /\/issues(?:\/|$)/.test(pathNoQuery) && !/\/processes\/[^/]+\/issues$/.test(pathNoQuery);
+
+  // Documents and Issues are standalone modules (like `audit`); Issues still loads data per selected process.
   const documentsPath = "documents";
+  const issuesPath = "issues";
 
   // Sync selectedSite from query data (preserve localStorage or use first site)
   useEffect(() => {
@@ -211,38 +217,39 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-[20%] bg-white h-[90vh]">
+    <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-[90vh] border-r border-border">
 
       <div className="border-b pb-3 p-5">
         <Image className="mb-3" src="/Images/logo.png" alt="Vercel Logo" width={95} height={40} />
 
         <div className="relative">
           {isLoading ? (
-            <div className="flex gap-2 items-center p-3 border border-[#0000001A] rounded-[12px]">
+            <div className="flex gap-2 items-center p-3 border border-border rounded-[12px]">
               <Building2 size={18} />
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-gray-500">Loading...</p>
+                <p className="text-xs text-muted-foreground">Loading...</p>
               </div>
             </div>
           ) : (
             <>
               <div
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex gap-2 items-center p-3 border border-[#0000001A] rounded-[12px] cursor-pointer"
+                className="flex gap-2 items-center p-3 border border-border rounded-[12px] cursor-pointer hover:bg-muted/60"
               >
                 <Building2 size={18} />
                 <div className="flex flex-col gap-1.5">
-                  <h3 className="text-xs">{selectedSite?.location || organization?.name || "No site selected"}</h3>
-                  <p className="text-xs">{selectedSite?.name || organization?.name || ""}</p>
+                  <h3 className="text-xs text-foreground">{selectedSite?.location || organization?.name || "No site selected"}</h3>
+                  <p className="text-xs text-muted-foreground">{selectedSite?.name || organization?.name || ""}</p>
+             
                 </div>
                 <ChevronDown size={18} className="ml-auto" />
               </div>
 
               {dropdownOpen && (
-                <div className="absolute left-0 mt-2 w-full bg-white border border-[#0000001A] rounded-[12px] shadow-lg z-10 max-h-96 overflow-y-auto">
+                <div className="absolute left-0 mt-2 w-full bg-popover border border-border rounded-[12px] shadow-lg z-10 max-h-96 overflow-y-auto">
                   <div className="py-2">
                     {sites.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500 text-center">
+                      <div className="px-3 py-2 text-xs text-muted-foreground text-center">
                         No sites available
                       </div>
                     ) : (
@@ -250,11 +257,12 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                         <div
                           key={site.id}
                           onClick={() => handleSiteChange(site)}
-                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${selectedSite?.id === site.id ? "bg-gray-50" : ""
+                          className={`px-3 py-2 cursor-pointer hover:bg-muted ${selectedSite?.id === site.id ? "bg-muted/70" : ""
                             }`}
                         >
-                          <h3 className="text-xs font-medium">{site.location}</h3>
-                          <p className="text-xs">{site.name} ({site.code})</p>
+                          <h3 className="text-xs font-medium text-foreground">{site.location}</h3>
+                          <p className="text-xs text-muted-foreground">{site.name} ({site.code})</p>
+                     
                         </div>
                       ))
                     )}
@@ -266,7 +274,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                         <DialogTrigger asChild>
                           <Button
                             type="button"
-                            className="bg-[#F4F4F4] text-[#0A0A0A] text-xs p-3 w-full rounded-none rounded-b-[12px] justify-start"
+                            className="bg-muted text-foreground text-xs p-3 w-full rounded-none rounded-b-[12px] justify-start"
                           >
                             <Plus size={18} />
                             Add New Site
@@ -302,7 +310,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                                 />
                               </div>
                               <div className="grid gap-3">
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-muted-foreground">
                                   Site code will be auto-generated (S001, S002, etc.)
                                 </p>
                               </div>
@@ -330,20 +338,20 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
       </div>
 
       <nav className="flex-1 p-5 space-y-1">
-        <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b pb-5 mb-2 ${pathname === "/" || pathname.includes(`/${slug}`) ? "text-[text-[#364153]" : "text-black"}`} >
+        <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b border-border pb-5 mb-2 ${pathname === "/" || pathname.includes(`/${slug}`) ? "text-foreground font-medium" : "text-muted-foreground"}`} >
           <House size={18} />
           Dashboard
         </Link>
 
         <div
           className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition
-    ${pathname.includes("/processes") ? "bg-[#EEFFF3]" : "hover:bg-gray-50"}
+    ${pathname.includes("/processes") ? "bg-muted" : "hover:bg-muted/60"}
   `}
         >
           <Link
             href={link("processes")}
             className={`flex items-center gap-3
-      ${pathname.includes("/processes") ? "font-medium text-[#22B323]" : "text-gray-600"}
+      ${pathname.includes("/processes") ? "font-medium text-primary" : "text-muted-foreground"}
     `}
           >
             <FolderKanban size={18} />
@@ -373,8 +381,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                     href={link(processHref)}
                     className={`block px-3 py-2 text-sm rounded-lg transition
                       ${pathname.includes(processHref)
-                        ? "bg-gray-100 font-medium text-gray-900"
-                        : "text-gray-600 hover:bg-gray-50"
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60"
                       }
                     `}
                   >
@@ -383,7 +391,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                 );
               })
             ) : (
-              <div className="px-3 py-2 text-sm text-gray-500">
+              <div className="px-3 py-2 text-sm text-muted-foreground">
                 {selectedSite ? "No processes available" : "Select a site to view processes"}
               </div>
             )}
@@ -394,8 +402,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             href={link("audit")}
             className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
               ${pathname.includes("/audit")
-                ? "bg-gray-100 font-medium text-gray-900"
-                : "text-gray-600 hover:bg-gray-50"
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
               }
             `}
           >
@@ -409,8 +417,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             href={link("settings/teams")}
             className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
               ${pathname.includes("/settings/teams")
-                ? "bg-gray-100 font-medium text-gray-900"
-                : "text-gray-600 hover:bg-gray-50"
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
               }
             `}
           >
@@ -426,8 +434,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               href={link(documentsPath)}
               className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
                 ${pathname.includes("/documents")
-                  ? "bg-gray-100 font-medium text-gray-900"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60"
                 }
               `}
             >
@@ -436,14 +444,29 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             </Link>
           </div>
         ) : null}
+
+        <div className="">
+          <Link
+            href={link(issuesPath)}
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
+              ${isStandaloneIssuesActive
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
+              }
+            `}
+          >
+            <Bug size={18} />
+            Issues
+          </Link>
+        </div>
       </nav>
       <div className="footer p-5">
         <Link
           href={link("settings")}
           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-3
           ${pathname.includes("settings")
-              ? "bg-gray-100 font-medium text-gray-900"
-              : "text-gray-600 hover:bg-gray-50"
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted/60"
             }`}
         >
           <Settings size={18} />
@@ -460,7 +483,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             <h3 className="text-sm">{organization?.name || "Organization"}</h3>
             <p className="text-xs">Free</p>
           </div>
-          <Link href="/upgrade" className="text-xs text-[#22B323] border border-[#22B32366] rounded-full bg-[#EEFFF3] p-2.5 ml-auto">Upgrade</Link>
+          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto">Upgrade</Link>
         </div>
       </div>
     </aside>

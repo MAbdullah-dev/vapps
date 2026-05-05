@@ -55,12 +55,12 @@ const Register = ({ onSwitch }: RegisterProps) => {
   };
 
   return (
-    <div className="border border-[#E5E7EB] bg-[#FFFFFF] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] p-8 rounded-2xl max-w-[400px] w-full mx-auto">
+    <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       {/* Heading */}
       <div className="text-center mb-8">
         <h1 className="text-xl mb-2">Create Account</h1>
-        <p className="text-base text-[#4A5565]">
-          Start your journey with VApps
+        <p className="text-base text-muted-foreground">
+          Start your journey with Vie
         </p>
       </div>
 
@@ -94,7 +94,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -121,7 +121,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -134,11 +134,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
         </div>
 
         {/* Submit */}
-        <Button
-          disabled={loading}
-          className="w-full text-white py-2 text-sm hover:bg-[#6db966]"
-          variant="default"
-        >
+        <Button disabled={loading} className="w-full py-2 text-sm" variant="default">
           {loading ? "Creating Account..." : "Create Account"}
         </Button>
       </form>
@@ -146,7 +142,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
       {/* Divider */}
       <div className="flex items-center gap-4 my-6">
         <Separator className="flex-1" />
-        <span className="text-gray-500 text-sm">or continue with</span>
+        <span className="text-muted-foreground text-sm">or continue with</span>
         <Separator className="flex-1" />
       </div>
 
@@ -195,11 +191,11 @@ const Register = ({ onSwitch }: RegisterProps) => {
       </div>
 
       {/* Switch */}
-      <div className="text-center text-sm text-gray-600">
+      <div className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <button
           onClick={onSwitch}
-          className="text-[#16A34A] text-base hover:underline"
+          className="text-primary text-base hover:underline"
         >
           Log In
         </button>

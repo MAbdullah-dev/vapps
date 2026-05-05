@@ -8,7 +8,7 @@ const Welcome = () => {
         <div className="container mx-auto px-5">
           <div className="inner flex flex-col items-center justify-center h-screen">
             <Image src="/Images/logo.png" alt="Vercel Logo" width={400} height={223} />
-            <h3 className='mt-8 mb-3 font-bold text-2xl text-center text-[#505050]'>Welcome to VieTech VApps</h3>
+            <h3 className='mt-8 mb-3 font-bold text-2xl text-center text-[#505050]'>Welcome to Vie</h3>
             <p className='text-lg text-center text-[#787878]'>Let's set up your organization in a few easy steps</p>
           </div>
         </div>

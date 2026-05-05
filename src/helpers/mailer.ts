@@ -44,7 +44,7 @@ export async function sendVerificationEmail({
   const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   await transporter.sendMail({
-    from: `"VApps" <${process.env.SMTP_FROM || "noreply@vapps.com"}>`,
+    from: `"Vie" <${process.env.SMTP_FROM || "noreply@vie.com"}>`,
     to: email,
     subject: "Verify your email",
     html: `
@@ -64,10 +64,10 @@ export async function sendEmailChangeVerification({
   token: string;
 }) {
   const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/verify-email-change?token=${token}`;
-  const fromEmail = process.env.SMTP_FROM || "noreply@vapps.com";
+  const fromEmail = process.env.SMTP_FROM || "noreply@vie.com";
 
   await transporter.sendMail({
-    from: `"VApps" <${fromEmail}>`,
+    from: `"Vie" <${fromEmail}>`,
     to: newEmail,
     subject: "Confirm your new email address",
     html: `
@@ -114,10 +114,10 @@ export async function sendInvitationEmail({
     role?.toLowerCase() === "manager" ? "Manager" :
     role?.toLowerCase() === "user" || role?.toLowerCase() === "member" ? "User" :
     "Member";
-  const fromEmail = process.env.SMTP_FROM || "noreply@vapps.com";
+  const fromEmail = process.env.SMTP_FROM || "noreply@vie.com";
 
   await transporter.sendMail({
-    from: `"VApps" <${fromEmail}>`,
+    from: `"Vie" <${fromEmail}>`,
     to: email,
     subject: `You've been invited to join ${organizationName}`,
     html: `

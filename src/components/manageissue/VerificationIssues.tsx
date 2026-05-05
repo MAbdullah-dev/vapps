@@ -65,6 +65,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 import { cn } from "@/lib/utils"
+import { useOrgOptional } from "@/components/providers/org-provider"
+import { getSelectedSiteIdFromStorage } from "@/lib/selected-site"
 
 import SignatureCanvas from "react-signature-canvas";
 
@@ -81,6 +83,7 @@ interface Issue {
     priority?: string
     createdAt?: string
     updatedAt?: string
+    processId?: string | null
     // For display
     tag?: string
     tagVariant?: BadgeVariant
@@ -101,10 +104,34 @@ interface IssueReview {
     }>
 }
 
-export default function IssuesDashboard() {
+export default function IssuesDashboard({
+    standaloneProcessId,
+    issuesWorkspaceForOrg,
+}: {
+    /** When set (standalone Issues module), uses org UUID from OrgProvider for API calls. */
+    standaloneProcessId?: string
+    /** Org Issues routes: load by site, use each issue's processId for review/verify APIs. */
+    issuesWorkspaceForOrg?: boolean
+} = {}) {
     const params = useParams()
-    const orgId = params.orgId as string
-    const processId = params.processId as string
+    const orgOptional = useOrgOptional()
+    // Always prefer canonical org UUID from OrgProvider (matches sidebar localStorage keys).
+    // Fallback to route param only when provider is unavailable.
+    const orgId = orgOptional?.orgId ?? (params.orgId as string)
+    const routeProcessId = standaloneProcessId ?? (params.processId as string | undefined)
+
+    const [siteIdForIssues, setSiteIdForIssues] = useState("")
+    useEffect(() => {
+        if (!issuesWorkspaceForOrg || !orgId) return
+        const read = () => setSiteIdForIssues(getSelectedSiteIdFromStorage(orgId) || "")
+        read()
+        const onSite = () => read()
+        window.addEventListener("siteChanged", onSite)
+        return () => window.removeEventListener("siteChanged", onSite)
+    }, [issuesWorkspaceForOrg, orgId])
+
+    const processIdForIssue = (issue: Issue | null | undefined) =>
+        issuesWorkspaceForOrg ? issue?.processId ?? undefined : routeProcessId
 
     // Data state
     const [allIssues, setAllIssues] = useState<Issue[]>([])
@@ -171,24 +198,45 @@ export default function IssuesDashboard() {
 
     // Fetch data on mount
     useEffect(() => {
-        if (!orgId || !processId) return
+        if (!orgId) return
+        if (!issuesWorkspaceForOrg && !routeProcessId) return
+        if (issuesWorkspaceForOrg && !siteIdForIssues) {
+            setAllIssues([])
+            setPendingIssues([])
+            setProcessUsers([])
+            setIsLoading(false)
+            return
+        }
 
         const fetchData = async () => {
             try {
                 setIsLoading(true)
-                const [issuesRes, usersRes] = await Promise.all([
-                    apiClient.getIssues(orgId, processId),
-                    apiClient.getProcessUsers(orgId, processId),
-                ])
+                let issues: Issue[] = []
+                if (issuesWorkspaceForOrg && siteIdForIssues) {
+                    const [issuesRes, usersRes] = await Promise.all([
+                        apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues }),
+                        apiClient.getMembers(orgId),
+                    ])
+                    issues = issuesRes.issues || []
+                    setProcessUsers(
+                        (usersRes.teamMembers || []).map((m) => ({
+                            id: m.id,
+                            name: m.name || m.email || "User",
+                            email: m.email,
+                        }))
+                    )
+                } else if (routeProcessId) {
+                    const [issuesRes, usersRes] = await Promise.all([
+                        apiClient.getIssues(orgId, routeProcessId),
+                        apiClient.getProcessUsers(orgId, routeProcessId),
+                    ])
+                    issues = issuesRes.issues || []
+                    setProcessUsers(usersRes.users || [])
+                }
 
-                const issues = issuesRes.issues || []
                 setAllIssues(issues)
-
-                // Filter issues with status "in-review" for verification tab
                 const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
                 setPendingIssues(inReviewIssues)
-
-                setProcessUsers(usersRes.users || [])
             } catch (error: any) {
                 console.error("Error fetching data:", error)
                 toast.error("Failed to load issues")
@@ -198,16 +246,23 @@ export default function IssuesDashboard() {
         }
 
         fetchData()
-    }, [orgId, processId])
+    }, [orgId, routeProcessId, issuesWorkspaceForOrg, siteIdForIssues])
 
     // Fetch issue review data when opening review dialog
     const handleReviewClick = async (issue: Issue) => {
         setSelectedIssue(issue)
         setOpenFirst(true)
 
+        const pid = processIdForIssue(issue)
+        if (!pid) {
+            toast.error("This issue must be linked to a process to load review data.")
+            setIssueReview(null)
+            return
+        }
+
         try {
             setIsLoadingReview(true)
-            const reviewRes = await apiClient.getIssueReview(orgId, processId, issue.id)
+            const reviewRes = await apiClient.getIssueReview(orgId, pid, issue.id)
             setIssueReview(reviewRes.review || null)
         } catch (error: any) {
             console.error("Error fetching review:", error)
@@ -230,6 +285,13 @@ export default function IssuesDashboard() {
         setReassignmentFiles(files)
     }
 
+    const resetIneffectiveForm = () => {
+        setSelectedAssignee("")
+        setDueDate(undefined)
+        setReassignmentInstructions("")
+        setReassignmentFiles([])
+    }
+
     // Handle effective submission
     const handleSubmitEffective = async () => {
         console.log("[VerificationIssues] handleSubmitEffective called", {
@@ -239,11 +301,17 @@ export default function IssuesDashboard() {
             verificationDate,
             signature: signature?.length,
             orgId,
-            processId,
+            processId: processIdForIssue(selectedIssue),
         })
 
         if (!selectedIssue) {
             toast.error("No issue selected")
+            return
+        }
+
+        const pid = processIdForIssue(selectedIssue)
+        if (!pid) {
+            toast.error("This issue must be linked to a process to submit verification.")
             return
         }
 
@@ -277,7 +345,7 @@ export default function IssuesDashboard() {
                     const result = await apiClient.uploadFile(
                         file,
                         orgId,
-                        processId,
+                        pid,
                         selectedIssue.id,
                         "actionPlan" // Using actionPlan type for verification files
                     )
@@ -303,7 +371,7 @@ export default function IssuesDashboard() {
             console.log("[VerificationIssues] Submitting effective verification:", {
                 issueId: selectedIssue.id,
                 orgId,
-                processId,
+                processId: pid,
                 closureComments,
                 closeOutDate: closeOutDate.toISOString(),
                 verificationDate: verificationDate.toISOString(),
@@ -311,7 +379,7 @@ export default function IssuesDashboard() {
                 filesCount: uploadedFiles.length,
             })
 
-            const response = await apiClient.verifyIssue(orgId, processId, selectedIssue.id, {
+            const response = await apiClient.verifyIssue(orgId, pid, selectedIssue.id, {
                 verificationStatus: "effective",
                 closureComments,
                 verificationFiles: uploadedFiles,
@@ -328,16 +396,29 @@ export default function IssuesDashboard() {
             if (typeof window !== "undefined") {
               window.dispatchEvent(
                 new CustomEvent("issueUpdated", {
-                  detail: { processId, orgId, issueId: selectedIssue.id, status: "done" },
+                  detail: {
+                    processId: pid,
+                    orgId,
+                    siteId: issuesWorkspaceForOrg ? siteIdForIssues : undefined,
+                    issueId: selectedIssue.id,
+                    status: "done",
+                  },
                 })
               )
             }
 
             // Refresh data
-            const issuesRes = await apiClient.getIssues(orgId, processId)
-            setAllIssues(issuesRes.issues || [])
-            const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
-            setPendingIssues(inReviewIssues)
+            if (issuesWorkspaceForOrg && siteIdForIssues) {
+                const issuesRes = await apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues })
+                const issues = issuesRes.issues || []
+                setAllIssues(issues)
+                setPendingIssues(issues.filter((i: Issue) => i.status === "in-review"))
+            } else if (routeProcessId) {
+                const issuesRes = await apiClient.getIssues(orgId, routeProcessId)
+                setAllIssues(issuesRes.issues || [])
+                const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
+                setPendingIssues(inReviewIssues)
+            }
 
             // Close dialogs and reset form
             setOpenSubmit(false)
@@ -364,6 +445,12 @@ export default function IssuesDashboard() {
             return
         }
 
+        const pid = processIdForIssue(selectedIssue)
+        if (!pid) {
+            toast.error("This issue must be linked to a process to submit verification.")
+            return
+        }
+
         setIsSubmitting(true)
         try {
             // Upload reassignment files to S3
@@ -373,7 +460,7 @@ export default function IssuesDashboard() {
                     const result = await apiClient.uploadFile(
                         file,
                         orgId,
-                        processId,
+                        pid,
                         selectedIssue.id,
                         "actionPlan" // Using actionPlan type for reassignment files
                     )
@@ -390,7 +477,7 @@ export default function IssuesDashboard() {
             }
 
             // Submit verification
-            await apiClient.verifyIssue(orgId, processId, selectedIssue.id, {
+            await apiClient.verifyIssue(orgId, pid, selectedIssue.id, {
                 verificationStatus: "ineffective",
                 reassignedTo: selectedAssignee,
                 reassignmentInstructions,
@@ -401,20 +488,24 @@ export default function IssuesDashboard() {
             toast.success("Issue marked as ineffective and reassigned")
 
             // Refresh data
-            const issuesRes = await apiClient.getIssues(orgId, processId)
-            setAllIssues(issuesRes.issues || [])
-            const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
-            setPendingIssues(inReviewIssues)
+            if (issuesWorkspaceForOrg && siteIdForIssues) {
+                const issuesRes = await apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues })
+                const issues = issuesRes.issues || []
+                setAllIssues(issues)
+                setPendingIssues(issues.filter((i: Issue) => i.status === "in-review"))
+            } else if (routeProcessId) {
+                const issuesRes = await apiClient.getIssues(orgId, routeProcessId)
+                setAllIssues(issuesRes.issues || [])
+                const inReviewIssues = (issuesRes.issues || []).filter((i: Issue) => i.status === "in-review")
+                setPendingIssues(inReviewIssues)
+            }
 
             // Close dialogs and reset form
             setOpenNoSubmit(false)
             setOpenFirst(false)
             setSelectedIssue(null)
             setIssueReview(null)
-            setSelectedAssignee("")
-            setDueDate(undefined)
-            setReassignmentInstructions("")
-            setReassignmentFiles([])
+            resetIneffectiveForm()
         } catch (error: any) {
             console.error("Error submitting verification:", error)
             toast.error(error.message || "Failed to submit verification")
@@ -673,7 +764,7 @@ export default function IssuesDashboard() {
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Open Issues</p>
                                         <p className="text-2xl font-bold mt-2">
-                                            {filteredAll.filter((i) => i.status === "Pending").length}
+                                            {filteredAll.filter((i) => i.status !== "done").length}
                                         </p>
                                     </div>
                                     <Clock className="h-8 w-8 text-orange-500" />
@@ -1448,7 +1539,13 @@ export default function IssuesDashboard() {
             </Dialog>
 
 
-            <Dialog open={openNoSubmit} onOpenChange={setOpenNoSubmit}>
+            <Dialog
+                open={openNoSubmit}
+                onOpenChange={(open) => {
+                    setOpenNoSubmit(open)
+                    if (!open) resetIneffectiveForm()
+                }}
+            >
                 <DialogContent className="max-w-3xl! max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-semibold">
@@ -1657,6 +1754,8 @@ export default function IssuesDashboard() {
                                     rows={3}
                                     placeholder="Explain why the corrective action was ineffective and provide new guidance..."
                                     className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                                    value={reassignmentInstructions}
+                                    onChange={(e) => setReassignmentInstructions(e.target.value)}
                                 />
                             </div>
 
@@ -1753,7 +1852,10 @@ export default function IssuesDashboard() {
                                 <Button
                                     className="w-[20%]"
                                     variant="outline"
-                                    onClick={() => setOpenNoSubmit(false)}
+                                    onClick={() => {
+                                        setOpenNoSubmit(false)
+                                        resetIneffectiveForm()
+                                    }}
                                     disabled={isSubmitting}
                                 >
                                     Cancel

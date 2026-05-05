@@ -494,6 +494,28 @@ class ApiClient {
   // ========== Issue Methods ==========
 
   /**
+   * Get all issues at organization level (optional filters).
+   */
+  getOrgIssues(
+    orgId: string,
+    filters?: { processId?: string; siteId?: string; sprintId?: string | null }
+  ) {
+    return this.get<{ issues: any[] }>(
+      `/organization/${orgId}/issues`,
+      filters
+    );
+  }
+
+  /**
+   * Get a single issue by ID (organization-level route).
+   */
+  getOrgIssue(orgId: string, issueId: string) {
+    return this.get<{ issue: any }>(
+      `/organization/${orgId}/issues/${issueId}`
+    );
+  }
+
+  /**
    * Get all issues for a process (optionally filtered by sprintId)
    */
   getIssues(orgId: string, processId: string, sprintId?: string | null) {
@@ -529,6 +551,32 @@ class ApiClient {
   }) {
     return this.post<{ issue: any; message: string }>(
       `/organization/${orgId}/processes/${processId}/issues`,
+      data
+    );
+  }
+
+  /**
+   * Create a standalone or process-linked issue.
+   * processId is optional, siteId is required when processId is not provided.
+   */
+  createOrgIssue(orgId: string, data: {
+    title: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    points?: number;
+    assignee?: string;
+    tags?: string[];
+    tag?: string;
+    source?: string;
+    sprintId?: string | null;
+    order?: number;
+    deadline?: string | null;
+    processId?: string | null;
+    siteId?: string | null;
+  }) {
+    return this.post<{ issue: any; message: string }>(
+      `/organization/${orgId}/issues`,
       data
     );
   }
@@ -591,11 +639,40 @@ class ApiClient {
   }
 
   /**
+   * Update a standalone/process-linked issue by ID.
+   */
+  updateOrgIssue(orgId: string, issueId: string, data: {
+    title?: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    points?: number;
+    assignee?: string;
+    tags?: string[];
+    sprintId?: string | null;
+    order?: number;
+    deadline?: string | null;
+    processId?: string | null;
+    siteId?: string | null;
+  }) {
+    return this.put<{ issue: any; message: string }>(
+      `/organization/${orgId}/issues/${issueId}`,
+      data
+    );
+  }
+
+  /**
    * Delete an issue
    */
   deleteIssue(orgId: string, processId: string, issueId: string) {
     return this.delete<{ message: string }>(
       `/organization/${orgId}/processes/${processId}/issues/${issueId}`
+    );
+  }
+
+  deleteOrgIssue(orgId: string, issueId: string) {
+    return this.delete<{ message: string }>(
+      `/organization/${orgId}/issues/${issueId}`
     );
   }
 

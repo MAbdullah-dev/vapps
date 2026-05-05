@@ -1,7 +1,7 @@
 # AWS EC2 + RDS/Aurora Deployment Guide
 
 This document covers:
-1. **Project requirements** for deploying the vapps Next.js application on AWS EC2
+1. **Project requirements** for deploying the vie Next.js application on AWS EC2
 2. **Integrating Amazon RDS (PostgreSQL)** and **Amazon Aurora PostgreSQL**
 3. **Recommended architecture** and setup for both options
 4. **Performance impact**: whether RDS/Aurora will slow your product
@@ -56,11 +56,11 @@ Set these on the EC2 instance (e.g. in `.env` or via AWS Systems Manager Paramet
 Your app uses:
 
 - **One main database** (`DATABASE_URL`): users, sessions, organizations, invitations, and **per-org tenant DB connection info** (`OrgDatabaseInstance`: `dbHost`, `dbPort`, `connectionString`, etc.).
-- **One PostgreSQL server** (RDS or Aurora) can host **multiple databases**: one main DB (e.g. `vapps_main`) and many tenant DBs (e.g. `org_<uuid>`). Your `db-creator.ts` already creates tenant DBs and users on the same host as `RDS_ADMIN_URL`.
+- **One PostgreSQL server** (RDS or Aurora) can host **multiple databases**: one main DB (e.g. `vie_main`) and many tenant DBs (e.g. `org_<uuid>`). Your `db-creator.ts` already creates tenant DBs and users on the same host as `RDS_ADMIN_URL`.
 
 So for a single RDS/Aurora instance:
 
-- `DATABASE_URL` → main database (e.g. `vapps_main`)
+- `DATABASE_URL` → main database (e.g. `vie_main`)
 - `RDS_ADMIN_URL` → same host, admin user (e.g. `postgres` or a superuser), used only when **creating** a new org and its tenant DB
 
 ### 1.4 Network & Security (EC2)
@@ -88,13 +88,13 @@ Your codebase is **already compatible** with RDS:
 ### 2.1 Steps to Use RDS PostgreSQL
 
 1. **Create an RDS PostgreSQL instance** (e.g. 15 or 16) in the same region as your EC2.
-2. **Create a database** on it (e.g. `vapps_main`) for the main app.
+2. **Create a database** on it (e.g. `vie_main`) for the main app.
 3. **Create two users** (or use one with superuser for both, only for small setups):
-   - **App user**: used in `DATABASE_URL`; needs full access only to `vapps_main`.
+   - **App user**: used in `DATABASE_URL`; needs full access only to `vie_main`.
    - **Admin user**: used in `RDS_ADMIN_URL`; needs privileges to create databases and users (e.g. `rds_superuser` or equivalent).
 4. **Connection strings**:
    - `DATABASE_URL`:  
-     `postgresql://appuser:password@your-rds-endpoint.region.rds.amazonaws.com:5432/vapps_main?schema=public`
+     `postgresql://appuser:password@your-rds-endpoint.region.rds.amazonaws.com:5432/vie_main?schema=public`
    - `RDS_ADMIN_URL`:  
      `postgresql://adminuser:password@your-rds-endpoint.region.rds.amazonaws.com:5432/postgres`
 5. **Security group**: Allow **port 5432** from the EC2 security group (or from the VPC CIDR where EC2 lives). Do not open 5432 to 0.0.0.0/0.
@@ -122,9 +122,9 @@ Aurora PostgreSQL is **wire-compatible** with PostgreSQL. Your app talks to it v
 ### 3.2 Steps to Use Aurora PostgreSQL
 
 1. **Create an Aurora PostgreSQL cluster** (compatible with your PostgreSQL version).
-2. **Create the main database** (e.g. `vapps_main`) on the writer instance.
+2. **Create the main database** (e.g. `vie_main`) on the writer instance.
 3. **User and URLs**: Same idea as RDS:
-   - **App user** for `DATABASE_URL` (writer endpoint, database `vapps_main`).
+   - **App user** for `DATABASE_URL` (writer endpoint, database `vie_main`).
    - **Admin user** for `RDS_ADMIN_URL` (writer endpoint, database `postgres`) for creating tenant DBs.
 4. **Endpoints**:
    - Writer: `your-cluster.cluster-xxxx.region.rds.amazonaws.com`
@@ -170,7 +170,7 @@ Again, **no application code changes**; only connection strings and possibly IAM
         │  RDS PostgreSQL             │
         │  or                          │
         │  Aurora PostgreSQL (writer) │
-        │  - vapps_main                │
+        │  - vie_main                │
         │  - org_xxx (tenant DBs)      │
         └────────────────────────────┘
                      │
@@ -253,7 +253,7 @@ Again, **no application code changes**; only connection strings and possibly IAM
 
 - [ ] Create VPC and subnets (public for ALB, private for EC2 and DB).
 - [ ] Create RDS PostgreSQL or Aurora PostgreSQL in private subnet(s).
-- [ ] Create main database (e.g. `vapps_main`) and app + admin users.
+- [ ] Create main database (e.g. `vie_main`) and app + admin users.
 - [ ] Security group: allow 5432 from EC2 to RDS/Aurora only.
 - [ ] EC2: install Node 18/20, clone repo, `npm ci`, `npm run build`.
 - [ ] Set all required env vars (or load from Secrets Manager); include `DATABASE_URL`, `RDS_ADMIN_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, S3, SMTP.
@@ -262,4 +262,4 @@ Again, **no application code changes**; only connection strings and possibly IAM
 - [ ] ALB: HTTPS listener, target group = EC2:3000.
 - [ ] (Optional) Use an AMI + User Data or IaC (Terraform/CloudFormation) to automate the above.
 
-This gives you a clear path to run vapps on **EC2** with **Amazon RDS (PostgreSQL)** or **Amazon Aurora PostgreSQL**, with a recommended architecture and the assurance that RDS/Aurora, when used correctly, **does not** inherently slow your product.
+This gives you a clear path to run vie on **EC2** with **Amazon RDS (PostgreSQL)** or **Amazon Aurora PostgreSQL**, with a recommended architecture and the assurance that RDS/Aurora, when used correctly, **does not** inherently slow your product.

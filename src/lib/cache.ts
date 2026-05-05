@@ -85,6 +85,9 @@ export const cache = new SimpleCache();
  * Cache key generators
  */
 export const cacheKeys = {
+  /** Must match GET /api/organization/[orgId]/sites in-memory cache key. */
+  sitesListForUser: (orgId: string, userId: string) => `sites:${orgId}:${userId}`,
+  /** @deprecated Wrong key for sites list cache; kept for any stray deletes. Prefer invalidateOrgSitesListCache. */
   orgSites: (orgId: string) => `org:${orgId}:sites`,
   orgProcesses: (orgId: string, siteId?: string) => `org:${orgId}:processes:${siteId || "all"}`,
   orgMetadata: (orgId: string, type: string) => `org:${orgId}:metadata:${type}`,
@@ -93,3 +96,11 @@ export const cacheKeys = {
   tenantContext: (orgId: string, userId: string) => `tenant:${orgId}:${userId}`,
   connectionString: (orgId: string) => `conn:${orgId}`,
 };
+
+/**
+ * GET /api/organization/[orgId]/sites caches each user's list under `sites:${orgId}:${userId}`.
+ * Call this after create/update/delete site (or when processes under a site change the list payload).
+ */
+export function invalidateOrgSitesListCache(resolvedOrgId: string) {
+  cache.clearPattern(`sites:${resolvedOrgId}:*`);
+}

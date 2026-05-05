@@ -11,7 +11,7 @@
  * 
  * RBAC = System authority
  * - System roles (Admin, Manager, Member) are derived from Leadership levels
- * - RBAC controls what actions users can perform in VApps
+ * - RBAC controls what actions users can perform in Vie
  * - Separate from Leadership but derived from it
  * 
  * Site = Scope
@@ -344,12 +344,15 @@ export default function RoleManagementPage() {
           </div>
           <div className="flex items-start gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Role Management</h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <h1 className="text-2xl font-semibold text-foreground dark:text-foreground">
+                Role Management
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Manage organizational leadership roles. Leadership is defined at organization level, not site level.
               </p>
             </div>
           </div>
+     
         </div>
         {currentUserRoleLevel === 1 && (
           <Button 

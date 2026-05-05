@@ -63,13 +63,27 @@ export async function storeTenantData(
             [siteId, site.siteName, siteCode, site.location]
           );
 
-          // Insert processes for this site
-          if (site.processes && site.processes.length > 0) {
-            for (const processName of site.processes) {
+          // Insert processes for this site (optional checklist items in description JSON)
+          const defByName = new Map(
+            (site.processDefinitions ?? []).map((d) => [d.name, d.items ?? []])
+          );
+          const processNames =
+            site.processes && site.processes.length > 0
+              ? site.processes
+              : [...defByName.keys()];
+
+          if (processNames.length > 0) {
+            for (const processName of processNames) {
+              const items = defByName.get(processName) ?? [];
+              const trimmed = items.map((i) => i.trim()).filter(Boolean);
+              const description =
+                trimmed.length > 0
+                  ? JSON.stringify({ checklistItems: trimmed })
+                  : null;
               await client.query(
-                `INSERT INTO "processes" ("id", "name", "siteId", "createdAt", "updatedAt")
-                 VALUES ($1, $2, $3, NOW(), NOW())`,
-                [crypto.randomUUID(), processName, siteId]
+                `INSERT INTO "processes" ("id", "name", "description", "siteId", "createdAt", "updatedAt")
+                 VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+                [crypto.randomUUID(), processName, description, siteId]
               );
             }
           }

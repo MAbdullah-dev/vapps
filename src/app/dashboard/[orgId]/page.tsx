@@ -70,31 +70,31 @@ function getActivityMessage(activity: ActivityItem): React.ReactNode {
     const label = activity.details?.statusLabel || activity.action?.replace("audit_plan.", "") || "updated";
     return (
       <>
-        <span className="text-[#0A0A0A] font-medium">Audit</span>
-        <span className="text-[#6A7282]"> {label}: {entityTitle}</span>
+        <span className="text-foreground font-medium">Audit</span>
+        <span className="text-muted-foreground"> {label}: {entityTitle}</span>
       </>
     );
   }
 
   switch (activity.action) {
     case "issue.created":
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> created issue {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> created issue {entityTitle}{processCtx}</span></>;
     case "issue.updated":
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> updated issue {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> updated issue {entityTitle}{processCtx}</span></>;
     case "issue.status_changed":
       const newStatus = activity.details?.newStatus || "updated";
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> changed status of {entityTitle} to {newStatus}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> changed status of {entityTitle} to {newStatus}{processCtx}</span></>;
     case "issue.assigned":
       const assignee = activity.details?.assignee || "someone";
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> assigned {entityTitle} to {assignee}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> assigned {entityTitle} to {assignee}{processCtx}</span></>;
     case "sprint.created":
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> created sprint {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> created sprint {entityTitle}{processCtx}</span></>;
     case "review.submitted":
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> submitted review for {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> submitted review for {entityTitle}{processCtx}</span></>;
     case "verification.completed":
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> completed verification for {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> completed verification for {entityTitle}{processCtx}</span></>;
     default:
-      return <><span className="text-[#0A0A0A] font-medium">{userName}</span><span className="text-[#6A7282]"> {activity.action} {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {activity.action} {entityTitle}{processCtx}</span></>;
   }
 }
 
@@ -185,46 +185,46 @@ export default function OrgDashboardPage() {
             {/* Top Cards */}
             <div className="dashboard-progress-cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Card 1 - Active Projects */}
-                <div className="flex flex-col justify-between bg-card text-[#4A5565] rounded-xl border border-[#0000001A] p-5">
+                <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs">Active Projects</p>
-                        <ChartNoAxesCombined size={18} />
+                        <p className="text-xs text-muted-foreground">Active Projects</p>
+                        <ChartNoAxesCombined size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.processCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1">Across organization</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">Across organization</p>
                     </div>
                 </div>
 
                 {/* Card 2 - Open Issues */}
-                <div className="flex flex-col justify-between bg-card text-[#4A5565] rounded-xl border border-[#0000001A] p-5">
+                <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs">Open Issues</p>
-                        <CircleAlert size={18} />
+                        <p className="text-xs text-muted-foreground">Open Issues</p>
+                        <CircleAlert size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.openIssuesCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1">To do + In progress</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">To do + In progress</p>
                     </div>
                 </div>
 
                 {/* Card 3 - Upcoming Audits */}
-                <div className="flex flex-col justify-between bg-card text-[#4A5565] rounded-xl border border-[#0000001A] p-5">
+                <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs">Upcoming Audits</p>
-                        <CircleCheckBig size={18} />
+                        <p className="text-xs text-muted-foreground">Upcoming Audits</p>
+                        <CircleCheckBig size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.upcomingAuditsCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1">In progress (pending)</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">In progress (pending)</p>
                     </div>
                 </div>
 
                 {/* Card 4 - Compliance Score */}
-                <div className="flex flex-col justify-between bg-card text-[#4A5565] rounded-xl border border-[#0000001A] p-5">
+                <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs">Compliance Score</p>
-                        <TrendingUp size={18} />
+                        <p className="text-xs text-muted-foreground">Compliance Score</p>
+                        <TrendingUp size={18} className="text-muted-foreground" />
                     </div>
                     <div className="space-y-3">
                         <span className="text-2xl font-semibold">{statsLoading ? "—" : `${stats?.complianceScore ?? 0}%`}</span>
@@ -232,6 +232,7 @@ export default function OrgDashboardPage() {
                     </div>
                 </div>
             </div>
+       
 
             {/* Charts Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -340,24 +341,29 @@ export default function OrgDashboardPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {activitiesLoading ? (
-                            <p className="text-sm text-[#6A7282] py-4">Loading activity…</p>
+                            <p className="text-sm text-muted-foreground py-4">Loading activity…</p>
                         ) : activities.length === 0 ? (
-                            <p className="text-sm text-[#6A7282] py-4">No recent activity</p>
+                            <p className="text-sm text-muted-foreground py-4">No recent activity</p>
                         ) : (
                             activities.map((activity) => (
                                 <ul key={activity.id} className="flex items-start gap-3">
                                     <li>
-                                        <Avatar className="h-8 w-8" style={{ backgroundColor: getAvatarColor(activity) }}>
+                                        <Avatar
+                                            className="h-8 w-8"
+                                            style={{ backgroundColor: getAvatarColor(activity) }}
+                                        >
                                             <AvatarFallback className="text-white text-xs">
                                                 {getInitials(activity)}
                                             </AvatarFallback>
                                         </Avatar>
                                     </li>
                                     <li className="flex flex-col min-w-0 flex-1">
-                                        <p className="text-[#6A7282] text-sm">
+                                        <p className="text-muted-foreground text-sm">
                                             {getActivityMessage(activity)}
                                         </p>
-                                        <span className="text-[#6A7282] text-xs mt-0.5">{formatTimeAgo(activity.createdAt)}</span>
+                                        <span className="text-muted-foreground text-xs mt-0.5">
+                                            {formatTimeAgo(activity.createdAt)}
+                                        </span>
                                     </li>
                                 </ul>
                             ))
@@ -373,9 +379,9 @@ export default function OrgDashboardPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {upcomingAuditsLoading ? (
-                            <p className="text-sm text-[#6A7282] py-4">Loading…</p>
+                            <p className="text-sm text-muted-foreground py-4">Loading…</p>
                         ) : upcomingAudits.length === 0 ? (
-                            <p className="text-sm text-[#6A7282] py-4">No audits in progress</p>
+                            <p className="text-sm text-muted-foreground py-4">No audits in progress</p>
                         ) : (
                             upcomingAudits.map((audit) => {
                                 const statusLabel =
@@ -392,19 +398,37 @@ export default function OrgDashboardPage() {
                                                 : audit.status === "pending_closure"
                                                   ? "Pending closure"
                                                   : "In progress";
-                                const displayTitle = audit.title?.trim() || (audit.auditNumber ? `Audit #${audit.auditNumber}` : "Audit");
+                                const displayTitle =
+                                    audit.title?.trim() ||
+                                    (audit.auditNumber ? `Audit #${audit.auditNumber}` : "Audit");
                                 const dateStr = audit.plannedDate
-                                    ? new Date(audit.plannedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                    ? new Date(audit.plannedDate).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                          year: "numeric",
+                                      })
                                     : "—";
                                 return (
-                                    <Link key={audit.id} href={`/dashboard/${orgId}/audit/create/1?auditPlanId=${audit.id}`}>
-                                        <ul className="flex justify-between items-center border-b border-[#E5E7EB] py-2 hover:bg-gray-50/80 rounded-md -mx-2 px-2 transition-colors">
+                                    <Link
+                                        key={audit.id}
+                                        href={`/dashboard/${orgId}/audit/create/1?auditPlanId=${audit.id}`}
+                                    >
+                                        <ul className="flex justify-between items-center border-b border-border py-2 hover:bg-primary/10 rounded-md -mx-2 px-2 transition-colors">
                                             <li className="flex flex-col min-w-0">
-                                                <p className="font-medium text-[#0A0A0A] truncate">{displayTitle}</p>
+                                                <p className="font-medium text-foreground truncate">
+                                                    {displayTitle}
+                                                </p>
                                                 <span className="text-xs text-muted-foreground">{dateStr}</span>
                                             </li>
                                             <li>
-                                                <span className="text-sm font-medium text-yellow-600 whitespace-nowrap">{statusLabel}</span>
+                                                <span
+                                                    className="text-sm font-medium whitespace-nowrap"
+                                                    style={{
+                                                        color: "hsl(var(--yellow-600))"
+                                                    }}
+                                                >
+                                                    {statusLabel}
+                                                </span>
                                             </li>
                                         </ul>
                                     </Link>
@@ -414,15 +438,23 @@ export default function OrgDashboardPage() {
                     </CardContent>
                 </Card>
             </div>
-            <div className="mt-5 p-5 rounded-lg bg-[#E8F1FF] border border-[#C3D9FF] flex sm:flex-row flex-col sm:items-center justify-between">
+       
+            <div className="mt-5 p-5 rounded-lg bg-background border border-border flex sm:flex-row flex-col sm:items-center justify-between">
                 <div className="description mb-3.5 sm:mb-0">
-                    <h3 className="font-semibold text-sm mb-1">Need Help? Ask VApps AI</h3>
-                    <p className="text-xs text-gray-600 leading-relaxed">
+                    <h3 className="font-semibold text-sm mb-1 text-foreground">Need Help? Ask Vie AI</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                         Get instant insights, generate reports, or find information quickly.
                     </p>
                 </div>
-                <Button variant="dark" size="lg" className="w-full sm:w-auto">Ask VApps AI</Button>
+                <Button 
+                    variant="default" 
+                    size="lg" 
+                    className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                    Ask Vie AI
+                </Button>
             </div>
+       
         </>
     );
 }

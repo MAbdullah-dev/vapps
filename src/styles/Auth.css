@@ -1,8 +1,8 @@
 .auth {
     .content-column {
-        background: url('/Images/auth-bg.png'), #F1FDF4;
-    }
-    .form-column {
-        background: #74C792;
+        background-image: linear-gradient(to bottom right, color-mix(in oklab, var(--muted) 92%, transparent), color-mix(in oklab, var(--background) 85%, transparent)), url('/Images/auth-bg.png');
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
     }
 }

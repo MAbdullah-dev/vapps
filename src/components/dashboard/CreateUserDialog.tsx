@@ -458,7 +458,7 @@ export default function CreateUserDialog({
                       <Info className="h-4 w-4 text-gray-400 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Controls what actions the user can perform in VApps. Automatically assigned based on leadership level.</p>
+                      <p>Controls what actions the user can perform in Vie. Automatically assigned based on leadership level.</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>

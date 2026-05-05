@@ -1,12 +1,12 @@
-# VApps — Application Architecture
+# Vie — Application Architecture
 
-This document describes the overall architecture of the VApps application: tech stack, data flow, multi-tenancy, authentication, and deployment.
+This document describes the overall architecture of the Vie application: tech stack, data flow, multi-tenancy, authentication, and deployment.
 
 ---
 
 ## 1. Overview
 
-**VApps** is a multi-tenant SaaS platform for managing organizations, processes, teams, issues, and audits. It uses:
+**Vie** is a multi-tenant SaaS platform for managing organizations, processes, teams, issues, and audits. It uses:
 
 - **Next.js 16** (App Router) for the full-stack app
 - **PostgreSQL** for persistence (one main DB + one DB per tenant)

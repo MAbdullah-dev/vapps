@@ -28,7 +28,7 @@ const s3Client = new S3Client({
 });
 
 // Two buckets – you set TWO env vars so the app knows which bucket is which:
-//   AWS_S3_BUCKET_NAME   = documents bucket (e.g. vapps-documents)  → avatars, Froala, issue uploads
+//   AWS_S3_BUCKET_NAME   = documents bucket (e.g. vie-documents)  → avatars, Froala, issue uploads
 //   AWS_S3_BUCKET_AUDIT  = audit bucket (e.g. vapp-uploads-prod)     → audit workflow uploads only
 // Same AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION are used for both.
 const BUCKET_DOCUMENTS = process.env.AWS_S3_BUCKET_NAME!;
@@ -61,7 +61,7 @@ export function generateFileKey(
  * @param file - File buffer or stream
  * @param key - S3 object key (path)
  * @param contentType - MIME type of the file
- * @param options.useAuditBucket - If true, upload to audit bucket (vapp-uploads-prod). Otherwise use documents bucket (vapps-documents).
+ * @param options.useAuditBucket - If true, upload to audit bucket (vapp-uploads-prod). Otherwise use documents bucket (vie-documents).
  * @returns S3 object key and URL metadata
  */
 export async function uploadFileToS3(

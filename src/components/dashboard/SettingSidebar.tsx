@@ -9,11 +9,14 @@ import {
   Users,
   Shield,
   CreditCard,
-  Plug,
-  Bell,
   BarChart,
   UserCog,
   FileCheck,
+  Wallet,
+  Package,
+  UsersRound,
+  SlidersHorizontal,
+  ChevronRight,
 } from 'lucide-react';
 import { getDashboardPath } from '@/lib/subdomain';
 
@@ -27,11 +30,14 @@ const SettingSidebar = () => {
     { title: 'Sites & Departments', subtitle: 'Locations and structure', icon: MapPin, path: 'settings/sites-departments' },
     { title: 'Roles', subtitle: 'Leadership role definitions', icon: UserCog, path: 'settings/roles' },
     { title: 'Teams', subtitle: 'Organization users', icon: Users, path: 'settings/teams' },
+    { title: 'Financial Setup', subtitle: 'Currency, tax, and accounts', icon: Wallet, path: 'settings/financial-setup' },
+    { title: 'Products & Inventory', subtitle: 'Products and stock defaults', icon: Package, path: 'settings/products-inventory' },
+    { title: 'Customers & Vendors', subtitle: 'Business contacts', icon: UsersRound, path: 'settings/customers-vendors' },
+    { title: 'Operational Parameters', subtitle: 'Workflow and SLA defaults', icon: SlidersHorizontal, path: 'settings/operational-parameters' },
     { title: 'Permissions', subtitle: 'Role-based access control', icon: Shield, path: 'settings/permissions' },
-    // { title: 'Authentication & Access', subtitle: 'Login and security', icon: Shield, path: 'settings/authentication-access' },
+    { title: 'Authentication & Access', subtitle: 'Login and security', icon: Shield, path: 'settings/authentication-access' },
     { title: 'Billing & Subscription', subtitle: 'Plans and payments', icon: CreditCard, path: 'settings/billing-subscription' },
-    // { title: 'Integrations', subtitle: 'Connected apps and APIs', icon: Plug, path: 'settings/integrations' },
-    // { title: 'Notifications', subtitle: 'Email and alerts', icon: Bell, path: 'settings/notifications' },
+    { title: 'Notifications', subtitle: 'Email and alerts', icon: Shield, path: 'settings/notifications' },
     { title: 'KPI & Reports', subtitle: 'Metrics and dashboards', icon: BarChart, path: 'settings/kpi-reports' },
     { title: 'Audit Checklist', subtitle: 'Question management', icon: FileCheck, path: 'settings/audit-checklist' },
   ].map((item) => ({ ...item, href: getDashboardPath(slug, item.path) }));
@@ -39,17 +45,23 @@ const SettingSidebar = () => {
   // Don't render links if slug/orgId is not available
   if (!slug || slug === 'undefined') {
     return (
-      <aside className="w-64 p-4 border-r border-gray-200 bg-white">
-        <h2 className="text-lg font-semibold mb-6">Settings</h2>
-        <p className="text-sm text-gray-500 mb-4">Loading...</p>
+      <aside className="w-64 p-4 border-r border-border bg-card text-card-foreground">
+        <h2 className="text-lg font-semibold mb-6 text-card-foreground">Settings</h2>
+        <p className="text-sm mb-4" style={{ color: "hsl(var(--muted-foreground))" }}>Loading...</p>
+   
       </aside>
     );
   }
 
   return (
-    <aside className="w-64 p-4 border-r border-gray-200 bg-white">
-      <h2 className="text-lg font-semibold mb-6">Settings</h2>
-      <p className="text-sm text-gray-500 mb-4">Manage your workspace configuration</p>
+    <aside className="w-64 p-4 border-r border-border bg-card text-card-foreground">
+      <h2 className="text-lg font-semibold mb-6 text-card-foreground dark:text-card-foreground">
+        Settings
+      </h2>
+      <p className="text-sm mb-4 text-muted-foreground dark:text-muted-foreground">
+        Manage your workspace configuration
+      </p>
+ 
       <ul className="space-y-2">
         {menuItems.map((item, index) => {
           const isActive = pathname === item.href || pathname.endsWith(item.path);
@@ -59,26 +71,20 @@ const SettingSidebar = () => {
             <Link key={index} href={item.href}>
               <li
                 className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
-                  isActive ? 'bg-green-50 text-green-600' : 'hover:bg-gray-100 text-gray-700'
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'hover:bg-muted text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`h-5 w-5 ${isActive ? 'text-green-500' : 'text-gray-400'}`} />
+                  <Icon className={`h-5 w-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                   <div>
                     <p className="text-sm font-medium">{item.title}</p>
-                    <p className="text-xs text-gray-400">{item.subtitle}</p>
+                    <p className="text-xs text-muted-foreground">{item.subtitle}</p>
                   </div>
                 </div>
                 {isActive && (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight className="h-4 w-4 text-primary" />
                 )}
               </li>
             </Link>

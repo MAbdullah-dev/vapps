@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
-import { cache, cacheKeys } from "@/lib/cache";
+import { invalidateOrgSitesListCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
 import { type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
@@ -93,8 +93,7 @@ export async function PUT(
         [siteId]
       );
 
-      // Clear cache after mutation
-      cache.delete(cacheKeys.orgSites(orgId));
+      invalidateOrgSitesListCache(ctx.tenant.orgId);
 
       client.release();
 
@@ -188,8 +187,7 @@ export async function DELETE(
       // Delete site (CASCADE will delete associated processes)
       await client.query(`DELETE FROM sites WHERE id = $1`, [siteId]);
 
-      // Clear cache after mutation
-      cache.delete(cacheKeys.orgSites(orgId));
+      invalidateOrgSitesListCache(ctx.tenant.orgId);
 
       client.release();
 

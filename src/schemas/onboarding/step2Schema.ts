@@ -7,6 +7,14 @@ export const step2Schema = z.object({
       siteCode: z.string().optional(), // Auto-generated if not provided
       location: z.string().min(1, "Location is required"),
       processes: z.array(z.string()).optional(), // <-- plural
+      processDefinitions: z
+        .array(
+          z.object({
+            name: z.string().min(1),
+            items: z.array(z.string()).optional().default([]),
+          })
+        )
+        .optional(),
     })
   ),
 });

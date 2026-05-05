@@ -118,6 +118,7 @@ export async function GET(
           i.source,
           i."sprintId",
           i."processId",
+          i."siteId",
           i."order",
           i."createdAt",
           i."updatedAt",
@@ -367,8 +368,8 @@ export async function POST(
       const deadlineVal = deadline != null && deadline !== "" ? new Date(deadline).toISOString() : null;
       try {
         await client.query(
-          `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", issuer, "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
+          `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "siteId", "order", "deadline", issuer, "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
           [
             issueId,
             title.trim(),
@@ -381,6 +382,7 @@ export async function POST(
             source.trim(),
             finalSprintId,
             processId,
+            processSiteId,
             order || 0,
             deadlineVal,
             ctx.user.id, // issuer: user who created the issue
@@ -399,7 +401,30 @@ export async function POST(
             );
             // Retry full INSERT with issuer so the creator is recorded
             await client.query(
-              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "deadline", issuer, "createdAt", "updatedAt")
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "siteId", "order", "deadline", issuer, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
+              [
+                issueId,
+                title.trim(),
+                description?.trim() || null,
+                priority || "medium",
+                finalStatus,
+                points || 0,
+                assignee || null,
+                tagsArray,
+                source.trim(),
+                finalSprintId,
+                processId,
+                processSiteId,
+                order || 0,
+                deadlineVal,
+                ctx.user.id,
+              ]
+            );
+          } else if (missingColumn === "deadline") {
+            // Try without deadline
+            await client.query(
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "siteId", "order", issuer, "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
               [
                 issueId,
@@ -413,15 +438,15 @@ export async function POST(
                 source.trim(),
                 finalSprintId,
                 processId,
+                processSiteId,
                 order || 0,
-                deadlineVal,
                 ctx.user.id,
               ]
             );
-          } else if (missingColumn === "deadline") {
-            // Try without deadline
+          } else {
+            // Try without both
             await client.query(
-              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", issuer, "createdAt", "updatedAt")
+              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "siteId", "order", "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`,
               [
                 issueId,
@@ -435,27 +460,7 @@ export async function POST(
                 source.trim(),
                 finalSprintId,
                 processId,
-                order || 0,
-                ctx.user.id,
-              ]
-            );
-          } else {
-            // Try without both
-            await client.query(
-              `INSERT INTO issues (id, title, description, priority, status, points, assignee, tags, source, "sprintId", "processId", "order", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
-              [
-                issueId,
-                title.trim(),
-                description?.trim() || null,
-                priority || "medium",
-                finalStatus,
-                points || 0,
-                assignee || null,
-                tagsArray,
-                source.trim(),
-                finalSprintId,
-                processId,
+                processSiteId,
                 order || 0,
               ]
             );
@@ -483,6 +488,7 @@ export async function POST(
             i.source,
             i."sprintId",
             i."processId",
+            i."siteId",
             i."order",
             i."createdAt",
             i."updatedAt",
@@ -509,6 +515,7 @@ export async function POST(
                 i.source,
                 i."sprintId",
                 i."processId",
+                i."siteId",
                 i."order",
                 i."createdAt",
                 i."updatedAt"

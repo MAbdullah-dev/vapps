@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
-import { cache, cacheKeys } from "@/lib/cache";
+import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
@@ -252,7 +252,7 @@ export async function POST(
         cache.clearPattern(`processes:${resolvedOrgId}:*`);
         cache.delete(cacheKeys.orgProcesses(resolvedOrgId));
         cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
-        cache.delete(cacheKeys.orgSites(resolvedOrgId));
+        invalidateOrgSitesListCache(resolvedOrgId);
 
         return NextResponse.json(
           {

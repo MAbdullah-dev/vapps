@@ -45,8 +45,8 @@ function getHost(request: NextRequest): string {
 
 /**
  * Extract tenant subdomain from host.
- * - Apex domain (e.g. vapps.click) or www.vapps.click → null (main app: login, org list).
- * - Tenant subdomain (e.g. stellixsoft.vapps.click) → "stellixsoft".
+ * - Apex domain (e.g. vie.click) or www.vie.click → null (main app: login, org list).
+ * - Tenant subdomain (e.g. stellixsoft.vie.click) → "stellixsoft".
  * - Dev: app.lvh.me → "app" (reserved), stellixsoft.lvh.me → "stellixsoft".
  */
 function getSubdomain(host: string): string | null {

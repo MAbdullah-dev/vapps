@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContextAndError } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
-import { cache, cacheKeys } from "@/lib/cache";
+import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
@@ -24,7 +24,7 @@ export async function GET(
     const { tenant } = ctx;
     const userRole = tenant.userRole;
 
-    const cacheKey = `sites:${resolvedOrgId}:${ctx.user.id}`;
+    const cacheKey = cacheKeys.sitesListForUser(resolvedOrgId, ctx.user.id);
     const cached = cache.get<{ sites: any[]; userRole: string; organization: { id: string; name: string } }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
@@ -257,8 +257,8 @@ export async function POST(
           [siteId, siteName, finalSiteCode, location]
         );
 
-        // Clear cache after mutation
-        cache.delete(cacheKeys.orgSites(resolvedOrgId));
+        // Clear per-user sites list cache (GET uses sites:orgId:userId)
+        invalidateOrgSitesListCache(resolvedOrgId);
 
         return NextResponse.json(
           {

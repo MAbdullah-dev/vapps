@@ -253,7 +253,7 @@ export default function CreateAuditStep6Page() {
                   className="block max-w-[80px] text-center text-[9px] font-medium uppercase leading-tight text-gray-400"
                   style={{ transform: "rotate(-45deg)" }}
                 >
-                  VAPPS OFFICIAL SEAL
+                  VIE OFFICIAL SEAL
                 </span>
               </div>
             </div>

@@ -5,7 +5,7 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 
-const storageKey = (orgId: string) => `vapps:documents:${orgId}`;
+const storageKey = (orgId: string) => `vie:documents:${orgId}`;
 
 export type StoredDocumentRecord = {
   id: string;

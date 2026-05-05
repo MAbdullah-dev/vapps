@@ -4,7 +4,7 @@ import { getTenantClient } from "@/lib/db/tenant-pool";
 import { prisma } from "@/lib/prisma";
 import { type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
-import { cache, cacheKeys } from "@/lib/cache";
+import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 
 /**
  * PUT /api/organization/[orgId]/processes/[processId]
@@ -104,7 +104,7 @@ export async function PUT(
       if (siteId) {
         cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
       }
-      cache.delete(cacheKeys.orgSites(resolvedOrgId));
+      invalidateOrgSitesListCache(resolvedOrgId);
 
       return NextResponse.json(
         {
@@ -195,7 +195,7 @@ export async function DELETE(
       cache.clearPattern(`processes:${resolvedOrgId}:*`);
       cache.delete(cacheKeys.orgProcesses(resolvedOrgId));
       cache.delete(cacheKeys.orgProcesses(resolvedOrgId, siteId));
-      cache.delete(cacheKeys.orgSites(resolvedOrgId));
+      invalidateOrgSitesListCache(resolvedOrgId);
 
       return NextResponse.json(
         {
