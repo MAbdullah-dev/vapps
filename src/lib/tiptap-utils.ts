@@ -352,7 +352,7 @@ export function selectionWithinConvertibleTypes(
 }
 
 /** Default Next.js route used by the legacy Froala integration; returns `{ link: "/api/..." }`. */
-export const DEFAULT_EDITOR_IMAGE_UPLOAD_URL = "/api/files/froala/upload"
+export const DEFAULT_EDITOR_IMAGE_UPLOAD_URL = "/api/files/tiptap/upload"
 
 export type ImageUploadHandler = (
   file: File,

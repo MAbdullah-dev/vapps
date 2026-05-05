@@ -30,7 +30,7 @@ export default function CreateAuditStep4Page() {
   const step4ImageUploadUrl =
     orgId && auditPlanId
       ? `/api/files/audit-upload?orgId=${encodeURIComponent(orgId)}&auditPlanId=${encodeURIComponent(auditPlanId)}&step=4`
-      : "/api/files/froala/upload";
+      : "/api/files/tiptap/upload";
   const stepQuery = (() => {
     const p = new URLSearchParams();
     if (programId) p.set("programId", programId);
