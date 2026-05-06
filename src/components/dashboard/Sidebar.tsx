@@ -21,7 +21,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { Building2 } from 'lucide-react';
-import Image from "next/image";
+import BrandLogo from "@/components/common/BrandLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
   Dialog,
@@ -220,7 +220,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-[90vh] border-r border-border">
 
       <div className="border-b pb-3 p-5">
-        <Image className="mb-3" src="/Images/logo.png" alt="Vercel Logo" width={95} height={40} />
+        <BrandLogo className="mb-3" alt="Vie" width={95} height={40} />
 
         <div className="relative">
           {isLoading ? (
@@ -480,7 +480,8 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             <AvatarFallback>SS</AvatarFallback>
           </Avatar>
           <div className="description">
-            <h3 className="text-sm">{organization?.name || "Organization"}</h3>
+            <h3 className="text-sm text-foreground">{organization?.name || "Organization"}</h3>
+       
             <p className="text-xs">Free</p>
           </div>
           <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto">Upgrade</Link>

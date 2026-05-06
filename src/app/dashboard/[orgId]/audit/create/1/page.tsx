@@ -404,7 +404,7 @@ export default function CreateAuditStep1Page() {
             : "View only — only the Lead Auditor can edit this step."}
         </div>
       )}
-      <div className="rounded-lg border border-gray-200 bg-white  shadow-sm">
+      <div className="rounded-lg border border-border bg-card shadow-sm">
         <div className={cn(!canEditStep1 && "pointer-events-none select-none opacity-90")}>
         {/* Organization Context Section */}
         <div className="p-8">
@@ -415,7 +415,7 @@ export default function CreateAuditStep1Page() {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-8 w-1 rounded-full bg-green-500" />
-              <h2 className="text-xl font-bold text-gray-900">ORGANIZATION CONTEXT</h2>
+              <h2 className="text-xl font-bold text-foreground">ORGANIZATION CONTEXT</h2>
               <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-700">
                 STRATEGIC LEVEL
               </span>
@@ -432,40 +432,40 @@ export default function CreateAuditStep1Page() {
           {isLoading ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-16 animate-pulse rounded-lg bg-gray-100" />
+                <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   ORGANIZATION NAME
                 </Label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
                   {orgInfo?.name || "—"}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   ORGANIZATION UIN
                 </Label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
                   {formatUIN(orgInfo?.registrationId)}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   NAICS INDUSTRY CODE
                 </Label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
                   {orgInfo?.industry || "—"}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   SUB-INDUSTRY
                 </Label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
                   {orgInfo?.subIndustry || orgInfo?.industry || "—"}
                 </div>
               </div>
@@ -474,10 +474,10 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* Period Covered Section */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">PERIOD COVERED</h2>
+          <h2 className="mb-6 text-xl font-bold text-foreground">PERIOD COVERED</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 START PERIOD (MM-DD-YYYY)
               </Label>
               <Popover>
@@ -504,7 +504,7 @@ export default function CreateAuditStep1Page() {
               </Popover>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 END PERIOD (MM-DD-YYYY)
               </Label>
               <Popover>
@@ -531,16 +531,16 @@ export default function CreateAuditStep1Page() {
               </Popover>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 SYSTEM CREATION DATE
               </Label>
-              <div className="flex items-center rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              <div className="flex items-center rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
                 Set automatically when the program is saved (not editable)
               </div>
             </div>
           </div>
-          <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-sm italic text-gray-700">
+          <div className="mt-6 rounded-lg border border-border bg-muted px-4 py-3">
+            <p className="text-sm italic text-muted-foreground">
               This document was automatically generated by a computer system for Vie Enterprise compliance tracking. Manual alterations outside the system environment invalidate the digital signature and traceability chain.
             </p>
           </div>
@@ -548,14 +548,14 @@ export default function CreateAuditStep1Page() {
 
         {/* Context, Scope, Type & Criteria */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">
+          <h2 className="mb-6 text-xl font-bold text-foreground">
             CONTEXT, SCOPE, TYPE & CRITERIA
           </h2>
           {/* SCOPE OF AUDIT PROGRAM + ORGANIZATIONAL SITES - Half / Half */}
           <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Left half: Scope of Audit Program */}
             <div>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
                 SCOPE OF AUDIT PROGRAM (SELECT ONE)
               </h3>
               <div className="grid grid-cols-2 gap-4">
@@ -568,8 +568,8 @@ export default function CreateAuditStep1Page() {
                     className={cn(
                       "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
                       auditScope === opt.id
-                        ? "border-green-500 bg-green-50/50"
-                        : "border-gray-200 bg-white hover:border-gray-300"
+                        ? "border-primary bg-primary/15 ring-1 ring-primary/30"
+                        : "border-border bg-card hover:border-border"
                     )}
                   >
                     <Checkbox
@@ -577,20 +577,22 @@ export default function CreateAuditStep1Page() {
                       onCheckedChange={(checked) =>
                         setAuditScope(checked ? opt.id : null)
                       }
-                      className="shrink-0 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                      className="shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                     />
-                    <span className="font-medium text-gray-900">{opt.label}</span>
+                    <span className="font-medium text-foreground">{opt.label}</span>
                   </Label>
                 ))}
               </div>
             </div>
             {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
                 ORGANIZATIONAL SITES / UNITS (SELECT ONE)
               </h3>
               {sites.length === 0 ? (
-                <p className="text-sm text-gray-500">No sites for this organization. Add sites in Settings.</p>
+                <p className="text-sm text-muted-foreground">
+                  No sites for this organization. Add sites in Settings.
+                </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {sites.map((site) => (
@@ -603,8 +605,8 @@ export default function CreateAuditStep1Page() {
                       className={cn(
                         "min-w-[100px] rounded-md border py-4 transition-colors",
                         selectedSiteIds.includes(site.id)
-                          ? "border-green-600 bg-green-600 text-white hover:bg-green-700 hover:text-white"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                          ? "border-white bg-foreground text-muted-foreground hover:bg-foreground hover:text-background"
+                          : "border-border text-foreground hover:border-border hover:bg-muted/40"
                       )}
                     >
                       {site.code || site.name}
@@ -614,9 +616,10 @@ export default function CreateAuditStep1Page() {
               )}
             </div>
           </div>
+     
           {/* Types of Audits */}
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-700">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
               TYPES OF AUDITS (SELECT ONE)
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -642,8 +645,8 @@ export default function CreateAuditStep1Page() {
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
                     auditType === opt.id
-                      ? "border-green-500 bg-green-50/50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-primary bg-primary/15 ring-1 ring-primary/30"
+                      : "border-border bg-card hover:border-border"
                   )}
                 >
                   <Checkbox
@@ -651,11 +654,11 @@ export default function CreateAuditStep1Page() {
                     onCheckedChange={(checked) =>
                       setAuditType(checked ? opt.id : null)
                     }
-                    className="mt-0.5 shrink-0 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                    className="mt-0.5 shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                   />
                   <div>
-                    <div className="font-medium text-gray-900">{opt.label}</div>
-                    <div className="mt-1 text-sm text-gray-500">{opt.sub}</div>
+                    <div className="font-medium text-foreground">{opt.label}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{opt.sub}</div>
                   </div>
                 </Label>
               ))}
@@ -664,19 +667,19 @@ export default function CreateAuditStep1Page() {
         </div>
 
         {/* Audit Program Owner & Delegation: Select site first, then process (for that site), then responsible owner (from process), then lead auditor (user with Auditor role). */}
-        <div className="rounded-lg border border-gray-200 bg-green-50/50 p-8 shadow-sm mx-8 my-8">
+        <div className="rounded-lg border border-border bg-green-50/50 p-8 shadow-sm mx-8 my-8">
           <div className="mb-6 flex items-center gap-2">
             <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-primary-foreground">
               <Info className="h-3 w-3" />
             </div>
           </div>
-          <p className="mb-4 text-sm text-gray-600">
+          <p className="mb-4 text-sm text-muted-foreground">
             Select a site above first. Process list shows only processes for the selected site(s) that you are <strong>not</strong> assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 PROCESS / DEPARTMENT
               </Label>
               <Select
@@ -693,10 +696,10 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">Only processes you are not assigned to are shown (no self-audit).</p>
+              <p className="text-xs text-muted-foreground">Only processes you are not assigned to are shown (no self-audit).</p>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 RESPONSIBLE OWNER (AUDITEE)
               </Label>
               <Select value={programOwnerUserId ?? ""} onValueChange={(v) => setProgramOwnerUserId(v || null)} disabled={!processId}>
@@ -709,22 +712,22 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">Determined by selected site and process (person responsible for that process).</p>
+              <p className="text-xs text-muted-foreground">Determined by selected site and process (person responsible for that process).</p>
             </div>
           </div>
           <p className="mt-3 text-sm text-green-700 font-medium">
             Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).
           </p>
-          <p className="mt-4 text-sm italic text-gray-600">
+          <p className="mt-4 text-sm italic text-muted-foreground">
             Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.
           </p>
         </div>
         {/* Objectives Info Box */}
-        <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mx-8 my-8">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted px-4 py-3 mx-8 my-8">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-primary-foreground">
             <Info className="h-4 w-4" />
           </div>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-muted-foreground">
             <span className="font-medium">Define Audit Objectives</span> Aligned With ISO And ESG Requirements.{" "}
             <em>Verify Management System Conformity</em> And Evaluate Effectiveness, Performance, And ESG Practices.{" "}
             <span className="font-medium">Support Risk-Based Decision-Making</span> And Continual Improvement.
@@ -732,7 +735,7 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* Program Purpose & Objectives */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">
+          <h2 className="mb-6 text-xl font-bold text-foreground">
             PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -763,8 +766,8 @@ export default function CreateAuditStep1Page() {
                 className={cn(
                   "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
                   programPurpose === opt.id
-                    ? "border-green-500 bg-green-50/50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-primary bg-primary/15 ring-1 ring-primary/30"
+                    : "border-border bg-card hover:border-border"
                 )}
               >
                 <Checkbox
@@ -772,11 +775,11 @@ export default function CreateAuditStep1Page() {
                   onCheckedChange={(checked) =>
                     setProgramPurpose(checked ? opt.id : null)
                   }
-                  className="mt-0.5 border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                  className="mt-0.5 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <div>
-                  <div className="font-medium text-gray-900">{opt.title}</div>
-                  <div className="text-sm text-gray-500">{opt.sub}</div>
+                  <div className="font-medium text-foreground">{opt.title}</div>
+                  <div className="text-sm text-muted-foreground">{opt.sub}</div>
                 </div>
               </Label>
             ))}
@@ -785,7 +788,7 @@ export default function CreateAuditStep1Page() {
 
         {/* Audit Program Criteria */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">
+          <h2 className="mb-6 text-xl font-bold text-foreground">
             AUDIT PROGRAM CRITERIA (SELECT ONE)
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -799,8 +802,8 @@ export default function CreateAuditStep1Page() {
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
                   auditCriteria === opt.id
-                    ? "border-green-500 bg-green-50/50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-primary bg-primary/15 ring-1 ring-primary/30"
+                    : "border-border bg-card hover:border-border"
                 )}
               >
                 <Checkbox
@@ -808,17 +811,17 @@ export default function CreateAuditStep1Page() {
                   onCheckedChange={(checked) =>
                     setAuditCriteria(checked ? opt.id : null)
                   }
-                  className="border-green-500 data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                  className="border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                <span className="font-medium text-gray-900">{opt.label}</span>
+                <span className="font-medium text-foreground">{opt.label}</span>
               </Label>
             ))}
           </div>
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-border bg-muted px-4 py-3">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-primary-foreground">
               <Info className="h-4 w-4" />
             </div>
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-muted-foreground">
               Specifies That Audit Programs Should Define Criteria And Scope In Program Establishment.
             </p>
           </div>
@@ -826,17 +829,17 @@ export default function CreateAuditStep1Page() {
         {/* Audit Program Risks & Opportunities */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-foreground">
               AUDIT PROGRAM RISKS & OPPORTUNITIES
             </h2>
             <Button onClick={addRisk} size="sm" className="bg-green-600 hover:bg-green-700">
               + ADD RISK
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/60">
                   <TableHead className="font-semibold">ROP#</TableHead>
                   <TableHead className="font-semibold">Category</TableHead>
                   <TableHead className="font-semibold">Description</TableHead>
@@ -857,7 +860,7 @@ export default function CreateAuditStep1Page() {
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         r.impactClass === "orange" && "bg-orange-100 text-orange-700",
                         r.impactClass === "green" && "bg-green-100 text-green-700",
-                        r.impactClass === "gray" && "bg-gray-100 text-gray-700"
+                        r.impactClass === "gray" && "bg-muted text-muted-foreground"
                       )}>
                         {r.impact}
                       </span>
@@ -868,14 +871,14 @@ export default function CreateAuditStep1Page() {
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         r.priorityClass === "red" && "bg-red-100 text-red-700",
                         r.priorityClass === "green" && "bg-green-100 text-green-700",
-                        r.priorityClass === "gray" && "bg-gray-100 text-gray-700"
+                        r.priorityClass === "gray" && "bg-muted text-muted-foreground"
                       )}>
                         {r.priority}
                       </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editRisk(r)} aria-label="Edit risk">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editRisk(r)} aria-label="Edit risk">
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeRisk(r.id)}>
@@ -888,11 +891,11 @@ export default function CreateAuditStep1Page() {
               </TableBody>
             </Table>
           </div>
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-border bg-muted px-4 py-3">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-primary-foreground">
               <Info className="h-4 w-4" />
             </div>
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-muted-foreground">
               Risk Assessment Results Influence Audit Frequency, Depth, And Scheduling/Program.
             </p>
           </div>
@@ -900,17 +903,17 @@ export default function CreateAuditStep1Page() {
         {/* Audit Program Structure & Schedule */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-foreground">
               AUDIT PROGRAM STRUCTURE & SCHEDULE
             </h2>
             <Button onClick={addScheduleRow} size="sm" className="bg-green-600 hover:bg-green-700">
               + ADD ROW
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/60">
                   <TableHead className="font-semibold">Audit#</TableHead>
                   <TableHead className="font-semibold">Audit Type</TableHead>
                   <TableHead className="font-semibold">System / ESG Focus</TableHead>
@@ -931,7 +934,7 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{row.lead}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editScheduleRow(i)} aria-label="Edit schedule row">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editScheduleRow(i)} aria-label="Edit schedule row">
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeScheduleRow(i)} aria-label="Remove schedule row">
@@ -948,17 +951,17 @@ export default function CreateAuditStep1Page() {
         {/* Monitoring & Measurement (KPIs) */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-foreground">
               MONITORING & MEASUREMENT (KPIS)
             </h2>
             <Button onClick={addKpi} size="sm" className="bg-green-600 hover:bg-green-700">
               + ADD KPI
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/60">
                   <TableHead className="font-semibold">KPI#</TableHead>
                   <TableHead className="font-semibold">Description</TableHead>
                   <TableHead className="font-semibold">Impact</TableHead>
@@ -979,7 +982,7 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{k.comments || "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editKpi(k)} aria-label="Edit KPI">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editKpi(k)} aria-label="Edit KPI">
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeKpi(k.id)}>
@@ -996,25 +999,25 @@ export default function CreateAuditStep1Page() {
         {/* KPI Summary Cards - empty until populated from database */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mx-8 my-8">
           {["AUDIT COMPLETION RATE", "FINDING RESOLUTION TIME", "STAKEHOLDER SATISFACTION"].map((label) => (
-            <div key={label} className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
-              <div className="mt-2 text-gray-500">—</div>
+            <div key={label} className="rounded-lg border border-border bg-muted p-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+              <div className="mt-2 text-muted-foreground">—</div>
             </div>
           ))}
         </div>
         {/* Program Review & Improvement */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">PROGRAM REVIEW & IMPROVEMENT</h2>
+            <h2 className="text-xl font-bold text-foreground">PROGRAM REVIEW & IMPROVEMENT</h2>
             <Button onClick={addReview} size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700">
               <Plus className="h-4 w-4" />
               ADD REVIEW
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/60">
                   <TableHead className="font-semibold">PRI#</TableHead>
                   <TableHead className="font-semibold">REVIEW TYPE</TableHead>
                   <TableHead className="font-semibold">PROGRAM LEADER COMMENTS</TableHead>
@@ -1033,19 +1036,19 @@ export default function CreateAuditStep1Page() {
                       <span className={cn(
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         r.priorityClass === "red" && "bg-red-100 text-red-700",
-                        r.priorityClass === "gray" && "bg-gray-100 text-gray-700"
+                        r.priorityClass === "gray" && "bg-muted text-muted-foreground"
                       )}>
                         {r.priority}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button type="button" variant="ghost" className="text-left font-medium text-green-600 hover:underline h-auto p-0">
+                      <Button type="button" variant="ghost" className="text-left font-medium text-primary hover:underline h-auto p-0">
                         {r.action || "—"}
                       </Button>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900" onClick={() => editReview(r)} aria-label="Edit review">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editReview(r)} aria-label="Edit review">
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeReview(r.id)}>
@@ -1060,30 +1063,30 @@ export default function CreateAuditStep1Page() {
           </div>
         </div>
         {/* Audit Details (populated from database after save) */}
-        <div className="rounded-lg bg-slate-800 p-6 text-white shadow-sm mx-8 my-8">
+        <div className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm mx-8 my-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">AUDIT PLAN DATE</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AUDIT PLAN DATE</div>
                 <div className="mt-1 text-xl font-bold text-green-400">{startPeriod ? format(startPeriod, "MM-dd-yyyy") : "—"}</div>
-                <div className="text-xs text-slate-400">SYSTEM GENERATED</div>
+                <div className="text-xs text-muted-foreground">SYSTEM GENERATED</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">AUDIT ACTUAL DATE</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AUDIT ACTUAL DATE</div>
                 <div className="mt-1 text-xl font-bold text-green-400">—</div>
-                <div className="text-xs text-slate-400">SYSTEM GENERATED (LOG)</div>
+                <div className="text-xs text-muted-foreground">SYSTEM GENERATED (LOG)</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">LEAD AUDITOR</div>
-                <div className="mt-1 text-xl font-bold">{currentUserId ? (members.find((m) => m.id === currentUserId)?.name ?? "—") : "—"}</div>
-                <div className="text-xs text-slate-400">You (audit creator)</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">LEAD AUDITOR</div>
+                <div className="mt-1 text-xl font-bold text-foreground">{currentUserId ? (members.find((m) => m.id === currentUserId)?.name ?? "—") : "—"}</div>
+                <div className="text-xs text-muted-foreground">You (audit creator)</div>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500">
-                <Check className="h-5 w-5 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
+                <Check className="h-5 w-5 text-primary-foreground" />
               </div>
-              <div className="text-xs text-slate-400">{programId ? `ID: ${programId}` : "—"}</div>
+              <div className="text-xs text-muted-foreground">{programId ? `ID: ${programId}` : "—"}</div>
             </div>
           </div>
         </div>
@@ -1094,7 +1097,7 @@ export default function CreateAuditStep1Page() {
         <Button
           size="lg"
           variant="outline"
-          className="gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          className="gap-2 border-border text-foreground hover:bg-muted/40"
           disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
           onClick={async () => {
             if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;

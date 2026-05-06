@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import BrandLogo from "@/components/common/BrandLogo";
 import ThemeToggle from "@/components/common/ThemeToggle";
 export default function AuthLayout({
   children,
@@ -13,15 +14,10 @@ export default function AuthLayout({
           <ThemeToggle />
         </div>
         <div className="content-column md:w-1/2 flex flex-col justify-center items-center h-[50vh] md:h-screen bg-muted text-foreground">
-          <Image
-          className="mb-6"
-            src="/svgs/logo.svg"
-            alt="site-logo"
-            width={220}
-            height={93}
-          />
-          <h1 className="text-2xl mb-3">Welcome to Vie</h1>
+          <BrandLogo className="mb-6" alt="site-logo" width={220} height={93} />
+          <h1 className="text-2xl mb-3 text-foreground">Welcome to Vie</h1>
           <p className="text-base text-muted-foreground">Get started by creating or joining a team</p>
+     
 
           <div className="flex justify-center gap-4 mt-16">
             <div className="flex gap-2.5 p-2.5 bg-card border border-border rounded-[6px] cursor-pointer">

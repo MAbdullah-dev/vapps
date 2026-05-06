@@ -27,11 +27,11 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
-          <Icon className="h-5 w-5 text-gray-600" />
+          <Icon className="h-5 w-5 text-muted-foreground" />
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="text-sm text-gray-700 space-y-2">{children}</CardContent>
+      <CardContent className="text-sm text-muted-foreground space-y-2">{children}</CardContent>
     </Card>
   );
 }
@@ -40,8 +40,8 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === "") return null;
   return (
     <div className="flex flex-wrap gap-x-2">
-      <span className="font-medium text-gray-500 min-w-[140px]">{label}:</span>
-      <span className="text-gray-900">{value}</span>
+      <span className="font-medium text-muted-foreground min-w-[140px]">{label}:</span>
+      <span className="text-foreground">{value}</span>
     </div>
   );
 }
@@ -88,7 +88,7 @@ export default function AuditDetailHistoryPage() {
   if (!orgId || !auditPlanId) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
-        <p className="text-gray-600">Missing audit plan. Go back to the audit list and open Detail History for an audit.</p>
+        <p className="text-muted-foreground">Missing audit plan. Go back to the audit list and open Detail History for an audit.</p>
         <Button variant="outline" className="mt-4" asChild>
           <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
@@ -99,7 +99,7 @@ export default function AuditDetailHistoryPage() {
   if (planLoading || planError) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
-        <p className="text-gray-600">{planLoading ? "Loading…" : "Failed to load audit."}</p>
+        <p className="text-muted-foreground">{planLoading ? "Loading…" : "Failed to load audit."}</p>
         <Button variant="outline" className="mt-4" asChild>
           <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
@@ -110,7 +110,7 @@ export default function AuditDetailHistoryPage() {
   if (!plan) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
-        <p className="text-gray-600">Audit plan not found.</p>
+        <p className="text-muted-foreground">Audit plan not found.</p>
         <Button variant="outline" className="mt-4" asChild>
           <Link href={getDashboardPath(orgId, "audit")}>Back to Audits</Link>
         </Button>
@@ -174,8 +174,8 @@ export default function AuditDetailHistoryPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Audit Detail History</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-foreground">Audit Detail History</h1>
+            <p className="text-sm text-muted-foreground">
               Audit #{plan.auditNumber ?? plan.id} • {plan.title || "Untitled"} • Status: {plan.status ?? "—"}
             </p>
           </div>
@@ -212,10 +212,10 @@ export default function AuditDetailHistoryPage() {
         )}
         {amrcRows.length > 0 && (
           <div className="mt-3">
-            <p className="font-medium text-gray-700 mb-2">Audit Methods & Risk Considerations</p>
-            <div className="border rounded-lg overflow-hidden">
+            <p className="font-medium text-foreground mb-2">Audit Methods & Risk Considerations</p>
+            <div className="border border-border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-muted/60">
                   <tr>
                     <th className="text-left p-2">#</th>
                     <th className="text-left p-2">Review category</th>
@@ -245,11 +245,11 @@ export default function AuditDetailHistoryPage() {
       <Section title="Step 3: Audit Findings" icon={ClipboardList}>
         <DataRow label="Findings submitted" value={formatDate(plan.findingsSubmittedAt)} />
         {findings.length === 0 ? (
-          <p className="text-gray-500">No findings recorded.</p>
+          <p className="text-muted-foreground">No findings recorded.</p>
         ) : (
-          <div className="border rounded-lg overflow-hidden mt-2">
+          <div className="border border-border rounded-lg overflow-hidden mt-2">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-muted/60">
                 <tr>
                   <th className="text-left p-2">Clause</th>
                   <th className="text-left p-2">Requirement</th>
@@ -290,33 +290,33 @@ export default function AuditDetailHistoryPage() {
           </CardHeader>
           <CardContent className="text-sm space-y-4">
             {returnedFromStep5 && (
-              <div className="rounded-lg border border-amber-200 bg-white p-3">
-                <p className="font-semibold text-gray-800 mb-1">Returned from Step 5 (Assigned Auditor)</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 mb-2">
+              <div className="rounded-lg border border-amber-200 bg-card p-3">
+                <p className="font-semibold text-foreground mb-1">Returned from Step 5 (Assigned Auditor)</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mb-2">
                   <span><strong>Auditee:</strong> {auditeeName}</span>
                   <span><strong>Auditor:</strong> {auditorName}</span>
                 </div>
                 {(step5 as any).verificationStartedAt && (
-                  <p className="text-xs text-gray-500 mb-2">{formatDate((step5 as any).verificationStartedAt)}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{formatDate((step5 as any).verificationStartedAt)}</p>
                 )}
-                <p className="text-gray-700 whitespace-pre-wrap">{(step5 as any).auditorComments}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap">{(step5 as any).auditorComments}</p>
               </div>
             )}
             {returnedFromStep6 && (
-              <div className="rounded-lg border border-amber-200 bg-white p-3">
-                <p className="font-semibold text-gray-800 mb-1">Returned from Step 6 (Lead Auditor / Management)</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 mb-2">
+              <div className="rounded-lg border border-amber-200 bg-card p-3">
+                <p className="font-semibold text-foreground mb-1">Returned from Step 6 (Lead Auditor / Management)</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mb-2">
                   <span><strong>Auditee:</strong> {auditeeName}</span>
                   <span><strong>Lead Auditor:</strong> {leadAuditorName}</span>
                 </div>
                 {((step6 as any).dateApproved || (step6 as any).timeApproved) && (
-                  <p className="text-xs text-gray-500 mb-2">
+                  <p className="text-xs text-muted-foreground mb-2">
                     {(step6 as any).dateApproved ? formatDate((step6 as any).dateApproved) : ""}
                     {(step6 as any).dateApproved && (step6 as any).timeApproved ? " " : ""}
                     {(step6 as any).timeApproved ?? ""}
                   </p>
                 )}
-                <p className="text-gray-700 whitespace-pre-wrap">{(step6 as any).managementComments}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap">{(step6 as any).managementComments}</p>
               </div>
             )}
           </CardContent>
@@ -373,7 +373,7 @@ export default function AuditDetailHistoryPage() {
       {/* Documents */}
       {allDocuments.length > 0 && (
         <Section title="Documents" icon={FileStack}>
-          <p className="text-gray-600 mb-3">Documents uploaded during this audit. Click to open or download.</p>
+            <p className="text-muted-foreground mb-3">Documents uploaded during this audit. Click to open or download.</p>
           <ul className="space-y-2">
             {allDocuments.map((doc, i) => (
               <li key={`${doc.key}-${i}`} className="flex items-center gap-2 flex-wrap">
@@ -385,7 +385,7 @@ export default function AuditDetailHistoryPage() {
                 >
                   {doc.name}
                 </a>
-                <span className="text-xs text-gray-500">({doc.source})</span>
+                <span className="text-xs text-muted-foreground">({doc.source})</span>
               </li>
             ))}
           </ul>

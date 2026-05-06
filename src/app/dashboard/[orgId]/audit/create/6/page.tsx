@@ -117,17 +117,17 @@ export default function CreateAuditStep6Page() {
             : "View only — only the Lead Auditor can edit this step."}
         </div>
       )}
-      <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
         <div className={cn(!canEditStep6 && "pointer-events-none select-none opacity-90")}>
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 border-green-200 bg-green-50 text-green-600">
             <FileCheck className="h-8 w-8" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">
+          <h1 className="mt-4 text-2xl font-bold text-foreground">
             Audit Final Closure
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-muted-foreground">
             Audit ID:{" "}
             <span className="font-semibold text-green-600">{isLoading ? "…" : auditIdDisplay}</span>
             {" • "}
@@ -139,7 +139,7 @@ export default function CreateAuditStep6Page() {
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Left: Management Final Decision */}
           <div className="space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               MANAGEMENT FINAL DECISION
             </h2>
             <div className="space-y-3">
@@ -151,19 +151,19 @@ export default function CreateAuditStep6Page() {
                   "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "effective"
                     ? "border-green-500 bg-green-50 hover:bg-green-100"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    : "border-border bg-card hover:border-border"
                 )}
               >
                 {finalDecision === "effective" ? (
                   <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
                 ) : (
-                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 )}
                 <div>
-                  <p className="font-bold text-gray-900">
+                  <p className="font-bold text-foreground">
                     Effective - Close Audit
                   </p>
-                  <p className="mt-0.5 text-sm text-gray-500">
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     Confirming all findings are addressed and system is stable.
                   </p>
                 </div>
@@ -176,19 +176,19 @@ export default function CreateAuditStep6Page() {
                   "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "ineffective"
                     ? "border-green-500 bg-green-50 hover:bg-green-100"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    : "border-border bg-card hover:border-border"
                 )}
               >
                 {finalDecision === "ineffective" ? (
                   <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
                 ) : (
-                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 )}
                 <div>
-                  <p className="font-bold text-gray-900">
+                  <p className="font-bold text-foreground">
                     Ineffective - Re-open Audit
                   </p>
-                  <p className="mt-0.5 text-sm text-gray-500">
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     Audit does not meet criteria for closure. Further action
                     required.
                   </p>
@@ -201,13 +201,13 @@ export default function CreateAuditStep6Page() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 shrink-0 text-green-500" />
-              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 MANAGEMENT COMMENTS
               </h2>
             </div>
             <Textarea
               placeholder="Executive summary of the audit cycle and final approval notes..."
-              className="min-h-44 rounded-lg border-gray-200 bg-white italic text-gray-500 placeholder:text-gray-400"
+              className="min-h-44 rounded-lg border-border bg-background italic text-muted-foreground placeholder:text-muted-foreground"
               rows={8}
               value={managementComments}
               onChange={(e) => setManagementComments(e.target.value)}
@@ -219,38 +219,38 @@ export default function CreateAuditStep6Page() {
         <div className="mt-10 space-y-4 bg-accent rounded-xl p-6">
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               AUTHENTICATION & SEAL
             </h2>
           </div>
-          <p className="text-sm leading-relaxed text-gray-600">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             By closing this audit, the management confirms that the audit
             process was conducted in accordance with the established program
             and ISO 19011:2026 guidelines.
           </p>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             <div className="flex flex-1 gap-8">
-              <div className="bg-white rounded-lg p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+              <div className="bg-card rounded-lg p-4 border border-border">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   APPROVED BY (LEAD AUDITOR)
                 </p>
-                <p className="mt-1 font-bold text-gray-900">{isLoading ? "…" : leadAuditorDisplay.name}</p>
-                <p className="text-sm text-gray-600">
+                <p className="mt-1 font-bold text-foreground">{isLoading ? "…" : leadAuditorDisplay.name}</p>
+                <p className="text-sm text-muted-foreground">
                   {isLoading ? "…" : leadAuditorDisplay.role}
                 </p>
               </div>
-              <div className="bg-white rounded-lg p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+              <div className="bg-card rounded-lg p-4 border border-border">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   DATE APPROVED
                 </p>
-                <p className="mt-1 font-bold text-gray-900">{dateApproved}</p>
-                <p className="text-sm text-gray-600">{timeApproved}</p>
+                <p className="mt-1 font-bold text-foreground">{dateApproved}</p>
+                <p className="text-sm text-muted-foreground">{timeApproved}</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center justify-center">
               <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-green-200 bg-green-50/50 p-1">
                 <span
-                  className="block max-w-[80px] text-center text-[9px] font-medium uppercase leading-tight text-gray-400"
+                  className="block max-w-[80px] text-center text-[9px] font-medium uppercase leading-tight text-muted-foreground"
                   style={{ transform: "rotate(-45deg)" }}
                 >
                   VIE OFFICIAL SEAL
@@ -262,23 +262,23 @@ export default function CreateAuditStep6Page() {
 
         {/* Summary Statistics - 3 cards (from findings) */}
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               TOTAL FINDINGS
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.total}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.total}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               MAJOR NCS CLOSED
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.majorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.majorNcs}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-5 md:flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               MINOR NCS CLOSED
             </p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? "…" : stats.minorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.minorNcs}</p>
           </div>
         </div>
       </div>

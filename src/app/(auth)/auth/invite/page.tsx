@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Chrome, GithubIcon, Loader2, XCircle } from "lucide-react";
 import Image from "next/image";
+import BrandLogo from "@/components/common/BrandLogo";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -269,13 +270,7 @@ function InvitePageContent() {
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm">
         {/* Logo */}
         <div className="mb-6 flex justify-center">
-          <Image
-            src="/Images/logo.png"
-            alt="Logo"
-            width={140}
-            height={60}
-            priority
-          />
+          <BrandLogo alt="Logo" width={140} height={60} priority />
         </div>
 
         {/* Heading */}

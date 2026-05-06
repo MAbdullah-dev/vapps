@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Building2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import Image from "next/image";
+import BrandLogo from "@/components/common/BrandLogo";
 import { getOrgDashboardUrl } from "@/lib/subdomain";
 
 interface Organization {
@@ -147,13 +147,7 @@ export default function ResolvePage() {
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm">
         {/* Logo */}
         <div className="mb-6 flex justify-center">
-          <Image
-            src="/Images/logo.png"
-            alt="Logo"
-            width={140}
-            height={60}
-            priority
-          />
+          <BrandLogo alt="Logo" width={140} height={60} priority />
         </div>
 
         {/* Heading */}

@@ -113,10 +113,10 @@ export default function AuditHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl! max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-left">
-          <DialogTitle className="text-xl font-bold text-gray-900">
+          <DialogTitle className="text-xl font-bold text-foreground">
             Task History: Audit History
           </DialogTitle>
-          <p className="text-sm font-normal text-gray-500">
+          <p className="text-sm font-normal text-muted-foreground">
             Traceability ID: {traceabilityId}
           </p>
           {detailHistoryHref && (
@@ -131,9 +131,9 @@ export default function AuditHistoryDialog({
 
         <div className="mt-4 space-y-6">
           {loading ? (
-            <p className="text-sm text-gray-600">Loading history…</p>
+            <p className="text-sm text-muted-foreground">Loading history…</p>
           ) : entries.length === 0 ? (
-            <p className="text-sm text-gray-600">No history recorded yet for this audit.</p>
+            <p className="text-sm text-muted-foreground">No history recorded yet for this audit.</p>
           ) : (
             entries.map((entry) => (
               <div key={entry.id} className="flex gap-3">
@@ -141,15 +141,15 @@ export default function AuditHistoryDialog({
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge type={entry.type} />
-                    <span className="font-semibold text-gray-900">{entry.title}</span>
+                    <span className="font-semibold text-foreground">{entry.title}</span>
                   </div>
-                  <p className="text-sm text-gray-600">{entry.description}</p>
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                  <p className="text-sm text-muted-foreground">{entry.description}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-gray-500" />
+                      <Clock className="h-3 w-3 text-muted-foreground" />
                       {entry.date}
                     </span>
-                    <span className="text-gray-400">•</span>
+                    <span className="text-muted-foreground">•</span>
                     <span>by {entry.by}</span>
                   </div>
                 </div>

@@ -340,11 +340,11 @@ export default function CreateAuditStep4Page() {
         </div>
       )}
       <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
-      <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-red-600">
           TO BE RESPONDED BY THE AUDITEE
         </p>
-        <h1 className="mt-2 text-xl font-bold uppercase tracking-wide text-gray-900">
+        <h1 className="mt-2 text-xl font-bold uppercase tracking-wide text-foreground">
           SYSTEMIC CORRECTIVE ACTION
         </h1>
 
@@ -469,7 +469,7 @@ export default function CreateAuditStep4Page() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
             The Underlying Reason For An Issue, Identified Through Analysis To Ensure A Permanent Solution And Prevent Recurrence. Auditors May Use Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA.
           </p>
         </div>
@@ -486,15 +486,15 @@ export default function CreateAuditStep4Page() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
               <Paperclip className="h-6 w-6" />
             </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">ATTACH FILE</h3>
-            <p className="text-xs text-gray-500">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
-            {filesS2.length > 0 && <p className="text-xs text-gray-600">{filesS2.length} file(s) selected</p>}
+            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">ATTACH FILE</h3>
+            <p className="text-xs text-muted-foreground">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
+            {filesS2.length > 0 && <p className="text-xs text-muted-foreground">{filesS2.length} file(s) selected</p>}
             <Button
               type="button"
               variant="outline"
               disabled={uploadingFile}
               onClick={() => fileInputRefs.current["s2"]?.click()}
-              className="rounded-lg border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
             >
               BROWSE FILES
             </Button>
@@ -510,7 +510,7 @@ export default function CreateAuditStep4Page() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
             Root Cause Analysis (RCA) Identifies The Underlying Reason For A Problem To Ensure A Permanent Solution And Prevent Recurrence. Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA Can Be Used. RCA Is Required For Corrective And Preventive Issues, Optional For Suggestions For Improvement, And Recommended For In-Depth Research Of Major Nonconformities.
           </p>
         </div>
@@ -538,15 +538,15 @@ export default function CreateAuditStep4Page() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
               <Paperclip className="h-6 w-6" />
             </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">ATTACH FILE</h3>
-            <p className="text-xs text-gray-500">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
-            {filesS3.length > 0 && <p className="text-xs text-gray-600">{filesS3.length} file(s) selected</p>}
+            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">ATTACH FILE</h3>
+            <p className="text-xs text-muted-foreground">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
+            {filesS3.length > 0 && <p className="text-xs text-muted-foreground">{filesS3.length} file(s) selected</p>}
             <Button
               type="button"
               variant="outline"
               disabled={uploadingFile}
               onClick={() => fileInputRefs.current["s3"]?.click()}
-              className="rounded-lg border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
             >
               BROWSE FILES
             </Button>
@@ -554,12 +554,12 @@ export default function CreateAuditStep4Page() {
         </div>
 
         <div className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">SIMILAR PROCESSES IMPACTED (IF ANY):</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">SIMILAR PROCESSES IMPACTED (IF ANY):</h3>
           <div className="flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
               <Info className="h-5 w-5" />
             </div>
-            <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+            <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
               Are There Any Processes That Are Affected? Please Answer Either Yes Or No. If The Answer Is Yes, Please Provide A List Of All The Processes That Are Affected, Making Sure To Include All Relevant Processes In The List.
             </p>
           </div>
@@ -572,7 +572,7 @@ export default function CreateAuditStep4Page() {
                 onChange={() => setSimilarProcessesImpacted("yes")}
                 className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500"
               />
-              <span className="text-sm font-bold text-gray-900">YES</span>
+              <span className="text-sm font-bold text-foreground">YES</span>
             </label>
             <label className="flex cursor-pointer items-center gap-2">
               <input
@@ -582,7 +582,7 @@ export default function CreateAuditStep4Page() {
                 onChange={() => setSimilarProcessesImpacted("no")}
                 className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500"
               />
-              <span className="text-sm font-bold text-gray-900">NO</span>
+              <span className="text-sm font-bold text-foreground">NO</span>
             </label>
           </div>
           <Textarea
@@ -603,7 +603,7 @@ export default function CreateAuditStep4Page() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
             Root Cause Result- Systemic Failure: A Weakness In Process Control And Lack Of Awareness Led To The Nonconformity. Corrective Actions Were Implemented To Close The Control Gap And Improve Awareness. Post-Implementation Results Show Improved Compliance And No Recurrence Of The Issue. If You&apos;d Like It Even Shorter (Executive-Summary Style), I Can Compress It Further.
           </p>
         </div>
@@ -626,7 +626,7 @@ export default function CreateAuditStep4Page() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
             Systemic Corrective Actions Included Revising The Underlying Process To Address Root Causes. Updated Procedures, Control Plans, And Flowcharts Strengthen Controls, Clarify Responsibilities, And Ensure Consistent Implementation. Defined KPIs, Internal Audits, And Management Reviews Monitor Effectiveness To Prevent Recurrence.
           </p>
         </div>
@@ -666,15 +666,15 @@ export default function CreateAuditStep4Page() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
               <Paperclip className="h-6 w-6" />
             </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">ATTACH FILE</h3>
-            <p className="text-xs text-gray-500">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
-            {filesS6.length > 0 && <p className="text-xs text-gray-600">{filesS6.length} file(s) selected</p>}
+            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">ATTACH FILE</h3>
+            <p className="text-xs text-muted-foreground">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
+            {filesS6.length > 0 && <p className="text-xs text-muted-foreground">{filesS6.length} file(s) selected</p>}
             <Button
               type="button"
               variant="outline"
               disabled={uploadingFile}
               onClick={() => fileInputRefs.current["s6"]?.click()}
-              className="rounded-lg border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
             >
               BROWSE FILES
             </Button>
@@ -711,15 +711,15 @@ export default function CreateAuditStep4Page() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
               <Paperclip className="h-6 w-6" />
             </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">ATTACH FILE</h3>
-            <p className="text-xs text-gray-500">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
-            {filesS7.length > 0 && <p className="text-xs text-gray-600">{filesS7.length} file(s) selected</p>}
+            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">ATTACH FILE</h3>
+            <p className="text-xs text-muted-foreground">ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB</p>
+            {filesS7.length > 0 && <p className="text-xs text-muted-foreground">{filesS7.length} file(s) selected</p>}
             <Button
               type="button"
               variant="outline"
               disabled={uploadingFile}
               onClick={() => fileInputRefs.current["s7"]?.click()}
-              className="rounded-lg border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
             >
               BROWSE FILES
             </Button>

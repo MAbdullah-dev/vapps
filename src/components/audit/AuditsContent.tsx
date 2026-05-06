@@ -76,8 +76,8 @@ type Audit = {
 function TableHeader({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="font-semibold text-gray-800">{title}</span>
-      {sub && <span className="text-xs font-normal text-gray-500">{sub}</span>}
+      <span className="font-semibold text-foreground">{title}</span>
+      {sub && <span className="text-xs font-normal text-muted-foreground">{sub}</span>}
     </div>
   );
 }
@@ -167,23 +167,23 @@ function getColumns(
   {
     accessorKey: "auditProgramRef",
     header: () => <TableHeader title="Audit Program Ref." sub="(Audit/Year/Site/Process/Audit Type)" />,
-    cell: ({ row }) => <span className="font-medium text-gray-900">{row.original.auditProgramRef}</span>,
+    cell: ({ row }) => <span className="font-medium text-foreground">{row.original.auditProgramRef}</span>,
   },
   {
     accessorKey: "standard",
     header: () => <TableHeader title="Standard" sub="(e.g., ISO 9001, ESG & Sustainability)" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.standard}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.standard}</span>,
   },
   {
     accessorKey: "scopeMethodBoundaries",
     header: () => <TableHeader title="Scope, Method & Boundaries" sub="(On-Site/Remote/Hybrid)" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.scopeMethodBoundaries}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.scopeMethodBoundaries}</span>,
   },
   {
     accessorKey: "auditType",
     header: () => <TableHeader title="Audit Type" sub="FPA/SPA/TPA" />,
     cell: ({ row }) => (
-      <span className="bg-gray-100 text-gray-700 py-1 px-2 rounded-full text-xs font-medium">
+      <span className="bg-muted text-muted-foreground py-1 px-2 rounded-full text-xs font-medium">
         {row.original.auditType}
       </span>
     ),
@@ -191,22 +191,22 @@ function getColumns(
   {
     accessorKey: "site",
     header: () => <TableHeader title="Site" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.site}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.site}</span>,
   },
   {
     accessorKey: "process",
     header: () => <TableHeader title="Process" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.process}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.process}</span>,
   },
   {
     accessorKey: "clause",
     header: () => <TableHeader title="Clause" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.clause}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.clause}</span>,
   },
   {
     accessorKey: "subclauses",
     header: () => <TableHeader title="Subclauses" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.subclauses}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.subclauses}</span>,
   },
   {
     accessorKey: "ncClassification",
@@ -232,31 +232,31 @@ function getColumns(
   {
     accessorKey: "plannedDate",
     header: () => <TableHeader title="Planned Date" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.plannedDate}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.plannedDate}</span>,
   },
   {
     accessorKey: "actualDate",
     header: () => <TableHeader title="Actual Date" />,
     cell: ({ row }) => (
-      <span className="text-gray-700">{row.original.actualDate || "—"}</span>
+      <span className="text-muted-foreground">{row.original.actualDate || "—"}</span>
     ),
   },
   {
     accessorKey: "dueDate",
     header: () => <TableHeader title="Due Date (30 days)" />,
-    cell: ({ row }) => <span className="text-gray-700">{row.original.dueDate}</span>,
+    cell: ({ row }) => <span className="text-muted-foreground">{row.original.dueDate}</span>,
   },
   {
     accessorKey: "kpiScore",
     header: () => <TableHeader title="KPI (Score)" />,
     cell: ({ row }) => {
       const score = row.original.kpiScore;
-      if (!score) return <span className="text-gray-400">—</span>;
+      if (!score) return <span className="text-muted-foreground">—</span>;
       if (score === "Consistent" || score.toLowerCase() === "consistent")
         return <span className="font-medium text-green-600">Consistent</span>;
       if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
         return <span className="font-medium text-red-600">Inconsistent</span>;
-      return <span className="text-gray-700">{score}</span>;
+      return <span className="text-muted-foreground">{score}</span>;
     },
   },
   {
@@ -270,7 +270,7 @@ function getColumns(
     cell: ({ row }) => {
       const status = row.original.auditStatus;
       const badgeClass = getStatusColor(status);
-      if (!badgeClass) return <span className="text-gray-700">{status}</span>;
+      if (!badgeClass) return <span className="text-muted-foreground">{status}</span>;
       return (
         <span className={`${badgeClass} py-1 px-2 rounded-full text-xs font-medium`}>
           {status}
@@ -296,7 +296,7 @@ function getColumns(
         );
       }
       const step = audit.nextStepForUser;
-      if (step == null) return <span className="text-gray-400">—</span>;
+      if (step == null) return <span className="text-muted-foreground">—</span>;
       return (
         <span className="text-sm font-medium text-green-700">
           {NEXT_STEP_LABELS[step] ?? `Step ${step}`}
@@ -315,7 +315,7 @@ function getColumns(
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
               onClick={(e) => e.stopPropagation()}
             >
               <EllipsisVertical size={18} />
@@ -618,8 +618,8 @@ export default function AuditsContent() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Audits</h1>
-          <p className="text-sm text-gray-600">Internal checks, reviews, and compliance status</p>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Audits</h1>
+          <p className="text-sm text-muted-foreground">Internal checks, reviews, and compliance status</p>
         </div>
         <Button variant="dark" className="flex items-center gap-2" asChild>
           <Link href={createAuditHref}>
@@ -634,20 +634,20 @@ export default function AuditsContent() {
           <div className="flex items-center gap-3">
             <Cloud className="text-blue-600" size={20} />
             <div>
-              <p className="text-sm font-medium text-gray-900">Active Tenant: Acme Corporation</p>
+              <p className="text-sm font-medium text-foreground">Active Tenant: Acme Corporation</p>
               <a href="#" className="text-xs text-blue-600 hover:underline">Auth0 Organization</a>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Folder className="text-gray-600" size={18} />
+              <Folder className="text-muted-foreground" size={18} />
               <span className="bg-yellow-100 text-yellow-800 text-xs font-medium py-1 px-2 rounded-full">
                 Shared S3
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Upload className="text-gray-600" size={18} />
-              <span className="text-sm text-gray-600">100 MB limit</span>
+              <Upload className="text-muted-foreground" size={18} />
+              <span className="text-sm text-muted-foreground">100 MB limit</span>
               <span className="bg-blue-600 text-white text-xs font-medium py-1 px-2 rounded-full">
                 Pro
               </span>
@@ -658,35 +658,35 @@ export default function AuditsContent() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500 mb-1">Total Audits</p>
-          <p className="text-2xl font-bold text-gray-900">6</p>
-          <p className="text-xs text-gray-400 mt-1">All time</p>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Total Audits</p>
+          <p className="text-2xl font-bold text-foreground">6</p>
+          <p className="text-xs text-muted-foreground mt-1">All time</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500 mb-1">Success Rate</p>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Success Rate</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-gray-900">50%</p>
+            <p className="text-2xl font-bold text-foreground">50%</p>
             <span className="bg-green-100 text-green-700 text-xs font-medium py-0.5 px-2 rounded-full">
               Good
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Clean audits</p>
+          <p className="text-xs text-muted-foreground mt-1">Clean audits</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500 mb-1">Backlogs</p>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Backlogs</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-gray-900">2</p>
+            <p className="text-2xl font-bold text-foreground">2</p>
             <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
               Attention
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Pending audits</p>
+          <p className="text-xs text-muted-foreground mt-1">Pending audits</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500 mb-1">Avg Closure Time</p>
-          <p className="text-2xl font-bold text-gray-900">12 days</p>
-          <p className="text-xs text-gray-400 mt-1">Average completion</p>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Avg Closure Time</p>
+          <p className="text-2xl font-bold text-foreground">12 days</p>
+          <p className="text-xs text-muted-foreground mt-1">Average completion</p>
         </div>
       </div>
 
@@ -696,10 +696,10 @@ export default function AuditsContent() {
           <div className="relative w-full max-w-md">
             <Search
               size={18}
-              className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-500"
+              className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              className="pl-10 border-none bg-[#F3F3F5]"
+              className="pl-10 border-none bg-muted"
               placeholder="Search audits..."
             />
           </div>
@@ -718,13 +718,13 @@ export default function AuditsContent() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
-              <thead className="bg-gray-100">
+              <thead className="bg-muted/70">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className="p-3 text-left font-medium text-gray-700 whitespace-nowrap border-b border-gray-200"
+                        className="p-3 text-left font-medium text-muted-foreground whitespace-nowrap border-b border-border"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -739,13 +739,13 @@ export default function AuditsContent() {
               <tbody>
                 {plansLoading ? (
                   <tr>
-                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                    <td colSpan={columns.length} className="p-8 text-center text-muted-foreground">
                       Loading audits…
                     </td>
                   </tr>
                 ) : table.getRowModel().rows.length === 0 ? (
                   <tr>
-                    <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                    <td colSpan={columns.length} className="p-8 text-center text-muted-foreground">
                       No audits yet. Create one to get started.
                     </td>
                   </tr>
@@ -753,7 +753,7 @@ export default function AuditsContent() {
                   table.getRowModel().rows.map((row) => (
                     <tr
                       key={row.id}
-                      className="border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="border-b border-border hover:bg-muted/40 transition-colors cursor-pointer"
                       onClick={() => {
                         const audit = row.original;
                         if (!audit.auditPlanId) return;
@@ -765,7 +765,7 @@ export default function AuditsContent() {
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
-                          className="p-3 text-gray-700 whitespace-nowrap"
+                          className="p-3 text-muted-foreground whitespace-nowrap"
                         >
                           {flexRender(
                             cell.column.columnDef.cell,

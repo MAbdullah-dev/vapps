@@ -31,7 +31,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var c=document.cookie;var m=/(?:^|; )vie-theme=([^;]+)/.exec(c)||/(?:^|; )vapps-theme=([^;]+)/.exec(c);if(!m)return;var t=decodeURIComponent(m[1]);if(t!=="light"&&t!=="dark")return;try{localStorage.setItem("vie-theme",t);}catch(e){}var d=document.documentElement;d.classList.remove("light","dark");d.classList.add(t);}catch(e){}})();`,
+            __html: `(function(){try{var d=document.documentElement;var c=document.cookie;var m=/(?:^|; )vie-theme=([^;]+)/.exec(c)||/(?:^|; )vapps-theme=([^;]+)/.exec(c);var raw=m?decodeURIComponent(m[1]):null;var ls=null;try{ls=localStorage.getItem("vie-theme");}catch(e){}var pref=raw||(ls==="light"||ls==="dark"||ls==="system"?ls:null);var resolved;if(pref==="light"||pref==="dark")resolved=pref;else resolved=typeof window!==\"undefined\"&&window.matchMedia&&window.matchMedia(\"(prefers-color-scheme: dark)\").matches?\"dark\":\"light\";try{if(raw===\"light\"||raw===\"dark\")localStorage.setItem(\"vie-theme\",raw);}catch(e){}d.classList.remove(\"light\",\"dark\");d.classList.add(resolved);}catch(e){}})();`,
           }}
         />
       </head>

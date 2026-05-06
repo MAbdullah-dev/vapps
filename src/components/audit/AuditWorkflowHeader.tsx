@@ -55,10 +55,10 @@ export default function AuditWorkflowHeader({
 
   return (
     <>
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-lg font-bold text-foreground">
             Audit Workflow Management
           </h2>
 
@@ -91,22 +91,22 @@ export default function AuditWorkflowHeader({
               "flex-1 rounded-lg border-2 transition-all duration-200",
               "flex flex-col items-center justify-center py-4 px-2 min-h-[100px]",
               isCurrent
-                ? "bg-green-600 border-green-600 cursor-pointer" // Current step always active
+                ? "bg-primary border-primary text-primary-foreground cursor-pointer" // Current step always active
                 : isCompleted
-                ? "bg-green-50 border-green-600 hover:bg-green-100 cursor-pointer"
+                ? "bg-primary/10 border-primary hover:bg-primary/15 cursor-pointer"
                 : isUnlocked
-                ? "bg-white border-green-600 hover:bg-green-50 cursor-pointer"
-                : "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
+                ? "bg-card border-primary hover:bg-primary/10 cursor-pointer"
+                : "bg-muted/50 border-border cursor-not-allowed opacity-60"
             );
 
             // Icon circle classes
             const iconCircleClasses = cn(
               "flex h-10 w-10 items-center justify-center rounded-full border-2 mb-2",
               isCompleted
-                ? "bg-green-500 border-green-600"
+                ? "bg-primary border-primary"
                 : isCurrent
-                ? "bg-white/20 border-white" // Current: subtle circle on green
-                : "bg-white border-gray-300"
+                ? "bg-primary-foreground/20 border-primary-foreground" // Current: subtle circle on active tab
+                : "bg-background border-border"
             );
 
             // Icon component - completed shows checkmark, current and others show step icon
@@ -116,24 +116,24 @@ export default function AuditWorkflowHeader({
             const iconColorClasses = cn(
               "h-5 w-5",
               isCompleted
-                ? "text-white"
+                ? "text-primary-foreground"
                 : isCurrent
-                ? "text-white"
+                ? "text-primary-foreground"
                 : isUnlocked
-                ? "text-gray-600"
-                : "text-gray-400"
+                ? "text-muted-foreground"
+                : "text-muted-foreground/70"
             );
 
             // Text classes
             const textClasses = cn(
               "text-xs font-semibold text-center leading-tight px-1",
               isCompleted
-                ? "text-green-700"
+                ? "text-primary"
                 : isCurrent
-                ? "text-white"
+                ? "text-primary-foreground"
                 : isUnlocked
-                ? "text-gray-700"
-                : "text-gray-400"
+                ? "text-foreground"
+                : "text-muted-foreground"
             );
 
             const stepHref = getStepHref(step);
