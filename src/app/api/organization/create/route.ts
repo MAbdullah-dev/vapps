@@ -38,7 +38,9 @@ const createOrganizationSchema = z.object({
       industry: z.string().optional(),
     })
     .optional()
-    .default({}),
+    .default({
+      slug: "xx",
+    }),
   step2: z
     .object({
       sites: z.array(

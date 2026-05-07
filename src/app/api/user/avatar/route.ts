@@ -10,7 +10,7 @@ import { getPresignedDownloadUrl } from "@/lib/s3";
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(req);
     if (!user?.id) {
       return new NextResponse(null, { status: 401 });
     }
@@ -21,8 +21,7 @@ export async function GET(req: NextRequest) {
     });
 
     const key = dbUser?.image;
-    if (!key || key.startsWith("http")) {
-      // No S3 key (or image is an external URL from OAuth)
+    if (!key || key.startsWith("http") || key.startsWith("data:")) {
       return new NextResponse(null, { status: 404 });
     }
 

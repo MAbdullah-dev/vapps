@@ -586,8 +586,15 @@ export default function ReviewDialog({
   };
 
   const handleCancel = () => {
+    const shouldCancel = window.confirm(
+      "Are you sure you want to cancel? Your unsaved review changes will be lost."
+    );
+
+    if (!shouldCancel) return;
+
     handleClose();
     onCancel();
+    toast.success("Review cancellation confirmed.");
   };
 
   return (

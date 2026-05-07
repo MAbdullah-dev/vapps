@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
+  canPerformSupportLeadershipCapture,
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
@@ -56,9 +57,11 @@ export default function DocumentaryEvidenceCaptureContent() {
 
   const [meReady, setMeReady] = useState(false);
   const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
+  const [additionalRoleNames, setAdditionalRoleNames] = useState<string[]>([]);
 
-  const isSupport = isSupportLeadershipTier(leadershipTier);
+  const isSupportTier = isSupportLeadershipTier(leadershipTier);
   const isVerifierTier = isTopOrOperationalLeadershipTier(leadershipTier);
+  const canRunSupportCapture = canPerformSupportLeadershipCapture(leadershipTier, additionalRoleNames);
 
   useEffect(() => {
     setEvidenceRecordId(evidenceFromUrl || null);
@@ -70,6 +73,7 @@ export default function DocumentaryEvidenceCaptureContent() {
       if (!orgId) {
         if (!ignore) {
           setLeadershipTier(undefined);
+          setAdditionalRoleNames([]);
           setMeReady(true);
         }
         return;
@@ -77,9 +81,17 @@ export default function DocumentaryEvidenceCaptureContent() {
       try {
         const res = await fetch(`/api/organization/${orgId}/me`, { credentials: "include" });
         const j = res.ok ? await res.json() : {};
-        if (!ignore) setLeadershipTier(typeof j.leadershipTier === "string" ? j.leadershipTier : undefined);
+        if (!ignore) {
+          setLeadershipTier(typeof j.leadershipTier === "string" ? j.leadershipTier : undefined);
+          setAdditionalRoleNames(
+            Array.isArray(j.additionalRoles) ? (j.additionalRoles as string[]).filter((x) => typeof x === "string") : []
+          );
+        }
       } catch {
-        if (!ignore) setLeadershipTier(undefined);
+        if (!ignore) {
+          setLeadershipTier(undefined);
+          setAdditionalRoleNames([]);
+        }
       } finally {
         if (!ignore) setMeReady(true);
       }
@@ -158,11 +170,12 @@ export default function DocumentaryEvidenceCaptureContent() {
     mode === "view" ||
       workflow === "capture_submitted" ||
       workflow === "completed" ||
-      (!isSupport && isVerifierTier)
+      (!isSupportTier && isVerifierTier)
   );
 
   const canUseCapturePage =
-    isSupport || (isVerifierTier && mode === "view" && Boolean(evidenceFromUrl) && !evidenceLoading);
+    canRunSupportCapture ||
+    (isVerifierTier && mode === "view" && Boolean(evidenceFromUrl) && !evidenceLoading);
 
   const serverCapture = evidenceRow ? parseCaptureData(evidenceRow.capture_data) : null;
   const serverDesignatedVerifierUserId = String(evidenceRow?.designated_verifier_user_id ?? "").trim() || undefined;

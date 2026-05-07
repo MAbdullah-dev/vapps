@@ -88,6 +88,50 @@ export async function sendEmailChangeVerification({
   });
 }
 
+const PASSWORD_RESET_IDENTIFIER_PREFIX = "password-reset:";
+
+/** Used when storing tokens; keep in sync with forgot-password / reset-password routes. */
+export function passwordResetIdentifier(email: string) {
+  return `${PASSWORD_RESET_IDENTIFIER_PREFIX}${email.toLowerCase().trim()}`;
+}
+
+export function parseEmailFromPasswordResetIdentifier(identifier: string): string | null {
+  if (!identifier.startsWith(PASSWORD_RESET_IDENTIFIER_PREFIX)) return null;
+  return identifier.slice(PASSWORD_RESET_IDENTIFIER_PREFIX.length) || null;
+}
+
+export async function sendPasswordResetEmail({
+  email,
+  token,
+}: {
+  email: string;
+  token: string;
+}) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const resetUrl = `${baseUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+  const fromEmail = process.env.SMTP_FROM || "noreply@vie.com";
+
+  await transporter.sendMail({
+    from: `"Vie" <${fromEmail}>`,
+    to: email,
+    subject: "Reset your password",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0A0A0A;">Reset your password</h2>
+        <p>We received a request to reset the password for your account.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}" style="background-color: #0A0A0A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Choose a new password
+          </a>
+        </div>
+        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 12px; word-break: break-all;">${resetUrl}</p>
+        <p style="color: #999; font-size: 12px; margin-top: 30px;">This link expires in 1 hour. If you did not request a reset, you can ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendInvitationEmail({
   email,
   token,

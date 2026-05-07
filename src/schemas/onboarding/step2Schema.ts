@@ -11,7 +11,7 @@ export const step2Schema = z.object({
         .array(
           z.object({
             name: z.string().min(1),
-            items: z.array(z.string()).optional().default([]),
+            items: z.array(z.string()).default([]),
           })
         )
         .optional(),

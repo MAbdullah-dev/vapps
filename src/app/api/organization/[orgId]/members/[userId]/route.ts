@@ -5,6 +5,7 @@ import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
 import { normalizeRole, roleToLeadershipTier, isRoleHigher, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
+import { filterAdditionalRoleIdsExcludingAuditorForMember } from "@/lib/filter-auditor-additional-roles-for-member";
 
 /**
  * PUT /api/organization/[orgId]/members/[userId]
@@ -177,7 +178,12 @@ export async function PUT(
 
     // Update additional roles (e.g. Auditor) in tenant DB
     if (ctx.tenant?.connectionString && additionalRoleIds !== undefined) {
-      const roleIds: string[] = Array.isArray(additionalRoleIds) ? additionalRoleIds : [];
+      let roleIds: string[] = Array.isArray(additionalRoleIds) ? additionalRoleIds : [];
+      roleIds = await filterAdditionalRoleIdsExcludingAuditorForMember(
+        ctx.tenant.connectionString,
+        normalizedRole,
+        roleIds
+      );
       await withTenantConnection(ctx.tenant.connectionString, async (client) => {
         await client.query(
           `DELETE FROM user_additional_roles WHERE user_id = $1`,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier, roleToSystemRoleDisplay } from "@/lib/roles";
+import { withTenantConnection } from "@/lib/db/connection-helper";
 
 /**
  * GET /api/organization/[orgId]/me
@@ -49,12 +50,33 @@ export async function GET(
     const jobTitle =
       (membership?.jobTitle && membership.jobTitle.trim()) || (isOwner ? "Owner" : null);
 
+    let additionalRoles: string[] = [];
+    try {
+      additionalRoles = await withTenantConnection(ctx.tenant.connectionString, async (client) => {
+        const hasUar = await client.query(
+          `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_additional_roles'`
+        );
+        if (hasUar.rows.length === 0) return [];
+        const r = await client.query(
+          `SELECT ar.name
+           FROM user_additional_roles uar
+           JOIN additional_roles ar ON ar.id = uar.additional_role_id
+           WHERE uar.user_id = $1`,
+          [ctx.user.id]
+        );
+        return (r.rows as { name: string }[]).map((row) => row.name).filter(Boolean);
+      });
+    } catch {
+      additionalRoles = [];
+    }
+
     return NextResponse.json({
       userId: ctx.user.id,
       leadershipTier,
       systemRole,
       jobTitle,
       isOwner,
+      additionalRoles,
     });
   } catch (error) {
     console.error("Error fetching org membership:", error);

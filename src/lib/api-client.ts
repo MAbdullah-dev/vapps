@@ -500,10 +500,14 @@ class ApiClient {
     orgId: string,
     filters?: { processId?: string; siteId?: string; sprintId?: string | null }
   ) {
-    return this.get<{ issues: any[] }>(
-      `/organization/${orgId}/issues`,
-      filters
-    );
+    const params =
+      filters &&
+      Object.fromEntries(
+        Object.entries(filters).filter(
+          ([, v]) => v != null && v !== ""
+        )
+      ) as Record<string, string | number | boolean> | undefined;
+    return this.get<{ issues: any[] }>(`/organization/${orgId}/issues`, params);
   }
 
   /**

@@ -8,6 +8,7 @@ import { logger } from "@/lib/logger";
 import { normalizeRole, isRoleHigher, type Role } from "@/lib/roles";
 import { sendInvitationEmail } from "@/helpers/mailer";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
+import { filterAdditionalRoleIdsExcludingAuditorForMember } from "@/lib/filter-auditor-additional-roles-for-member";
 
 export async function POST(req: NextRequest) {
   let bodyData: { orgId?: string; email?: string } = {};
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     const jobTitle = body.jobTitle != null && body.jobTitle !== "" ? String(body.jobTitle).trim() : null;
     const siteId = body.siteId != null && body.siteId !== "" ? String(body.siteId) : null;
     const processId = body.processId != null && body.processId !== "" ? String(body.processId) : null;
-    const additionalRoleIds = Array.isArray(body.additionalRoleIds)
+    let additionalRoleIds = Array.isArray(body.additionalRoleIds)
       ? (body.additionalRoleIds as string[]).filter((id) => typeof id === "string" && id.trim() !== "")
       : [];
 
@@ -120,6 +121,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "You cannot invite a user with a higher role than your own." },
         { status: 403 }
+      );
+    }
+
+    if (org.database?.connectionString) {
+      additionalRoleIds = await filterAdditionalRoleIdsExcludingAuditorForMember(
+        org.database.connectionString,
+        normalizedRole,
+        additionalRoleIds
       );
     }
 

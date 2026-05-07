@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
 import { Info, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
 
 // Leadership level constants
 const LEADERSHIP_TOP = 1;
@@ -122,6 +123,14 @@ export default function EditUserDialog({
   const roleLevel: RoleLevel | null = jobTitle ? jobTitleToRoleLevel[jobTitle] : null;
   const systemRole: SystemRole | null = roleLevel ? roleLevelToSystemRole[roleLevel] : null;
 
+  const assignableAdditionalRoles = useMemo(
+    () =>
+      roleLevel === LEADERSHIP_SUPPORT
+        ? additionalRoles.filter((ar) => !isAuditorRoleName(ar.name))
+        : additionalRoles,
+    [additionalRoles, roleLevel]
+  );
+
   // Load sites and additional roles when dialog opens
   useEffect(() => {
     if (open && orgId) {
@@ -153,13 +162,20 @@ export default function EditUserDialog({
     }
   }, [open, userName, currentJobTitle, currentSiteId, currentProcessId]);
 
-  // When we have both the role list and current user's roles, set selected ids (by matching names)
+  // When we have both the role list and current user's roles, set selected ids (by matching names).
+  // Auditor is not valid for Support (Level 3) job titles.
   useEffect(() => {
     if (!open || additionalRoles.length === 0) return;
     const names = currentAdditionalRoles ?? [];
-    const ids = additionalRoles.filter((ar) => names.includes(ar.name)).map((ar) => ar.id);
+    let ids = additionalRoles.filter((ar) => names.includes(ar.name)).map((ar) => ar.id);
+    if (roleLevel === LEADERSHIP_SUPPORT) {
+      ids = ids.filter((id) => {
+        const ar = additionalRoles.find((a) => a.id === id);
+        return ar && !isAuditorRoleName(ar.name);
+      });
+    }
     setSelectedAdditionalRoleIds(ids);
-  }, [open, additionalRoles, currentAdditionalRoles]);
+  }, [open, additionalRoles, currentAdditionalRoles, roleLevel]);
 
   const loadSites = async () => {
     try {
@@ -232,9 +248,15 @@ export default function EditUserDialog({
   };
 
   const handleJobTitleChange = (value: string) => {
-    setJobTitle(value as JobTitle);
+    const next = value as JobTitle;
+    setJobTitle(next);
     setSite("");
     setProcess("");
+    if (jobTitleToRoleLevel[next] === LEADERSHIP_SUPPORT) {
+      setSelectedAdditionalRoleIds((prev) =>
+        prev.filter((id) => !additionalRoles.some((ar) => ar.id === id && isAuditorRoleName(ar.name)))
+      );
+    }
     setErrors((prev) => ({
       ...prev,
       jobTitle: undefined,
@@ -440,11 +462,7 @@ export default function EditUserDialog({
                     </SelectContent>
                   </Select>
                   {errors.process && (
-                    <div className="flex items-center gap-1 text-sm text-red-500">@cannot ('update', $post) 
-                      
-                    @elsecannot ('create', $post) 
-                    
-                    @endcannot
+                    <div className="flex items-center gap-1 text-sm text-red-500">
                       <AlertCircle className="h-4 w-4" />
                       <span>{errors.process}</span>
                     </div>
@@ -454,15 +472,15 @@ export default function EditUserDialog({
             </>
           )}
 
-          {/* Additional roles (e.g. Auditor) */}
-          {additionalRoles.length > 0 && (
+          {/* Additional roles (e.g. Auditor) — not for Support / Level 3 job titles */}
+          {assignableAdditionalRoles.length > 0 && (
             <div className="space-y-2">
               <Label>Additional roles (e.g. Auditor)</Label>
               <p className="text-xs text-gray-500 mb-1">
                 Assign or remove custom roles such as Auditor.
               </p>
               <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
-                {additionalRoles.map((ar) => (
+                {assignableAdditionalRoles.map((ar) => (
                   <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"

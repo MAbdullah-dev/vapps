@@ -19,7 +19,7 @@
  * - No site-based role definitions
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,7 @@ import {
 import { Info, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
 
 // Leadership level constants (organization-level identity)
 const LEADERSHIP_TOP = 1;
@@ -143,6 +144,14 @@ export default function CreateUserDialog({
   const isTopLeadership = roleLevel === LEADERSHIP_TOP;
   const isOperationalLeadership = roleLevel === LEADERSHIP_OPERATIONAL;
   const isSupportLeadership = roleLevel === LEADERSHIP_SUPPORT;
+
+  const assignableAdditionalRoles = useMemo(
+    () =>
+      roleLevel === LEADERSHIP_SUPPORT
+        ? additionalRoles.filter((ar) => !isAuditorRoleName(ar.name))
+        : additionalRoles,
+    [additionalRoles, roleLevel]
+  );
 
   // Check if current user can create this role
   const canCreateThisRole = (targetRole: SystemRole | null): boolean => {
@@ -298,10 +307,16 @@ export default function CreateUserDialog({
   };
 
   const handleJobTitleChange = (value: string) => {
-    setJobTitle(value as JobTitle);
+    const next = value as JobTitle;
+    setJobTitle(next);
     setSite("");
     setSelectedProcesses([]);
     setProcess("");
+    if (jobTitleToRoleLevel[next] === LEADERSHIP_SUPPORT) {
+      setSelectedAdditionalRoleIds((prev) =>
+        prev.filter((id) => !additionalRoles.some((ar) => ar.id === id && isAuditorRoleName(ar.name)))
+      );
+    }
     setErrors((prev) => ({
       ...prev,
       jobTitle: undefined,
@@ -548,15 +563,15 @@ export default function CreateUserDialog({
                 </div>
               )}
 
-              {/* Optional additional roles (e.g. Auditor) */}
-              {additionalRoles.length > 0 && (
+              {/* Optional additional roles (e.g. Auditor) — not combined with Level 3 / Support leadership job titles */}
+              {assignableAdditionalRoles.length > 0 && (
                 <div className="space-y-2">
                   <Label>Additional roles (optional)</Label>
                   <p className="text-xs text-gray-500 mb-1">
                     Assign custom roles such as Auditor if needed.
                   </p>
                   <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
-                    {additionalRoles.map((ar) => (
+                    {assignableAdditionalRoles.map((ar) => (
                       <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"

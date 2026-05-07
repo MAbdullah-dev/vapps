@@ -142,10 +142,13 @@ export default function AccountPage() {
     if (!file) return;
     try {
       setAvatarUploading(true);
-      await apiClient.uploadProfileAvatar(file);
+      const uploaded = await apiClient.uploadProfileAvatar(file);
       await fetchProfile(false);
       setAvatarTimestamp(Date.now());
-      await updateSession?.({ image: `/api/user/avatar?t=${Date.now()}` });
+      // Do not put data URLs in the session — JWT cookie size limit. Profile UI uses API state.
+      if (!uploaded.image.startsWith("data:image/")) {
+        await updateSession?.({ image: `/api/user/avatar?t=${Date.now()}` });
+      }
       toast.success("Profile picture updated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to upload picture");
@@ -179,7 +182,10 @@ export default function AccountPage() {
         await updateSession?.({
           name: updated.name != null ? updated.name : undefined,
           email: updated.email != null ? updated.email : undefined,
-          image: updated.image != null ? updated.image : undefined,
+          image:
+            updated.image != null && !updated.image.startsWith("data:image/")
+              ? updated.image
+              : undefined,
         });
         toast.success("Profile updated");
       }
@@ -196,9 +202,11 @@ export default function AccountPage() {
   const [firstName, lastName] = displayName ? displayName.trim().split(/\s+/, 2) : ["", ""];
   // S3 key: use app avatar URL; external URL (OAuth): use as-is
   const displayImage =
-    profile.image && !profile.image.startsWith("http")
-      ? `/api/user/avatar?t=${avatarTimestamp || ""}`
-      : (profile.image || user?.image) ?? null;
+    profile.image?.startsWith("data:image/")
+      ? profile.image
+      : profile.image && !profile.image.startsWith("http")
+        ? `/api/user/avatar?t=${avatarTimestamp || ""}`
+        : (profile.image || user?.image) ?? null;
   const roleTags = orgMembership
     ? [orgMembership.jobTitle, orgMembership.leadershipTier, orgMembership.systemRole].filter(
         (t): t is string => t != null && String(t).trim() !== ""

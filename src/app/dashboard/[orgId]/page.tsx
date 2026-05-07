@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Script from "next/script";
 import { ArrowUp, ChartNoAxesCombined, CircleAlert, CircleCheckBig, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -30,6 +31,17 @@ const chartConfig = {
     completed: { label: "Issues completed", color: "var(--chart-2)" },
     count: { label: "Count", color: "var(--chart-1)" },
 } satisfies ChartConfig;
+
+const BOTPRESS_INJECT_URL = "https://cdn.botpress.cloud/webchat/v3.6/inject.js";
+const BOTPRESS_CONFIG_SCRIPT_URL =
+    "https://files.bpcontent.cloud/2026/05/06/16/20260506160354-CUMY8R3G.js";
+
+type BotpressWindow = Window & {
+    botpress?: {
+        open?: () => void;
+        on?: (event: string, handler: (...args: unknown[]) => void) => void;
+    };
+};
 
 type ActivityItem = {
   id: string;
@@ -138,6 +150,24 @@ export default function OrgDashboardPage() {
     const [pieChartData, setPieChartData] = useState<Array<{ status: string; count: number; fill: string }>>([]);
     const [chartsLoading, setChartsLoading] = useState(true);
 
+    const [botpressInjectReady, setBotpressInjectReady] = useState(false);
+    const pendingOpenBotpressRef = useRef(false);
+
+    const tryOpenBotpress = useCallback(() => {
+        const bp = (window as BotpressWindow).botpress;
+        if (typeof bp?.open === "function") {
+            bp.open();
+            pendingOpenBotpressRef.current = false;
+            return true;
+        }
+        return false;
+    }, []);
+
+    const handleAskVieAi = useCallback(() => {
+        pendingOpenBotpressRef.current = true;
+        tryOpenBotpress();
+    }, [tryOpenBotpress]);
+
     useEffect(() => {
         if (!orgId) return;
         apiClient
@@ -180,8 +210,24 @@ export default function OrgDashboardPage() {
             .finally(() => setChartsLoading(false));
     }, [orgId]);
 
+    const onBotpressConfigLoaded = useCallback(() => {
+        const w = window as BotpressWindow;
+        w.botpress?.on?.("webchat:initialized", () => {
+            if (pendingOpenBotpressRef.current) tryOpenBotpress();
+        });
+        tryOpenBotpress();
+    }, [tryOpenBotpress]);
+
     return (
         <>
+            <Script src={BOTPRESS_INJECT_URL} strategy="afterInteractive" onLoad={() => setBotpressInjectReady(true)} />
+            {botpressInjectReady ? (
+                <Script
+                    src={BOTPRESS_CONFIG_SCRIPT_URL}
+                    strategy="afterInteractive"
+                    onLoad={onBotpressConfigLoaded}
+                />
+            ) : null}
             {/* Top Cards */}
             <div className="dashboard-progress-cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Card 1 - Active Projects */}
@@ -446,10 +492,12 @@ export default function OrgDashboardPage() {
                         Get instant insights, generate reports, or find information quickly.
                     </p>
                 </div>
-                <Button 
-                    variant="default" 
-                    size="lg" 
+                <Button
+                    type="button"
+                    variant="default"
+                    size="lg"
                     className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={handleAskVieAi}
                 >
                     Ask Vie AI
                 </Button>

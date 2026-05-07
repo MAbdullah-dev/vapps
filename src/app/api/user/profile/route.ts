@@ -24,9 +24,9 @@ const profileSelect = {
  * GET /api/user/profile
  * Returns the current user's profile.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(req);
     if (!currentUser?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -61,7 +61,7 @@ export async function GET() {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(req);
     if (!currentUser?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

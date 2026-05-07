@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+/** Without S3, store base64 inline (dev / small installs). Keep bounded for DB/session size. */
+const MAX_FALLBACK_STORE_BYTES = 200_000;
 
 /**
  * POST /api/user/profile/avatar
@@ -18,21 +20,12 @@ const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
  */
 export async function POST(req: NextRequest) {
   try {
-    if (
-      !process.env.AWS_S3_BUCKET_NAME ||
-      !process.env.AWS_ACCESS_KEY_ID ||
-      !process.env.AWS_SECRET_ACCESS_KEY
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Profile picture upload is not configured. Add AWS_S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY to .env to save pictures to S3.",
-        },
-        { status: 503 }
-      );
-    }
+    const s3Configured =
+      !!process.env.AWS_S3_BUCKET_NAME &&
+      !!process.env.AWS_ACCESS_KEY_ID &&
+      !!process.env.AWS_SECRET_ACCESS_KEY;
 
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(req);
     if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -58,19 +51,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const key = `avatars/${user.id}/${uuid()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Upload to AWS S3 bucket (uses AWS_S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-    await uploadFileToS3(buffer, key, file.type);
+    if (s3Configured) {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const key = `avatars/${user.id}/${uuid()}.${ext}`;
+      await uploadFileToS3(buffer, key, file.type);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { image: key },
+      });
+      return NextResponse.json({ ok: true, image: key });
+    }
 
+    if (buffer.length > MAX_FALLBACK_STORE_BYTES) {
+      return NextResponse.json(
+        {
+          error: `Picture too large without S3. Maximum stored size is ${Math.floor(MAX_FALLBACK_STORE_BYTES / 1024)} KB, or configure S3 for uploads up to 5 MB.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
     await prisma.user.update({
       where: { id: user.id },
-      data: { image: key },
+      data: { image: dataUrl },
     });
-
-    return NextResponse.json({ ok: true, image: key });
+    return NextResponse.json({ ok: true, image: dataUrl });
   } catch (error) {
     console.error("Error uploading avatar:", error);
     return NextResponse.json(

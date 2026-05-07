@@ -23,6 +23,9 @@ function isPublicPath(pathname: string): boolean {
     pathname === "/register" ||
     pathname.startsWith("/forgot-password") ||
     pathname === "/invite" ||
+    pathname.startsWith("/invite/") ||
+    pathname === "/welcome" ||
+    pathname.startsWith("/welcome/") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
     pathname.startsWith("/terms") ||
@@ -77,6 +80,12 @@ function shouldSkipRewrite(pathname: string): boolean {
     pathname.startsWith("/auth") ||
     pathname === "/login" ||
     pathname === "/register" ||
+    pathname.startsWith("/forgot-password") ||
+    pathname === "/invite" ||
+    pathname.startsWith("/invite/") ||
+    pathname === "/welcome" ||
+    pathname.startsWith("/welcome/") ||
+    pathname.startsWith("/organization-setup") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico"
   );

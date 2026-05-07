@@ -7,6 +7,7 @@ import {
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
+import { userHasAuditorAdditionalRole } from "@/lib/filter-auditor-additional-roles-for-member";
 
 type CapturePayload = {
   templateRef?: string;
@@ -53,8 +54,12 @@ async function resolveMembershipTier(orgId: string, userId: string): Promise<str
   );
 }
 
-/** Support Leadership — draft/submit capture (POST). */
-async function assertSupportUserCanCapture(orgId: string, userId: string): Promise<NextResponse | null> {
+/** Support Leadership — draft/submit capture (POST). Auditors cannot use Support capture (separation of duties). */
+async function assertSupportUserCanCapture(
+  orgId: string,
+  userId: string,
+  connectionString: string
+): Promise<NextResponse | null> {
   const tier = await resolveMembershipTier(orgId, userId);
   if (tier === null) {
     return NextResponse.json({ error: "Organization not found" }, { status: 404 });
@@ -62,6 +67,15 @@ async function assertSupportUserCanCapture(orgId: string, userId: string): Promi
   if (!isSupportLeadershipTier(tier)) {
     return NextResponse.json(
       { error: "Only Support Leadership can save documentary evidence capture records." },
+      { status: 403 }
+    );
+  }
+  if (await userHasAuditorAdditionalRole(connectionString, userId)) {
+    return NextResponse.json(
+      {
+        error:
+          "Users with the Auditor role cannot perform Support Leadership documentary evidence capture.",
+      },
       { status: 403 }
     );
   }
@@ -170,7 +184,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
       return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
     }
 
-    const forbidden = await assertSupportUserCanCapture(context.tenant.orgId, context.user.id);
+    const forbidden = await assertSupportUserCanCapture(
+      context.tenant.orgId,
+      context.user.id,
+      connectionString
+    );
     if (forbidden) return forbidden;
 
     const body = (await req.json().catch(() => ({}))) as {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { step2Schema, Step2Values } from "@/schemas/onboarding/step2Schema";
 
@@ -62,7 +62,7 @@ export default function Step2() {
       }));
 
   const form = useForm<Step2Values>({
-    resolver: zodResolver(step2Schema),
+    resolver: zodResolver(step2Schema) as Resolver<Step2Values>,
     defaultValues: { sites: defaultSites },
   });
 

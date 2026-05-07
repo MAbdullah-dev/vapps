@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
+  canPerformSupportLeadershipCapture,
   canViewDocumentaryEvidenceWorkflow,
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
@@ -122,11 +123,13 @@ export default function DocumentaryEvidenceTemplatesContent() {
   const [meLoaded, setMeLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
+  const [additionalRoleNames, setAdditionalRoleNames] = useState<string[]>([]);
   const [evidenceRows, setEvidenceRows] = useState<EvidenceApiRow[]>([]);
   const [evidenceLoading, setEvidenceLoading] = useState(true);
 
   const canSeeWorkflow = canViewDocumentaryEvidenceWorkflow(leadershipTier);
-  const isSupport = isSupportLeadershipTier(leadershipTier);
+  const isSupportTier = isSupportLeadershipTier(leadershipTier);
+  const canRunSupportCapture = canPerformSupportLeadershipCapture(leadershipTier, additionalRoleNames);
   const isVerifierTier = isTopOrOperationalLeadershipTier(leadershipTier);
 
   useEffect(() => {
@@ -166,6 +169,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
         if (!ignore) {
           setUserId(null);
           setLeadershipTier(undefined);
+          setAdditionalRoleNames([]);
           setMeLoaded(true);
         }
         return;
@@ -176,11 +180,15 @@ export default function DocumentaryEvidenceTemplatesContent() {
         if (!ignore) {
           setUserId(typeof j.userId === "string" ? j.userId : null);
           setLeadershipTier(typeof j.leadershipTier === "string" ? j.leadershipTier : undefined);
+          setAdditionalRoleNames(
+            Array.isArray(j.additionalRoles) ? (j.additionalRoles as string[]).filter((x) => typeof x === "string") : []
+          );
         }
       } catch {
         if (!ignore) {
           setUserId(null);
           setLeadershipTier(undefined);
+          setAdditionalRoleNames([]);
         }
       } finally {
         if (!ignore) setMeLoaded(true);
@@ -437,7 +445,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                           ) : (
                             <>
                               {/* No evidence yet — Support starts capture */}
-                              {!latest && isSupport ? (
+                              {!latest && canRunSupportCapture ? (
                                 <Button
                                   type="button"
                                   size="sm"
@@ -452,7 +460,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                               ) : null}
 
                               {/* Draft — Support can EDIT (continue) the draft */}
-                              {latest && ws === "draft" && isSupport ? (
+                              {latest && ws === "draft" && canRunSupportCapture ? (
                                 <Button type="button" size="sm" className="gap-2 bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
                                   <Link href={continueCaptureUrl}>
                                     <Pencil className="size-4 shrink-0" />
@@ -464,7 +472,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                               {/* Submitted — NO capture/edit buttons. Support can only view (read-only); designated verifier verifies */}
                               {latest && ws === "capture_submitted" ? (
                                 <>
-                                  {isSupport ? (
+                                  {isSupportTier ? (
                                     <Button type="button" size="sm" variant="outline" className="gap-2" asChild>
                                       <Link href={viewCaptureUrl}>
                                         <Eye className="size-4 shrink-0" />
@@ -491,7 +499,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                               {/* Completed — view active record; Support can start a NEW capture */}
                               {latest && ws === "completed" ? (
                                 <>
-                                  {(isSupport || isVerifierTier) && (
+                                  {(isSupportTier || isVerifierTier) && (
                                     <Button type="button" size="sm" variant="outline" className="gap-2" asChild>
                                       <Link href={verifyUrl}>
                                         <Archive className="size-4 shrink-0" />
@@ -499,7 +507,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                       </Link>
                                     </Button>
                                   )}
-                                  {isSupport ? (
+                                  {canRunSupportCapture ? (
                                     <Button
                                       type="button"
                                       size="sm"

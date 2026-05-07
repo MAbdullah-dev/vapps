@@ -3,6 +3,7 @@ import { getRequestContext } from "@/lib/request-context";
 import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { roleToLeadershipTier, roleToSystemRoleDisplay } from "@/lib/roles";
+import { teamMemberAvatarReference } from "@/lib/avatar-public";
 
 /**
  * GET /api/organization/[orgId]/members
@@ -211,7 +212,7 @@ export async function GET(
         isOwner: isOwner,
         status: "Active" as const,
         lastActive: "—",
-        avatar: m.user.image ?? undefined,
+        avatar: teamMemberAvatarReference(m.user.image),
         additionalRoles: userAdditionalRoles[m.user.id] || [],
         // Site and process for every non-owner (every user has one site + one process except Owner)
         ...(sites.length > 0
