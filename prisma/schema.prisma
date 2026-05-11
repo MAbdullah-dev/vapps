@@ -14,6 +14,9 @@ model User {
   emailVerified              DateTime?
   image                      String?
   password                   String?
+  isBlocked                  Boolean                      @default(false)
+  blockedAt                  DateTime?
+  blockReason                String?
   lastActive                 DateTime?                    // Track when user was last active
   phone                      String?
   location                   String?
@@ -31,6 +34,22 @@ model User {
   organizations              UserOrganization[]
   notificationDismissals     UserNotificationDismissal[]
   emailChangeRequests        EmailChangeRequest[]
+  adminActions               AdminActionLog[]             @relation("AdminActor")
+  /** BCP 47 language code from Topbar/language switcher (e.g. en, es). */
+  preferredLocale            String?
+}
+
+model TranslationCache {
+  id          String   @id @default(cuid())
+  sourceHash  String
+  targetLang  String
+  sourceLang  String   @default("en")
+  sourceText  String   @db.Text
+  translated  String   @db.Text
+  createdAt   DateTime @default(now())
+
+  @@unique([sourceHash, targetLang])
+  @@index([sourceHash, targetLang])
 }
 
 model EmailChangeRequest {
@@ -97,12 +116,16 @@ model Organization {
   name        String
   slug        String              @unique
   ownerId     String
+  status      String               @default("active") // active, suspended, blocked
+  statusUpdatedAt DateTime?
+  statusReason String?
   permissions Json?                // Role-based permission matrix: { [key]: { admin, manager, member } }
   createdAt   DateTime             @default(now())
   database    OrgDatabaseInstance?
   owner       User                 @relation("OrganizationOwner", fields: [ownerId], references: [id])
   users       UserOrganization[]
   invitations Invitation[]
+  adminActions AdminActionLog[]    @relation("AdminOrganization")
 }
 
 model UserOrganization {
@@ -156,4 +179,23 @@ model Invitation {
   @@index([status, expiresAt])
   @@index([role])
   @@map("invitations")
+}
+
+model AdminActionLog {
+  id             String        @id @default(uuid())
+  adminUserId    String
+  action         String
+  targetType     String // organization, user
+  targetId       String
+  reason         String?
+  metadata       Json?
+  organizationId String?
+  createdAt      DateTime      @default(now())
+  adminUser      User          @relation("AdminActor", fields: [adminUserId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation("AdminOrganization", fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+  @@index([adminUserId])
+  @@index([organizationId])
 }

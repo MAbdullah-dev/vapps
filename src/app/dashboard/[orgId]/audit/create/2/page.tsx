@@ -7,6 +7,9 @@ import { format } from "date-fns";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { toast } from "sonner";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -200,6 +203,7 @@ export default function CreateAuditStep2Page() {
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const [urlQuery, setUrlQuery] = useState<{ auditPlanId: string | null; programId: string | null }>(() =>
     getQueryFromWindow()
@@ -422,6 +426,7 @@ export default function CreateAuditStep2Page() {
       }
     } catch (e) {
       console.error(e);
+      toast.error(t("Could not load that audit program. Please try again."));
     }
   };
 
@@ -788,6 +793,7 @@ export default function CreateAuditStep2Page() {
       router.push(`/dashboard/${orgId}/audit`);
     } catch (e) {
       console.error(e);
+      toast.error(t("Could not save the audit plan. Please try again."));
     } finally {
       setIsSubmittingPlan(false);
     }
@@ -816,6 +822,7 @@ export default function CreateAuditStep2Page() {
     parentProgramName,
     queryClient,
     router,
+    t,
   ]);
 
   /** Filter auditors by search query for dropdown (only users with Auditor role). */
@@ -861,8 +868,8 @@ export default function CreateAuditStep2Page() {
       {!canEditStep2 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
-            ? "View only — this audit is complete; no edits allowed."
-            : "View only — only the Lead Auditor can edit this step."}
+            ? t("View only — this audit is complete; no edits allowed.")
+            : t("View only — only the Lead Auditor can edit this step.")}
         </div>
       )}
 <div className="rounded-lg bg-white px-5 py-8">
@@ -873,22 +880,21 @@ export default function CreateAuditStep2Page() {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                STEP 2 OF 6: AUDIT PLAN
+                {t(AUDIT_STEP_HERO[2])}
               </h1>
               <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
-                Operational Level
+                {t("Operational Level")}
               </span>
             </div>
             <p className="max-w-2xl text-sm text-gray-500">
-              A detailed plan for a specific audit within the audit program.
-              Defines how, where, and by whom the audit will be conducted.
+              {t("A detailed plan for a specific audit within the audit program. Defines how, where, and by whom the audit will be conducted.")}
             </p>
           </div>
           <Link
             href="#"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
           >
-            Learn More
+            {t("Learn More")}
             <ExternalLink className="h-4 w-4" />
           </Link>
         </div>
@@ -902,14 +908,12 @@ export default function CreateAuditStep2Page() {
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">
-              ISO 19011:2026 Alignment Note
+              {t("ISO 19011:2026 Alignment Note")}
             </h3>
             <p className="mt-1.5 text-sm leading-relaxed text-blue-700">
-              &ldquo;This audit program, aligned with ISO 19011:2026, provides a
-              structured, risk-based framework for establishing, implementing,
-              monitoring, reviewing, and improving audits of management systems
-              and ESG Sustainability expectations, ensuring they are effective,
-              consistent, and objective.&rdquo;
+              {t(
+                "“This audit program, aligned with ISO 19011:2026, provides a structured, risk-based framework for establishing, implementing, monitoring, reviewing, and improving audits of management systems and ESG Sustainability expectations, ensuring they are effective, consistent, and objective.”"
+              )}
             </p>
           </div>
           <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20">
@@ -920,12 +924,12 @@ export default function CreateAuditStep2Page() {
 
       {/* Audit Plan Entry Selection */}
       <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700 mb-3">
-        Audit Plan Entry Selection
+        {t("Audit Plan Entry Selection")}
       </h2>
 
       {isLoading || (!!auditPlanIdFromUrl && planQuery.isFetching && !planQuery.data) ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
-          {auditPlanIdFromUrl && !planQuery.data ? "Loading audit plan…" : "Loading…"}
+          {auditPlanIdFromUrl && !planQuery.data ? t("Loading audit plan…") : t("Loading…")}
         </div>
       ) : (
       <div className="space-y-6 mb-6">
@@ -942,10 +946,12 @@ export default function CreateAuditStep2Page() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <h3 className="text-base font-bold text-gray-900">
-                OPTION A: CONTINUE WITH EXISTING AUDIT PROGRAM
+                {t("OPTION A: CONTINUE WITH EXISTING AUDIT PROGRAM")}
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                System-link this audit plan to an established program. Use the search below to find a program, or continue from Step 1 with a saved program.
+                {t(
+                  "System-link this audit plan to an established program. Use the search below to find a program, or continue from Step 1 with a saved program."
+                )}
               </p>
             </div>
             {selectedPlanOption === "A" && (
@@ -960,7 +966,7 @@ export default function CreateAuditStep2Page() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
                   type="search"
-                  placeholder="Search audit program by name..."
+                  placeholder={t("Search audit program by name...")}
                   className="h-10 rounded-lg border-gray-300 pl-9"
                   value={programSearch}
                   onChange={(e) => setProgramSearch(e.target.value)}
@@ -968,7 +974,7 @@ export default function CreateAuditStep2Page() {
               </div>
               {programSearch.trim() !== "" && filteredProgramsForSearch.length > 0 && (
                 <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-                  <p className="px-3 py-2 text-xs font-medium uppercase text-gray-500 bg-gray-50">Select a program</p>
+                  <p className="px-3 py-2 text-xs font-medium uppercase text-gray-500 bg-gray-50">{t("Select a program")}</p>
                   <ul className="max-h-48 overflow-y-auto">
                     {filteredProgramsForSearch.map((pg) => (
                       <li key={pg.id}>
@@ -986,12 +992,18 @@ export default function CreateAuditStep2Page() {
                 </div>
               )}
               {programSearch.trim() !== "" && programsList.length > 0 && filteredProgramsForSearch.length === 0 && (
-                <p className="text-sm text-gray-500">No programs match &quot;{programSearch}&quot;.</p>
+                <p className="text-sm text-gray-500">
+                  {t("No programs match")} &quot;{programSearch}&quot;.
+                </p>
               )}
               {program && (
                 <div className="rounded-lg border border-green-200 bg-green-50/50 px-4 py-3">
-                  <p className="text-sm font-medium text-green-800">Linked program: {formatProgramDisplay(program as ProgramListItem)}</p>
-                  <p className="text-xs text-green-700 mt-0.5">Objectives, type, criteria, and scope are pre-filled from this program.</p>
+                  <p className="text-sm font-medium text-green-800">
+                    {t("Linked program:")} {formatProgramDisplay(program as ProgramListItem)}
+                  </p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    {t("Objectives, type, criteria, and scope are pre-filled from this program.")}
+                  </p>
                 </div>
               )}
               {program && (
@@ -1003,16 +1015,16 @@ export default function CreateAuditStep2Page() {
                     className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
                     onClick={(e) => { e.stopPropagation(); const key = PROGRAM_PURPOSE_TO_OBJECTIVE[program?.programPurpose ?? ""]; if (key) setObjectivesCheckboxes((prev) => ({ ...prev, [key]: true })); }}
                   >
-                    AUTO-POPULATE: AUDIT OBJECTIVES
+                    {t("AUTO-POPULATE: AUDIT OBJECTIVES")}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const t = PROGRAM_AUDIT_TYPE_TO_PLAN[program?.auditType ?? ""]; if (t) setSelectedAuditType(t); }}
+                    onClick={(e) => { e.stopPropagation(); const planAuditType = PROGRAM_AUDIT_TYPE_TO_PLAN[program?.auditType ?? ""]; if (planAuditType) setSelectedAuditType(planAuditType); }}
                   >
-                    AUTO-POPULATE: AUDIT TYPE
+                    {t("AUTO-POPULATE: AUDIT TYPE")}
                   </Button>
                   <Button
                     type="button"
@@ -1021,7 +1033,7 @@ export default function CreateAuditStep2Page() {
                     className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
                     onClick={(e) => { e.stopPropagation(); const c = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[program?.auditCriteria ?? ""]; if (c) setSelectedCriteria(c); }}
                   >
-                    AUTO-POPULATE: AUDIT CRITERIA
+                    {t("AUTO-POPULATE: AUDIT CRITERIA")}
                   </Button>
                 </div>
               )}
@@ -1096,7 +1108,7 @@ export default function CreateAuditStep2Page() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <h3 className="text-base font-bold text-gray-900">
-                OPTION B: SCHEDULE NEW AUDIT PROGRAM
+                {t("OPTION B: SCHEDULE NEW AUDIT PROGRAM")}
               </h3>
             </div>
             {selectedPlanOption === "C" && (
@@ -1110,13 +1122,12 @@ export default function CreateAuditStep2Page() {
               <Clock className="h-5 w-5 shrink-0 text-gray-500" />
               <div className="min-w-0">
                 <h4 className="text-sm font-bold uppercase tracking-wide text-gray-700">
-                  Draft Status Notice
+                  {t("Draft Status Notice")}
                 </h4>
                 <p className="mt-1.5 text-sm italic text-gray-600">
-                  &ldquo;This proposal is currently in draft form and is subject
-                  to final approval by the lead auditor. Until such approval is
-                  granted, this document remains provisional and should be
-                  considered incomplete.&rdquo;
+                  {t(
+                    "“This proposal is currently in draft form and is subject to final approval by the lead auditor. Until such approval is granted, this document remains provisional and should be considered incomplete.”"
+                  )}
                 </p>
               </div>
             </div>
@@ -1133,7 +1144,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Plan Identification
+            {t("Audit Plan Identification")}
           </h3>
           {identificationOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1146,10 +1157,10 @@ export default function CreateAuditStep2Page() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
-                  Audit Plan Title*
+                  {t("Audit Plan Title*")}
                 </Label>
                 <Input
-                  placeholder="e.g., Quarterly 2026 QMS & ESG Audit Plan"
+                  placeholder={t("e.g., Quarterly 2026 QMS & ESG Audit Plan")}
                   className="h-10 rounded-lg border-gray-300"
                   value={auditPlanTitle}
                   onChange={(e) => setAuditPlanTitle(e.target.value)}
@@ -1157,19 +1168,19 @@ export default function CreateAuditStep2Page() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
-                  Audit #*
+                  {t("Audit #*")}
                 </Label>
                 <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
                   {auditNumber || (nextAuditNumberQuery.data ?? "—")}
                 </div>
-                <p className="text-xs text-gray-500">System-generated serial number (assigned when you submit).</p>
+                <p className="text-xs text-gray-500">{t("System-generated serial number (assigned when you submit).")}</p>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
-                  Parent Program*
+                  {t("Parent Program*")}
                 </Label>
                 <Input
-                  placeholder="Program name or link from Option A"
+                  placeholder={t("Program name or link from Option A")}
                   className="h-10 rounded-lg border-gray-300 bg-gray-50"
                   value={parentProgramName}
                   onChange={(e) => setParentProgramName(e.target.value)}
@@ -1178,16 +1189,16 @@ export default function CreateAuditStep2Page() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
-                  Prepared By* (Lead Auditor)
+                  {t("Prepared By* (Lead Auditor)")}
                 </Label>
                 <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
                   {currentUserName}
                 </div>
-                <p className="text-xs text-gray-500">System: audit creator is the lead auditor.</p>
+                <p className="text-xs text-gray-500">{t("System: audit creator is the lead auditor.")}</p>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
-                  Date Prepared*
+                  {t("Date Prepared*")}
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -1199,7 +1210,7 @@ export default function CreateAuditStep2Page() {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {datePrepared ? format(datePrepared, "MM-dd-yyyy") : "Select date"}
+                      {datePrepared ? format(datePrepared, "MM-dd-yyyy") : t("Select date")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1225,7 +1236,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Plan Objectives
+            {t("Audit Plan Objectives")}
           </h3>
           {objectivesOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1238,20 +1249,18 @@ export default function CreateAuditStep2Page() {
             {/* System Generated - Program Purpose & Objectives (from Step 1) */}
             <div className="rounded-lg border border-green-300 bg-green-50/80 p-4">
               <h4 className="text-sm font-bold uppercase tracking-wide text-green-800">
-                System Generated - Program Purpose & Objectives
+                {t("System Generated - Program Purpose & Objectives")}
               </h4>
               <div className="mt-3 flex gap-3">
                 <Info className="h-5 w-5 shrink-0 text-green-700 mt-0.5" />
                 <p className="text-sm text-gray-700">
-                  Audit objectives define the purpose of each audit cycle. They
-                  may include checking documentation and conformity, evaluating
-                  effectiveness and efficiency, verifying corrective actions,
-                  reviewing clause adequacy, or investigating risks and changes
-                  that impact product or system performance.
+                  {t(
+                    "Audit objectives define the purpose of each audit cycle. They may include checking documentation and conformity, evaluating effectiveness and efficiency, verifying corrective actions, reviewing clause adequacy, or investigating risks and changes that impact product or system performance."
+                  )}
                 </p>
               </div>
               <p className="mt-2 text-xs text-green-700">
-                Selected from Step 1 — PROGRAM PURPOSE & OBJECTIVES (SELECT ONE).
+                {t("Selected from Step 1 — PROGRAM PURPOSE & OBJECTIVES (SELECT ONE).")}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {[
@@ -1274,7 +1283,7 @@ export default function CreateAuditStep2Page() {
                       ) : (
                         <div className="h-5 w-5 shrink-0 rounded border border-gray-300 bg-white" />
                       )}
-                      <span className={cn("text-sm", isSelectedFromStep1 ? "text-gray-900 font-medium" : "text-gray-500")}>{label}</span>
+                      <span className={cn("text-sm", isSelectedFromStep1 ? "text-gray-900 font-medium" : "text-gray-500")}>{t(label)}</span>
                     </div>
                   );
                 })}
@@ -1284,10 +1293,10 @@ export default function CreateAuditStep2Page() {
             {/* Other - Please Elaborate */}
             <div className="space-y-2">
               <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                Other (Please Elaborate A New System Perspective)
+                {t("Other (Please Elaborate A New System Perspective)")}
               </h4>
               <Textarea
-                placeholder="Enter supplemental audit objectives based on organizational context..."
+                placeholder={t("Enter supplemental audit objectives based on organizational context...")}
                 className="min-h-24 rounded-lg border-gray-300"
                 rows={4}
                 value={objectivesOther}
@@ -1306,7 +1315,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Type
+            {t("Audit Type")}
           </h3>
           {auditTypeOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1321,8 +1330,9 @@ export default function CreateAuditStep2Page() {
               <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 flex gap-3">
                 <Info className="h-5 w-5 shrink-0 text-slate-600 mt-0.5" />
                 <p className="text-sm text-gray-700 italic">
-                  Audits assess systems, processes, products, or integrated
-                  combinations, including ESG, for compliance and effectiveness.
+                  {t(
+                    "Audits assess systems, processes, products, or integrated combinations, including ESG, for compliance and effectiveness."
+                  )}
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1348,7 +1358,7 @@ export default function CreateAuditStep2Page() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                          {type.title}
+                          {t(type.title)}
                         </span>
                         {type.badge && (
                           <span
@@ -1358,12 +1368,12 @@ export default function CreateAuditStep2Page() {
                                 : "text-xs font-medium uppercase text-blue-600"
                             }
                           >
-                            {type.badge}
+                            {t(type.badge)}
                           </span>
                         )}
                       </div>
                       <p className="mt-1.5 text-sm text-gray-600">
-                        {type.description}
+                        {t(type.description)}
                       </p>
                     </div>
                   </Button>
@@ -1375,24 +1385,23 @@ export default function CreateAuditStep2Page() {
             <div className="pt-4 border-t border-gray-200 space-y-4">
               <div>
                 <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                  Third-Party Certification Collaboration (TPCC)
+                  {t("Third-Party Certification Collaboration (TPCC)")}
                 </h4>
                 <p className="mt-1 text-sm text-gray-500">
-                  Full digital audit environment for collaboration with
-                  external registrars.
+                  {t("Full digital audit environment for collaboration with external registrars.")}
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                     <User className="h-4 w-4 text-gray-500" />
-                    Search Registered Outsourced Process
+                    {t("Search Registered Outsourced Process")}
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <Input
                       type="search"
-                      placeholder="Name or Email of Registrar/Auditor"
+                      placeholder={t("Name or Email of Registrar/Auditor")}
                       className="h-10 rounded-lg border-gray-300 pl-9"
                       value={tpccRegisteredProcess}
                       onChange={(e) => setTpccRegisteredProcess(e.target.value)}
@@ -1402,13 +1411,13 @@ export default function CreateAuditStep2Page() {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                     <FileText className="h-4 w-4 text-gray-500" />
-                    Search Third-Party Audit Reference
+                    {t("Search Third-Party Audit Reference")}
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <Input
                       type="search"
-                      placeholder="Audit Number / Certificate Reference"
+                      placeholder={t("Audit Number / Certificate Reference")}
                       className="h-10 rounded-lg border-gray-300 pl-9"
                       value={tpccAuditReference}
                       onChange={(e) => setTpccAuditReference(e.target.value)}
@@ -1421,13 +1430,12 @@ export default function CreateAuditStep2Page() {
                   <ShieldCheck className="h-6 w-6 shrink-0 text-red-600" />
                   <div className="min-w-0">
                     <h4 className="text-sm font-bold uppercase tracking-wide text-red-800">
-                      TPCC Critical Restriction
+                      {t("TPCC Critical Restriction")}
                     </h4>
                     <p className="mt-1.5 text-sm text-gray-700">
-                      &ldquo;External resources and third-party auditors have
-                      restricted system access to Step-3 (Findings) and Step-5
-                      (Verification) modules unless explicit guest permissions
-                      are granted.&rdquo;
+                      {t(
+                        "“External resources and third-party auditors have restricted system access to Step-3 (Findings) and Step-5 (Verification) modules unless explicit guest permissions are granted.”"
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1445,7 +1453,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Scope & Boundaries
+            {t("Audit Scope & Boundaries")}
           </h3>
           {scopeOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1458,7 +1466,7 @@ export default function CreateAuditStep2Page() {
             {/* Select Audit Methodology */}
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700 mb-3">
-                Select Audit Methodology
+                {t("Select Audit Methodology")}
               </h4>
               <div className="grid grid-cols-3 gap-4">
                 {[
@@ -1483,7 +1491,7 @@ export default function CreateAuditStep2Page() {
                     )}
                     <Icon className="h-8 w-8 text-gray-600" />
                     <span className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                      {label}
+                      {t(label)}
                     </span>
                   </Button>
                 ))}
@@ -1491,10 +1499,9 @@ export default function CreateAuditStep2Page() {
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
                 <Info className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
                 <p className="text-sm text-gray-700 italic">
-                  ISO Guidance: Scope should define the extent and boundaries of
-                  the audit, such as physical and virtual locations,
-                  organizational units, activities and processes, and the time
-                  period covered.
+                  {t(
+                    "ISO Guidance: Scope should define the extent and boundaries of the audit, such as physical and virtual locations, organizational units, activities and processes, and the time period covered."
+                  )}
                 </p>
               </div>
             </div>
@@ -1537,16 +1544,16 @@ export default function CreateAuditStep2Page() {
            {/* comment for now  site selection */}
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700 mb-3">
-                  Location Details
+                  {t("Location Details")}
                 </h4>
                 {methodology === "on-site" ? (
                   <div className="flex min-h-[200px] w-full flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6">
                     <Building2 className="h-16 w-16 text-gray-300" />
                     <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
-                      Physical Location
+                      {t("Physical Location")}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      Not used for on-site audits
+                      {t("Not used for on-site audits")}
                     </p>
                   </div>
                 ) : (
@@ -1558,10 +1565,10 @@ export default function CreateAuditStep2Page() {
                       >
                         <Building2 className="h-16 w-16 text-gray-300" />
                         <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
-                          Physical Location
+                          {t("Physical Location")}
                         </p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {physicalLocationAddress ? physicalLocationAddress : "Click to add location (map)"}
+                          {physicalLocationAddress ? physicalLocationAddress : t("Click to add location (map)")}
                         </p>
                       </button>
                     </PopoverTrigger>
@@ -1570,10 +1577,10 @@ export default function CreateAuditStep2Page() {
                         <div className="space-y-1.5">
                           <Label className="text-xs font-medium uppercase tracking-wide text-gray-700 flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-green-600" />
-                            Add location
+                            {t("Add location")}
                           </Label>
                           <Input
-                            placeholder="Enter address or place name"
+                            placeholder={t("Enter address or place name")}
                             className="rounded-lg border-gray-300"
                             value={physicalLocationAddress}
                             onChange={(e) => setPhysicalLocationAddress(e.target.value)}
@@ -1581,7 +1588,7 @@ export default function CreateAuditStep2Page() {
                         </div>
                         <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-100 min-h-[220px]">
                           <iframe
-                            title="Location map"
+                            title={t("Location map")}
                             src={`https://www.google.com/maps?q=${encodeURIComponent(physicalLocationAddress || " ")}+&output=embed`}
                             className="w-full h-[220px] border-0"
                             loading="lazy"
@@ -1589,7 +1596,9 @@ export default function CreateAuditStep2Page() {
                           />
                         </div>
                         <p className="text-xs text-gray-500">
-                          Enter an address above to view it on the map. Location will be marked for remote and hybrid audits.
+                          {t(
+                            "Enter an address above to view it on the map. Location will be marked for remote and hybrid audits."
+                          )}
                         </p>
                       </div>
                     </PopoverContent>
@@ -1599,12 +1608,12 @@ export default function CreateAuditStep2Page() {
               {methodology !== "on-site" && (
                 <div className="mt-4 space-y-2">
                   <span className="block text-xs font-medium uppercase text-gray-500">
-                    Chosen location
+                    {t("Chosen location")}
                   </span>
                   {physicalLocationAddress ? (
                     <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-100 min-h-[200px]">
                       <iframe
-                        title="Chosen location map"
+                        title={t("Chosen location map")}
                         src={`https://www.google.com/maps?q=${encodeURIComponent(physicalLocationAddress)}&output=embed`}
                         className="w-full h-[200px] border-0"
                         loading="lazy"
@@ -1616,7 +1625,7 @@ export default function CreateAuditStep2Page() {
                     </div>
                   ) : (
                     <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/50">
-                      <p className="text-sm text-gray-500">No location selected. Click the card above to add a location.</p>
+                      <p className="text-sm text-gray-500">{t("No location selected. Click the card above to add a location.")}</p>
                     </div>
                   )}
                 </div>
@@ -1626,27 +1635,27 @@ export default function CreateAuditStep2Page() {
             {/* Process / Area to be audited */}
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700 mb-3">
-                Process / Area to be Audited
+                {t("Process / Area to be Audited")}
               </h4>
               <div className="flex flex-wrap items-end gap-6">
                 <div className="space-y-1">
                   <span className="block text-xs font-medium uppercase text-gray-500">
-                    Audit Mode (System Generated)
+                    {t("Audit Mode (System Generated)")}
                   </span>
                   <div className="inline-flex items-center gap-2 w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
                     <Check className="h-4 w-4 text-green-600" />
                     <span className="text-sm font-medium uppercase text-gray-800">
                       {methodology === "on-site"
-                        ? "ON-SITE"
+                        ? t("ON-SITE")
                         : methodology === "remote"
-                          ? "REMOTE"
-                          : "HYBRID"}
+                          ? t("REMOTE")
+                          : t("HYBRID")}
                     </span>
                   </div>
                 </div>
                 <div className="space-y-1">
                   <span className="block text-xs font-medium uppercase text-gray-500">
-                    Site (System Generated)
+                    {t("Site (System Generated)")}
                   </span>
                   <div className="inline-flex items-center gap-2 w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
                     <MapPin className="h-4 w-4 text-green-600" />
@@ -1657,7 +1666,7 @@ export default function CreateAuditStep2Page() {
                 </div>
                 <div className="min-w-[220px] flex-1 space-y-1">
                   <span className="block text-xs font-medium uppercase text-gray-500">
-                    Process (System Generated)
+                    {t("Process (System Generated)")}
                   </span>
                   <div className="inline-flex items-center gap-2 w-full min-h-10 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
                     <span className="text-sm font-medium text-gray-800">
@@ -1679,7 +1688,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Plan Calendar
+            {t("Audit Plan Calendar")}
           </h3>
           {calendarOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1694,20 +1703,20 @@ export default function CreateAuditStep2Page() {
                 <TableHeader>
                   <TableRow className="border-gray-200 bg-gray-50/80">
                     <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Field
+                      {t("Field")}
                     </TableHead>
                     <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Requirement / Input
+                      {t("Requirement / Input")}
                     </TableHead>
                     <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Condition & Status
+                      {t("Condition & Status")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow>
                     <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
-                      Planned Date
+                      {t("Planned Date")}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <Popover>
@@ -1720,7 +1729,7 @@ export default function CreateAuditStep2Page() {
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {plannedDate ? format(plannedDate, "MM-dd-yyyy") : "Select date"}
+                            {plannedDate ? format(plannedDate, "MM-dd-yyyy") : t("Select date")}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
@@ -1735,26 +1744,26 @@ export default function CreateAuditStep2Page() {
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">
-                        Required
+                        {t("Required")}
                       </span>
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
-                      Actual Date
+                      {t("Actual Date")}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <div className="h-10 flex items-center rounded-lg border border-gray-200 bg-gray-100 px-3 text-sm text-gray-500 w-full max-w-xs">
-                        — (system generated when audit is conducted)
+                        {t("— (system generated when audit is conducted)")}
                       </div>
                     </TableCell>
                     <TableCell className="px-6 py-4 text-xs text-gray-600">
-                      System Generated (Log)
+                      {t("System Generated (Log)")}
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
-                      Reschedule Audit Plan
+                      {t("Reschedule Audit Plan")}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <div className="flex gap-4">
@@ -1769,7 +1778,7 @@ export default function CreateAuditStep2Page() {
                               : "text-gray-500 hover:text-gray-700"
                           )}
                         >
-                          Yes
+                          {t("Yes")}
                         </Button>
                         <Button
                           type="button"
@@ -1782,21 +1791,21 @@ export default function CreateAuditStep2Page() {
                               : "text-gray-500 hover:text-gray-700"
                           )}
                         >
-                          No
+                          {t("No")}
                         </Button>
                       </div>
                     </TableCell>
                     <TableCell className="px-6 py-4 text-xs text-gray-600">
-                      Conditional Field
+                      {t("Conditional Field")}
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
-                      Lead Auditor Comments
+                      {t("Lead Auditor Comments")}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <Textarea
-                        placeholder="Enter detailed comments regarding scheduling, justification..."
+                        placeholder={t("Enter detailed comments regarding scheduling, justification...")}
                         className="min-h-20 w-full max-w-xl rounded-lg border-gray-300"
                         rows={3}
                         value={leadAuditorComments}
@@ -1804,7 +1813,7 @@ export default function CreateAuditStep2Page() {
                       />
                     </TableCell>
                     <TableCell className="px-6 py-4 text-xs text-gray-600">
-                      Conditional Log
+                      {t("Conditional Log")}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -1813,8 +1822,7 @@ export default function CreateAuditStep2Page() {
             <div className="flex items-center gap-2 rounded-b-lg border-t border-green-200 bg-green-50 px-6 py-3">
               <Lock className="h-5 w-5 shrink-0 text-green-700" />
               <p className="text-sm font-medium uppercase text-green-800">
-                Permission Note: Only the lead auditor can create or reschedule
-                audits.
+                {t("Permission Note: Only the lead auditor can create or reschedule audits.")}
               </p>
             </div>
           </div>
@@ -1829,7 +1837,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Plan Criteria (Select One)
+            {t("Audit Plan Criteria (Select One)")}
           </h3>
           {criteriaOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1842,11 +1850,12 @@ export default function CreateAuditStep2Page() {
             {auditChecklists.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-4">
                 <p className="text-sm text-amber-800">
-                  <span className="font-semibold">No audit checklists yet.</span> Create checklists and add questions in{" "}
+                  <span className="font-semibold">{t("No audit checklists yet.")}</span>{" "}
+                  {t("Create checklists and add questions in")}{" "}
                   <Link href={`/dashboard/${orgId}/settings/audit-checklist`} className="underline font-medium text-amber-900 hover:text-amber-700">
-                    Settings → Audit Checklist
+                    {t("Settings → Audit Checklist")}
                   </Link>
-                  . Criteria selection drives the checklist questions in Step 3.
+                  . {t("Criteria selection drives the checklist questions in Step 3.")}
                 </p>
               </div>
             ) : (
@@ -1887,9 +1896,10 @@ export default function CreateAuditStep2Page() {
                 <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
                   <RefreshCw className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
                   <p className="text-sm text-blue-700">
-                    <span className="font-semibold uppercase">Automation Note:</span>{" "}
-                    Criteria selection influences audit checklist generation and
-                    evidence requirements in Step 3.
+                    <span className="font-semibold uppercase">{t("Automation Note:")}</span>{" "}
+                    {t(
+                      "Criteria selection influences audit checklist generation and evidence requirements in Step 3."
+                    )}
                   </p>
                 </div>
               </>
@@ -1906,7 +1916,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Audit Methods & Risk Considerations
+            {t("Audit Methods & Risk Considerations")}
           </h3>
           {methodsOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -1921,22 +1931,22 @@ export default function CreateAuditStep2Page() {
                 <TableHeader>
                   <TableRow className="border-gray-200 bg-gray-50/80">
                     <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      AMRC#
+                      {t("AMRC#")}
                     </TableHead>
                     <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Review Category
+                      {t("Review Category")}
                     </TableHead>
                     <TableHead className="min-w-[200px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Auditor Comments & Scope Notes
+                      {t("Auditor Comments & Scope Notes")}
                     </TableHead>
                     <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Priority
+                      {t("Priority")}
                     </TableHead>
                     <TableHead className="min-w-[140px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
-                      Action (If Any)
+                      {t("Action (If Any)")}
                     </TableHead>
                     <TableHead className="w-12 px-4 py-3 text-center text-gray-700">
-                      <span className="sr-only">Delete</span>
+                      <span className="sr-only">{t("Delete")}</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1952,7 +1962,7 @@ export default function CreateAuditStep2Page() {
                           onChange={(e) =>
                             updateAmrcRow(row.id, "reviewCategory", e.target.value)
                           }
-                          placeholder="Review category"
+                          placeholder={t("Review category")}
                           className="h-9 min-w-[180px] rounded-lg border-gray-300 text-sm"
                         />
                       </TableCell>
@@ -1962,7 +1972,7 @@ export default function CreateAuditStep2Page() {
                           onChange={(e) =>
                             updateAmrcRow(row.id, "comments", e.target.value)
                           }
-                          placeholder="Auditor perspective..."
+                          placeholder={t("Auditor perspective...")}
                           className="h-9 w-full rounded-lg border-gray-300 text-sm"
                         />
                       </TableCell>
@@ -1977,12 +1987,12 @@ export default function CreateAuditStep2Page() {
                             size="sm"
                             className="h-8 min-w-[90px] rounded-full border-gray-300 bg-gray-200/80 px-3 text-xs font-medium uppercase text-gray-700"
                           >
-                            <SelectValue placeholder="Priority" />
+                            <SelectValue placeholder={t("Priority")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="HIGH">High</SelectItem>
-                            <SelectItem value="MEDIUM">Medium</SelectItem>
-                            <SelectItem value="LOW">Low</SelectItem>
+                            <SelectItem value="HIGH">{t("High")}</SelectItem>
+                            <SelectItem value="MEDIUM">{t("Medium")}</SelectItem>
+                            <SelectItem value="LOW">{t("Low")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -1992,7 +2002,7 @@ export default function CreateAuditStep2Page() {
                           onChange={(e) =>
                             updateAmrcRow(row.id, "action", e.target.value)
                           }
-                          placeholder="Next step..."
+                          placeholder={t("Next step...")}
                           className="h-9 w-full rounded-lg border-gray-300 text-sm"
                         />
                       </TableCell>
@@ -2022,7 +2032,7 @@ export default function CreateAuditStep2Page() {
                 className="bg-green-600 text-white hover:bg-green-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Methodology Row
+                {t("Add Methodology Row")}
               </Button>
             </div>
           </div>
@@ -2037,7 +2047,7 @@ export default function CreateAuditStep2Page() {
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            Auditor Role & Competence
+            {t("Auditor Role & Competence")}
           </h3>
           {auditorRoleOpen ? (
             <ChevronUp className="h-5 w-5 text-gray-600" />
@@ -2054,10 +2064,10 @@ export default function CreateAuditStep2Page() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900 border-b-2 border-green-600 pb-1 w-fit">
-                      Core Auditor Competence
+                      {t("Core Auditor Competence")}
                     </h4>
                     <p className="mt-1 text-xs text-gray-500">
-                      ISO 19011 Annex A Alignment
+                      {t("ISO 19011 Annex A Alignment")}
                     </p>
                   </div>
                   <Users2 className="h-8 w-8 text-gray-300 shrink-0" />
@@ -2073,7 +2083,7 @@ export default function CreateAuditStep2Page() {
                         onCheckedChange={() => toggleCoreCompetence(item)}
                       />
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-800">
-                        {item}
+                        {t(item)}
                       </span>
                     </Label>
                   ))}
@@ -2086,10 +2096,10 @@ export default function CreateAuditStep2Page() {
                   <ShieldCheck className="h-24 w-24 text-green-600" strokeWidth={1.5} />
                 </div>
                 <h4 className="text-sm font-bold uppercase tracking-wide text-green-900 border-b-2 border-green-600 pb-1 w-fit">
-                  Lead Auditor Self-Evaluation
+                  {t("Lead Auditor Self-Evaluation")}
                 </h4>
                 <p className="mt-1 text-xs text-green-800/80">
-                  Leadership & Management Clauses
+                  {t("Leadership & Management Clauses")}
                 </p>
                 <div className="mt-4 space-y-2 relative">
                   {LEAD_AUDITOR_SELF_EVAL_ITEMS.map((item) => (
@@ -2103,7 +2113,7 @@ export default function CreateAuditStep2Page() {
                         className="border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
                       />
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-800">
-                        {item}
+                        {t(item)}
                       </span>
                     </Label>
                   ))}
@@ -2116,10 +2126,12 @@ export default function CreateAuditStep2Page() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                    Auditor Assignment
+                    {t("Auditor Assignment")}
                   </h4>
                   <p className="mt-0.5 text-xs text-gray-500">
-                    Search and select auditors from your organization. Only users with the &quot;Auditor&quot; role appear. UIN auto-fills when an auditor is selected. Use Manual Entry for Technical Expert, Observer, and Trainee names.
+                    {t(
+                      'Search and select auditors from your organization. Only users with the "Auditor" role appear. UIN auto-fills when an auditor is selected. Use Manual Entry for Technical Expert, Observer, and Trainee names.'
+                    )}
                   </p>
                 </div>
                 <Button
@@ -2128,7 +2140,7 @@ export default function CreateAuditStep2Page() {
                   className="bg-green-600 text-white hover:bg-green-700 shrink-0"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Auditor Resource
+                  {t("Add Auditor Resource")}
                 </Button>
               </div>
 
@@ -2157,7 +2169,7 @@ export default function CreateAuditStep2Page() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                        Auditor Resource {index + 1}
+                        {t("Auditor Resource")} {index + 1}
                       </span>
                       {auditorResources.length > 1 && (
                         <Button
@@ -2167,7 +2179,7 @@ export default function CreateAuditStep2Page() {
                           className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                           onClick={() => removeAuditorResource(resource.id)}
                         >
-                          Remove
+                          {t("Remove")}
                         </Button>
                       )}
                     </div>
@@ -2175,7 +2187,7 @@ export default function CreateAuditStep2Page() {
                       <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                           <Search className="h-4 w-4 text-gray-500" />
-                          Auditor Search
+                          {t("Auditor Search")}
                         </Label>
                         {selectedAuditor ? (
                           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
@@ -2189,14 +2201,14 @@ export default function CreateAuditStep2Page() {
                               className="ml-auto text-xs text-blue-600 hover:text-blue-700"
                               onClick={() => clearAuditorForResource(resource.id)}
                             >
-                              Change
+                              {t("Change")}
                             </Button>
                           </div>
                         ) : (
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <Input
-                              placeholder="Name / Email"
+                              placeholder={t("Name / Email")}
                               className="h-10 rounded-lg border-gray-300 pl-9"
                               value={resource.auditorSearch}
                               onChange={(e) =>
@@ -2206,7 +2218,7 @@ export default function CreateAuditStep2Page() {
                             {resource.auditorSearch.trim() !== "" && (
                               <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                                 {dropdownAuditors.length === 0 ? (
-                                  <p className="px-3 py-2 text-sm text-gray-500">No auditors match or all are already assigned.</p>
+                                  <p className="px-3 py-2 text-sm text-gray-500">{t("No auditors match or all are already assigned.")}</p>
                                 ) : (
                                   dropdownAuditors.map((aud) => (
                                     <button
@@ -2229,10 +2241,10 @@ export default function CreateAuditStep2Page() {
                       <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                           <ShieldCheck className="h-4 w-4 text-gray-500" />
-                          Auditor UIN
+                          {t("Auditor UIN")}
                         </Label>
                         <Input
-                          placeholder="Auto-filled when auditor selected"
+                          placeholder={t("Auto-filled when auditor selected")}
                           className="h-10 rounded-lg border-gray-300 bg-gray-50"
                           value={resource.auditorUin}
                           readOnly
@@ -2241,11 +2253,11 @@ export default function CreateAuditStep2Page() {
                       <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
                           <User className="h-4 w-4 text-gray-500" />
-                          Role Assignment
+                          {t("Role Assignment")}
                         </Label>
                         <Input
                           className="h-10 rounded-lg border-gray-300 bg-gray-50"
-                          value="Auditor"
+                          value={t("Auditor")}
                           readOnly
                         />
                       </div>
@@ -2253,15 +2265,15 @@ export default function CreateAuditStep2Page() {
 
                     <div className="pt-3 border-t border-gray-100">
                       <h5 className="text-xs font-bold uppercase tracking-wide text-green-700 mb-3">
-                        Manual Entry
+                        {t("Manual Entry")}
                       </h5>
                       <div className="grid gap-4 sm:grid-cols-3">
                         <div className="space-y-1">
                           <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
-                            Technical Expert Name
+                            {t("Technical Expert Name")}
                           </Label>
                           <Input
-                            placeholder="Name"
+                            placeholder={t("Name")}
                             className="h-10 rounded-lg border-gray-300"
                             value={resource.technicalExpert}
                             onChange={(e) =>
@@ -2271,10 +2283,10 @@ export default function CreateAuditStep2Page() {
                         </div>
                         <div className="space-y-1">
                           <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
-                            Observer Name
+                            {t("Observer Name")}
                           </Label>
                           <Input
-                            placeholder="Name"
+                            placeholder={t("Name")}
                             className="h-10 rounded-lg border-gray-300"
                             value={resource.observer}
                             onChange={(e) =>
@@ -2284,10 +2296,10 @@ export default function CreateAuditStep2Page() {
                         </div>
                         <div className="space-y-1">
                           <Label className="block text-xs font-medium uppercase tracking-wide text-gray-700">
-                            Trainee Name
+                            {t("Trainee Name")}
                           </Label>
                           <Input
-                            placeholder="Name"
+                            placeholder={t("Name")}
                             className="h-10 rounded-lg border-gray-300"
                             value={resource.trainee}
                             onChange={(e) =>
@@ -2312,31 +2324,33 @@ export default function CreateAuditStep2Page() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                Audit Plan Date
+                {t("Audit Plan Date")}
               </p>
               <p className="mt-1 text-xl font-bold text-white">{datePrepared ? format(datePrepared, "MM-dd-yyyy") : "—"}</p>
-              <p className="mt-0.5 text-xs text-gray-400">Date Prepared</p>
+              <p className="mt-0.5 text-xs text-gray-400">{t("Date Prepared")}</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                Planned Date
+                {t("Planned Date")}
               </p>
               <p className="mt-1 text-xl font-bold text-white">{plannedDate ? format(plannedDate, "MM-dd-yyyy") : "—"}</p>
-              <p className="mt-0.5 text-xs text-gray-400">User-selected</p>
+              <p className="mt-0.5 text-xs text-gray-400">{t("User-selected")}</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                Lead Auditor
+                {t("Lead Auditor")}
               </p>
               <p className="mt-1 text-xl font-bold text-white">{currentUserName}</p>
-              <p className="mt-0.5 text-xs text-gray-400">Audit creator</p>
+              <p className="mt-0.5 text-xs text-gray-400">{t("Audit creator")}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-center justify-center rounded-lg border border-gray-600 bg-gray-800/80 px-4 py-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
                   <Check className="h-4 w-4 text-green-600" />
                 </div>
-                <p className="mt-2 text-xs text-gray-300">{effectiveProgramId ? `Program: ${effectiveProgramId.slice(0, 8)}…` : "—"}</p>
+                <p className="mt-2 text-xs text-gray-300">
+                  {effectiveProgramId ? `${t("Program")}: ${effectiveProgramId.slice(0, 8)}…` : "—"}
+                </p>
               </div>
             </div>
           </div>
@@ -2350,7 +2364,7 @@ export default function CreateAuditStep2Page() {
               onClick={() => submitAuditPlan(true)}
             >
               <FileText className="h-4 w-4 mr-2" />
-              {isSubmittingPlan ? "Saving…" : "Save Audit Plan (Draft)"}
+              {isSubmittingPlan ? t("Saving…") : t("Save Audit Plan (Draft)")}
             </Button>
             <Button
               type="button"
@@ -2359,7 +2373,7 @@ export default function CreateAuditStep2Page() {
               onClick={() => submitAuditPlan(false)}
             >
               <FileCheck className="h-4 w-4 mr-2" />
-              {isSubmittingPlan ? "Submitting…" : "Generate Audit Plan"}
+              {isSubmittingPlan ? t("Submitting…") : t("Generate Audit Plan")}
             </Button>
           </div>
         </div>

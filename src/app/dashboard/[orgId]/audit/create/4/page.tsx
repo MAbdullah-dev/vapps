@@ -18,11 +18,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 export default function CreateAuditStep4Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
   const criteria = searchParams.get("criteria") ?? "";
@@ -307,8 +310,8 @@ export default function CreateAuditStep4Page() {
       {!canEditStep4 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
           {planStatus === "closed"
-            ? "View only — this audit is complete; no edits allowed."
-            : "View only — only the Auditee can edit this step."}
+            ? t("View only — this audit is complete; no edits allowed.")
+            : t("View only — only the Auditee can edit this step.")}
         </div>
       )}
       {planStatus === "verification_ineffective" && (
@@ -341,12 +344,15 @@ export default function CreateAuditStep4Page() {
       )}
       <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wide text-red-600">
-          TO BE RESPONDED BY THE AUDITEE
-        </p>
-        <h1 className="mt-2 text-xl font-bold uppercase tracking-wide text-foreground">
-          SYSTEMIC CORRECTIVE ACTION
+        <h1 className="text-xl font-bold uppercase tracking-wide text-foreground">
+          {t(AUDIT_STEP_HERO[4])}
         </h1>
+        <p className="mt-3 text-xs font-bold uppercase tracking-wide text-red-600">
+          {t("TO BE RESPONDED BY THE AUDITEE")}
+        </p>
+        <h2 className="mt-2 text-xl font-bold uppercase tracking-wide text-foreground">
+          {t("SYSTEMIC CORRECTIVE ACTION")}
+        </h2>
 
         {/* Blue info banner */}
         <div className="mt-6 flex items-center gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">

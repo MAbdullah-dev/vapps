@@ -141,12 +141,20 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.sub },
-            select: { name: true, email: true, image: true },
+            select: {
+              name: true,
+              email: true,
+              image: true,
+              isBlocked: true,
+              preferredLocale: true,
+            },
           });
           if (dbUser) {
             session.user.name = dbUser.name ?? session.user.name ?? null;
             session.user.email = dbUser.email ?? session.user.email ?? null;
             session.user.image = dbUser.image ?? session.user.image ?? null;
+            session.user.isBlocked = dbUser.isBlocked;
+            session.user.preferredLocale = dbUser.preferredLocale ?? null;
           }
         } catch {
           // Keep existing session values if DB read fails

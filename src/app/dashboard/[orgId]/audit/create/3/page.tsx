@@ -65,6 +65,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 type ComplianceStatus =
   | "compliant"
@@ -195,6 +197,7 @@ export default function CreateAuditStep3Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programIdFromUrl = searchParams.get("programId") ?? null;
   const criteriaFromUrl = searchParams.get("criteria") ?? null;
@@ -972,10 +975,10 @@ export default function CreateAuditStep3Page() {
         {/* Step 3 Header */}
         <div className="border-b border-gray-200 mx-8 my-4 ">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-green-600">
-            TO BE COMPLETED BY THE AUDITOR
+            {t("TO BE COMPLETED BY THE AUDITOR")}
           </p>
           <h1 className="text-2xl font-bold uppercase text-gray-900">
-            STEP 3 OF 6: AUDIT FINDINGS
+            {t(AUDIT_STEP_HERO[3])}
           </h1>
         </div>
         {/* Audit Checklist — questions from Step 2 criteria (ISO 9001, ISO 14001, etc.) */}

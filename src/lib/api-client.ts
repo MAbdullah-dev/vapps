@@ -113,6 +113,109 @@ class ApiClient {
     );
   }
 
+  getAdminOrganizations() {
+    return this.get<{
+      organizations: Array<{
+        id: string;
+        slug: string;
+        name: string;
+        status: string;
+        statusReason: string | null;
+        createdAt: string;
+        ownerName: string | null;
+        ownerEmail: string | null;
+        memberCount: number;
+        pendingInvites: number;
+      }>;
+    }>("/admin/organizations");
+  }
+
+  getAdminOrganizationUsers(orgId: string, search?: string) {
+    return this.get<{
+      users: Array<{
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        leadershipTier: string | null;
+        jobTitle: string | null;
+        lastActive: string | null;
+        isBlocked: boolean;
+        blockedAt: string | null;
+        blockReason: string | null;
+        createdAt: string;
+      }>;
+    }>(`/admin/organizations/${orgId}/users`, search ? { search } : undefined);
+  }
+
+  getAdminStats() {
+    return this.get<{
+      totalOrganizations: number;
+      activeOrganizations: number;
+      suspendedOrganizations: number;
+      blockedOrganizations: number;
+      totalUsers: number;
+      blockedUsers: number;
+    }>("/admin/stats");
+  }
+
+  getAdminUsers(search?: string) {
+    return this.get<{
+      users: Array<{
+        id: string;
+        name: string;
+        email: string;
+        isBlocked: boolean;
+        blockedAt: string | null;
+        blockReason: string | null;
+        lastActive: string | null;
+        createdAt: string;
+        organizations: Array<{
+          organizationId: string;
+          organizationName: string;
+          organizationStatus: string;
+          role: string;
+        }>;
+      }>;
+    }>("/admin/users", search ? { search } : undefined);
+  }
+
+  updateAdminOrganizationStatus(orgId: string, status: "active" | "suspended" | "blocked", reason?: string) {
+    return this.patch<{ organization: { id: string; name: string; status: string; statusReason: string | null } }>(
+      `/admin/organizations/${orgId}/status`,
+      { status, reason }
+    );
+  }
+
+  updateAdminUserStatus(userId: string, isBlocked: boolean, reason?: string) {
+    return this.patch<{
+      user: {
+        id: string;
+        name: string | null;
+        email: string | null;
+        isBlocked: boolean;
+        blockedAt: string | null;
+        blockReason: string | null;
+      };
+    }>(`/admin/users/${userId}/status`, { isBlocked, reason });
+  }
+
+  getAdminAuditLogs() {
+    return this.get<{
+      logs: Array<{
+        id: string;
+        action: string;
+        targetType: string;
+        targetId: string;
+        reason: string | null;
+        metadata?: Record<string, unknown> | null;
+        createdAt: string;
+        adminUser: { id: string; name: string | null; email: string | null };
+        organization?: { id: string; name: string } | null;
+      }>;
+    }>("/admin/audit-logs");
+  }
+
   async login(credentials: { email: string; password: string }) {
     const { signIn } = await import("next-auth/react");
 
@@ -1059,6 +1162,7 @@ class ApiClient {
       reportsTo: string | null;
       joinDate: string | null;
       createdAt: string;
+      preferredLocale: string | null;
     }>("/user/profile");
   }
 
@@ -1076,6 +1180,7 @@ class ApiClient {
     employeeId?: string;
     reportsTo?: string;
     joinDate?: string | null;
+    preferredLocale?: string | null;
   }) {
     return this.patch<{
       id: string;
@@ -1091,6 +1196,7 @@ class ApiClient {
       reportsTo: string | null;
       joinDate: string | null;
       createdAt: string;
+      preferredLocale: string | null;
     }>("/user/profile", data);
   }
 

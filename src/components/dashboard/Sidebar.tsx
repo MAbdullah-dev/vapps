@@ -38,6 +38,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { apiClient } from "@/lib/api-client";
 import { getDashboardPath } from "@/lib/subdomain";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 interface Site {
   id: string;
@@ -48,6 +49,7 @@ interface Site {
 }
 
 export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }) {
+  const { t } = useTranslate();
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [processOpen, setProcessOpen] = useState(true);
@@ -173,13 +175,13 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
 
     // Validate required fields
     if (!siteName || siteName.length === 0) {
-      alert("Site name is required");
+      alert(t("Site name is required"));
       setIsCreatingSite(false);
       return;
     }
 
     if (!location || location.length === 0) {
-      alert("Location is required");
+      alert(t("Location is required"));
       setIsCreatingSite(false);
       return;
     }
@@ -209,7 +211,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
       queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
     } catch (error: any) {
       console.error("Error creating site:", error);
-      const errorMessage = error.response?.data?.error || error.message || "Failed to create site";
+      const errorMessage = error.response?.data?.error || error.message || t("Failed to create site");
       alert(errorMessage);
     } finally {
       setIsCreatingSite(false);
@@ -220,14 +222,14 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-[90vh] border-r border-border">
 
       <div className="border-b pb-3 p-5">
-        <BrandLogo className="mb-3" alt="Vie" width={95} height={40} />
+        <BrandLogo className="mb-3" alt={t("Vie")} width={95} height={40} />
 
         <div className="relative">
           {isLoading ? (
             <div className="flex gap-2 items-center p-3 border border-border rounded-[12px]">
               <Building2 size={18} />
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-muted-foreground">Loading...</p>
+                <p className="text-xs text-muted-foreground">{t("Loading...")}</p>
               </div>
             </div>
           ) : (
@@ -238,7 +240,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               >
                 <Building2 size={18} />
                 <div className="flex flex-col gap-1.5">
-                  <h3 className="text-xs text-foreground">{selectedSite?.location || organization?.name || "No site selected"}</h3>
+                  <h3 className="text-xs text-foreground">{selectedSite?.location || organization?.name || t("No site selected")}</h3>
                   <p className="text-xs text-muted-foreground">{selectedSite?.name || organization?.name || ""}</p>
              
                 </div>
@@ -250,7 +252,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                   <div className="py-2">
                     {sites.length === 0 ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground text-center">
-                        No sites available
+                        {t("No sites available")}
                       </div>
                     ) : (
                       sites.map((site) => (
@@ -277,52 +279,52 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
                             className="bg-muted text-foreground text-xs p-3 w-full rounded-none rounded-b-[12px] justify-start"
                           >
                             <Plus size={18} />
-                            Add New Site
+                            {t("Add New Site")}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
                           <form onSubmit={handleCreateSite}>
                             <DialogHeader>
-                              <DialogTitle>Add New Site</DialogTitle>
+                              <DialogTitle>{t("Add New Site")}</DialogTitle>
                               <DialogDescription>
-                                Create a new site within your organization.
+                                {t("Create a new site within your organization.")}
                               </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                               <div className="grid gap-3">
-                                <Label htmlFor="site-name">Site Name *</Label>
+                                <Label htmlFor="site-name">{t("Site Name *")}</Label>
                                 <Input
                                   id="site-name"
                                   name="siteName"
-                                  placeholder="e.g., Dubai Office"
+                                  placeholder={t("e.g., Dubai Office")}
                                   required
                                   disabled={isCreatingSite}
                                 />
                               </div>
                               <div className="grid gap-3">
-                                <Label htmlFor="location">Location *</Label>
+                                <Label htmlFor="location">{t("Location *")}</Label>
                                 <Input
                                   id="location"
                                   name="location"
-                                  placeholder="e.g., Dubai, UAE"
+                                  placeholder={t("e.g., Dubai, UAE")}
                                   required
                                   disabled={isCreatingSite}
                                 />
                               </div>
                               <div className="grid gap-3">
                                 <p className="text-xs text-muted-foreground">
-                                  Site code will be auto-generated (S001, S002, etc.)
+                                  {t("Site code will be auto-generated (S001, S002, etc.)")}
                                 </p>
                               </div>
                             </div>
                             <DialogFooter>
                               <DialogClose asChild>
                                 <Button type="button" variant="outline" disabled={isCreatingSite}>
-                                  Cancel
+                                  {t("Cancel")}
                                 </Button>
                               </DialogClose>
                               <Button type="submit" disabled={isCreatingSite}>
-                                {isCreatingSite ? "Creating..." : "Create Site"}
+                                {isCreatingSite ? t("Creating...") : t("Create Site")}
                               </Button>
                             </DialogFooter>
                           </form>
@@ -340,7 +342,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
       <nav className="flex-1 p-5 space-y-1">
         <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b border-border pb-5 mb-2 ${pathname === "/" || pathname.includes(`/${slug}`) ? "text-foreground font-medium" : "text-muted-foreground"}`} >
           <House size={18} />
-          Dashboard
+          {t("Dashboard")}
         </Link>
 
         <div
@@ -355,7 +357,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     `}
           >
             <FolderKanban size={18} />
-            Processes
+            {t("Processes")}
           </Link>
 
           <button onClick={() => setProcessOpen((prev) => !prev)}>
@@ -392,7 +394,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               })
             ) : (
               <div className="px-3 py-2 text-sm text-muted-foreground">
-                {selectedSite ? "No processes available" : "Select a site to view processes"}
+                {selectedSite ? t("No processes available") : t("Select a site to view processes")}
               </div>
             )}
           </CollapsibleContent>
@@ -408,7 +410,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             `}
           >
             <ClipboardList size={18} />
-            Audit
+            {t("Audit")}
           </Link>
         </div>
         {/* Teams tab removed (replaced with Documents). */}
@@ -440,7 +442,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               `}
             >
               <FileText size={18} />
-              Documents
+              {t("Documents")}
             </Link>
           </div>
         ) : null}
@@ -456,7 +458,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             `}
           >
             <Bug size={18} />
-            Issues
+            {t("Issues")}
           </Link>
         </div>
       </nav>
@@ -470,21 +472,21 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             }`}
         >
           <Settings size={18} />
-          Settings
+          {t("Settings")}
         </Link>
 
         <div className="flex py-3 items-center">
 
           <Avatar className="mr-2">
-            <AvatarImage src="https://github.com/shadcn.png" alt="Company Image" />
+            <AvatarImage src="https://github.com/shadcn.png" alt={t("Company Image")} />
             <AvatarFallback>SS</AvatarFallback>
           </Avatar>
           <div className="description">
-            <h3 className="text-sm text-foreground">{organization?.name || "Organization"}</h3>
+            <h3 className="text-sm text-foreground">{organization?.name || t("Organization")}</h3>
        
-            <p className="text-xs">Free</p>
+            <p className="text-xs">{t("Free")}</p>
           </div>
-          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto">Upgrade</Link>
+          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto">{t("Upgrade")}</Link>
         </div>
       </div>
     </aside>

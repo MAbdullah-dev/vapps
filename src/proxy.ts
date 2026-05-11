@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 /** Subdomains that should NOT be rewritten (main app: login, org list). */
-const RESERVED_SUBDOMAINS = new Set(["app", "www", "localhost"]);
+const RESERVED_SUBDOMAINS = new Set(["app", "admin", "www", "localhost"]);
 
 /** Session cookie name – must match authOptions.cookies.sessionToken.name in auth.ts */
 const SESSION_COOKIE_NAME =

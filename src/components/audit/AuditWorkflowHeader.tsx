@@ -14,14 +14,16 @@ import {
   Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_SHORT_LABEL } from "@/lib/audit-step-screen-titles";
 
 const STEPS = [
-  { step: 1, label: "Managing Audit Program", icon: FileText },
-  { step: 2, label: "Audit Plan", icon: Calendar },
-  { step: 3, label: "Audit Findings", icon: AlertTriangle },
-  { step: 4, label: "Corrective Action", icon: CheckSquare },
-  { step: 5, label: "Verification", icon: ClipboardList },
-  { step: 6, label: "Closure", icon: CheckCircle },
+  { step: 1, label: AUDIT_STEP_SHORT_LABEL[1], icon: FileText },
+  { step: 2, label: AUDIT_STEP_SHORT_LABEL[2], icon: Calendar },
+  { step: 3, label: AUDIT_STEP_SHORT_LABEL[3], icon: AlertTriangle },
+  { step: 4, label: AUDIT_STEP_SHORT_LABEL[4], icon: CheckSquare },
+  { step: 5, label: AUDIT_STEP_SHORT_LABEL[5], icon: ClipboardList },
+  { step: 6, label: AUDIT_STEP_SHORT_LABEL[6], icon: CheckCircle },
 ] as const;
 
 /** All steps [1,2,3,4,5,6] are accessible (view); edit only in own tab by role. */
@@ -47,6 +49,7 @@ export default function AuditWorkflowHeader({
   saveDraftHref = "#",
   exitHref = "../..",
 }: AuditWorkflowHeaderProps) {
+  const { t } = useTranslate();
   const getStepHref = (step: number) => {
     if (!orgId) return "#";
     const base = getDashboardPath(orgId, `audit/create/${step}`);
@@ -59,19 +62,19 @@ export default function AuditWorkflowHeader({
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <h2 className="text-lg font-bold text-foreground">
-            Audit Workflow Management
+            {t("Audit Workflow Management")}
           </h2>
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href={saveDraftHref} className="flex items-center gap-2">
                 <Save className="h-4 w-4" />
-                Save Draft
+                {t("Save Draft")}
               </Link>
             </Button>
 
             <Button variant="outline" size="sm" asChild>
-              <Link href={exitHref}>Exit to Dashboard</Link>
+              <Link href={exitHref}>{t("Exit to Dashboard")}</Link>
             </Button>
           </div>
         </div>
@@ -143,13 +146,13 @@ export default function AuditWorkflowHeader({
                 <div className={iconCircleClasses}>
                   <IconComponent className={iconColorClasses} strokeWidth={2.5} />
                 </div>
-                <div className={textClasses}>{label}</div>
+                <div className={textClasses}>{t(label)}</div>
               </>
             );
 
             if (!isAccessible || isLocked) {
               return (
-                <div key={step} className={tabClasses} title={isLocked ? "Complete previous steps first" : undefined}>
+                <div key={step} className={tabClasses} title={isLocked ? t("Complete previous steps first") : undefined}>
                   {tabContent}
                 </div>
               );

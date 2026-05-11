@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { ArrowRight, ArrowUpRight, CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +43,8 @@ import {
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import { toast } from "sonner";
 
 interface OrganizationInfo {
@@ -71,6 +73,7 @@ export default function CreateAuditStep1Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const [urlProgramId, setUrlProgramId] = useState<string | null>(() => getProgramIdFromWindow());
   const programIdFromUrl = searchParams.get("programId") ?? urlProgramId;
@@ -377,6 +380,75 @@ export default function CreateAuditStep1Page() {
     return locked;
   }, [planStatus, currentUserRole]);
 
+  const auditScopeOptions = useMemo(
+    () =>
+      [
+        { id: "management", label: "Management Systems" },
+        { id: "esg", label: "ESG Sustainability" },
+      ] as const,
+    []
+  );
+  const auditTypeOptions = useMemo(
+    () =>
+      [
+        {
+          id: "fpa",
+          label: "First-Party (FPA)",
+          sub: "Audits conducted by, or on behalf of, the organization itself for management review and other internal purposes.",
+        },
+        {
+          id: "spa",
+          label: "Second-Party (SPA)",
+          sub: "Audits conducted by parties having an interest in the organization, such as customers, or by other persons on their behalf.",
+        },
+        {
+          id: "tpa",
+          label: "Third-Party (TPA)",
+          sub: "Audits conducted by independent auditing organizations, such as those providing certification of conformity or regulatory bodies.",
+        },
+      ] as const,
+    []
+  );
+  const programPurposeOptions = useMemo(
+    () =>
+      [
+        {
+          id: "conformity",
+          title: "Management system conformity with standards",
+          sub: "ISO 9001, 14001, 45001",
+        },
+        {
+          id: "effectiveness",
+          title: "Evaluation of system effectiveness",
+          sub: "Process performance and outcomes",
+        },
+        {
+          id: "esg",
+          title: "Assessment of ESG practices & disclosures",
+          sub: "GRI, IFRS S1/S2 Alignment",
+        },
+        {
+          id: "risk",
+          title: "Risk-based decision making support",
+          sub: "Identifying vulnerabilities in system",
+        },
+      ] as const,
+    []
+  );
+  const auditCriteriaOptions = useMemo(
+    () =>
+      [
+        { id: "iso", label: "ISO standards" },
+        { id: "esg", label: "ESG frameworks" },
+        { id: "legal", label: "Legal & regulatory" },
+      ] as const,
+    []
+  );
+  const kpiSummaryCardLabels = useMemo(
+    () => ["AUDIT COMPLETION RATE", "FINDING RESOLUTION TIME", "STAKEHOLDER SATISFACTION"] as const,
+    []
+  );
+
   // User must have Auditor role to create an audit; creator is always the Lead Auditor
   if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
     return (
@@ -384,10 +456,10 @@ export default function CreateAuditStep1Page() {
         <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} exitHref="../.." />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
           <p className="text-lg font-medium text-amber-800">
-            You must have the <strong>Auditor</strong> additional role to create an audit.
+            {t("You must have the Auditor additional role to create an audit.")}
           </p>
           <p className="mt-2 text-sm text-amber-700">
-            Ask your organization admin to assign you the Auditor role in Teams &amp; Roles (additional roles), then try again.
+            {t("Ask your organization admin to assign you the Auditor role in Teams & Roles (additional roles), then try again.")}
           </p>
         </div>
       </div>
@@ -400,31 +472,34 @@ export default function CreateAuditStep1Page() {
       {!canEditStep1 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
-            ? "View only — this audit is complete; no edits allowed."
-            : "View only — only the Lead Auditor can edit this step."}
+            ? t("View only — this audit is complete; no edits allowed.")
+            : t("View only — only the Lead Auditor can edit this step.")}
         </div>
       )}
       <div className="rounded-lg border border-border bg-card shadow-sm">
         <div className={cn(!canEditStep1 && "pointer-events-none select-none opacity-90")}>
         {/* Organization Context Section */}
         <div className="p-8">
+          <h1 className="mb-4 text-2xl font-bold tracking-tight text-foreground">
+            {t(AUDIT_STEP_HERO[1])}
+          </h1>
           {/* Header */}
           <p className="mb-4 text-xs font-medium uppercase tracking-wide text-green-600">
-            TO BE COMPLETED BY THE AUDIT PROGRAM LEADER/LEAD AUDITOR
+            {t("TO BE COMPLETED BY THE AUDIT PROGRAM LEADER/LEAD AUDITOR")}
           </p>
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-8 w-1 rounded-full bg-green-500" />
-              <h2 className="text-xl font-bold text-foreground">ORGANIZATION CONTEXT</h2>
+              <h2 className="text-xl font-bold text-foreground">{t("ORGANIZATION CONTEXT")}</h2>
               <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-700">
-                STRATEGIC LEVEL
+                {t("STRATEGIC LEVEL")}
               </span>
             </div>
             <Link
               href="#"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
             >
-              Learn More
+              {t("Learn More")}
               <ExternalLink className="h-4 w-4" />
             </Link>
           </div>
@@ -439,15 +514,15 @@ export default function CreateAuditStep1Page() {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  ORGANIZATION NAME
+                  {t("ORGANIZATION NAME")}
                 </Label>
                 <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
-                  {orgInfo?.name || "—"}
+                  {orgInfo?.name || t("—")}
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  ORGANIZATION UIN
+                  {t("ORGANIZATION UIN")}
                 </Label>
                 <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
                   {formatUIN(orgInfo?.registrationId)}
@@ -455,18 +530,18 @@ export default function CreateAuditStep1Page() {
               </div>
               <div className="space-y-2">
                 <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  NAICS INDUSTRY CODE
+                  {t("NAICS INDUSTRY CODE")}
                 </Label>
                 <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
-                  {orgInfo?.industry || "—"}
+                  {orgInfo?.industry || t("—")}
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  SUB-INDUSTRY
+                  {t("SUB-INDUSTRY")}
                 </Label>
                 <div className="rounded-lg border border-border bg-muted px-4 py-3 text-foreground">
-                  {orgInfo?.subIndustry || orgInfo?.industry || "—"}
+                  {orgInfo?.subIndustry || orgInfo?.industry || t("—")}
                 </div>
               </div>
             </div>
@@ -474,11 +549,11 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* Period Covered Section */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-foreground">PERIOD COVERED</h2>
+          <h2 className="mb-6 text-xl font-bold text-foreground">{t("PERIOD COVERED")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                START PERIOD (MM-DD-YYYY)
+                {t("START PERIOD (MM-DD-YYYY)")}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -490,7 +565,7 @@ export default function CreateAuditStep1Page() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startPeriod ? format(startPeriod, "MM-dd-yyyy") : "Select date"}
+                    {startPeriod ? format(startPeriod, "MM-dd-yyyy") : t("Select date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -505,7 +580,7 @@ export default function CreateAuditStep1Page() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                END PERIOD (MM-DD-YYYY)
+                {t("END PERIOD (MM-DD-YYYY)")}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -517,7 +592,7 @@ export default function CreateAuditStep1Page() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endPeriod ? format(endPeriod, "MM-dd-yyyy") : "Select date"}
+                    {endPeriod ? format(endPeriod, "MM-dd-yyyy") : t("Select date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -532,16 +607,16 @@ export default function CreateAuditStep1Page() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                SYSTEM CREATION DATE
+                {t("SYSTEM CREATION DATE")}
               </Label>
               <div className="flex items-center rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-                Set automatically when the program is saved (not editable)
+                {t("Set automatically when the program is saved (not editable)")}
               </div>
             </div>
           </div>
           <div className="mt-6 rounded-lg border border-border bg-muted px-4 py-3">
             <p className="text-sm italic text-muted-foreground">
-              This document was automatically generated by a computer system for Vie Enterprise compliance tracking. Manual alterations outside the system environment invalidate the digital signature and traceability chain.
+              {t("This document was automatically generated by a computer system for Vie Enterprise compliance tracking. Manual alterations outside the system environment invalidate the digital signature and traceability chain.")}
             </p>
           </div>
         </div>
@@ -549,20 +624,17 @@ export default function CreateAuditStep1Page() {
         {/* Context, Scope, Type & Criteria */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
-            CONTEXT, SCOPE, TYPE & CRITERIA
+            {t("CONTEXT, SCOPE, TYPE & CRITERIA")}
           </h2>
           {/* SCOPE OF AUDIT PROGRAM + ORGANIZATIONAL SITES - Half / Half */}
           <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Left half: Scope of Audit Program */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-                SCOPE OF AUDIT PROGRAM (SELECT ONE)
+                {t("SCOPE OF AUDIT PROGRAM (SELECT ONE)")}
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                {[
-                  { id: "management", label: "Management Systems" },
-                  { id: "esg", label: "ESG Sustainability" },
-                ].map((opt) => (
+                {auditScopeOptions.map((opt) => (
                   <Label
                     key={opt.id}
                     className={cn(
@@ -579,7 +651,7 @@ export default function CreateAuditStep1Page() {
                       }
                       className="shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                     />
-                    <span className="font-medium text-foreground">{opt.label}</span>
+                    <span className="font-medium text-foreground">{t(opt.label)}</span>
                   </Label>
                 ))}
               </div>
@@ -587,11 +659,11 @@ export default function CreateAuditStep1Page() {
             {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-                ORGANIZATIONAL SITES / UNITS (SELECT ONE)
+                {t("ORGANIZATIONAL SITES / UNITS (SELECT ONE)")}
               </h3>
               {sites.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No sites for this organization. Add sites in Settings.
+                  {t("No sites for this organization. Add sites in Settings.")}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -620,26 +692,10 @@ export default function CreateAuditStep1Page() {
           {/* Types of Audits */}
           <div>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-              TYPES OF AUDITS (SELECT ONE)
+              {t("TYPES OF AUDITS (SELECT ONE)")}
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {[
-                {
-                  id: "fpa",
-                  label: "First-Party (FPA)",
-                  sub: "Audits conducted by, or on behalf of, the organization itself for management review and other internal purposes.",
-                },
-                {
-                  id: "spa",
-                  label: "Second-Party (SPA)",
-                  sub: "Audits conducted by parties having an interest in the organization, such as customers, or by other persons on their behalf.",
-                },
-                {
-                  id: "tpa",
-                  label: "Third-Party (TPA)",
-                  sub: "Audits conducted by independent auditing organizations, such as those providing certification of conformity or regulatory bodies.",
-                },
-              ].map((opt) => (
+              {auditTypeOptions.map((opt) => (
                 <Label
                   key={opt.id}
                   className={cn(
@@ -657,8 +713,8 @@ export default function CreateAuditStep1Page() {
                     className="mt-0.5 shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                   />
                   <div>
-                    <div className="font-medium text-foreground">{opt.label}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">{opt.sub}</div>
+                    <div className="font-medium text-foreground">{t(opt.label)}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{t(opt.sub)}</div>
                   </div>
                 </Label>
               ))}
@@ -669,18 +725,20 @@ export default function CreateAuditStep1Page() {
         {/* Audit Program Owner & Delegation: Select site first, then process (for that site), then responsible owner (from process), then lead auditor (user with Auditor role). */}
         <div className="rounded-lg border border-border bg-green-50/50 p-8 shadow-sm mx-8 my-8">
           <div className="mb-6 flex items-center gap-2">
-            <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
+            <h2 className="text-xl font-bold text-green-700">{t("Audit Program Owner & Delegation")}</h2>
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-primary-foreground">
               <Info className="h-3 w-3" />
             </div>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            Select a site above first. Process list shows only processes for the selected site(s) that you are <strong>not</strong> assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.
+            {t("Select a site above first. Process list shows only processes for the selected site(s) that you are")}{" "}
+            <strong>{t("not")}</strong>{" "}
+            {t("assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.")}
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                PROCESS / DEPARTMENT
+                {t("PROCESS / DEPARTMENT")}
               </Label>
               <Select
                 value={processId ?? ""}
@@ -688,7 +746,7 @@ export default function CreateAuditStep1Page() {
                 disabled={selectedSiteIds.length === 0}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={selectedSiteIds.length === 0 ? "Select a site first" : "Select process"} />
+                  <SelectValue placeholder={selectedSiteIds.length === 0 ? t("Select a site first") : t("Select process")} />
                 </SelectTrigger>
                 <SelectContent>
                   {processesForSelectedSites.map((p) => (
@@ -696,15 +754,15 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Only processes you are not assigned to are shown (no self-audit).</p>
+              <p className="text-xs text-muted-foreground">{t("Only processes you are not assigned to are shown (no self-audit).")}</p>
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                RESPONSIBLE OWNER (AUDITEE)
+                {t("RESPONSIBLE OWNER (AUDITEE)")}
               </Label>
               <Select value={programOwnerUserId ?? ""} onValueChange={(v) => setProgramOwnerUserId(v || null)} disabled={!processId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select responsible person" />
+                  <SelectValue placeholder={t("Select responsible person")} />
                 </SelectTrigger>
                 <SelectContent>
                   {responsibleOwnerCandidates.map((m) => (
@@ -712,14 +770,14 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Determined by selected site and process (person responsible for that process).</p>
+              <p className="text-xs text-muted-foreground">{t("Determined by selected site and process (person responsible for that process).")}</p>
             </div>
           </div>
           <p className="mt-3 text-sm text-green-700 font-medium">
-            Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).
+            {t("Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).")}
           </p>
           <p className="mt-4 text-sm italic text-muted-foreground">
-            Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.
+            {t("Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.")}
           </p>
         </div>
         {/* Objectives Info Box */}
@@ -728,39 +786,21 @@ export default function CreateAuditStep1Page() {
             <Info className="h-4 w-4" />
           </div>
           <p className="text-sm text-muted-foreground">
-            <span className="font-medium">Define Audit Objectives</span> Aligned With ISO And ESG Requirements.{" "}
-            <em>Verify Management System Conformity</em> And Evaluate Effectiveness, Performance, And ESG Practices.{" "}
-            <span className="font-medium">Support Risk-Based Decision-Making</span> And Continual Improvement.
+            <span className="font-medium">{t("Define Audit Objectives")}</span>{" "}
+            {t("Aligned With ISO And ESG Requirements.")}{" "}
+            <em>{t("Verify Management System Conformity")}</em>{" "}
+            {t("And Evaluate Effectiveness, Performance, And ESG Practices.")}{" "}
+            <span className="font-medium">{t("Support Risk-Based Decision-Making")}</span>{" "}
+            {t("And Continual Improvement.")}
           </p>
         </div>
         {/* Program Purpose & Objectives */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
-            PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)
+            {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[
-              {
-                id: "conformity",
-                title: "Management system conformity with standards",
-                sub: "ISO 9001, 14001, 45001",
-              },
-              {
-                id: "effectiveness",
-                title: "Evaluation of system effectiveness",
-                sub: "Process performance and outcomes",
-              },
-              {
-                id: "esg",
-                title: "Assessment of ESG practices & disclosures",
-                sub: "GRI, IFRS S1/S2 Alignment",
-              },
-              {
-                id: "risk",
-                title: "Risk-based decision making support",
-                sub: "Identifying vulnerabilities in system",
-              },
-            ].map((opt) => (
+            {programPurposeOptions.map((opt) => (
               <Label
                 key={opt.id}
                 className={cn(
@@ -778,8 +818,8 @@ export default function CreateAuditStep1Page() {
                   className="mt-0.5 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <div>
-                  <div className="font-medium text-foreground">{opt.title}</div>
-                  <div className="text-sm text-muted-foreground">{opt.sub}</div>
+                  <div className="font-medium text-foreground">{t(opt.title)}</div>
+                  <div className="text-sm text-muted-foreground">{t(opt.sub)}</div>
                 </div>
               </Label>
             ))}
@@ -789,14 +829,10 @@ export default function CreateAuditStep1Page() {
         {/* Audit Program Criteria */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
-            AUDIT PROGRAM CRITERIA (SELECT ONE)
+            {t("AUDIT PROGRAM CRITERIA (SELECT ONE)")}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {[
-              { id: "iso", label: "ISO standards" },
-              { id: "esg", label: "ESG frameworks" },
-              { id: "legal", label: "Legal & regulatory" },
-            ].map((opt) => (
+            {auditCriteriaOptions.map((opt) => (
               <Label
                 key={opt.id}
                 className={cn(
@@ -813,7 +849,7 @@ export default function CreateAuditStep1Page() {
                   }
                   className="border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                <span className="font-medium text-foreground">{opt.label}</span>
+                <span className="font-medium text-foreground">{t(opt.label)}</span>
               </Label>
             ))}
           </div>
@@ -822,7 +858,7 @@ export default function CreateAuditStep1Page() {
               <Info className="h-4 w-4" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Specifies That Audit Programs Should Define Criteria And Scope In Program Establishment.
+              {t("Specifies That Audit Programs Should Define Criteria And Scope In Program Establishment.")}
             </p>
           </div>
         </div>
@@ -830,22 +866,22 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">
-              AUDIT PROGRAM RISKS & OPPORTUNITIES
+              {t("AUDIT PROGRAM RISKS & OPPORTUNITIES")}
             </h2>
             <Button onClick={addRisk} size="sm" className="bg-green-600 hover:bg-green-700">
-              + ADD RISK
+              {t("+ ADD RISK")}
             </Button>
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60">
-                  <TableHead className="font-semibold">ROP#</TableHead>
-                  <TableHead className="font-semibold">Category</TableHead>
-                  <TableHead className="font-semibold">Description</TableHead>
-                  <TableHead className="font-semibold">Impact (1-5)</TableHead>
-                  <TableHead className="font-semibold">Frequency</TableHead>
-                  <TableHead className="font-semibold">Priority</TableHead>
+                  <TableHead className="font-semibold">{t("ROP#")}</TableHead>
+                  <TableHead className="font-semibold">{t("Category")}</TableHead>
+                  <TableHead className="font-semibold">{t("Description")}</TableHead>
+                  <TableHead className="font-semibold">{t("Impact (1-5)")}</TableHead>
+                  <TableHead className="font-semibold">{t("Frequency")}</TableHead>
+                  <TableHead className="font-semibold">{t("Priority")}</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -878,7 +914,7 @@ export default function CreateAuditStep1Page() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editRisk(r)} aria-label="Edit risk">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editRisk(r)} aria-label={t("Edit risk")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeRisk(r.id)}>
@@ -896,7 +932,7 @@ export default function CreateAuditStep1Page() {
               <Info className="h-4 w-4" />
             </div>
             <p className="text-sm text-muted-foreground">
-              Risk Assessment Results Influence Audit Frequency, Depth, And Scheduling/Program.
+              {t("Risk Assessment Results Influence Audit Frequency, Depth, And Scheduling/Program.")}
             </p>
           </div>
         </div>
@@ -904,22 +940,22 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">
-              AUDIT PROGRAM STRUCTURE & SCHEDULE
+              {t("AUDIT PROGRAM STRUCTURE & SCHEDULE")}
             </h2>
             <Button onClick={addScheduleRow} size="sm" className="bg-green-600 hover:bg-green-700">
-              + ADD ROW
+              {t("+ ADD ROW")}
             </Button>
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60">
-                  <TableHead className="font-semibold">Audit#</TableHead>
-                  <TableHead className="font-semibold">Audit Type</TableHead>
-                  <TableHead className="font-semibold">System / ESG Focus</TableHead>
-                  <TableHead className="font-semibold">Frequency</TableHead>
-                  <TableHead className="font-semibold">Target Months</TableHead>
-                  <TableHead className="font-semibold">Lead Auditor</TableHead>
+                  <TableHead className="font-semibold">{t("Audit#")}</TableHead>
+                  <TableHead className="font-semibold">{t("Audit Type")}</TableHead>
+                  <TableHead className="font-semibold">{t("System / ESG Focus")}</TableHead>
+                  <TableHead className="font-semibold">{t("Frequency")}</TableHead>
+                  <TableHead className="font-semibold">{t("Target Months")}</TableHead>
+                  <TableHead className="font-semibold">{t("Lead Auditor")}</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -934,10 +970,10 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{row.lead}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editScheduleRow(i)} aria-label="Edit schedule row">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editScheduleRow(i)} aria-label={t("Edit schedule row")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeScheduleRow(i)} aria-label="Remove schedule row">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeScheduleRow(i)} aria-label={t("Remove schedule row")}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -952,22 +988,22 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">
-              MONITORING & MEASUREMENT (KPIS)
+              {t("MONITORING & MEASUREMENT (KPIS)")}
             </h2>
             <Button onClick={addKpi} size="sm" className="bg-green-600 hover:bg-green-700">
-              + ADD KPI
+              {t("+ ADD KPI")}
             </Button>
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60">
-                  <TableHead className="font-semibold">KPI#</TableHead>
-                  <TableHead className="font-semibold">Description</TableHead>
-                  <TableHead className="font-semibold">Impact</TableHead>
-                  <TableHead className="font-semibold">Score</TableHead>
-                  <TableHead className="font-semibold">Priority</TableHead>
-                  <TableHead className="font-semibold">Comments</TableHead>
+                  <TableHead className="font-semibold">{t("KPI#")}</TableHead>
+                  <TableHead className="font-semibold">{t("Description")}</TableHead>
+                  <TableHead className="font-semibold">{t("Impact")}</TableHead>
+                  <TableHead className="font-semibold">{t("Score")}</TableHead>
+                  <TableHead className="font-semibold">{t("Priority")}</TableHead>
+                  <TableHead className="font-semibold">{t("Comments")}</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -979,10 +1015,10 @@ export default function CreateAuditStep1Page() {
                     <TableCell>{k.impact}</TableCell>
                     <TableCell>{k.score}</TableCell>
                     <TableCell>{k.priority}</TableCell>
-                    <TableCell>{k.comments || "—"}</TableCell>
+                    <TableCell>{k.comments || t("—")}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editKpi(k)} aria-label="Edit KPI">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editKpi(k)} aria-label={t("Edit KPI")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeKpi(k.id)}>
@@ -998,31 +1034,31 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* KPI Summary Cards - empty until populated from database */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mx-8 my-8">
-          {["AUDIT COMPLETION RATE", "FINDING RESOLUTION TIME", "STAKEHOLDER SATISFACTION"].map((label) => (
+          {kpiSummaryCardLabels.map((label) => (
             <div key={label} className="rounded-lg border border-border bg-muted p-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-              <div className="mt-2 text-muted-foreground">—</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t(label)}</div>
+              <div className="mt-2 text-muted-foreground">{t("—")}</div>
             </div>
           ))}
         </div>
         {/* Program Review & Improvement */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-foreground">PROGRAM REVIEW & IMPROVEMENT</h2>
+            <h2 className="text-xl font-bold text-foreground">{t("PROGRAM REVIEW & IMPROVEMENT")}</h2>
             <Button onClick={addReview} size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700">
               <Plus className="h-4 w-4" />
-              ADD REVIEW
+              {t("ADD REVIEW")}
             </Button>
           </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60">
-                  <TableHead className="font-semibold">PRI#</TableHead>
-                  <TableHead className="font-semibold">REVIEW TYPE</TableHead>
-                  <TableHead className="font-semibold">PROGRAM LEADER COMMENTS</TableHead>
-                  <TableHead className="font-semibold">PRIORITY</TableHead>
-                  <TableHead className="font-semibold">ACTION FOR IMPROVEMENT</TableHead>
+                  <TableHead className="font-semibold">{t("PRI#")}</TableHead>
+                  <TableHead className="font-semibold">{t("REVIEW TYPE")}</TableHead>
+                  <TableHead className="font-semibold">{t("PROGRAM LEADER COMMENTS")}</TableHead>
+                  <TableHead className="font-semibold">{t("PRIORITY")}</TableHead>
+                  <TableHead className="font-semibold">{t("ACTION FOR IMPROVEMENT")}</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1043,12 +1079,12 @@ export default function CreateAuditStep1Page() {
                     </TableCell>
                     <TableCell>
                       <Button type="button" variant="ghost" className="text-left font-medium text-primary hover:underline h-auto p-0">
-                        {r.action || "—"}
+                        {r.action || t("—")}
                       </Button>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editReview(r)} aria-label="Edit review">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => editReview(r)} aria-label={t("Edit review")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => removeReview(r.id)}>
@@ -1067,26 +1103,26 @@ export default function CreateAuditStep1Page() {
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AUDIT PLAN DATE</div>
-                <div className="mt-1 text-xl font-bold text-green-400">{startPeriod ? format(startPeriod, "MM-dd-yyyy") : "—"}</div>
-                <div className="text-xs text-muted-foreground">SYSTEM GENERATED</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("AUDIT PLAN DATE")}</div>
+                <div className="mt-1 text-xl font-bold text-green-400">{startPeriod ? format(startPeriod, "MM-dd-yyyy") : t("—")}</div>
+                <div className="text-xs text-muted-foreground">{t("SYSTEM GENERATED")}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AUDIT ACTUAL DATE</div>
-                <div className="mt-1 text-xl font-bold text-green-400">—</div>
-                <div className="text-xs text-muted-foreground">SYSTEM GENERATED (LOG)</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("AUDIT ACTUAL DATE")}</div>
+                <div className="mt-1 text-xl font-bold text-green-400">{t("—")}</div>
+                <div className="text-xs text-muted-foreground">{t("SYSTEM GENERATED (LOG)")}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">LEAD AUDITOR</div>
-                <div className="mt-1 text-xl font-bold text-foreground">{currentUserId ? (members.find((m) => m.id === currentUserId)?.name ?? "—") : "—"}</div>
-                <div className="text-xs text-muted-foreground">You (audit creator)</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("LEAD AUDITOR")}</div>
+                <div className="mt-1 text-xl font-bold text-foreground">{currentUserId ? (members.find((m) => m.id === currentUserId)?.name ?? t("—")) : t("—")}</div>
+                <div className="text-xs text-muted-foreground">{t("You (audit creator)")}</div>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
                 <Check className="h-5 w-5 text-primary-foreground" />
               </div>
-              <div className="text-xs text-muted-foreground">{programId ? `ID: ${programId}` : "—"}</div>
+              <div className="text-xs text-muted-foreground">{programId ? `${t("ID:")} ${programId}` : t("—")}</div>
             </div>
           </div>
         </div>
@@ -1128,13 +1164,13 @@ export default function CreateAuditStep1Page() {
               }
             } catch (e: any) {
               console.error(e);
-              toast.error(e?.message ?? "Failed to save audit program");
+              toast.error(e?.message ?? t("Failed to save audit program"));
             } finally {
               setIsSaving(false);
             }
           }}
         >
-          {isSaving ? "Saving…" : "Save"}
+          {isSaving ? t("Saving…") : t("Save")}
         </Button>
         <Button
           size="lg"
@@ -1170,13 +1206,13 @@ export default function CreateAuditStep1Page() {
               }
             } catch (e: any) {
               console.error(e);
-              toast.error(e?.message ?? "Failed to save audit program");
+              toast.error(e?.message ?? t("Failed to save audit program"));
             } finally {
               setIsSaving(false);
             }
           }}
         >
-          {isSaving ? "Saving…" : "Continue"}
+          {isSaving ? t("Saving…") : t("Continue")}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -1185,64 +1221,64 @@ export default function CreateAuditStep1Page() {
       <Dialog open={riskDialogOpen} onOpenChange={(open) => { setRiskDialogOpen(open); if (!open) setEditingRiskId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingRiskId ? "Edit Risk" : "Add Risk"}</DialogTitle>
-            <DialogDescription>{editingRiskId ? "Update the risk or opportunity." : "Add a new risk or opportunity to the audit program."}</DialogDescription>
+            <DialogTitle>{editingRiskId ? t("Edit Risk") : t("Add Risk")}</DialogTitle>
+            <DialogDescription>{editingRiskId ? t("Update the risk or opportunity.") : t("Add a new risk or opportunity to the audit program.")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="risk-rop">ROP#</Label>
-                <Input id="risk-rop" value={riskForm.rop} onChange={(e) => setRiskForm((f) => ({ ...f, rop: e.target.value }))} placeholder="e.g. R-001" />
+                <Label htmlFor="risk-rop">{t("ROP#")}</Label>
+                <Input id="risk-rop" value={riskForm.rop} onChange={(e) => setRiskForm((f) => ({ ...f, rop: e.target.value }))} placeholder={t("e.g. R-001")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="risk-category">Category</Label>
-                <Input id="risk-category" value={riskForm.category} onChange={(e) => setRiskForm((f) => ({ ...f, category: e.target.value }))} placeholder="e.g. Resource Availability" />
+                <Label htmlFor="risk-category">{t("Category")}</Label>
+                <Input id="risk-category" value={riskForm.category} onChange={(e) => setRiskForm((f) => ({ ...f, category: e.target.value }))} placeholder={t("e.g. Resource Availability")} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="risk-description">Description</Label>
-              <Textarea id="risk-description" value={riskForm.description} onChange={(e) => setRiskForm((f) => ({ ...f, description: e.target.value }))} placeholder="Enter description" rows={2} />
+              <Label htmlFor="risk-description">{t("Description")}</Label>
+              <Textarea id="risk-description" value={riskForm.description} onChange={(e) => setRiskForm((f) => ({ ...f, description: e.target.value }))} placeholder={t("Enter description")} rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Impact (1-5)</Label>
+                <Label>{t("Impact (1-5)")}</Label>
                 <Select value={riskForm.impact} onValueChange={(v) => setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" }))}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select impact" />
+                    <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="01 (Low)">01 (Low)</SelectItem>
-                    <SelectItem value="02 (Low)">02 (Low)</SelectItem>
-                    <SelectItem value="03 (Medium)">03 (Medium)</SelectItem>
-                    <SelectItem value="04 (High)">04 (High)</SelectItem>
-                    <SelectItem value="05 (V.High)">05 (V.High)</SelectItem>
+                    <SelectItem value="01 (Low)">{t("01 (Low)")}</SelectItem>
+                    <SelectItem value="02 (Low)">{t("02 (Low)")}</SelectItem>
+                    <SelectItem value="03 (Medium)">{t("03 (Medium)")}</SelectItem>
+                    <SelectItem value="04 (High)">{t("04 (High)")}</SelectItem>
+                    <SelectItem value="05 (V.High)">{t("05 (V.High)")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="risk-frequency">Frequency</Label>
-                <Input id="risk-frequency" value={riskForm.frequency} onChange={(e) => setRiskForm((f) => ({ ...f, frequency: e.target.value }))} placeholder="e.g. Annual, Ongoing" />
+                <Label htmlFor="risk-frequency">{t("Frequency")}</Label>
+                <Input id="risk-frequency" value={riskForm.frequency} onChange={(e) => setRiskForm((f) => ({ ...f, frequency: e.target.value }))} placeholder={t("e.g. Annual, Ongoing")} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Priority</Label>
+              <Label>{t("Priority")}</Label>
               <Select value={riskForm.priority} onValueChange={(v) => setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" }))}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select priority" />
+                  <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                  <SelectItem value="Strategic">Strategic</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Critical">{t("Critical")}</SelectItem>
+                  <SelectItem value="Strategic">{t("Strategic")}</SelectItem>
+                  <SelectItem value="High">{t("High")}</SelectItem>
+                  <SelectItem value="Medium">{t("Medium")}</SelectItem>
+                  <SelectItem value="Low">{t("Low")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRiskDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>{editingRiskId ? "Save changes" : "Add Risk"}</Button>
+            <Button variant="outline" onClick={() => setRiskDialogOpen(false)}>{t("Cancel")}</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>{editingRiskId ? t("Save changes") : t("Add Risk")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1251,51 +1287,51 @@ export default function CreateAuditStep1Page() {
       <Dialog open={kpiDialogOpen} onOpenChange={(open) => { setKpiDialogOpen(open); if (!open) setEditingKpiId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingKpiId ? "Edit KPI" : "Add KPI"}</DialogTitle>
-            <DialogDescription>{editingKpiId ? "Update the KPI." : "Add a new KPI for monitoring and measurement."}</DialogDescription>
+            <DialogTitle>{editingKpiId ? t("Edit KPI") : t("Add KPI")}</DialogTitle>
+            <DialogDescription>{editingKpiId ? t("Update the KPI.") : t("Add a new KPI for monitoring and measurement.")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="kpi-num">KPI#</Label>
-                <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => setKpiForm((f) => ({ ...f, kpi: e.target.value }))} placeholder="e.g. 001" />
+                <Label htmlFor="kpi-num">{t("KPI#")}</Label>
+                <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => setKpiForm((f) => ({ ...f, kpi: e.target.value }))} placeholder={t("e.g. 001")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="kpi-impact">Impact</Label>
+                <Label htmlFor="kpi-impact">{t("Impact")}</Label>
                 <Select value={kpiForm.impact} onValueChange={(v) => setKpiForm((f) => ({ ...f, impact: v }))}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select impact" />
+                    <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="High">{t("High")}</SelectItem>
+                    <SelectItem value="Medium">{t("Medium")}</SelectItem>
+                    <SelectItem value="Low">{t("Low")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="kpi-description">Description</Label>
-              <Textarea id="kpi-description" value={kpiForm.description} onChange={(e) => setKpiForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. % audit completed vs planned" rows={2} />
+              <Label htmlFor="kpi-description">{t("Description")}</Label>
+              <Textarea id="kpi-description" value={kpiForm.description} onChange={(e) => setKpiForm((f) => ({ ...f, description: e.target.value }))} placeholder={t("e.g. % audit completed vs planned")} rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="kpi-score">Score</Label>
-                <Input id="kpi-score" value={kpiForm.score} onChange={(e) => setKpiForm((f) => ({ ...f, score: e.target.value }))} placeholder="e.g. 1-5" />
+                <Label htmlFor="kpi-score">{t("Score")}</Label>
+                <Input id="kpi-score" value={kpiForm.score} onChange={(e) => setKpiForm((f) => ({ ...f, score: e.target.value }))} placeholder={t("e.g. 1-5")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="kpi-priority">Priority</Label>
-                <Input id="kpi-priority" value={kpiForm.priority} onChange={(e) => setKpiForm((f) => ({ ...f, priority: e.target.value }))} placeholder="e.g. 1, 2, 3" />
+                <Label htmlFor="kpi-priority">{t("Priority")}</Label>
+                <Input id="kpi-priority" value={kpiForm.priority} onChange={(e) => setKpiForm((f) => ({ ...f, priority: e.target.value }))} placeholder={t("e.g. 1, 2, 3")} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="kpi-comments">Comments</Label>
-              <Textarea id="kpi-comments" value={kpiForm.comments} onChange={(e) => setKpiForm((f) => ({ ...f, comments: e.target.value }))} placeholder="Optional comments" rows={2} />
+              <Label htmlFor="kpi-comments">{t("Comments")}</Label>
+              <Textarea id="kpi-comments" value={kpiForm.comments} onChange={(e) => setKpiForm((f) => ({ ...f, comments: e.target.value }))} placeholder={t("Optional comments")} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setKpiDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>{editingKpiId ? "Save changes" : "Add KPI"}</Button>
+            <Button variant="outline" onClick={() => setKpiDialogOpen(false)}>{t("Cancel")}</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>{editingKpiId ? t("Save changes") : t("Add KPI")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1304,42 +1340,42 @@ export default function CreateAuditStep1Page() {
       <Dialog open={scheduleDialogOpen} onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) setScheduleEditIndex(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{scheduleEditIndex !== null ? "Edit Schedule Row" : "Add Schedule Row"}</DialogTitle>
-            <DialogDescription>{scheduleEditIndex !== null ? "Update the audit program structure and schedule row." : "Add a new row to the audit program structure and schedule."}</DialogDescription>
+            <DialogTitle>{scheduleEditIndex !== null ? t("Edit Schedule Row") : t("Add Schedule Row")}</DialogTitle>
+            <DialogDescription>{scheduleEditIndex !== null ? t("Update the audit program structure and schedule row.") : t("Add a new row to the audit program structure and schedule.")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="schedule-audit">Audit#</Label>
-                <Input id="schedule-audit" value={scheduleEditForm.audit} onChange={(e) => setScheduleEditForm((f) => ({ ...f, audit: e.target.value }))} placeholder="e.g. 1" />
+                <Label htmlFor="schedule-audit">{t("Audit#")}</Label>
+                <Input id="schedule-audit" value={scheduleEditForm.audit} onChange={(e) => setScheduleEditForm((f) => ({ ...f, audit: e.target.value }))} placeholder={t("e.g. 1")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-type">Audit Type</Label>
-                <Input id="schedule-type" value={scheduleEditForm.type} onChange={(e) => setScheduleEditForm((f) => ({ ...f, type: e.target.value }))} placeholder="e.g. Internal" />
+                <Label htmlFor="schedule-type">{t("Audit Type")}</Label>
+                <Input id="schedule-type" value={scheduleEditForm.type} onChange={(e) => setScheduleEditForm((f) => ({ ...f, type: e.target.value }))} placeholder={t("e.g. Internal")} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schedule-focus">System / ESG Focus</Label>
-              <Input id="schedule-focus" value={scheduleEditForm.focus} onChange={(e) => setScheduleEditForm((f) => ({ ...f, focus: e.target.value }))} placeholder="e.g. QMS, EMS" />
+              <Label htmlFor="schedule-focus">{t("System / ESG Focus")}</Label>
+              <Input id="schedule-focus" value={scheduleEditForm.focus} onChange={(e) => setScheduleEditForm((f) => ({ ...f, focus: e.target.value }))} placeholder={t("e.g. QMS, EMS")} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="schedule-frequency">Frequency</Label>
-                <Input id="schedule-frequency" value={scheduleEditForm.frequency} onChange={(e) => setScheduleEditForm((f) => ({ ...f, frequency: e.target.value }))} placeholder="e.g. Annual" />
+                <Label htmlFor="schedule-frequency">{t("Frequency")}</Label>
+                <Input id="schedule-frequency" value={scheduleEditForm.frequency} onChange={(e) => setScheduleEditForm((f) => ({ ...f, frequency: e.target.value }))} placeholder={t("e.g. Annual")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-months">Target Months</Label>
-                <Input id="schedule-months" value={scheduleEditForm.months} onChange={(e) => setScheduleEditForm((f) => ({ ...f, months: e.target.value }))} placeholder="e.g. Q1, Q2" />
+                <Label htmlFor="schedule-months">{t("Target Months")}</Label>
+                <Input id="schedule-months" value={scheduleEditForm.months} onChange={(e) => setScheduleEditForm((f) => ({ ...f, months: e.target.value }))} placeholder={t("e.g. Q1, Q2")} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schedule-lead">Lead Auditor</Label>
-              <Input id="schedule-lead" value={scheduleEditForm.lead} onChange={(e) => setScheduleEditForm((f) => ({ ...f, lead: e.target.value }))} placeholder="Lead auditor name" />
+              <Label htmlFor="schedule-lead">{t("Lead Auditor")}</Label>
+              <Input id="schedule-lead" value={scheduleEditForm.lead} onChange={(e) => setScheduleEditForm((f) => ({ ...f, lead: e.target.value }))} placeholder={t("Lead auditor name")} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitScheduleEdit}>{scheduleEditIndex !== null ? "Save changes" : "Add Row"}</Button>
+            <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>{t("Cancel")}</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitScheduleEdit}>{scheduleEditIndex !== null ? t("Save changes") : t("Add Row")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1348,55 +1384,55 @@ export default function CreateAuditStep1Page() {
       <Dialog open={reviewDialogOpen} onOpenChange={(open) => { setReviewDialogOpen(open); if (!open) setEditingReviewId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingReviewId ? "Edit Review" : "Add Review"}</DialogTitle>
-            <DialogDescription>{editingReviewId ? "Update the program review or improvement item." : "Add a program review or improvement item."}</DialogDescription>
+            <DialogTitle>{editingReviewId ? t("Edit Review") : t("Add Review")}</DialogTitle>
+            <DialogDescription>{editingReviewId ? t("Update the program review or improvement item.") : t("Add a program review or improvement item.")}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="review-pri">PRI#</Label>
-                <Input id="review-pri" value={reviewForm.pri} onChange={(e) => setReviewForm((f) => ({ ...f, pri: e.target.value }))} placeholder="e.g. PRI-01" />
+                <Label htmlFor="review-pri">{t("PRI#")}</Label>
+                <Input id="review-pri" value={reviewForm.pri} onChange={(e) => setReviewForm((f) => ({ ...f, pri: e.target.value }))} placeholder={t("e.g. PRI-01")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="review-type">Review Type</Label>
+                <Label htmlFor="review-type">{t("Review Type")}</Label>
                 <Select value={reviewForm.type} onValueChange={(v) => setReviewForm((f) => ({ ...f, type: v }))}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={t("Select type")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Scheduled Review">Scheduled Review</SelectItem>
-                    <SelectItem value="Feedback">Feedback</SelectItem>
-                    <SelectItem value="Business Risk Changes">Business Risk Changes</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    <SelectItem value="Scheduled Review">{t("Scheduled Review")}</SelectItem>
+                    <SelectItem value="Feedback">{t("Feedback")}</SelectItem>
+                    <SelectItem value="Business Risk Changes">{t("Business Risk Changes")}</SelectItem>
+                    <SelectItem value="Other">{t("Other")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="review-comments">Program Leader Comments</Label>
-              <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => setReviewForm((f) => ({ ...f, comments: e.target.value }))} placeholder="Enter comments" rows={3} />
+              <Label htmlFor="review-comments">{t("Program Leader Comments")}</Label>
+              <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => setReviewForm((f) => ({ ...f, comments: e.target.value }))} placeholder={t("Enter comments")} rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>Priority</Label>
+              <Label>{t("Priority")}</Label>
               <Select value={reviewForm.priority} onValueChange={(v) => setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" }))}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select priority" />
+                  <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="High">{t("High")}</SelectItem>
+                  <SelectItem value="Medium">{t("Medium")}</SelectItem>
+                  <SelectItem value="Low">{t("Low")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="review-action">Action for Improvement</Label>
-              <Input id="review-action" value={reviewForm.action} onChange={(e) => setReviewForm((f) => ({ ...f, action: e.target.value }))} placeholder="e.g. Update site list for S2 expansion" />
+              <Label htmlFor="review-action">{t("Action for Improvement")}</Label>
+              <Input id="review-action" value={reviewForm.action} onChange={(e) => setReviewForm((f) => ({ ...f, action: e.target.value }))} placeholder={t("e.g. Update site list for S2 expansion")} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>{editingReviewId ? "Save changes" : "Add Review"}</Button>
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>{t("Cancel")}</Button>
+            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>{editingReviewId ? t("Save changes") : t("Add Review")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

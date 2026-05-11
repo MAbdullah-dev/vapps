@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, AlertTriangle, ArrowUpCircle, ExternalLink } from "lucide-react";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 export type AuditHistoryEntry = {
   id: string;
@@ -73,22 +74,22 @@ function HistoryIcon({ type }: { type: AuditHistoryEntry["type"] }) {
   );
 }
 
-function StatusBadge({ type }: { type: AuditHistoryEntry["type"] }) {
+function StatusBadge({ type, t }: { type: AuditHistoryEntry["type"]; t: (s: string) => string }) {
   if (type === "Created") {
     return (
       <Badge className="border-transparent bg-blue-100 text-blue-800 hover:bg-blue-100">
-        Created
+        {t("Created")}
       </Badge>
     );
   }
   if (type === "Updated") {
     return (
       <Badge variant="outline" >
-        Updated
+        {t("Updated")}
       </Badge>
     );
   }
-  return <Badge variant="destructive">Escalated</Badge>;
+  return <Badge variant="destructive">{t("Escalated")}</Badge>;
 }
 
 interface AuditHistoryDialogProps {
@@ -109,21 +110,22 @@ export default function AuditHistoryDialog({
   loading = false,
   detailHistoryHref,
 }: AuditHistoryDialogProps) {
+  const { t } = useTranslate();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl! max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-left">
           <DialogTitle className="text-xl font-bold text-foreground">
-            Task History: Audit History
+            {t("Task History: Audit History")}
           </DialogTitle>
           <p className="text-sm font-normal text-muted-foreground">
-            Traceability ID: {traceabilityId}
+            {t("Traceability ID:")} {traceabilityId}
           </p>
           {detailHistoryHref && (
             <Button variant="outline" size="sm" className="mt-3 w-fit gap-2" asChild>
               <Link href={detailHistoryHref} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4" />
-                Detail History
+                {t("Detail History")}
               </Link>
             </Button>
           )}
@@ -131,17 +133,17 @@ export default function AuditHistoryDialog({
 
         <div className="mt-4 space-y-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading history…</p>
+            <p className="text-sm text-muted-foreground">{t("Loading history…")}</p>
           ) : entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No history recorded yet for this audit.</p>
+            <p className="text-sm text-muted-foreground">{t("No history recorded yet for this audit.")}</p>
           ) : (
             entries.map((entry) => (
               <div key={entry.id} className="flex gap-3">
                 <HistoryIcon type={entry.type} />
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge type={entry.type} />
-                    <span className="font-semibold text-foreground">{entry.title}</span>
+                    <StatusBadge type={entry.type} t={t} />
+                    <span className="font-semibold text-foreground">{t(entry.title)}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">{entry.description}</p>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -150,7 +152,7 @@ export default function AuditHistoryDialog({
                       {entry.date}
                     </span>
                     <span className="text-muted-foreground">•</span>
-                    <span>by {entry.by}</span>
+                    <span>{t("by")} {t(entry.by)}</span>
                   </div>
                 </div>
               </div>

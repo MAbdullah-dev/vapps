@@ -19,11 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
   const criteria = searchParams.get("criteria") ?? "";
@@ -113,8 +116,8 @@ export default function CreateAuditStep6Page() {
       {!canEditStep6 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
-            ? "View only — this audit is complete; no edits allowed."
-            : "View only — only the Lead Auditor can edit this step."}
+            ? t("View only — this audit is complete; no edits allowed.")
+            : t("View only — only the Lead Auditor can edit this step.")}
         </div>
       )}
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
@@ -125,7 +128,7 @@ export default function CreateAuditStep6Page() {
             <FileCheck className="h-8 w-8" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-foreground">
-            Audit Final Closure
+            {t(AUDIT_STEP_HERO[6])}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Audit ID:{" "}

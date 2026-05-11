@@ -37,12 +37,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import AuditHistoryDialog, { AuditHistoryEntry } from "./AuditHistoryDialog";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 const NEXT_STEP_LABELS: Record<number, string> = {
   3: "Complete Findings (Step 3)",
   4: "Corrective Action (Step 4)",
   5: "Effectiveness Verification (Step 5)",
   6: "Final Closure (Step 6)",
+};
+
+type AuditStatusKey = "success" | "in_progress" | "pending" | "fail";
+
+const AUDIT_STATUS_LABEL_EN: Record<AuditStatusKey, string> = {
+  success: "Success ≤ 30 days",
+  in_progress: "In-Progress < 30 days",
+  pending: "Pending > 30 days",
+  fail: "Fail > 40 days",
 };
 
 type Audit = {
@@ -69,7 +79,7 @@ type Audit = {
   actualDate: string;
   dueDate: string;
   kpiScore: string | null;
-  auditStatus: string;
+  auditStatusKey: AuditStatusKey;
   criteria?: string;
 };
 
@@ -93,23 +103,18 @@ const getRiskLevelColor = (riskLevel: string) => {
   return "bg-blue-100 text-blue-800";
 };
 
-/** Audit status labels with day thresholds: Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days */
-const AUDIT_STATUS_SUCCESS = "Success ≤ 30 days";
-const AUDIT_STATUS_IN_PROGRESS = "In-Progress < 30 days";
-const AUDIT_STATUS_PENDING = "Pending > 30 days";
-const AUDIT_STATUS_FAIL = "Fail > 40 days";
-
-function getAuditStatusByDays(
+/** Day-threshold status as a stable key; display via AUDIT_STATUS_LABEL_EN + t(). */
+function getAuditStatusKey(
   planStatus: string,
   plannedDate: string | null,
   datePrepared: string | null,
   createdAt: string | null
-): string {
+): AuditStatusKey {
   const refDate = plannedDate || datePrepared || createdAt;
   const refTime = refDate ? new Date(refDate).getTime() : Date.now();
   const days = Math.floor((Date.now() - refTime) / (24 * 60 * 60 * 1000));
 
-  if (planStatus === "closed") return AUDIT_STATUS_SUCCESS;
+  if (planStatus === "closed") return "success";
   const inProgress = [
     "plan_submitted_to_auditee",
     "findings_submitted_to_auditee",
@@ -118,20 +123,20 @@ function getAuditStatusByDays(
     "verification_ineffective",
   ].includes(planStatus);
   if (inProgress || planStatus === "draft") {
-    if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
-    if (days <= 40) return AUDIT_STATUS_PENDING;
-    return AUDIT_STATUS_FAIL;
+    if (days < 30) return "in_progress";
+    if (days <= 40) return "pending";
+    return "fail";
   }
-  if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
-  if (days <= 40) return AUDIT_STATUS_PENDING;
-  return AUDIT_STATUS_FAIL;
+  if (days < 30) return "in_progress";
+  if (days <= 40) return "pending";
+  return "fail";
 }
 
-const getStatusColor = (status: string) => {
-  if (status === AUDIT_STATUS_SUCCESS) return "bg-green-100 text-green-800";
-  if (status === AUDIT_STATUS_IN_PROGRESS) return "bg-yellow-100 text-yellow-800";
-  if (status === AUDIT_STATUS_PENDING) return "bg-gray-100 text-gray-800";
-  if (status === AUDIT_STATUS_FAIL) return "bg-red-100 text-red-700";
+const getStatusColor = (key: AuditStatusKey) => {
+  if (key === "success") return "bg-green-100 text-green-800";
+  if (key === "in_progress") return "bg-yellow-100 text-yellow-800";
+  if (key === "pending") return "bg-gray-100 text-gray-800";
+  if (key === "fail") return "bg-red-100 text-red-700";
   return "";
 };
 
@@ -158,6 +163,7 @@ function getEditStep(audit: Audit, currentUserId: string | null): number | null 
 }
 
 function getColumns(
+  t: (s: string) => string,
   handleViewHistory: (audit: Audit) => void,
   handleOpenStep: (audit: Audit, step: number) => void,
   handleEditAudit: (audit: Audit, step: number) => void,
@@ -166,22 +172,22 @@ function getColumns(
   return [
   {
     accessorKey: "auditProgramRef",
-    header: () => <TableHeader title="Audit Program Ref." sub="(Audit/Year/Site/Process/Audit Type)" />,
+    header: () => <TableHeader title={t("Audit Program Ref.")} sub={t("(Audit/Year/Site/Process/Audit Type)")} />,
     cell: ({ row }) => <span className="font-medium text-foreground">{row.original.auditProgramRef}</span>,
   },
   {
     accessorKey: "standard",
-    header: () => <TableHeader title="Standard" sub="(e.g., ISO 9001, ESG & Sustainability)" />,
+    header: () => <TableHeader title={t("Standard")} sub={t("(e.g., ISO 9001, ESG & Sustainability)")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.standard}</span>,
   },
   {
     accessorKey: "scopeMethodBoundaries",
-    header: () => <TableHeader title="Scope, Method & Boundaries" sub="(On-Site/Remote/Hybrid)" />,
+    header: () => <TableHeader title={t("Scope, Method & Boundaries")} sub={t("(On-Site/Remote/Hybrid)")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.scopeMethodBoundaries}</span>,
   },
   {
     accessorKey: "auditType",
-    header: () => <TableHeader title="Audit Type" sub="FPA/SPA/TPA" />,
+    header: () => <TableHeader title={t("Audit Type")} sub={t("FPA/SPA/TPA")} />,
     cell: ({ row }) => (
       <span className="bg-muted text-muted-foreground py-1 px-2 rounded-full text-xs font-medium">
         {row.original.auditType}
@@ -190,27 +196,27 @@ function getColumns(
   },
   {
     accessorKey: "site",
-    header: () => <TableHeader title="Site" />,
+    header: () => <TableHeader title={t("Site")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.site}</span>,
   },
   {
     accessorKey: "process",
-    header: () => <TableHeader title="Process" />,
+    header: () => <TableHeader title={t("Process")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.process}</span>,
   },
   {
     accessorKey: "clause",
-    header: () => <TableHeader title="Clause" />,
+    header: () => <TableHeader title={t("Clause")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.clause}</span>,
   },
   {
     accessorKey: "subclauses",
-    header: () => <TableHeader title="Subclauses" />,
+    header: () => <TableHeader title={t("Subclauses")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.subclauses}</span>,
   },
   {
     accessorKey: "ncClassification",
-    header: () => <TableHeader title="NC Classification" sub="(Major/Minor)" />,
+    header: () => <TableHeader title={t("NC Classification")} sub={t("(Major/Minor)")} />,
     cell: ({ row }) => {
       const label = row.original.ncClassification === "Major" ? "MA" : "mi";
       return (
@@ -222,7 +228,7 @@ function getColumns(
   },
   {
     accessorKey: "riskLevel",
-    header: () => <TableHeader title="Risk Level" sub="(High/Medium/Low)" />,
+    header: () => <TableHeader title={t("Risk Level")} sub={t("(High/Medium/Low)")} />,
     cell: ({ row }) => (
       <span className={`${getRiskLevelColor(row.original.riskLevel)} py-1 px-2 rounded-full text-xs font-medium`}>
         {row.original.riskLevel}
@@ -231,49 +237,51 @@ function getColumns(
   },
   {
     accessorKey: "plannedDate",
-    header: () => <TableHeader title="Planned Date" />,
+    header: () => <TableHeader title={t("Planned Date")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.plannedDate}</span>,
   },
   {
     accessorKey: "actualDate",
-    header: () => <TableHeader title="Actual Date" />,
+    header: () => <TableHeader title={t("Actual Date")} />,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.actualDate || "—"}</span>
+      <span className="text-muted-foreground">{row.original.actualDate || t("—")}</span>
     ),
   },
   {
     accessorKey: "dueDate",
-    header: () => <TableHeader title="Due Date (30 days)" />,
+    header: () => <TableHeader title={t("Due Date (30 days)")} />,
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.dueDate}</span>,
   },
   {
     accessorKey: "kpiScore",
-    header: () => <TableHeader title="KPI (Score)" />,
+    header: () => <TableHeader title={t("KPI (Score)")} />,
     cell: ({ row }) => {
       const score = row.original.kpiScore;
-      if (!score) return <span className="text-muted-foreground">—</span>;
+      if (!score) return <span className="text-muted-foreground">{t("—")}</span>;
       if (score === "Consistent" || score.toLowerCase() === "consistent")
-        return <span className="font-medium text-green-600">Consistent</span>;
+        return <span className="font-medium text-green-600">{t("Consistent")}</span>;
       if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
-        return <span className="font-medium text-red-600">Inconsistent</span>;
+        return <span className="font-medium text-red-600">{t("Inconsistent")}</span>;
       return <span className="text-muted-foreground">{score}</span>;
     },
   },
   {
-    accessorKey: "auditStatus",
+    accessorKey: "auditStatusKey",
+    id: "auditStatus",
     header: () => (
       <TableHeader
-        title="Audit Status"
-        sub={"Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days"}
+        title={t("Audit Status")}
+        sub={t("Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days")}
       />
     ),
     cell: ({ row }) => {
-      const status = row.original.auditStatus;
-      const badgeClass = getStatusColor(status);
-      if (!badgeClass) return <span className="text-muted-foreground">{status}</span>;
+      const key = row.original.auditStatusKey;
+      const badgeClass = getStatusColor(key);
+      const label = t(AUDIT_STATUS_LABEL_EN[key]);
+      if (!badgeClass) return <span className="text-muted-foreground">{label}</span>;
       return (
         <span className={`${badgeClass} py-1 px-2 rounded-full text-xs font-medium`}>
-          {status}
+          {label}
         </span>
       );
     },
@@ -281,7 +289,7 @@ function getColumns(
   {
     accessorKey: "nextStepForUser",
     id: "yourAction",
-    header: () => <TableHeader title="Your Action" sub="Step requiring your input or Complete" />,
+    header: () => <TableHeader title={t("Your Action")} sub={t("Step requiring your input or Complete")} />,
     cell: ({ row }) => {
       const audit = row.original;
       if (audit.planStatus === "closed") {
@@ -291,22 +299,22 @@ function getColumns(
             onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}
             className="text-sm font-medium text-green-700 hover:underline focus:outline-none"
           >
-            Complete
+            {t("Complete")}
           </button>
         );
       }
       const step = audit.nextStepForUser;
-      if (step == null) return <span className="text-muted-foreground">—</span>;
+      if (step == null) return <span className="text-muted-foreground">{t("—")}</span>;
       return (
         <span className="text-sm font-medium text-green-700">
-          {NEXT_STEP_LABELS[step] ?? `Step ${step}`}
+          {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Step ${step}`)}
         </span>
       );
     },
   },
   {
     id: "actions",
-    header: () => <TableHeader title="Actions" sub="View Share Download PDF" />,
+    header: () => <TableHeader title={t("Actions")} sub={t("View Share Download PDF")} />,
     cell: ({ row }) => {
       const audit = row.original;
       const step = audit.nextStepForUser;
@@ -325,23 +333,23 @@ function getColumns(
             {audit.planStatus === "closed" && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}>
                 <Pencil className="mr-2 h-4 w-4" />
-                View audit (all steps)
+                {t("View audit (all steps)")}
               </DropdownMenuItem>
             )}
             {canEditAudit(audit, currentUserId) && getEditStep(audit, currentUserId) != null && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); const s = getEditStep(audit, currentUserId); if (s != null) handleEditAudit(audit, s); }}>
                 <FileEdit className="mr-2 h-4 w-4" />
-                Edit
+                {t("Edit")}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={() => handleViewHistory(audit)}>
               <History className="mr-2 h-4 w-4" />
-              View History
+              {t("View History")}
             </DropdownMenuItem>
             {step != null && audit.planStatus !== "closed" && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, step); }}>
                 <Pencil className="mr-2 h-4 w-4" />
-                {NEXT_STEP_LABELS[step] ?? `Open Step ${step}`}
+                {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Open Step ${step}`)}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -410,7 +418,7 @@ function mapPlansToAudits(list: any[]): Audit[] {
       actualDate: p.findingsSubmittedAt ? formatDate(p.findingsSubmittedAt) : "—",
       dueDate,
       kpiScore,
-      auditStatus: getAuditStatusByDays(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
+      auditStatusKey: getAuditStatusKey(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
       criteria: p.criteria,
     };
   });
@@ -534,6 +542,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
 export default function AuditsContent() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { t } = useTranslate();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
   const { slug } = useOrg();
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
@@ -603,8 +612,8 @@ export default function AuditsContent() {
   );
 
   const columns = useMemo(
-    () => getColumns(handleViewHistory, handleOpenStep, handleEditAudit, currentUserId),
-    [handleViewHistory, handleOpenStep, handleEditAudit, currentUserId]
+    () => getColumns(t, handleViewHistory, handleOpenStep, handleEditAudit, currentUserId),
+    [t, handleViewHistory, handleOpenStep, handleEditAudit, currentUserId]
   );
 
   const table = useReactTable({
@@ -618,12 +627,12 @@ export default function AuditsContent() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-1">Audits</h1>
-          <p className="text-sm text-muted-foreground">Internal checks, reviews, and compliance status</p>
+          <h1 className="text-2xl font-bold text-foreground mb-1">{t("Audits")}</h1>
+          <p className="text-sm text-muted-foreground">{t("Internal checks, reviews, and compliance status")}</p>
         </div>
         <Button variant="dark" className="flex items-center gap-2" asChild>
           <Link href={createAuditHref}>
-            <Plus size={18} /> Create Audit
+            <Plus size={18} /> {t("Create Audit")}
           </Link>
         </Button>
       </div>
@@ -634,22 +643,22 @@ export default function AuditsContent() {
           <div className="flex items-center gap-3">
             <Cloud className="text-blue-600" size={20} />
             <div>
-              <p className="text-sm font-medium text-foreground">Active Tenant: Acme Corporation</p>
-              <a href="#" className="text-xs text-blue-600 hover:underline">Auth0 Organization</a>
+              <p className="text-sm font-medium text-foreground">{t("Active Tenant: Acme Corporation")}</p>
+              <a href="#" className="text-xs text-blue-600 hover:underline">{t("Auth0 Organization")}</a>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Folder className="text-muted-foreground" size={18} />
               <span className="bg-yellow-100 text-yellow-800 text-xs font-medium py-1 px-2 rounded-full">
-                Shared S3
+                {t("Shared S3")}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Upload className="text-muted-foreground" size={18} />
-              <span className="text-sm text-muted-foreground">100 MB limit</span>
+              <span className="text-sm text-muted-foreground">{t("100 MB limit")}</span>
               <span className="bg-blue-600 text-white text-xs font-medium py-1 px-2 rounded-full">
-                Pro
+                {t("Pro")}
               </span>
             </div>
           </div>
@@ -659,34 +668,34 @@ export default function AuditsContent() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Total Audits</p>
+          <p className="text-sm text-muted-foreground mb-1">{t("Total Audits")}</p>
           <p className="text-2xl font-bold text-foreground">6</p>
-          <p className="text-xs text-muted-foreground mt-1">All time</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("All time")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Success Rate</p>
+          <p className="text-sm text-muted-foreground mb-1">{t("Success Rate")}</p>
           <div className="flex items-center gap-2">
             <p className="text-2xl font-bold text-foreground">50%</p>
             <span className="bg-green-100 text-green-700 text-xs font-medium py-0.5 px-2 rounded-full">
-              Good
+              {t("Good")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Clean audits</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Clean audits")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Backlogs</p>
+          <p className="text-sm text-muted-foreground mb-1">{t("Backlogs")}</p>
           <div className="flex items-center gap-2">
             <p className="text-2xl font-bold text-foreground">2</p>
             <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
-              Attention
+              {t("Attention")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Pending audits</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Pending audits")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-sm text-muted-foreground mb-1">Avg Closure Time</p>
+          <p className="text-sm text-muted-foreground mb-1">{t("Avg Closure Time")}</p>
           <p className="text-2xl font-bold text-foreground">12 days</p>
-          <p className="text-xs text-muted-foreground mt-1">Average completion</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Average completion")}</p>
         </div>
       </div>
 
@@ -700,15 +709,15 @@ export default function AuditsContent() {
             />
             <Input
               className="pl-10 border-none bg-muted"
-              placeholder="Search audits..."
+              placeholder={t("Search audits...")}
             />
           </div>
 
           <div className="flex gap-2 sm:gap-3 flex-wrap">
             <Button variant="outline" className="flex items-center gap-2">
-              <Funnel size={18} /> Filters
+              <Funnel size={18} /> {t("Filters")}
             </Button>
-            <Button variant="outline">Sort By</Button>
+            <Button variant="outline">{t("Sort By")}</Button>
           </div>
         </div>
       </div>
@@ -740,13 +749,13 @@ export default function AuditsContent() {
                 {plansLoading ? (
                   <tr>
                     <td colSpan={columns.length} className="p-8 text-center text-muted-foreground">
-                      Loading audits…
+                      {t("Loading audits…")}
                     </td>
                   </tr>
                 ) : table.getRowModel().rows.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length} className="p-8 text-center text-muted-foreground">
-                      No audits yet. Create one to get started.
+                      {t("No audits yet. Create one to get started.")}
                     </td>
                   </tr>
                 ) : (

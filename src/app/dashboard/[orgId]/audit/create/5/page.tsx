@@ -17,11 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 export default function CreateAuditStep5Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
   const criteria = searchParams.get("criteria") ?? "";
@@ -179,8 +182,8 @@ export default function CreateAuditStep5Page() {
       {!canEditStep5 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
-            ? "View only — this audit is complete; no edits allowed."
-            : "View only — only the assigned Auditor can edit this step."}
+            ? t("View only — this audit is complete; no edits allowed.")
+            : t("View only — only the assigned Auditor can edit this step.")}
         </div>
       )}
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
@@ -188,9 +191,14 @@ export default function CreateAuditStep5Page() {
         {/* Main title with thick green vertical bar to the left */}
         <div className="flex items-center">
           <div className="h-9 w-1.5 shrink-0 rounded-full bg-green-500" />
-          <h1 className="pl-3 text-xl font-bold uppercase tracking-wide text-foreground">
-            EFFECTIVENESS VERIFICATION
-          </h1>
+          <div className="pl-3 min-w-0">
+            <h1 className="text-xl font-bold uppercase tracking-wide text-foreground">
+              {t(AUDIT_STEP_HERO[5])}
+            </h1>
+            <p className="mt-1 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              {t("EFFECTIVENESS VERIFICATION")}
+            </p>
+          </div>
         </div>
 
         {/* Verification Outcome */}

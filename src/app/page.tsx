@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { getOrgDashboardUrl } from "@/lib/subdomain";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 interface Organization {
   id: string;
@@ -32,6 +33,7 @@ interface Organization {
 }
 
 const HomePage = () => {
+  const { t } = useTranslate();
   const router = useRouter();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,12 +88,12 @@ const HomePage = () => {
           <div className="inner">
             <div className="all-sites mt-8">
               <h2 className="flex items-center gap-2 text-lg font-semibold mb-4 capitalize text-foreground">
-                <Star size={20} fill="hsl(var(--primary))" stroke="hsl(var(--primary))" /> Your organizations
+                <Star size={20} fill="hsl(var(--primary))" stroke="hsl(var(--primary))" /> {t("Your organizations")}
               </h2>
 
               {isLoading ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Loading organizations...
+                  {t("Loading organizations...")}
                 </div>
               ) : organizations.length === 0 ? (
                 <div className="
@@ -108,9 +110,9 @@ const HomePage = () => {
                   ">
                     <UsersRound size={40} className="text-background" />
                   </div>
-                  <h1 className="text-lg md:text-xl font-semibold text-foreground">You're Not Part of Any Organization Yet</h1>
+                  <h1 className="text-lg md:text-xl font-semibold text-foreground">{t("You're Not Part of Any Organization Yet")}</h1>
                   <p className="text-sm md:text-base text-muted-foreground max-w-md">
-                    Sites help you collaborate with your organization. Create a new site or join an existing one to get started.
+                    {t("Sites help you collaborate with your organization. Create a new site or join an existing one to get started.")}
                   </p>
                 </div>
               ) : (
@@ -179,7 +181,7 @@ const HomePage = () => {
                       {/* Footer */}
                       <div>
                         <p className="flex items-center gap-2 text-muted-foreground text-sm">
-                          <UsersRound size={18} /> {org.memberCount} {org.memberCount === 1 ? 'Member' : 'Members'}
+                          <UsersRound size={18} /> {org.memberCount} {org.memberCount === 1 ? t('Member') : t('Members')}
                         </p>
                       </div>
                     </div>
@@ -225,11 +227,11 @@ const HomePage = () => {
                   </div>
                   {/* Title */}
                   <h2 className="text-lg lg:text-xl font-semibold mb-2 text-center text-card-foreground dark:text-card-foreground">
-                    Create a New Organization
+                    {t("Create a New Organization")}
                   </h2>
                   {/* Description */}
                   <p className="text-sm md:text-base text-muted-foreground mb-6 text-center">
-                    Start fresh with your own Organization
+                    {t("Start fresh with your own Organization")}
                   </p>
                   {/* Features */}
                   <div className="flex flex-col gap-4 w-full my-5">
@@ -240,9 +242,9 @@ const HomePage = () => {
                         </div>
                       </li>
                       <li>
-                        <span className="font-medium text-foreground">Full Control</span>
+                        <span className="font-medium text-foreground">{t("Full Control")}</span>
                         <p className="text-sm text-muted-foreground">
-                          You'll be the owner with full administrative rights
+                          {t("You'll be the owner with full administrative rights")}
                         </p>
                       </li>
                     </ul>
@@ -253,8 +255,8 @@ const HomePage = () => {
                         </div>
                       </li>
                       <li>
-                        <span className="font-medium text-foreground">Instant Access</span>
-                        <p className="text-sm text-muted-foreground">Join immediately with an invite code</p>
+                        <span className="font-medium text-foreground">{t("Instant Access")}</span>
+                        <p className="text-sm text-muted-foreground">{t("Join immediately with an invite code")}</p>
                       </li>
                     </ul>
                     <ul className="flex items-start gap-4">
@@ -264,8 +266,8 @@ const HomePage = () => {
                         </div>
                       </li>
                       <li>
-                        <span className="font-medium text-foreground">Collaborate</span>
-                        <p className="text-sm text-muted-foreground">Work together with your colleagues</p>
+                        <span className="font-medium text-foreground">{t("Collaborate")}</span>
+                        <p className="text-sm text-muted-foreground">{t("Work together with your colleagues")}</p>
                       </li>
                     </ul>
                   </div>
@@ -279,7 +281,7 @@ const HomePage = () => {
                   className="w-full flex items-center justify-center gap-2 mt-6"
                 >
                   <Link href="/organization-setup/step1">
-                    Create Organization <ArrowRight />
+                    {t("Create Organization")} <ArrowRight />
                   </Link>
                 </Button>
               </div>
@@ -288,7 +290,7 @@ const HomePage = () => {
           </div>
           {/* Support Text */}
           <p className="text-sm text-center mt-6 text-muted-foreground">
-            Need help? Contact <span className="text-primary font-medium">support@vie.com</span>
+            {t("Need help? Contact")}{" "}<span className="text-primary font-medium">support@vie.com</span>
           </p>
         </div>
       </section>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Script from "next/script";
-import { ArrowUp, ChartNoAxesCombined, CircleAlert, CircleCheckBig, TrendingUp } from "lucide-react";
+import { ChartNoAxesCombined, CircleAlert, CircleCheckBig, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
     Card,
@@ -25,12 +25,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-
-const chartConfig = {
-    created: { label: "Issues created", color: "var(--chart-1)" },
-    completed: { label: "Issues completed", color: "var(--chart-2)" },
-    count: { label: "Count", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+import { useTranslate } from "@/components/providers/translation-provider";
 
 const BOTPRESS_INJECT_URL = "https://cdn.botpress.cloud/webchat/v3.6/inject.js";
 const BOTPRESS_CONFIG_SCRIPT_URL =
@@ -58,7 +53,7 @@ type ActivityItem = {
   processName?: string | null;
 };
 
-function formatTimeAgo(dateString: string): string {
+function formatTimeAgo(dateString: string, tr: (s: string) => string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -66,23 +61,23 @@ function formatTimeAgo(dateString: string): string {
   const diffMin = Math.floor(diffSec / 60);
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
-  if (diffSec < 60) return "Just now";
-  if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
-  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`;
-  if (diffDay < 7) return `${diffDay} day${diffDay !== 1 ? "s" : ""} ago`;
+  if (diffSec < 60) return tr("Just now");
+  if (diffMin < 60) return tr(`${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`);
+  if (diffHr < 24) return tr(`${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`);
+  if (diffDay < 7) return tr(`${diffDay} day${diffDay !== 1 ? "s" : ""} ago`);
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function getActivityMessage(activity: ActivityItem): React.ReactNode {
-  const userName = activity.userName || activity.userEmail || "Someone";
-  const entityTitle = activity.entityTitle || activity.entityId || "item";
-  const processCtx = activity.processName ? ` in ${activity.processName}` : "";
+function getActivityMessage(activity: ActivityItem, tr: (s: string) => string): ReactNode {
+  const userName = activity.userName || activity.userEmail || tr("Someone");
+  const entityTitle = activity.entityTitle || activity.entityId || tr("item");
+  const processCtx = activity.processName ? ` ${tr("in")} ${activity.processName}` : "";
 
   if (activity.entityType === "audit_plan") {
-    const label = activity.details?.statusLabel || activity.action?.replace("audit_plan.", "") || "updated";
+    const label = activity.details?.statusLabel || activity.action?.replace("audit_plan.", "") || tr("updated");
     return (
       <>
-        <span className="text-foreground font-medium">Audit</span>
+        <span className="text-foreground font-medium">{tr("Audit")}</span>
         <span className="text-muted-foreground"> {label}: {entityTitle}</span>
       </>
     );
@@ -90,21 +85,21 @@ function getActivityMessage(activity: ActivityItem): React.ReactNode {
 
   switch (activity.action) {
     case "issue.created":
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> created issue {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("created issue")} {entityTitle}{processCtx}</span></>;
     case "issue.updated":
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> updated issue {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("updated issue")} {entityTitle}{processCtx}</span></>;
     case "issue.status_changed":
-      const newStatus = activity.details?.newStatus || "updated";
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> changed status of {entityTitle} to {newStatus}{processCtx}</span></>;
+      const newStatus = activity.details?.newStatus || tr("updated");
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("changed status of")} {entityTitle} {tr("to")} {newStatus}{processCtx}</span></>;
     case "issue.assigned":
-      const assignee = activity.details?.assignee || "someone";
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> assigned {entityTitle} to {assignee}{processCtx}</span></>;
+      const assignee = activity.details?.assignee || tr("someone");
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("assigned")} {entityTitle} {tr("to")} {assignee}{processCtx}</span></>;
     case "sprint.created":
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> created sprint {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("created sprint")} {entityTitle}{processCtx}</span></>;
     case "review.submitted":
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> submitted review for {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("submitted review for")} {entityTitle}{processCtx}</span></>;
     case "verification.completed":
-      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> completed verification for {entityTitle}{processCtx}</span></>;
+      return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("completed verification for")} {entityTitle}{processCtx}</span></>;
     default:
       return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {activity.action} {entityTitle}{processCtx}</span></>;
   }
@@ -139,7 +134,31 @@ type DashboardStats = {
 
 export default function OrgDashboardPage() {
     const params = useParams();
+    const { t } = useTranslate();
     const orgId = params?.orgId as string;
+
+    const chartConfig = useMemo(
+        () =>
+            ({
+                created: { label: t("Issues created"), color: "var(--chart-1)" },
+                completed: { label: t("Issues completed"), color: "var(--chart-2)" },
+                count: { label: t("Count"), color: "var(--chart-1)" },
+            }) satisfies ChartConfig,
+        [t]
+    );
+
+    const auditStatusLabel = useCallback(
+        (status: string) => {
+            if (status === "draft") return t("Draft");
+            if (status === "plan_submitted_to_auditee") return t("With auditee");
+            if (status === "findings_submitted_to_auditee") return t("Findings submitted");
+            if (status === "ca_submitted_to_auditor") return t("With auditor");
+            if (status === "verification_ineffective") return t("Returned to auditee");
+            if (status === "pending_closure") return t("Pending closure");
+            return t("In progress");
+        },
+        [t]
+    );
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [activitiesLoading, setActivitiesLoading] = useState(true);
     const [upcomingAudits, setUpcomingAudits] = useState<Array<{ id: string; title: string | null; auditNumber: string | null; status: string; plannedDate: string | null }>>([]);
@@ -218,6 +237,15 @@ export default function OrgDashboardPage() {
         tryOpenBotpress();
     }, [tryOpenBotpress]);
 
+    const lineChartDisplayData = useMemo(
+        () => lineChartData.map((row) => ({ ...row, month: t(row.month) })),
+        [lineChartData, t]
+    );
+    const pieChartDisplayData = useMemo(
+        () => pieChartData.map((row) => ({ ...row, status: t(row.status) })),
+        [pieChartData, t]
+    );
+
     return (
         <>
             <Script src={BOTPRESS_INJECT_URL} strategy="afterInteractive" onLoad={() => setBotpressInjectReady(true)} />
@@ -233,43 +261,43 @@ export default function OrgDashboardPage() {
                 {/* Card 1 - Active Projects */}
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs text-muted-foreground">Active Projects</p>
+                        <p className="text-xs text-muted-foreground">{t("Active Projects")}</p>
                         <ChartNoAxesCombined size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.processCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1 text-muted-foreground">Across organization</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("Across organization")}</p>
                     </div>
                 </div>
 
                 {/* Card 2 - Open Issues */}
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs text-muted-foreground">Open Issues</p>
+                        <p className="text-xs text-muted-foreground">{t("Open Issues")}</p>
                         <CircleAlert size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.openIssuesCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1 text-muted-foreground">To do + In progress</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("To do + In progress")}</p>
                     </div>
                 </div>
 
                 {/* Card 3 - Upcoming Audits */}
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs text-muted-foreground">Upcoming Audits</p>
+                        <p className="text-xs text-muted-foreground">{t("Upcoming Audits")}</p>
                         <CircleCheckBig size={18} className="text-muted-foreground" />
                     </div>
                     <div>
                         <span className="">{statsLoading ? "—" : (stats?.upcomingAuditsCount ?? 0)}</span>
-                        <p className="flex items-center text-sm mt-1 text-muted-foreground">In progress (pending)</p>
+                        <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("In progress (pending)")}</p>
                     </div>
                 </div>
 
                 {/* Card 4 - Compliance Score */}
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
-                        <p className="text-xs text-muted-foreground">Compliance Score</p>
+                        <p className="text-xs text-muted-foreground">{t("Compliance Score")}</p>
                         <TrendingUp size={18} className="text-muted-foreground" />
                     </div>
                     <div className="space-y-3">
@@ -285,19 +313,19 @@ export default function OrgDashboardPage() {
                 {/* Line Chart - Issues created vs completed (last 6 months) */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Issues created vs completed</CardTitle>
-                        <CardDescription>Last 6 months across the organization</CardDescription>
+                        <CardTitle>{t("Issues created vs completed")}</CardTitle>
+                        <CardDescription>{t("Last 6 months across the organization")}</CardDescription>
                     </CardHeader>
                     <CardContent className="p-4">
                         {chartsLoading ? (
-                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">Loading chart…</div>
-                        ) : lineChartData.length === 0 ? (
-                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">No issue data yet</div>
+                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">{t("Loading chart…")}</div>
+                        ) : lineChartDisplayData.length === 0 ? (
+                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">{t("No issue data yet")}</div>
                         ) : (
                             <ChartContainer config={chartConfig} className="max-h-[250px] w-full">
                                 <LineChart
                                     accessibilityLayer
-                                    data={lineChartData}
+                                    data={lineChartDisplayData}
                                     margin={{ left: 12, right: 12 }}
                                 >
                                     <CartesianGrid vertical={false} />
@@ -333,7 +361,7 @@ export default function OrgDashboardPage() {
                     </CardContent>
                     <CardFooter className="flex-col items-start gap-2 text-sm">
                         <div className="text-muted-foreground leading-none">
-                            Organization-wide issue trend
+                            {t("Organization-wide issue trend")}
                         </div>
                     </CardFooter>
                 </Card>
@@ -341,14 +369,14 @@ export default function OrgDashboardPage() {
                 {/* Pie Chart - Issues by status */}
                 <Card>
                     <CardHeader className="items-center pb-0">
-                        <CardTitle>Issues by status</CardTitle>
-                        <CardDescription>To do, in progress, and done</CardDescription>
+                        <CardTitle>{t("Issues by status")}</CardTitle>
+                        <CardDescription>{t("To do, in progress, and done")}</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 pb-0">
                         {chartsLoading ? (
-                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">Loading chart…</div>
-                        ) : pieChartData.length === 0 || pieChartData.every((d) => d.count === 0) ? (
-                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">No issues yet</div>
+                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">{t("Loading chart…")}</div>
+                        ) : pieChartDisplayData.length === 0 || pieChartDisplayData.every((d) => d.count === 0) ? (
+                            <div className="max-h-[250px] flex items-center justify-center text-sm text-muted-foreground">{t("No issues yet")}</div>
                         ) : (
                             <ChartContainer
                                 config={chartConfig}
@@ -357,13 +385,13 @@ export default function OrgDashboardPage() {
                                 <PieChart>
                                     <ChartTooltip content={<ChartTooltipContent hideLabel />} />
                                     <Pie
-                                        data={pieChartData}
+                                        data={pieChartDisplayData}
                                         dataKey="count"
                                         nameKey="status"
                                         label
                                         outerRadius={80}
                                     >
-                                        {pieChartData.map((entry, index) => (
+                                        {pieChartDisplayData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.fill} />
                                         ))}
                                     </Pie>
@@ -373,7 +401,7 @@ export default function OrgDashboardPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-2 text-sm">
                         <div className="text-muted-foreground leading-none">
-                            Distribution across organization
+                            {t("Distribution across organization")}
                         </div>
                     </CardFooter>
                 </Card>
@@ -382,14 +410,14 @@ export default function OrgDashboardPage() {
                 {/* Recent Activity Card */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                        <CardDescription>Latest updates from your organization</CardDescription>
+                        <CardTitle>{t("Recent Activity")}</CardTitle>
+                        <CardDescription>{t("Latest updates from your organization")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {activitiesLoading ? (
-                            <p className="text-sm text-muted-foreground py-4">Loading activity…</p>
+                            <p className="text-sm text-muted-foreground py-4">{t("Loading activity…")}</p>
                         ) : activities.length === 0 ? (
-                            <p className="text-sm text-muted-foreground py-4">No recent activity</p>
+                            <p className="text-sm text-muted-foreground py-4">{t("No recent activity")}</p>
                         ) : (
                             activities.map((activity) => (
                                 <ul key={activity.id} className="flex items-start gap-3">
@@ -405,10 +433,10 @@ export default function OrgDashboardPage() {
                                     </li>
                                     <li className="flex flex-col min-w-0 flex-1">
                                         <p className="text-muted-foreground text-sm">
-                                            {getActivityMessage(activity)}
+                                            {getActivityMessage(activity, t)}
                                         </p>
                                         <span className="text-muted-foreground text-xs mt-0.5">
-                                            {formatTimeAgo(activity.createdAt)}
+                                            {formatTimeAgo(activity.createdAt, t)}
                                         </span>
                                     </li>
                                 </ul>
@@ -420,33 +448,20 @@ export default function OrgDashboardPage() {
                 {/* Upcoming Audits Card */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Upcoming Audits</CardTitle>
-                        <CardDescription>Organization audits in progress (pending)</CardDescription>
+                        <CardTitle>{t("Upcoming Audits")}</CardTitle>
+                        <CardDescription>{t("Organization audits in progress (pending)")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {upcomingAuditsLoading ? (
-                            <p className="text-sm text-muted-foreground py-4">Loading…</p>
+                            <p className="text-sm text-muted-foreground py-4">{t("Loading…")}</p>
                         ) : upcomingAudits.length === 0 ? (
-                            <p className="text-sm text-muted-foreground py-4">No audits in progress</p>
+                            <p className="text-sm text-muted-foreground py-4">{t("No audits in progress")}</p>
                         ) : (
                             upcomingAudits.map((audit) => {
-                                const statusLabel =
-                                    audit.status === "draft"
-                                        ? "Draft"
-                                        : audit.status === "plan_submitted_to_auditee"
-                                          ? "With auditee"
-                                          : audit.status === "findings_submitted_to_auditee"
-                                            ? "Findings submitted"
-                                            : audit.status === "ca_submitted_to_auditor"
-                                              ? "With auditor"
-                                              : audit.status === "verification_ineffective"
-                                                ? "Returned to auditee"
-                                                : audit.status === "pending_closure"
-                                                  ? "Pending closure"
-                                                  : "In progress";
+                                const statusLabel = auditStatusLabel(audit.status);
                                 const displayTitle =
                                     audit.title?.trim() ||
-                                    (audit.auditNumber ? `Audit #${audit.auditNumber}` : "Audit");
+                                    (audit.auditNumber ? `${t("Audit")} #${audit.auditNumber}` : t("Audit"));
                                 const dateStr = audit.plannedDate
                                     ? new Date(audit.plannedDate).toLocaleDateString("en-US", {
                                           month: "short",
@@ -487,9 +502,9 @@ export default function OrgDashboardPage() {
        
             <div className="mt-5 p-5 rounded-lg bg-background border border-border flex sm:flex-row flex-col sm:items-center justify-between">
                 <div className="description mb-3.5 sm:mb-0">
-                    <h3 className="font-semibold text-sm mb-1 text-foreground">Need Help? Ask Vie AI</h3>
+                    <h3 className="font-semibold text-sm mb-1 text-foreground">{t("Need Help? Ask Vie AI")}</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                        Get instant insights, generate reports, or find information quickly.
+                        {t("Get instant insights, generate reports, or find information quickly.")}
                     </p>
                 </div>
                 <Button
@@ -499,7 +514,7 @@ export default function OrgDashboardPage() {
                     className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
                     onClick={handleAskVieAi}
                 >
-                    Ask Vie AI
+                    {t("Ask Vie AI")}
                 </Button>
             </div>
        

@@ -65,6 +65,10 @@ export async function getTenantContext(
     return null;
   }
 
+  if (org.status === "suspended" || org.status === "blocked") {
+    return null;
+  }
+
   const hasAccess = org.ownerId === userId || org.users.length > 0;
   if (!hasAccess) {
     return null;

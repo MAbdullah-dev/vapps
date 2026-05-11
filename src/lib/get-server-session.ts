@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 import { authOptions } from "./auth";
+import { prisma } from "./prisma";
 
 /** Session cookie name – must match authOptions.cookies.sessionToken.name in auth.ts */
 const SESSION_COOKIE_NAME =
@@ -30,8 +31,13 @@ export async function getCurrentUser(req?: NextRequest) {
         console.log("[getCurrentUser] getToken returned null – cookie name:", SESSION_COOKIE_NAME, "secret set:", !!secret);
       }
       if (!token?.sub) return null;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: token.sub },
+        select: { id: true, isBlocked: true },
+      });
+      if (!dbUser || dbUser.isBlocked) return null;
       return {
-        id: token.sub,
+        id: dbUser.id,
         name: (token.name as string) ?? null,
         email: (token.email as string) ?? null,
       };

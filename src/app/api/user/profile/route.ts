@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
 import { sendEmailChangeVerification } from "@/helpers/mailer";
+import { isLocaleCode } from "@/i18n/locales";
 
 const profileSelect = {
   id: true,
@@ -18,6 +19,7 @@ const profileSelect = {
   reportsTo: true,
   joinDate: true,
   createdAt: true,
+  preferredLocale: true,
 } as const;
 
 /**
@@ -86,6 +88,7 @@ export async function PATCH(req: NextRequest) {
       employeeId,
       reportsTo,
       joinDate,
+      preferredLocale,
     } = body;
 
     const newEmail = typeof email === "string" ? email.trim() || null : null;
@@ -135,6 +138,20 @@ export async function PATCH(req: NextRequest) {
     if (reportsTo !== undefined) data.reportsTo = typeof reportsTo === "string" ? reportsTo.trim() || null : null;
     if (joinDate !== undefined) {
       data.joinDate = joinDate === null || joinDate === "" ? null : new Date(joinDate);
+    }
+
+    if (preferredLocale !== undefined) {
+      const rawPl =
+        preferredLocale === null || preferredLocale === ""
+          ? null
+          : typeof preferredLocale === "string"
+            ? preferredLocale.trim().toLowerCase() || null
+            : null;
+      const pl = rawPl === "hi" ? "ja" : rawPl;
+      if (pl !== null && !isLocaleCode(pl)) {
+        return NextResponse.json({ error: "Invalid preferredLocale" }, { status: 400 });
+      }
+      data.preferredLocale = pl;
     }
 
     const user = await prisma.user.update({

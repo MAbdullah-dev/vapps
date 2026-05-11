@@ -48,6 +48,8 @@ Set these on the EC2 instance (e.g. in `.env` or via AWS Systems Manager Paramet
 | `SMTP_PORT` | 587 (TLS) or 2525 | |
 | `SMTP_USER` / `SMTP_PASS` | SMTP credentials | |
 | `SMTP_FROM` | From address for emails | |
+| **Google Translate (UI languages)** | Required for in-app language switching (see root `.env.example`). | |
+| `GOOGLE_TRANSLATE_API_KEY` | Translation API **v2** key (restrict to Cloud Translation API in production). | |
 | **Other** | | |
 | `NODE_ENV` | `production` on EC2 | |
 
