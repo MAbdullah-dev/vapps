@@ -171,9 +171,9 @@ export default function ApprovalDocumentStep({
           </div>
         </div>
       ) : null}
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-5">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] font-normal">
+          <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border font-normal">
             {DOC_REF}
           </Badge>
           <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
@@ -182,48 +182,48 @@ export default function ApprovalDocumentStep({
         </div>
 
         <div>
-          <p className="text-sm text-[#6B7280]">Title:</p>
-          <p className="text-3xl font-bold text-[#111827]">{title || "Untitled Document"}</p>
+          <p className="text-sm text-muted-foreground">Title:</p>
+          <p className="text-3xl font-bold text-foreground">{title || "Untitled Document"}</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-4 text-sm">
           <div>
-            <p className="text-[#6B7280]">Type:</p>
+            <p className="text-muted-foreground">Type:</p>
             <Badge className="mt-1 bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
               {documentTypeLabel}
             </Badge>
           </div>
           <div>
-            <p className="text-[#6B7280]">Doc Owner:</p>
-            <p className="font-semibold text-[#111827]">{processOwner || "Manager Manufacturing"}</p>
+            <p className="text-muted-foreground">Doc Owner:</p>
+            <p className="font-semibold text-foreground">{processOwner || "Manager Manufacturing"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Standard:</p>
-            <p className="font-semibold text-[#111827]">{managementStandard || "ISO 9001"}</p>
+            <p className="text-muted-foreground">Standard:</p>
+            <p className="font-semibold text-foreground">{managementStandard || "ISO 9001"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Clause:</p>
-            <p className="font-semibold text-[#111827]">{clause || "4.1"}</p>
+            <p className="text-muted-foreground">Clause:</p>
+            <p className="font-semibold text-foreground">{clause || "4.1"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Sub-Clause</p>
-            <p className="font-semibold text-[#111827]">{subClause || "4.1.6"}</p>
+            <p className="text-muted-foreground">Sub-Clause</p>
+            <p className="font-semibold text-foreground">{subClause || "4.1.6"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Site:</p>
-            <p className="font-semibold text-[#111827]">{site || "S1"}</p>
+            <p className="text-muted-foreground">Site:</p>
+            <p className="font-semibold text-foreground">{site || "S1"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Process:</p>
-            <p className="font-semibold text-[#111827]">{processName || "Manufacturing"}</p>
+            <p className="text-muted-foreground">Process:</p>
+            <p className="font-semibold text-foreground">{processName || "Manufacturing"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Doc#:</p>
-            <p className="font-semibold text-[#111827]">{processId || "D6"}</p>
+            <p className="text-muted-foreground">Doc#:</p>
+            <p className="font-semibold text-foreground">{processId || "D6"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Version:</p>
-            <p className="font-semibold text-[#111827]">v3</p>
+            <p className="text-muted-foreground">Version:</p>
+            <p className="font-semibold text-foreground">v3</p>
           </div>
         </div>
 
@@ -240,72 +240,72 @@ export default function ApprovalDocumentStep({
       </div>
 
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
-        <Link href={listHref} className="text-[#6B7280] hover:text-[#111827] transition-colors">
+        <Link href={listHref} className="text-muted-foreground hover:text-foreground transition-colors">
           Documents
         </Link>
-        <span className="text-[#6B7280]">&gt;</span>
-        <Link href={listHref} className="text-[#6B7280] hover:text-[#111827] transition-colors">
+        <span className="text-muted-foreground">&gt;</span>
+        <Link href={listHref} className="text-muted-foreground hover:text-foreground transition-colors">
           Master Document List
         </Link>
-        <span className="text-[#6B7280]">&gt;</span>
-        <span className="font-medium text-[#111827]">{DOC_REF}</span>
+        <span className="text-muted-foreground">&gt;</span>
+        <span className="font-medium text-foreground">{DOC_REF}</span>
       </nav>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-background p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="font-bold text-[#111827]">Approver Name</Label>
+            <Label className="font-bold text-foreground">Approver Name</Label>
             <Input
               readOnly
               tabIndex={-1}
               value={designatedApproverName}
               placeholder="Set in Create Document (Approver)"
-              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="h-10 bg-muted/30 border-border text-muted-foreground"
             />
-            <p className="text-xs text-[#6B7280]">System value from Create Document (Approver)</p>
+            <p className="text-xs text-muted-foreground">System value from Create Document (Approver)</p>
           </div>
           <div className="space-y-2">
-            <Label className="font-bold text-[#111827]">Role / Designation</Label>
+            <Label className="font-bold text-foreground">Role / Designation</Label>
             <Input
               readOnly
               tabIndex={-1}
               value={approverRole}
               placeholder="System generated job title"
-              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="h-10 bg-muted/30 border-border text-muted-foreground"
             />
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-4">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">3.1 Approval</h4>
-          <p className="text-sm text-[#6B7280] mt-1">Making it official for use!</p>
+          <h4 className="text-base font-bold text-foreground">3.1 Approval</h4>
+          <p className="mt-1 text-sm text-muted-foreground">Making it official for use!</p>
         </div>
 
         <div className="rounded-lg bg-[#F0FDF4] border-l-4 border-l-[#16A34A] pl-4 pr-4 py-4 text-sm">
-          <ol className="list-decimal pl-5 space-y-4 text-[#111827]">
+          <ol className="list-decimal space-y-4 pl-5 text-foreground">
             <li>
               <span className="font-semibold">Standards &amp; Procedures Conformance</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 Verified alignment with associated ISO standards, organizational policies, and related procedures for process improvement.
               </p>
             </li>
             <li>
               <span className="font-semibold">Positive Organizational Impact</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 Confirms this document/action supports continuous improvement and enhances organizational effectiveness.
               </p>
             </li>
             <li>
               <span className="font-semibold">Interested Parties Consideration</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 Ensures no adverse impact on customers, regulators, or other relevant stakeholders.
               </p>
             </li>
             <li>
               <span className="font-semibold">Corrective Action Confirmation</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 Where the document/action involves Edit or Cancel, confirms required corrective actions have been effectively implemented.
               </p>
             </li>
@@ -322,10 +322,10 @@ export default function ApprovalDocumentStep({
           />
           <div className="min-w-0 space-y-1">
             <label htmlFor="approval-ack" className="cursor-pointer">
-              <span className="font-semibold text-[#111827]">
+              <span className="font-semibold text-foreground">
                 5. Accuracy &amp; Integrity Assurance, and release of documented information
               </span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 Acknowledges that, to the best of my knowledge, all information provided in the Approval Points is accurate, current, and complete. The document will move to the &quot;Published&quot; folder/&quot;Master Document List&quot;; staff will be notified. When a change is needed, the version number increases (e.g., 1 to 2). Old versions will be moved to an &quot;Obsolete&quot; folder to prevent accidental use.
               </p>
             </label>
@@ -333,16 +333,16 @@ export default function ApprovalDocumentStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-6">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-6">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">2.2 Verification Outcome</h4>
-          <p className="text-sm text-[#6B7280] mt-2 leading-relaxed">
+          <h4 className="text-base font-bold text-foreground">2.2 Verification Outcome</h4>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Effective means producing intended results, while ineffective means not producing them. It also means action that is sufficient or insufficient to achieve a purpose, respectively.
           </p>
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-bold text-[#111827]">Decision (Yes-Effective / No-Ineffective)</p>
+          <p className="text-sm font-bold text-foreground">Decision (Yes-Effective / No-Ineffective)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
@@ -368,8 +368,8 @@ export default function ApprovalDocumentStep({
                 {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">Effective - Close Document</p>
-                <p className="text-sm text-[#6B7280]">Approved for Official Use</p>
+                <p className="font-semibold text-foreground">Effective - Close Document</p>
+                <p className="text-sm text-muted-foreground">Approved for Official Use</p>
               </div>
             </button>
             <button
@@ -396,15 +396,15 @@ export default function ApprovalDocumentStep({
                 {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">Ineffective - Re-open Document</p>
-                <p className="text-sm text-[#6B7280]">Requires Revisions for Approval</p>
+                <p className="font-semibold text-foreground">Ineffective - Re-open Document</p>
+                <p className="text-sm text-muted-foreground">Requires Revisions for Approval</p>
               </div>
             </button>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="approval-comments" className="text-sm font-bold text-[#111827]">
+          <Label htmlFor="approval-comments" className="text-sm font-bold text-foreground">
             Comments <span className="text-red-600">*</span>
           </Label>
           <Textarea
@@ -415,7 +415,7 @@ export default function ApprovalDocumentStep({
             required={canPerformApproval && !readOnlyObserver}
             aria-required={canPerformApproval && !readOnlyObserver}
             placeholder="Enter your approval comments here (required)…"
-            className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
+            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           {canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
             <p className="text-xs text-amber-800" role="status">
@@ -426,14 +426,14 @@ export default function ApprovalDocumentStep({
 
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">Reviewer Name &amp; Identification#:</span>
-            <span className="text-sm text-[#6B7280] sm:text-right">[Login/System Generated]</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">Reviewer Name &amp; Identification#:</span>
+            <span className="text-sm text-muted-foreground sm:text-right">[Login/System Generated]</span>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">Review Date:</span>
-            <span className="text-sm font-semibold text-[#111827] sm:text-right">{reviewDateDisplay}</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">Review Date:</span>
+            <span className="text-sm font-semibold text-foreground sm:text-right">{reviewDateDisplay}</span>
           </div>
-          <p className="text-xs italic text-[#6B7280] pt-1">This document is valid without a signature</p>
+          <p className="pt-1 text-xs italic text-muted-foreground">This document is valid without a signature</p>
         </div>
       </div>
 

@@ -370,10 +370,10 @@ export default function SprintAndBacklogList() {
             ...provided.draggableProps.style,
             zIndex: snapshot.isDragging ? 50 : "auto",
           }}
-          className="flex items-center justify-between p-4 border-b bg-white"
+          className="flex items-center justify-between p-4 border-b bg-background"
         >
           <div className="flex items-start gap-4 flex-1 min-w-0">
-            <div {...provided.dragHandleProps} className="cursor-grab text-gray-400 shrink-0">
+            <div {...provided.dragHandleProps} className="cursor-grab text-muted-foreground shrink-0">
               <GripVertical />
             </div>
 
@@ -384,7 +384,7 @@ export default function SprintAndBacklogList() {
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium text-muted-foreground">{issue.id}</span>
-                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
                   {issue.priority}
                 </span>
               </div>
@@ -425,7 +425,7 @@ export default function SprintAndBacklogList() {
         {sprints.map((sprint) => (
           <div
             key={sprint.id}
-            className="rounded-xl border bg-white"
+            className="rounded-xl border bg-background"
           >
             <div className="flex items-center justify-between p-4">
 
@@ -525,7 +525,7 @@ export default function SprintAndBacklogList() {
         ))}
 
         {/* ---------------------- BACKLOG ---------------------- */}
-        <div className="rounded-xl border bg-white">
+        <div className="rounded-xl border bg-background">
           <div className="flex items-center justify-between p-4">
             <h2 className="text-lg font-medium flex items-center gap-2">
               <ChevronDown /> Backlog

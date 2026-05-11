@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
+import { normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronLeft, FileText, ClipboardList, AlertCircle, CheckCircle, FileCheck, RotateCcw, FileStack } from "lucide-react";
@@ -132,12 +133,6 @@ export default function AuditDetailHistoryPage() {
     ((step6 as any).managementComments != null && String((step6 as any).managementComments).trim() !== "");
   const hasReturnToAuditee = returnedFromStep5 || returnedFromStep6;
 
-  const fileEntry = (item: unknown): { name: string; key: string } | null => {
-    if (item && typeof item === "object" && "key" in item && typeof (item as any).key === "string") {
-      return { name: String((item as any).name ?? (item as any).fileName ?? "Document"), key: (item as any).key };
-    }
-    return null;
-  };
   const step4FileKeys = [
     (step4 as any).filesS2,
     (step4 as any).filesS3,
@@ -154,15 +149,31 @@ export default function AuditDetailHistoryPage() {
   step4FileKeys.forEach((arr, i) => {
     if (Array.isArray(arr)) {
       arr.forEach((item) => {
-        const e = fileEntry(item);
+        const e = normalizeAuditUploadedFileRef(item);
         if (e) step4Files.push({ ...e, source: step4Labels[i] });
       });
     }
   });
   const step5Evidence = Array.isArray((step5 as any).evidenceFiles)
-    ? ((step5 as any).evidenceFiles as unknown[]).map((item) => fileEntry(item)).filter((e): e is { name: string; key: string } => e != null)
+    ? ((step5 as any).evidenceFiles as unknown[])
+        .map((item) => normalizeAuditUploadedFileRef(item))
+        .filter((e): e is { name: string; key: string } => e != null)
     : [];
-  const allDocuments = [...step4Files, ...step5Evidence.map((e) => ({ ...e, source: "Step 5 – Evidence" }))];
+  const step3Files: { name: string; key: string; source: string }[] = [];
+  findings.forEach((f: any, fi: number) => {
+    const ev = f.objectiveEvidence ?? f.objective_evidence;
+    if (!Array.isArray(ev)) return;
+    const clause = f.clause != null && String(f.clause).trim() !== "" ? String(f.clause) : `Row ${fi + 1}`;
+    ev.forEach((item: unknown) => {
+      const e = normalizeAuditUploadedFileRef(item);
+      if (e) step3Files.push({ ...e, source: `Step 3 – Finding ${clause}` });
+    });
+  });
+  const allDocuments = [
+    ...step3Files,
+    ...step4Files,
+    ...step5Evidence.map((e) => ({ ...e, source: "Step 5 – Evidence" })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -255,11 +266,19 @@ export default function AuditDetailHistoryPage() {
                   <th className="text-left p-2">Requirement</th>
                   <th className="text-left p-2">Question</th>
                   <th className="text-left p-2">Evidence</th>
+                  <th className="text-left p-2">Attachments</th>
                   <th className="text-left p-2">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {findings.map((f: any, i: number) => (
+                {findings.map((f: any, i: number) => {
+                  const objEv = f.objectiveEvidence ?? f.objective_evidence;
+                  const attachmentRefs = Array.isArray(objEv)
+                    ? objEv
+                        .map((item: unknown) => normalizeAuditUploadedFileRef(item))
+                        .filter((e): e is { name: string; key: string } => e != null)
+                    : [];
+                  return (
                   <tr key={f.id || i} className="border-t">
                     <td className="p-2">{f.clause ?? "—"}</td>
                     <td className="p-2 max-w-[200px] truncate" title={f.requirement}>{f.requirement ?? "—"}</td>
@@ -267,9 +286,30 @@ export default function AuditDetailHistoryPage() {
                     <td className="p-2 max-w-[180px] truncate" title={typeof f.evidenceSeen === "string" ? f.evidenceSeen : (f.evidenceSeen ? JSON.stringify(f.evidenceSeen) : "")}>
                       {typeof f.evidenceSeen === "string" ? f.evidenceSeen : (f.evidenceSeen ? "See details" : "—")}
                     </td>
+                    <td className="p-2 align-top max-w-[200px]">
+                      {attachmentRefs.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {attachmentRefs.map((doc, j) => (
+                            <li key={`${doc.key}-${j}`}>
+                              <a
+                                href={`/api/files/download?key=${encodeURIComponent(doc.key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary font-medium hover:underline break-all"
+                              >
+                                {doc.name}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
                     <td className="p-2">{f.status ?? "—"}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -357,7 +397,7 @@ export default function AuditDetailHistoryPage() {
         <DataRow label="Auditor comments" value={(step5 as any).auditorComments} />
         {Array.isArray((step5 as any).evidenceFiles) && (step5 as any).evidenceFiles.length > 0 && (
           <div className="mt-2">
-            <p className="font-medium text-gray-600">Evidence files: {(step5 as any).evidenceFiles.length} file(s)</p>
+            <p className="font-medium text-muted-foreground">Evidence files: {(step5 as any).evidenceFiles.length} file(s)</p>
           </div>
         )}
       </Section>

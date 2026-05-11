@@ -387,7 +387,7 @@ export default function CreateUserDialog({
                 <span className="text-red-500">*</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Defines the user's business designation and determines their system role.</p>
@@ -431,7 +431,7 @@ export default function CreateUserDialog({
                   <span>Leadership Level</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Determines the user's authority in the organization. Automatically set based on job title.</p>
@@ -442,7 +442,7 @@ export default function CreateUserDialog({
               <Input
                 value={`Level ${roleLevel}`}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
           )}
@@ -455,7 +455,7 @@ export default function CreateUserDialog({
                   <span>System Role</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Controls what actions the user can perform in Vie. Automatically assigned based on leadership level.</p>
@@ -466,7 +466,7 @@ export default function CreateUserDialog({
               <Input
                 value={systemRole}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
           )}
@@ -480,7 +480,7 @@ export default function CreateUserDialog({
               id="organization"
               value={orgName || orgId}
               disabled
-              className="bg-gray-50 cursor-not-allowed"
+              className="bg-muted cursor-not-allowed"
             />
           </div>
 
@@ -491,7 +491,7 @@ export default function CreateUserDialog({
                 <Label htmlFor="site">
                   Site <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-xs text-gray-500 mb-1">
+                <p className="mb-1 text-xs text-muted-foreground">
                   Select the site where this user will operate.
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
@@ -518,7 +518,7 @@ export default function CreateUserDialog({
                   <Label htmlFor="process">
                     Process <span className="text-red-500">*</span>
                   </Label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="mb-1 text-xs text-muted-foreground">
                     Select one process within this site.
                   </p>
                   <Select
@@ -552,10 +552,10 @@ export default function CreateUserDialog({
               {additionalRoles.length > 0 && (
                 <div className="space-y-2">
                   <Label>Additional roles (optional)</Label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="mb-1 text-xs text-muted-foreground">
                     Assign custom roles such as Auditor if needed.
                   </p>
-                  <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+                  <div className="flex flex-wrap gap-3 rounded-md border border-border bg-muted/50 p-3">
                     {additionalRoles.map((ar) => (
                       <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -568,9 +568,9 @@ export default function CreateUserDialog({
                               setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
                             }
                           }}
-                          className="rounded border-gray-300"
+                          className="rounded border-border"
                         />
-                        <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                        <span className="text-sm font-medium text-foreground">{ar.name}</span>
                       </label>
                     ))}
                   </div>
@@ -597,7 +597,7 @@ export default function CreateUserDialog({
           <Button
             onClick={handleSubmit}
             disabled={isLoading || cannotCreateUsers || !!(systemRole && !canCreateThisRole(systemRole))}
-            className="bg-black text-white hover:bg-gray-800"
+            className="bg-foreground text-background hover:bg-foreground/90"
           >
             {isLoading ? "Creating..." : "Create User"}
           </Button>

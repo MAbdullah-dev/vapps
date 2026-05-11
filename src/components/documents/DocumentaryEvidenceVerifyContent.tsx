@@ -238,9 +238,9 @@ export default function DocumentaryEvidenceVerifyContent() {
 
   if (!meReady || loading) {
     return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] px-6 py-16">
+      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 px-6 py-16">
         <Loader2 className="h-10 w-10 animate-spin text-[#22B323]" aria-hidden />
-        <p className="text-sm font-medium text-[#374151]">Loading…</p>
+        <p className="text-sm font-medium text-foreground">Loading…</p>
       </div>
     );
   }
@@ -292,15 +292,15 @@ export default function DocumentaryEvidenceVerifyContent() {
     if (isSupport) {
       return (
         <div className="space-y-4">
-          <Card className="border border-[#BFDBFE] bg-[#EFF6FF]">
+          <Card className="border border-sky-200 bg-sky-50">
             <CardContent className="py-6 space-y-3">
-              <h2 className="text-lg font-semibold text-[#1E3A8A]">Awaiting designated verifier</h2>
-              <p className="text-sm text-[#1E40AF] leading-relaxed">
+              <h2 className="text-lg font-semibold text-sky-900">Awaiting designated verifier</h2>
+              <p className="text-sm text-sky-800 leading-relaxed">
                 Capture has been submitted. The designated verifier must complete verification and archive. You can
                 review captured data in read-only mode.
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
-                <Button asChild variant="outline" className="bg-white">
+                <Button asChild variant="outline" className="bg-background">
                   <Link href={captureViewHref}>View capture</Link>
                 </Button>
                 <Button asChild variant="ghost">

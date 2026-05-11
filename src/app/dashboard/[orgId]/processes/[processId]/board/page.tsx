@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 
 // Define columns for the board
 const columns = [
-  { id: 'to-do', name: 'To Do', color: '#6B7280' },
+  { id: 'to-do', name: 'To Do', color: 'hsl(var(--muted-foreground))' },
   { id: 'in-progress', name: 'In Progress', color: '#F59E0B' },
   { id: 'in-review', name: 'In Review', color: '#3B82F6' },
   { id: 'done', name: 'Done', color: '#10B981' },
@@ -492,7 +492,7 @@ const Board = () => {
   // Get priority color
   const getPriorityColor = (priority: string) => {
     const colors: Record<string, string> = {
-      low: 'bg-gray-100 text-gray-700',
+      low: 'bg-muted text-foreground',
       medium: 'bg-blue-100 text-blue-700',
       high: 'bg-orange-100 text-orange-700',
       critical: 'bg-red-100 text-red-700',
@@ -512,7 +512,7 @@ const Board = () => {
 
   // Get user avatar color
   const getUserAvatarColor = (userId?: string): string => {
-    if (!userId) return '#6B7280';
+    if (!userId) return 'hsl(var(--muted-foreground))';
     const colors = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
     const index = parseInt(userId.slice(-1), 16) % colors.length;
     return colors[index];
@@ -528,7 +528,7 @@ const Board = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading board...</p>
+        <p className="text-muted-foreground">Loading board...</p>
       </div>
     );
   }
@@ -609,12 +609,12 @@ const Board = () => {
                     >
                       {/* Header: ID and Options */}
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500 font-mono">
+                        <span className="text-xs text-muted-foreground font-mono">
                           {issueId}
                         </span>
                         <button
                           type="button"
-                          className="text-gray-400 hover:text-gray-600"
+                          className="text-muted-foreground hover:text-foreground"
                           onClick={(e) => {
                             e.stopPropagation();
                             setIssueToDelete(issue);
@@ -626,7 +626,7 @@ const Board = () => {
                       </div>
 
                       {/* Title */}
-                      <p className="font-medium text-sm text-gray-900 line-clamp-2">
+                      <p className="font-medium text-sm text-foreground line-clamp-2">
                         {issue.title}
                       </p>
 
@@ -637,7 +637,7 @@ const Board = () => {
                             <Badge
                               key={idx}
                               variant="outline"
-                              className="text-xs px-2 py-0 bg-white"
+                              className="bg-background px-2 py-0 text-xs"
                             >
                               {tag}
                             </Badge>
@@ -645,7 +645,7 @@ const Board = () => {
                           {issue.tags.length > 2 && (
                             <Badge
                               variant="outline"
-                              className="text-xs px-2 py-0 bg-white"
+                              className="bg-background px-2 py-0 text-xs"
                             >
                               +{issue.tags.length - 2}
                             </Badge>
@@ -665,7 +665,7 @@ const Board = () => {
 
                           {/* Due Date (if available) */}
                           {issue.updatedAt && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock size={12} />
                               <span>{formatDate(issue.updatedAt)}</span>
                             </div>

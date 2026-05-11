@@ -99,15 +99,15 @@ export default function NotificationsPage() {
       {/* Header Section */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Notifications</div>
-          <h1 className="text-2xl font-semibold">Notifications</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure how and when you receive notifications</p>
+          <div className="text-sm text-muted-foreground mb-1">Settings &gt; Notifications</div>
+          <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
+          <p className="text-sm text-muted-foreground mt-1">Configure how and when you receive notifications</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Last updated: November 11, 2025 at 10:45 AM
           </div>
-          <Button variant="default" className="bg-gray-900 hover:bg-gray-800">
+          <Button variant="default" className="bg-foreground text-background hover:bg-foreground/90">
             Edit Preferences
           </Button>
         </div>
@@ -128,14 +128,14 @@ export default function NotificationsPage() {
               {section.options.map((option) => (
                 <div
                   key={option.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"
+                  className="flex items-center justify-between rounded-lg border border-border bg-muted p-3"
                 >
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">
+                    <div className="text-sm font-medium text-foreground">
                       {option.label}
                     </div>
                     {option.description && (
-                      <div className="text-xs text-gray-500 mt-0.5">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         {option.description}
                       </div>
                     )}

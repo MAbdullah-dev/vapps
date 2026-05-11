@@ -395,7 +395,7 @@ export default function IssuesOrgBacklogPage() {
                   {issue.priority}
                 </span>
               </div>
-              <p className="text-sm mt-1 font-medium">{issue.title}</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{issue.title}</p>
             </button>
           </div>
 
@@ -497,7 +497,7 @@ export default function IssuesOrgBacklogPage() {
                   />
                 ) : (
                   <h2
-                    className="text-lg font-medium cursor-pointer hover:underline"
+                    className="cursor-pointer text-lg font-medium text-foreground hover:underline"
                     onClick={() => setSprintDetail(sprint)}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
@@ -553,7 +553,7 @@ export default function IssuesOrgBacklogPage() {
 
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between p-4">
-            <h2 className="text-lg font-medium flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-medium text-foreground">
               <ChevronDown /> Backlog
             </h2>
             <Badge variant="secondary">{backlogIssues.length} issues</Badge>
@@ -575,7 +575,7 @@ export default function IssuesOrgBacklogPage() {
 
         <div className="rounded-xl border bg-card">
           <div className="p-4 border-b">
-            <h3 className="text-sm font-semibold">Unlinked Issues (no process)</h3>
+            <h3 className="text-sm font-semibold text-foreground">Unlinked Issues (no process)</h3>
             <p className="text-xs text-muted-foreground">
               These stay outside sprint planning until linked to a process.
             </p>
@@ -601,7 +601,7 @@ export default function IssuesOrgBacklogPage() {
                     )
                   }
                 >
-                  <p className="text-sm font-medium">{issue.title}</p>
+                  <p className="text-sm font-medium text-foreground">{issue.title}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {issue.id} · {issue.priority || "medium"} · {issue.status}
                   </p>
@@ -656,7 +656,7 @@ export default function IssuesOrgBacklogPage() {
                       className="flex items-center justify-between px-4 py-3 text-sm"
                     >
                       <div>
-                        <p className="font-medium">{issue.title}</p>
+                        <p className="font-medium text-foreground">{issue.title}</p>
                         <p className="text-muted-foreground text-xs mt-0.5">
                           {issue.id} · {issue.priority}
                         </p>

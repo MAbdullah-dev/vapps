@@ -331,7 +331,7 @@ function ArchivedLocationBadge({ label }: { label: string }) {
   return (
     <Badge
       variant="outline"
-      className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2.5 py-1 text-xs font-medium text-[#4B5563] hover:bg-[#F3F4F6]"
+      className="rounded-md border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
     >
       {label}
     </Badge>
@@ -412,7 +412,7 @@ function RetentionPeriodBadge({ label }: { label: string }) {
   return (
     <Badge
       variant="outline"
-      className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2.5 py-1 text-xs font-medium text-[#4B5563] hover:bg-[#F3F4F6]"
+      className="rounded-md border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
     >
       {label}
     </Badge>
@@ -562,7 +562,7 @@ function MasterDocumentRowActionsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6A7282] hover:bg-[#F3F4F6] hover:text-[#0A0A0A] data-[state=open]:bg-[#F3F4F6]"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted"
           aria-label="Row actions"
         >
           <MoreVertical size={18} />
@@ -570,35 +570,35 @@ function MasterDocumentRowActionsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className="w-[220px] rounded-xl border border-border bg-popover p-2 shadow-lg"
       >
-        <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+        <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Link href={viewHref}>
-            <Eye size={16} className="text-[#6A7282]" />
+            <Eye size={16} className="text-muted-foreground" />
             View
           </Link>
         </DropdownMenuItem>
         {canEditDirectly ? (
-          <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+          <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
             <Link href={editHref}>
-              <Pencil size={16} className="text-[#6A7282]" />
+              <Pencil size={16} className="text-muted-foreground" />
               Edit
             </Link>
           </DropdownMenuItem>
         ) : (
           <>
-            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               Revision Required
             </DropdownMenuLabel>
-            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+            <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseUpdateHref}>
-                <Pencil size={16} className="text-[#6A7282]" />
+                <Pencil size={16} className="text-muted-foreground" />
                 Revise &amp; Update
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+            <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseTransferHref}>
-                <Pencil size={16} className="text-[#6A7282]" />
+                <Pencil size={16} className="text-muted-foreground" />
                 Revise &amp; Transfer
               </Link>
             </DropdownMenuItem>
@@ -617,7 +617,7 @@ function MasterDocumentRowActionsMenu({
           </button>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
+          className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground"
           onSelect={() => {
             void onDownloadPdf(row);
           }}
@@ -632,8 +632,8 @@ function MasterDocumentRowActionsMenu({
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+        <DropdownMenuSeparator className="my-2 bg-border" />
+        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           Workflow
         </DropdownMenuLabel>
         <DropdownMenuItem
@@ -668,8 +668,8 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
         align="end"
         className="w-[200px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
       >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6] focus:text-[#0A0A0A]">
-          <Eye size={16} className="text-[#0A0A0A]" />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted focus:text-foreground">
+          <Eye size={16} className="text-foreground" />
           View
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
@@ -682,7 +682,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
             Share
           </button>
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
@@ -713,19 +713,19 @@ function DocumentaryEvidenceRowActionsMenu() {
         align="end"
         className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
       >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Eye size={16} className="text-[#0A0A0A]" />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Eye size={16} className="text-foreground" />
           View
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Pencil size={16} className="text-[#0A0A0A]" />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Pencil size={16} className="text-foreground" />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6366F1] focus:bg-[#EEF2FF] focus:text-[#6366F1] [&_svg]:text-[#6366F1]">
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
@@ -734,10 +734,10 @@ function DocumentaryEvidenceRowActionsMenu() {
           Download Excel
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           Record lifecycle
         </DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <Archive size={16} />
           Archive Record
         </DropdownMenuItem>
@@ -764,15 +764,15 @@ function RecordsDisposalRowActionsMenu() {
         align="end"
         className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
       >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Eye size={16} className="text-[#0A0A0A]" />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Eye size={16} className="text-foreground" />
           View
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
@@ -1523,25 +1523,26 @@ export default function DocumentsContent() {
             <div>
               <div className="flex items-center gap-2">
                 <FileText size={20} />
-                <h1 className="text-xl sm:text-2xl font-semibold text-[#0A0A0A]">
+                <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
                   Document Management Tables
                 </h1>
               </div>
-              <p className="text-sm text-[#9CA3AF] mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 View and manage documents across different categories
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 asChild
-                className="flex items-center gap-2 bg-transparent hover:bg-transparent border border-[#5ea500] text-[#5ea500]"
+                variant="outline"
+                className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <Link href={documentaryEvidenceTemplatesHref}>
                   <FileText size={16} />
                   Documentary Evidence Records
                 </Link>
               </Button>
-              <Button asChild className="text-white flex items-center gap-2" variant="default">
+              <Button asChild variant="default" className="flex items-center gap-2">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
                   Create Document
@@ -1556,7 +1557,7 @@ export default function DocumentsContent() {
       <Card className="py-4">
         <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="w-full sm:w-auto">
-            <p className="text-xs text-[#6A7282] mb-2">Select Table</p>
+            <p className="mb-2 text-xs text-muted-foreground">Select Table</p>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
               <SelectTrigger className="w-full sm:min-w-[340px] sm:max-w-[520px] border border-[#0000001A] rounded-xl bg-white px-3 py-2 text-sm">
                 <SelectValue />
@@ -1627,7 +1628,7 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Master Document List" ? (
             <div
-              className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#4B5563]"
+              className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground"
               role="note"
             >
               <p className="leading-relaxed">
@@ -1639,7 +1640,7 @@ export default function DocumentsContent() {
           ) : null}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-[#0A0A0A]">
+              <h2 className="text-base font-semibold text-foreground">
                 {selectedTable === "Obsolete Document Register"
                   ? "Obsolete Document Register P/F"
                   : selectedTable === "Documentary Evidence"
@@ -1654,7 +1655,7 @@ export default function DocumentsContent() {
               <div className="relative">
                 <Search
                   size={16}
-                  className="absolute top-1/2 left-3 -translate-y-1/2 text-[#6A7282]"
+                  className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   value={search}
@@ -1686,31 +1687,31 @@ export default function DocumentsContent() {
             {selectedTable === "Master Document List" ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-[#FAFAFA] hover:bg-[#FAFAFA]">
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
+                  <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
                       Document Ref.
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
                       Nature of Document
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Title</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Type</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Site</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Process</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Standard</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Clause</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Subclause</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc#</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Version</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Plan Date</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Release Date</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] min-w-[140px]">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Title</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Type</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Site</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Process</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Standard</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Clause</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Subclause</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Doc#</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Version</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Plan Date</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Release Date</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground min-w-[140px]">
                       Review Due (Lifecycle in Years)
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">KPI</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc Status</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc Position</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] w-[56px] text-center">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">KPI</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Doc Status</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Doc Position</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground w-[56px] text-center">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -1735,13 +1736,13 @@ export default function DocumentsContent() {
                   ) : (
                     filteredMaster.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
+                        <TableCell className="text-sm font-medium text-foreground whitespace-nowrap">
                           {doc.documentRef}
                         </TableCell>
-                        <TableCell className="text-sm text-[#0A0A0A]">{doc.natureOfDocument}</TableCell>
-                        <TableCell className="text-sm text-[#0A0A0A] max-w-[200px]">{doc.title}</TableCell>
+                        <TableCell className="text-sm text-foreground">{doc.natureOfDocument}</TableCell>
+                        <TableCell className="text-sm text-foreground max-w-[200px]">{doc.title}</TableCell>
                         <TableCell>
-                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl text-[#0A0A0A]">
+                          <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold text-foreground">
                             {doc.type}
                           </span>
                         </TableCell>
@@ -1750,8 +1751,8 @@ export default function DocumentsContent() {
                         <TableCell className="text-sm">{doc.standard}</TableCell>
                         <TableCell className="text-sm max-w-[120px]">{doc.clause}</TableCell>
                         <TableCell className="text-sm max-w-[160px]">{doc.subclause}</TableCell>
-                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.docNumber}</TableCell>
-                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.version}</TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">{doc.docNumber}</TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">{doc.version}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
@@ -2101,21 +2102,25 @@ export default function DocumentsContent() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Document Ref.</TableHead>
-                    <TableHead>Nature of Document</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Process</TableHead>
-                    <TableHead>Standard</TableHead>
-                    <TableHead>Clause</TableHead>
-                    <TableHead>Subclause</TableHead>
-                    <TableHead>Doc#</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Plan Date</TableHead>
-                    <TableHead>Release Date</TableHead>
-                    <TableHead>Review Due</TableHead>
+                  <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      Document Ref.
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      Nature of Document
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Title</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Type</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Site</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Process</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Standard</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Clause</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Subclause</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Doc#</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Version</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Plan Date</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Release Date</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">Review Due</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2138,11 +2143,11 @@ export default function DocumentsContent() {
                   ) : (
                     filteredMaster.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="font-medium text-[#0A0A0A]">{doc.documentRef}</TableCell>
+                        <TableCell className="font-medium text-foreground">{doc.documentRef}</TableCell>
                         <TableCell>{doc.natureOfDocument}</TableCell>
                         <TableCell>{doc.title}</TableCell>
                         <TableCell>
-                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl">
+                          <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold">
                             {doc.type}
                           </span>
                         </TableCell>
@@ -2203,36 +2208,36 @@ export default function DocumentsContent() {
       {/* Document Classification */}
       <Card>
         <CardContent className="space-y-4">
-          <h2 className="text-base font-semibold text-[#0A0A0A]">
+          <h2 className="text-base font-semibold text-foreground">
             Document Classification
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-[#0000001A] p-4">
-              <h3 className="font-semibold text-sm mb-3">
+            <div className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
                 Category 1 - Maintained Documents <span className="text-[#22B323]">(Type P)</span>
               </h3>
-              <div className="text-sm text-[#6A7282] space-y-1">
+              <div className="space-y-1 text-sm text-muted-foreground">
                 <div>Policy</div>
                 <div>Procedure</div>
                 <div>SOP</div>
                 <div>Work Instruction</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">Lifecycle:</span> Draft -&gt; Create -&gt; Review -&gt; Approve -&gt; Obsolete
+                  <span className="font-medium text-foreground">Lifecycle:</span> Draft -&gt; Create -&gt; Review -&gt; Approve -&gt; Obsolete
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#0000001A] p-4">
-              <h3 className="font-semibold text-sm mb-3">
+            <div className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
                 Category 2 - Retained Records <span className="text-[#0EA5E9]">(Type F)</span>
               </h3>
-              <div className="text-sm text-[#6A7282] space-y-1">
+              <div className="space-y-1 text-sm text-muted-foreground">
                 <div>Templates</div>
                 <div>Forms</div>
                 <div>Checklists</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">Lifecycle:</span>{" "}
+                  <span className="font-medium text-foreground">Lifecycle:</span>{" "}
                   Draft + Capture -&gt; Verify &amp; Archive -&gt; Dispose
                 </div>
               </div>

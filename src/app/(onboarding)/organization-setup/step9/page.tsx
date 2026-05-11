@@ -44,7 +44,7 @@ const Step9 = () => {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-2">Security Settings</h1>
+      <h1 className="mb-2 text-2xl font-bold text-foreground">Security Settings</h1>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
@@ -74,7 +74,7 @@ const Step9 = () => {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold mb-3">Access Control</h3>
+            <h3 className="mb-3 text-xl font-semibold text-foreground">Access Control</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="passwordPolicy" render={({ field }) => (
                 <FormItem><FormLabel>Password Policy</FormLabel><FormControl><Input placeholder="Standard (10+ chars, mixed case)" {...field} /></FormControl><FormMessage /></FormItem>
@@ -87,8 +87,8 @@ const Step9 = () => {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold mb-3">Audit Logging</h3>
-            <p className="text-gray-600 mb-3">Log All User Actions</p>
+            <h3 className="mb-3 text-xl font-semibold text-foreground">Audit Logging</h3>
+            <p className="mb-3 text-muted-foreground">Log All User Actions</p>
 
             <FormField control={form.control} name="logAllActions" render={({ field }) => (
               <FormItem className="flex justify-between items-center  mb-4"><FormLabel>Enable Logging</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
@@ -100,7 +100,7 @@ const Step9 = () => {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold mb-3">Backup Configuration</h3>
+            <h3 className="mb-3 text-xl font-semibold text-foreground">Backup Configuration</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="backupFrequency" render={({ field }) => (
                 <FormItem>
@@ -127,8 +127,8 @@ const Step9 = () => {
           </section>
 
           <section className="border p-4 rounded-md bg-[#FEFCE8]">
-            <h3 className="text-lg font-semibold mb-2">Security Best Practices</h3>
-            <ul className=" list-inside space-y-1 text-gray-700 text-sm">
+            <h3 className="mb-2 text-lg font-semibold text-foreground">Security Best Practices</h3>
+            <ul className="list-inside space-y-1 text-sm text-foreground">
               <li>Enable 2FA for enhanced security</li>
               <li>Use strict password policies for sensitive data</li>
               <li>Regularly review audit logs for suspicious activity</li>

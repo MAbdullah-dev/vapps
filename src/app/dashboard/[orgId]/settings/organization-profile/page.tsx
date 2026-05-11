@@ -164,7 +164,7 @@ export default function OrganizationProfilePage() {
   if (!orgId || orgId === 'undefined') {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading organization...</p>
+        <p className="text-muted-foreground">Loading organization...</p>
       </div>
     );
   }
@@ -172,7 +172,7 @@ export default function OrganizationProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -191,17 +191,17 @@ export default function OrganizationProfilePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">
+          <div className="text-sm text-muted-foreground mb-1">
             Settings &gt; Organization Profile
           </div>
-          <h1 className="text-2xl font-semibold">Organization Profile</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Organization Profile</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage your company information and branding.
           </p>
         </div>
         <div className="flex items-center gap-4">
           {lastUpdated && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Last updated: {formatDate(lastUpdated)}
             </span>
           )}
@@ -245,7 +245,7 @@ export default function OrganizationProfilePage() {
                 {logoPreview ? (
                   <AvatarImage src={logoPreview} alt="Company Logo" />
                 ) : (
-                  <AvatarFallback className="bg-gray-800 text-white text-xl">
+                  <AvatarFallback className="bg-foreground text-background text-xl">
                     {formData.name.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 )}

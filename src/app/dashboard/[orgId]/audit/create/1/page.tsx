@@ -596,21 +596,24 @@ export default function CreateAuditStep1Page() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {sites.map((site) => (
+                    (() => {
+                      const isSelected = selectedSiteIds.includes(site.id);
+                      return (
                     <Button
                       key={site.id}
                       type="button"
-                      variant="outline"
+                      variant={isSelected ? "default" : "outline"}
                       size="sm"
                       onClick={() => selectSite(site.id)}
                       className={cn(
-                        "min-w-[100px] rounded-md border py-4 transition-colors",
-                        selectedSiteIds.includes(site.id)
-                          ? "border-white bg-foreground text-muted-foreground hover:bg-foreground hover:text-background"
-                          : "border-border text-foreground hover:border-border hover:bg-muted/40"
+                        "min-w-[100px] rounded-md py-4 transition-colors",
+                        !isSelected && "border-border text-foreground hover:border-border hover:bg-muted/40"
                       )}
                     >
                       {site.code || site.name}
                     </Button>
+                      );
+                    })()
                   ))}
                 </div>
               )}
@@ -667,10 +670,10 @@ export default function CreateAuditStep1Page() {
         </div>
 
         {/* Audit Program Owner & Delegation: Select site first, then process (for that site), then responsible owner (from process), then lead auditor (user with Auditor role). */}
-        <div className="rounded-lg border border-border bg-green-50/50 p-8 shadow-sm mx-8 my-8">
+        <div className="rounded-lg border border-border bg-primary/5 p-8 shadow-sm mx-8 my-8">
           <div className="mb-6 flex items-center gap-2">
-            <h2 className="text-xl font-bold text-green-700">Audit Program Owner & Delegation</h2>
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-primary-foreground">
+            <h2 className="text-xl font-bold text-primary">Audit Program Owner & Delegation</h2>
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <Info className="h-3 w-3" />
             </div>
           </div>
@@ -715,7 +718,7 @@ export default function CreateAuditStep1Page() {
               <p className="text-xs text-muted-foreground">Determined by selected site and process (person responsible for that process).</p>
             </div>
           </div>
-          <p className="mt-3 text-sm text-green-700 font-medium">
+          <p className="mt-3 text-sm text-primary font-medium">
             Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).
           </p>
           <p className="mt-4 text-sm italic text-muted-foreground">
@@ -832,7 +835,7 @@ export default function CreateAuditStep1Page() {
             <h2 className="text-xl font-bold text-foreground">
               AUDIT PROGRAM RISKS & OPPORTUNITIES
             </h2>
-            <Button onClick={addRisk} size="sm" className="bg-green-600 hover:bg-green-700">
+            <Button onClick={addRisk} size="sm">
               + ADD RISK
             </Button>
           </div>
@@ -906,7 +909,7 @@ export default function CreateAuditStep1Page() {
             <h2 className="text-xl font-bold text-foreground">
               AUDIT PROGRAM STRUCTURE & SCHEDULE
             </h2>
-            <Button onClick={addScheduleRow} size="sm" className="bg-green-600 hover:bg-green-700">
+            <Button onClick={addScheduleRow} size="sm">
               + ADD ROW
             </Button>
           </div>
@@ -954,7 +957,7 @@ export default function CreateAuditStep1Page() {
             <h2 className="text-xl font-bold text-foreground">
               MONITORING & MEASUREMENT (KPIS)
             </h2>
-            <Button onClick={addKpi} size="sm" className="bg-green-600 hover:bg-green-700">
+            <Button onClick={addKpi} size="sm">
               + ADD KPI
             </Button>
           </div>
@@ -1009,7 +1012,7 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">PROGRAM REVIEW & IMPROVEMENT</h2>
-            <Button onClick={addReview} size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700">
+            <Button onClick={addReview} size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
               ADD REVIEW
             </Button>
@@ -1093,7 +1096,7 @@ export default function CreateAuditStep1Page() {
       </div>
 
       {/* Save & Continue / Save */}
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 px-8 pb-8">
         <Button
           size="lg"
           variant="outline"
@@ -1138,7 +1141,7 @@ export default function CreateAuditStep1Page() {
         </Button>
         <Button
           size="lg"
-          className="gap-2 bg-green-600 hover:bg-green-700"
+          className="gap-2"
           disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
           onClick={async () => {
             if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;
@@ -1185,7 +1188,7 @@ export default function CreateAuditStep1Page() {
       <Dialog open={riskDialogOpen} onOpenChange={(open) => { setRiskDialogOpen(open); if (!open) setEditingRiskId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingRiskId ? "Edit Risk" : "Add Risk"}</DialogTitle>
+            <DialogTitle className="text-primary">{editingRiskId ? "Edit Risk" : "Add Risk"}</DialogTitle>
             <DialogDescription>{editingRiskId ? "Update the risk or opportunity." : "Add a new risk or opportunity to the audit program."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1242,7 +1245,7 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRiskDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitRisk}>{editingRiskId ? "Save changes" : "Add Risk"}</Button>
+            <Button onClick={submitRisk}>{editingRiskId ? "Save changes" : "Add Risk"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1251,7 +1254,7 @@ export default function CreateAuditStep1Page() {
       <Dialog open={kpiDialogOpen} onOpenChange={(open) => { setKpiDialogOpen(open); if (!open) setEditingKpiId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingKpiId ? "Edit KPI" : "Add KPI"}</DialogTitle>
+            <DialogTitle className="text-primary">{editingKpiId ? "Edit KPI" : "Add KPI"}</DialogTitle>
             <DialogDescription>{editingKpiId ? "Update the KPI." : "Add a new KPI for monitoring and measurement."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1295,7 +1298,7 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setKpiDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitKpi}>{editingKpiId ? "Save changes" : "Add KPI"}</Button>
+            <Button onClick={submitKpi}>{editingKpiId ? "Save changes" : "Add KPI"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1304,7 +1307,7 @@ export default function CreateAuditStep1Page() {
       <Dialog open={scheduleDialogOpen} onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) setScheduleEditIndex(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{scheduleEditIndex !== null ? "Edit Schedule Row" : "Add Schedule Row"}</DialogTitle>
+            <DialogTitle className="text-primary">{scheduleEditIndex !== null ? "Edit Schedule Row" : "Add Schedule Row"}</DialogTitle>
             <DialogDescription>{scheduleEditIndex !== null ? "Update the audit program structure and schedule row." : "Add a new row to the audit program structure and schedule."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1339,7 +1342,7 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitScheduleEdit}>{scheduleEditIndex !== null ? "Save changes" : "Add Row"}</Button>
+            <Button onClick={submitScheduleEdit}>{scheduleEditIndex !== null ? "Save changes" : "Add Row"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1348,7 +1351,7 @@ export default function CreateAuditStep1Page() {
       <Dialog open={reviewDialogOpen} onOpenChange={(open) => { setReviewDialogOpen(open); if (!open) setEditingReviewId(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingReviewId ? "Edit Review" : "Add Review"}</DialogTitle>
+            <DialogTitle className="text-primary">{editingReviewId ? "Edit Review" : "Add Review"}</DialogTitle>
             <DialogDescription>{editingReviewId ? "Update the program review or improvement item." : "Add a program review or improvement item."}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1396,7 +1399,7 @@ export default function CreateAuditStep1Page() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={submitReview}>{editingReviewId ? "Save changes" : "Add Review"}</Button>
+            <Button onClick={submitReview}>{editingReviewId ? "Save changes" : "Add Review"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

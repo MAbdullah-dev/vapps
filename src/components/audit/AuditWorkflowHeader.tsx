@@ -55,7 +55,7 @@ export default function AuditWorkflowHeader({
 
   return (
     <>
-      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <h2 className="text-lg font-bold text-foreground">
@@ -64,14 +64,16 @@ export default function AuditWorkflowHeader({
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link href={saveDraftHref} className="flex items-center gap-2">
-                <Save className="h-4 w-4" />
+              <Link href={saveDraftHref} className="flex items-center gap-2 text-foreground no-underline">
+                <Save className="h-4 w-4 text-muted-foreground" />
                 Save Draft
               </Link>
             </Button>
 
             <Button variant="outline" size="sm" asChild>
-              <Link href={exitHref}>Exit to Dashboard</Link>
+              <Link href={exitHref} className="text-foreground no-underline">
+                Exit to Dashboard
+              </Link>
             </Button>
           </div>
         </div>
@@ -85,24 +87,27 @@ export default function AuditWorkflowHeader({
             const isCompleted = currentStep > step;
             const isCurrent = currentStep === step;
             const isUnlocked = isAccessible && !isLocked;
+            const isTabDisabled = !isAccessible || isLocked;
 
-            // Tab container: current step always shows active (green), then completed, then unlocked, then locked
+            // Tab colors: primary / card / accent from theme (globals.css) — no fixed Tailwind palette colors.
             const tabClasses = cn(
               "flex-1 rounded-lg border-2 transition-all duration-200",
               "flex flex-col items-center justify-center py-4 px-2 min-h-[100px]",
               isCurrent
-                ? "bg-primary border-primary text-primary-foreground cursor-pointer" // Current step always active
+                ? "bg-primary border-primary text-primary-foreground cursor-pointer"
                 : isCompleted
-                ? "bg-primary/10 border-primary hover:bg-primary/15 cursor-pointer"
+                ? "bg-primary/10 border-primary text-card-foreground hover:bg-primary/15 cursor-pointer"
                 : isUnlocked
-                ? "bg-card border-primary hover:bg-primary/10 cursor-pointer"
-                : "bg-muted/50 border-border cursor-not-allowed opacity-60"
+                ? "bg-card border-primary text-card-foreground hover:bg-primary/10 cursor-pointer"
+                : "border-accent/40 bg-accent/10 text-muted-foreground cursor-not-allowed opacity-90"
             );
 
             // Icon circle classes
             const iconCircleClasses = cn(
               "flex h-10 w-10 items-center justify-center rounded-full border-2 mb-2",
-              isCompleted
+              isTabDisabled
+                ? "border-border bg-muted"
+                : isCompleted
                 ? "bg-primary border-primary"
                 : isCurrent
                 ? "bg-primary-foreground/20 border-primary-foreground" // Current: subtle circle on active tab
@@ -114,14 +119,14 @@ export default function AuditWorkflowHeader({
 
             // Icon color classes
             const iconColorClasses = cn(
-              "h-5 w-5",
-              isCompleted
+              "h-5 w-5 shrink-0",
+              isTabDisabled
+                ? "text-muted-foreground"
+                : isCompleted
                 ? "text-primary-foreground"
                 : isCurrent
                 ? "text-primary-foreground"
-                : isUnlocked
-                ? "text-muted-foreground"
-                : "text-muted-foreground/70"
+                : "text-muted-foreground"
             );
 
             // Text classes
@@ -159,7 +164,11 @@ export default function AuditWorkflowHeader({
               <Link
                 key={step}
                 href={stepHref}
-                className={tabClasses}
+                className={cn(
+                  tabClasses,
+                  "no-underline text-inherit",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                )}
               >
                 {tabContent}
               </Link>

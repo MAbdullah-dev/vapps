@@ -33,11 +33,11 @@ export default function BillingSubscriptionPage() {
       {/* Header Section */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Billing & Subscription</div>
-          <h1 className="text-2xl font-semibold">Billing & Subscription</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your plan, payment methods, and invoices.</p>
+          <div className="text-sm text-muted-foreground mb-1">Settings &gt; Billing & Subscription</div>
+          <h1 className="text-2xl font-semibold text-foreground">Billing & Subscription</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage your plan, payment methods, and invoices.</p>
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-muted-foreground">
           Last updated: November 11, 2025 at 11:00 AM
         </div>
       </div>
@@ -50,7 +50,7 @@ export default function BillingSubscriptionPage() {
               <CardTitle>Current Plan</CardTitle>
               <div className="flex items-center gap-1 mt-1">
                 <CardDescription>Powered by Stripe</CardDescription>
-                <Info className="h-3 w-3 text-gray-400" />
+                <Info className="h-3 w-3 text-muted-foreground" />
               </div>
             </div>
             <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 ms-auto">
@@ -65,11 +65,11 @@ export default function BillingSubscriptionPage() {
               <div className="flex items-center gap-3">
                 <h3 className="text-lg font-semibold">Pro Plan</h3>
               </div>
-              <p className="text-sm text-gray-600">For growing teams and businesses.</p>
+              <p className="text-sm text-muted-foreground">For growing teams and businesses.</p>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold">$99</div>
-              <div className="text-sm text-gray-500">per month</div>
+              <div className="text-sm text-muted-foreground">per month</div>
             </div>
           </div>
 
@@ -78,7 +78,7 @@ export default function BillingSubscriptionPage() {
             {features.map((feature, index) => (
               <div key={index} className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-600" />
-                <span className="text-sm text-gray-700">{feature}</span>
+                <span className="text-sm text-foreground">{feature}</span>
               </div>
             ))}
           </div>
@@ -99,10 +99,10 @@ export default function BillingSubscriptionPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <CreditCard className="h-6 w-6 text-gray-400" />
+              <CreditCard className="h-6 w-6 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium flex items-center gap-1"><Ellipsis /> <Ellipsis /> <Ellipsis /> 4242</div>
-                <div className="text-xs text-gray-500">Expires 12/2025</div>
+                <div className="text-xs text-muted-foreground">Expires 12/2025</div>
               </div>
             </div>
             <Button variant="outline">Update</Button>

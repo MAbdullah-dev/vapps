@@ -183,23 +183,23 @@ export default function TeamsRolesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 bg-white min-h-screen">
+    <div className="min-h-screen space-y-6 bg-background p-6 text-foreground">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <div className="text-sm text-gray-500 mb-1 flex items-center gap-1">
-            <Link href={getDashboardPath(orgId, "settings")} className="hover:text-gray-700">Settings</Link>
+          <div className="mb-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Link href={getDashboardPath(orgId, "settings")} className="hover:text-foreground">Settings</Link>
             <span>/</span>
             <span>Sites & Departments</span>
           </div>
-          <h1 className="text-2xl font-semibold">Teams & Roles</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Teams & Roles</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage team members, system role permissions, and additional roles (e.g. Auditor).
           </p>
         </div>
         {canManageTeams && (
           <Button
-            className="bg-black text-white hover:bg-gray-800 flex items-center gap-2"
+            className="flex items-center gap-2"
             onClick={() => setIsCreateUserDialogOpen(true)}
           >
             <UserPlus className="h-4 w-4" />
@@ -210,7 +210,7 @@ export default function TeamsRolesPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <>
@@ -218,25 +218,25 @@ export default function TeamsRolesPage() {
           <div className="grid grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm text-gray-500 mb-1">Total Users</div>
+                <div className="mb-1 text-sm text-muted-foreground">Total Users</div>
                 <div className="text-2xl font-semibold">{totalUsers}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm text-gray-500 mb-1">Active</div>
+                <div className="mb-1 text-sm text-muted-foreground">Active</div>
                 <div className="text-2xl font-semibold text-green-600">{activeUsers}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm text-gray-500 mb-1">Pending Invites</div>
+                <div className="mb-1 text-sm text-muted-foreground">Pending Invites</div>
                 <div className="text-2xl font-semibold">{pendingInvites}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm text-gray-500 mb-1">Admins</div>
+                <div className="mb-1 text-sm text-muted-foreground">Admins</div>
                 <div className="text-2xl font-semibold">{admins}</div>
               </CardContent>
             </Card>
@@ -252,7 +252,7 @@ export default function TeamsRolesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       placeholder="Search users..."
                       className="pl-10 w-64"
@@ -284,13 +284,13 @@ export default function TeamsRolesPage() {
                         <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={member.avatar} alt={member.name} />
-                            <AvatarFallback className="bg-gray-200 text-gray-600">
+                            <AvatarFallback className="bg-muted text-muted-foreground">
                               {getInitials(member.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <div className="font-medium">{member.name}</div>
-                            <div className="text-sm text-gray-500">{member.email}</div>
+                            <div className="text-sm text-muted-foreground">{member.email}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -309,7 +309,7 @@ export default function TeamsRolesPage() {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -317,7 +317,7 @@ export default function TeamsRolesPage() {
                           {member.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-gray-500">{member.lastActive}</TableCell>
+                      <TableCell className="text-muted-foreground">{member.lastActive}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -354,7 +354,7 @@ export default function TeamsRolesPage() {
                 <TableBody>
                   {additionalRoles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={2} className="text-center text-gray-500 py-6">
+                      <TableCell colSpan={2} className="py-6 text-center text-muted-foreground">
                         No additional roles yet. Add &quot;Auditor&quot; or other custom roles as needed.
                       </TableCell>
                     </TableRow>
@@ -362,7 +362,7 @@ export default function TeamsRolesPage() {
                     additionalRoles.map((role) => (
                       <TableRow key={role.id}>
                         <TableCell className="font-medium">{role.name}</TableCell>
-                        <TableCell className="text-gray-600">{role.description ?? "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">{role.description ?? "—"}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -387,23 +387,23 @@ export default function TeamsRolesPage() {
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-4 gap-4 pb-4 border-b">
-                  <div className="font-medium text-sm text-gray-700">Permission</div>
+                  <div className="text-sm font-medium text-foreground">Permission</div>
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-gray-400" />
+                    <Shield className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">Admin</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-gray-400" />
+                    <Shield className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">Manager</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-gray-400" />
+                    <Shield className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">Member</span>
                   </div>
                 </div>
                 {permissions.map((permission) => (
                   <div key={permission.key} className="grid grid-cols-4 gap-4 items-center py-2">
-                    <div className="text-sm text-gray-700">{permission.label}</div>
+                    <div className="text-sm text-foreground">{permission.label}</div>
                     <div className="text-sm">{permission.admin ? "Yes" : "No"}</div>
                     <div className="text-sm">{permission.manager ? "Yes" : "No"}</div>
                     <div className="text-sm">{permission.member ? "Yes" : "No"}</div>
@@ -452,7 +452,7 @@ export default function TeamsRolesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddRoleDialogOpen(false)} disabled={addingRole}>Cancel</Button>
-            <Button onClick={handleAddAdditionalRole} disabled={addingRole} className="bg-black text-white hover:bg-gray-800">
+            <Button onClick={handleAddAdditionalRole} disabled={addingRole}>
               {addingRole ? "Adding..." : "Add role"}
             </Button>
           </DialogFooter>

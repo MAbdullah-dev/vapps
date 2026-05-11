@@ -723,7 +723,7 @@ export default function ProcessLayout({
             <span className="bg-primary p-2 rounded text-primary-foreground">
               <TrendingUp size={16} />
             </span>
-            <h1 className="text-base font-bold capitalize">
+            <h1 className="text-base font-bold capitalize text-foreground">
               {workspaceSegment === "issues"
                 ? (() => {
                     const site = sitesForIssue.find((s) => s.id === selectedIssueSiteId);

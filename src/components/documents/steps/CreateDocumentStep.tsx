@@ -751,18 +751,18 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h3 className="text-3xl font-semibold text-[#0A0A0A]">{flowTitle}</h3>
-            <p className="text-sm text-[#6A7282]">Start Procedure(P) or Form(F)!</p>
+            <h3 className="text-3xl font-semibold text-foreground">{flowTitle}</h3>
+            <p className="text-sm text-muted-foreground">Start Procedure(P) or Form(F)!</p>
           </div>
 
           <div className="space-y-1 pt-2">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">1. Identity Information</h4>
-            <p className="text-sm text-[#6A7282]">Auto-generated and basic organizational data</p>
+            <h4 className="text-xl font-semibold text-foreground">1. Identity Information</h4>
+            <p className="text-sm text-muted-foreground">Auto-generated and basic organizational data</p>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">User Information</h5>
+              <h5 className="text-lg font-semibold text-foreground">User Information</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-user-name">Name (Login User)</Label>
@@ -770,7 +770,7 @@ export default function CreateDocumentStep({
                     id="login-user-name"
                     value={loginUserName}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
@@ -779,7 +779,7 @@ export default function CreateDocumentStep({
                     id="organization-name"
                     value={organizationName}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                     placeholder="Organization name"
                   />
                 </div>
@@ -789,7 +789,7 @@ export default function CreateDocumentStep({
                     id="organization-identification"
                     value={organizationIdentification}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
@@ -798,7 +798,7 @@ export default function CreateDocumentStep({
                     id="industry-type"
                     value={industryType}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -813,10 +813,10 @@ export default function CreateDocumentStep({
               </div>
             </div>
 
-            <div className="border-t border-[#E5E7EB]" />
+            <div className="border-t border-border" />
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Site Information</h5>
+              <h5 className="text-lg font-semibold text-foreground">Site Information</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-site">Site / Unit *</Label>
@@ -839,7 +839,7 @@ export default function CreateDocumentStep({
                     id="site-id"
                     value={siteId}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
@@ -848,17 +848,17 @@ export default function CreateDocumentStep({
                     id="location"
                     value={location}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                     placeholder="e.g., Main Factory"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-[#E5E7EB]" />
+            <div className="border-t border-border" />
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Process Area</h5>
+              <h5 className="text-lg font-semibold text-foreground">Process Area</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-process">Process / Area *</Label>
@@ -893,7 +893,7 @@ export default function CreateDocumentStep({
                     id="process-id"
                     value={processId}
                     readOnly
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted text-muted-foreground"
                     placeholder="Auto-filled"
                   />
                 </div>
@@ -925,13 +925,13 @@ export default function CreateDocumentStep({
                           </SelectItem>
                         ))
                       ) : (
-                        <div className="px-2 py-1.5 text-sm text-[#6B7280]">
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
                           No eligible top or middle-tier users available
                         </div>
                       )}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-[#6A7282]">
+                  <p className="text-xs text-muted-foreground">
                     Top/middle tier only. The person creating this document cannot be Process Owner.
                   </p>
                 </div>
@@ -964,25 +964,25 @@ export default function CreateDocumentStep({
                         </SelectItem>
                       ))
                     ) : (
-                      <div className="px-2 py-1.5 text-sm text-[#6B7280]">
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
                         No eligible top-tier approvers available
                       </div>
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-[#6A7282]">
+                <p className="text-xs text-muted-foreground">
                   Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be
                   approver.
                 </p>
               </div>
             </div>
 
-            <div className="border-t border-[#E5E7EB]" />
+            <div className="border-t border-border" />
 
             {!isReviseUpdate && !isReviseTransfer ? (
               <>
                 <div className="space-y-3">
-                  <h5 className="text-lg font-semibold text-[#0A0A0A]">Previous Document Reference</h5>
+                  <h5 className="text-lg font-semibold text-foreground">Previous Document Reference</h5>
                   <div className="space-y-2">
                     <Label htmlFor="previous-ref">Old Reference Number (if any)</Label>
                     <Input
@@ -991,19 +991,19 @@ export default function CreateDocumentStep({
                       onChange={(e) => setPreviousRefNumber(e.target.value)}
                       placeholder="e.g., Doc/2024/S1/P2/P/D1/v1"
                     />
-                    <p className="text-xs text-[#6A7282]">
+                    <p className="text-xs text-muted-foreground">
                       Enter previous document reference if this is a revision
                     </p>
                   </div>
                 </div>
 
-                <div className="border-t border-[#E5E7EB]" />
+                <div className="border-t border-border" />
               </>
             ) : null}
 
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Document Details</h5>
+              <h5 className="text-lg font-semibold text-foreground">Document Details</h5>
               <div className="space-y-2">
                 <Label htmlFor="doc-description">Description</Label>
                 <Textarea
@@ -1021,8 +1021,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">2. Change Request</h4>
-            <p className="text-sm text-[#6A7282]">Document priority level</p>
+            <h4 className="text-xl font-semibold text-foreground">2. Change Request</h4>
+            <p className="text-sm text-muted-foreground">Document priority level</p>
           </div>
 
           <RadioGroup
@@ -1035,13 +1035,13 @@ export default function CreateDocumentStep({
               className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer font-normal ${
                 priorityLevel === "high"
                   ? "border-[#22B323] bg-[#EAF6EC]"
-                  : "border-[#E5E7EB]"
+                  : "border-border"
               }`}
             >
               <RadioGroupItem value="high" id="priority-high" className="mt-1" />
               <div>
-                <p className="font-semibold text-[#0A0A0A]">High (Strategic Documents)</p>
-                <p className="text-sm text-[#6A7282]">
+                <p className="font-semibold text-foreground">High (Strategic Documents)</p>
+                <p className="text-sm text-muted-foreground">
                   Policy, Manual, Procedure, SOP, Governance documents
                 </p>
               </div>
@@ -1052,13 +1052,13 @@ export default function CreateDocumentStep({
               className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer font-normal ${
                 priorityLevel === "low"
                   ? "border-[#22B323] bg-[#EAF6EC]"
-                  : "border-[#E5E7EB]"
+                  : "border-border"
               }`}
             >
               <RadioGroupItem value="low" id="priority-low" className="mt-1" />
               <div>
-                <p className="font-semibold text-[#0A0A0A]">Low (Operational Records)</p>
-                <p className="text-sm text-[#6A7282]">Forms, Checklists, Logs, Templates</p>
+                <p className="font-semibold text-foreground">Low (Operational Records)</p>
+                <p className="text-sm text-muted-foreground">Forms, Checklists, Logs, Templates</p>
               </div>
             </Label>
           </RadioGroup>
@@ -1069,8 +1069,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">3. Document Type</h4>
-            <p className="text-sm text-[#6A7282]">Select document classification</p>
+            <h4 className="text-xl font-semibold text-foreground">3. Document Type</h4>
+            <p className="text-sm text-muted-foreground">Select document classification</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1095,17 +1095,17 @@ export default function CreateDocumentStep({
                   }}
                   className={`rounded-lg border p-4 text-center transition-colors ${isActive
                       ? "border-[#22B323] bg-[#EAF6EC]"
-                      : "border-[#E5E7EB] bg-white hover:bg-[#F9FAFB]"
+                      : "border-border bg-background hover:bg-muted"
                     }`}
                 >
                   <p
-                    className={`font-semibold ${isActive ? "text-[#22B323]" : "text-[#6A7282]"
+                    className={`font-semibold ${isActive ? "text-[#22B323]" : "text-muted-foreground"
                       }`}
                   >
                     {item.title}
                   </p>
                   <p
-                    className={`text-sm mt-1 ${isActive ? "text-[#22B323]" : "text-[#6A7282]"
+                    className={`text-sm mt-1 ${isActive ? "text-[#22B323]" : "text-muted-foreground"
                       }`}
                   >
                     {item.subtitle}
@@ -1121,8 +1121,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">4. Action Selection</h4>
-            <p className="text-sm text-[#6A7282]">Select one action only (mutually exclusive)</p>
+            <h4 className="text-xl font-semibold text-foreground">4. Action Selection</h4>
+            <p className="text-sm text-muted-foreground">Select one action only (mutually exclusive)</p>
           </div>
 
           <div className="space-y-2">
@@ -1141,7 +1141,7 @@ export default function CreateDocumentStep({
                     onClick={() => setActionType(item.value)}
                     className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
                         ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
-                        : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted"
                       }`}
                   >
                     {item.label}
@@ -1193,7 +1193,7 @@ export default function CreateDocumentStep({
                       }}
                       className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
                           ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
-                          : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted"
                         }`}
                     >
                       {item.label}
@@ -1211,8 +1211,8 @@ export default function CreateDocumentStep({
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#0A0A0A]">1.9 Revision Details</h4>
-              <p className="text-sm text-[#6A7282]">
+              <h4 className="text-xl font-semibold text-foreground">1.9 Revision Details</h4>
+              <p className="text-sm text-muted-foreground">
                 Revision/Update — version increments (v1 → v2), previous version archived
               </p>
             </div>
@@ -1222,7 +1222,7 @@ export default function CreateDocumentStep({
               <div className="relative">
                 <Search
                   size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A7282]"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   id="search-current-doc"
@@ -1232,14 +1232,14 @@ export default function CreateDocumentStep({
                   placeholder="e.g. Doc/2025/S1/P1/P/D1/v1"
                 />
               </div>
-              <p className="text-xs text-[#6A7282]">
+              <p className="text-xs text-muted-foreground">
                 Enter the existing document reference number to revise
               </p>
             </div>
 
             <div className="space-y-2">
               <Label>Reasons for Change (Required)</Label>
-              <p className="text-xs text-[#6A7282]">
+              <p className="text-xs text-muted-foreground">
                 Select all applicable reasons (multiple selections allowed)
               </p>
               <div className="flex flex-wrap gap-2">
@@ -1253,7 +1253,7 @@ export default function CreateDocumentStep({
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                         isOn
                           ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
-                          : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                       }`}
                     >
                       {reason}
@@ -1273,7 +1273,7 @@ export default function CreateDocumentStep({
                 }
                 placeholder="Other (please specify integration, max 50 words)"
               />
-              <div className="flex justify-between text-xs text-[#6A7282]">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Max 50 words — briefly explain the reason for this revision</span>
                 <span>{countWords(revisionComment)}/50 words</span>
               </div>
@@ -1304,7 +1304,7 @@ export default function CreateDocumentStep({
 
             <div className="space-y-1">
               <h4 className="text-xl font-semibold text-[#22B323]">1.10. Transfer the Document (Manual)</h4>
-              <p className="text-sm text-[#6A7282]">
+              <p className="text-sm text-muted-foreground">
                 Move document to a new site, process, standard, or type with originator approval.
               </p>
             </div>
@@ -1314,7 +1314,7 @@ export default function CreateDocumentStep({
               <div className="relative">
                 <Search
                   size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A7282]"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   id="transfer-doc-search"
@@ -1324,22 +1324,22 @@ export default function CreateDocumentStep({
                   placeholder="e.g. Doc/2025/S1/P2/F/D1/v1"
                 />
               </div>
-              <p className="text-xs text-[#6A7282]">Enter the reference of the document to transfer</p>
+              <p className="text-xs text-muted-foreground">Enter the reference of the document to transfer</p>
             </div>
 
             <div className="space-y-2">
               <Label>Site</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Site</span>
+                  <span className="text-xs text-muted-foreground">Current Site</span>
                   <Input
                     readOnly
                     value={currentSiteDisplay}
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Transfer to Site</span>
+                  <span className="text-xs text-muted-foreground">Transfer to Site</span>
                   <div className="flex flex-wrap gap-2">
                     {transferSiteCodes.map((s) => {
                       const on = transferTargetSite === s;
@@ -1353,10 +1353,10 @@ export default function CreateDocumentStep({
                             setTransferTargetProcessId("");
                             setTransferProcessOptions([]);
                           }}
-                          className={`rounded-lg border px-3 py-2 text-sm font-medium min-w-[2.5rem] transition-colors ${
+                          className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                             on
                               ? "border-[#22B323] bg-[#22B323] text-white"
-                              : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                              : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                           }`}
                         >
                           {s}
@@ -1372,18 +1372,18 @@ export default function CreateDocumentStep({
               <Label>Process</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Process</span>
+                  <span className="text-xs text-muted-foreground">Current Process</span>
                   <Input
                     readOnly
                     value={currentProcessDisplay}
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Transfer to Process</span>
+                  <span className="text-xs text-muted-foreground">Transfer to Process</span>
                   <div className="flex flex-wrap gap-2">
                     {isLoadingTransferProcesses && transferProcessOptions.length === 0 ? (
-                      <p className="text-xs text-[#6A7282]">Loading...</p>
+                      <p className="text-xs text-muted-foreground">Loading...</p>
                     ) : (
                       transferProcessOptions.map((p) => {
                         const on = transferTargetProcess === p.code;
@@ -1395,10 +1395,10 @@ export default function CreateDocumentStep({
                               setTransferTargetProcess(p.code);
                               setTransferTargetProcessId(p.id);
                             }}
-                            className={`rounded-lg border px-3 py-2 text-sm font-medium min-w-[2.5rem] transition-colors ${
+                            className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                               on
                                 ? "border-[#22B323] bg-[#22B323] text-white"
-                                : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                                : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                             }`}
                           >
                             {p.code}
@@ -1415,15 +1415,15 @@ export default function CreateDocumentStep({
               <Label>Standard</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Standard</span>
+                  <span className="text-xs text-muted-foreground">Current Standard</span>
                   <Input
                     readOnly
                     value={managementStandardLabel(managementStandard)}
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="transfer-standard-change" className="text-xs text-[#6A7282]">
+                  <Label htmlFor="transfer-standard-change" className="text-xs text-muted-foreground">
                     Change (If Required)
                   </Label>
                   <Input
@@ -1440,15 +1440,15 @@ export default function CreateDocumentStep({
               <Label>Document Type</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Type</span>
+                  <span className="text-xs text-muted-foreground">Current Type</span>
                   <Input
                     readOnly
                     value={classificationTypeLabel(documentClassification)}
-                    className="bg-[#F9FAFB] text-[#6A7282]"
+                    className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Change (If Required)</span>
+                  <span className="text-xs text-muted-foreground">Change (If Required)</span>
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
@@ -1472,10 +1472,10 @@ export default function CreateDocumentStep({
                               setExternalDocumentFileName("");
                             }
                           }}
-                          className={`rounded-lg border px-4 py-2 text-sm font-semibold min-w-[2.75rem] transition-colors ${
+                          className={`min-w-11 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
                             on
                               ? "border-[#22B323] bg-[#22B323] text-white"
-                              : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                              : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                           }`}
                         >
                           {item.title}
@@ -1507,7 +1507,7 @@ export default function CreateDocumentStep({
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "accepted"
                       ? "border-[#22B323] bg-[#22B323] text-white"
-                      : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
                 >
                   ✓ Accepted
@@ -1518,13 +1518,13 @@ export default function CreateDocumentStep({
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "declined"
                       ? "border-[#EF4444] bg-[#EF4444] text-white"
-                      : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
                 >
                   ✕ Declined
                 </button>
               </div>
-              <p className="text-xs text-[#6A7282]">
+              <p className="text-xs text-muted-foreground">
                 Originator consent is mandatory before any transfer. If process owner initiates, no consent
                 required.
               </p>
@@ -1537,8 +1537,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">5. Document Title</h4>
-            <p className="text-sm text-[#6A7282]">Enter document title (max 30 characters)</p>
+            <h4 className="text-xl font-semibold text-foreground">5. Document Title</h4>
+            <p className="text-sm text-muted-foreground">Enter document title (max 30 characters)</p>
           </div>
 
           <div className="space-y-2">
@@ -1549,7 +1549,7 @@ export default function CreateDocumentStep({
               onChange={(e) => setTitle(e.target.value.slice(0, 30))}
               placeholder="e.g., Machine Maintenance SOP"
             />
-            <p className="text-xs text-[#6A7282] text-right">{title.length}/30 characters</p>
+            <p className="text-xs text-muted-foreground text-right">{title.length}/30 characters</p>
           </div>
         </CardContent>
       </Card>
@@ -1558,8 +1558,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">6. Standard Selection</h4>
-            <p className="text-sm text-[#6A7282]">Select applicable management system standard</p>
+            <h4 className="text-xl font-semibold text-foreground">6. Standard Selection</h4>
+            <p className="text-sm text-muted-foreground">Select applicable management system standard</p>
           </div>
 
           <div className="space-y-2">
@@ -1633,8 +1633,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">7. Document Restriction (Security)</h4>
-            <p className="text-sm text-[#6A7282]">
+            <h4 className="text-xl font-semibold text-foreground">7. Document Restriction (Security)</h4>
+            <p className="text-sm text-muted-foreground">
               Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter
               this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft.
             </p>
@@ -1654,7 +1654,7 @@ export default function CreateDocumentStep({
                   }}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "unlocked"
                       ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
-                      : "border-[#E5E7EB] bg-white text-[#6A7282]"
+                      : "border-border bg-background text-muted-foreground"
                     }`}
                 >
                   <Unlock size={14} /> Unlocked
@@ -1664,15 +1664,15 @@ export default function CreateDocumentStep({
                   onClick={handleLockSelection}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "locked"
                       ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
-                      : "border-[#E5E7EB] bg-white text-[#6A7282]"
+                      : "border-border bg-background text-muted-foreground"
                     }`}
                 >
                   <Lock size={14} /> Locked
                 </button>
               </div>
               {restriction === "locked" && filePin ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
-                  <p className="text-xs text-[#6A7282]">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
                     PIN configured for this file: {"*".repeat(filePin.length)}
                   </p>
                   <Button
@@ -1746,8 +1746,8 @@ export default function CreateDocumentStep({
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#0A0A0A]">8. Reasons for Document Change</h4>
-              <p className="text-sm text-[#6A7282]">
+              <h4 className="text-xl font-semibold text-foreground">8. Reasons for Document Change</h4>
+              <p className="text-sm text-muted-foreground">
                 Select all applicable reasons (multiple selection)
               </p>
             </div>
@@ -1762,7 +1762,7 @@ export default function CreateDocumentStep({
                       checked={reasons.includes(reason)}
                       onCheckedChange={() => toggleReason(reason)}
                     />
-                    <Label htmlFor={reasonId} className="text-sm font-normal text-[#0A0A0A] cursor-pointer">
+                    <Label htmlFor={reasonId} className="cursor-pointer text-sm font-normal text-foreground">
                       {reason}
                     </Label>
                   </div>
@@ -1770,7 +1770,7 @@ export default function CreateDocumentStep({
               })}
             </div>
 
-            <div className="border-t border-[#E5E7EB]" />
+            <div className="border-t border-border" />
 
             <div className="space-y-2">
               <Label htmlFor="reasons-comment">Reasons / Comments (Max 50 words)</Label>
@@ -1789,8 +1789,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">9. Impact Assessment</h4>
-            <p className="text-sm text-[#6A7282]">Identify impact on other documents</p>
+            <h4 className="text-xl font-semibold text-foreground">9. Impact Assessment</h4>
+            <p className="text-sm text-muted-foreground">Identify impact on other documents</p>
           </div>
 
           <div className="space-y-2">
@@ -1821,8 +1821,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">10. Risk Severity</h4>
-            <p className="text-sm text-[#6A7282]">Assess risk level of this change</p>
+            <h4 className="text-xl font-semibold text-foreground">10. Risk Severity</h4>
+            <p className="text-sm text-muted-foreground">Assess risk level of this change</p>
           </div>
 
           <div className="space-y-2">
@@ -1835,7 +1835,7 @@ export default function CreateDocumentStep({
               <Label
                 htmlFor="risk-level-high"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "high" ? "border-[#22B323] bg-[#EAF6EC]" : "border-[#E5E7EB]"
+                  riskLevel === "high" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
                 }`}
               >
                 <RadioGroupItem value="high" id="risk-level-high" />
@@ -1846,7 +1846,7 @@ export default function CreateDocumentStep({
               <Label
                 htmlFor="risk-level-medium"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "medium" ? "border-[#22B323] bg-[#EAF6EC]" : "border-[#E5E7EB]"
+                  riskLevel === "medium" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
                 }`}
               >
                 <RadioGroupItem value="medium" id="risk-level-medium" />
@@ -1857,7 +1857,7 @@ export default function CreateDocumentStep({
               <Label
                 htmlFor="risk-level-low"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "low" ? "border-[#22B323] bg-[#EAF6EC]" : "border-[#E5E7EB]"
+                  riskLevel === "low" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
                 }`}
               >
                 <RadioGroupItem value="low" id="risk-level-low" />
@@ -1884,8 +1884,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">11. Staff Training Requirement</h4>
-            <p className="text-sm text-[#6A7282]">Determine if training is needed for this change</p>
+            <h4 className="text-xl font-semibold text-foreground">11. Staff Training Requirement</h4>
+            <p className="text-sm text-muted-foreground">Determine if training is needed for this change</p>
           </div>
 
           <div className="space-y-2">
@@ -1927,11 +1927,11 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">12. Document Editor (Main Content)</h4>
+            <h4 className="text-xl font-semibold text-foreground">12. Document Editor (Main Content)</h4>
             {documentClassification === "EXT" ? (
-              <p className="text-sm text-[#6A7282]">Upload the external document file</p>
+              <p className="text-sm text-muted-foreground">Upload the external document file</p>
             ) : isReviseTransfer ? null : (
-              <p className="text-sm text-[#6A7282]">
+              <p className="text-sm text-muted-foreground">
                 {isReviseUpdate
                   ? "Enter or paste the revised document body"
                   : "Enter or paste the document body"}
@@ -1939,9 +1939,9 @@ export default function CreateDocumentStep({
             )}
           </div>
           {documentClassification === "EXT" ? (
-            <div className="relative min-h-[220px] rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
+            <div className="relative min-h-[220px] rounded-lg border border-border bg-muted">
               {externalDocumentFileName ? (
-                <p className="p-4 text-sm text-[#0A0A0A] pr-48 break-all">{externalDocumentFileName}</p>
+                <p className="break-all p-4 pr-48 text-sm text-foreground">{externalDocumentFileName}</p>
               ) : null}
               <input
                 id="external-doc-upload"
@@ -1954,14 +1954,14 @@ export default function CreateDocumentStep({
               />
               <label
                 htmlFor="external-doc-upload"
-                className="absolute bottom-4 right-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-4 py-2.5 text-xs font-bold tracking-wide text-[#0A0A0A] shadow-sm transition-colors hover:bg-[#F9FAFB]"
+                className="absolute bottom-4 right-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 text-xs font-bold tracking-wide text-foreground shadow-sm transition-colors hover:bg-muted"
               >
                 <Paperclip className="text-[#22B323]" size={16} aria-hidden />
                 UPLOAD FILE
               </label>
             </div>
           ) : (
-            <div id="document-editor-main" className="overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F9FAFB]">
+            <div id="document-editor-main" className="overflow-hidden rounded-lg border border-border bg-muted">
               <RichTextEditor
                 value={documentEditorContent}
                 onChange={setDocumentEditorContent}
@@ -1977,8 +1977,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">13. Document Dates</h4>
-            <p className="text-sm text-[#6A7282]">Set planning and execution dates</p>
+            <h4 className="text-xl font-semibold text-foreground">13. Document Dates</h4>
+            <p className="text-sm text-muted-foreground">Set planning and execution dates</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1995,7 +1995,7 @@ export default function CreateDocumentStep({
                       !planDate && "text-muted-foreground"
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                     {planDate ? format(parseDateInput(planDate) as Date, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -2008,7 +2008,7 @@ export default function CreateDocumentStep({
                   />
                 </PopoverContent>
               </Popover>
-              <p className="text-xs text-[#6A7282]">System generated</p>
+              <p className="text-xs text-muted-foreground">System generated</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="actual-date">Actual Date</Label>
@@ -2023,7 +2023,7 @@ export default function CreateDocumentStep({
                       !actualDate && "text-muted-foreground"
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                     {actualDate ? format(parseDateInput(actualDate) as Date, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -2050,7 +2050,7 @@ export default function CreateDocumentStep({
                       !endDate && "text-muted-foreground"
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                     {endDate ? format(parseDateInput(endDate) as Date, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -2072,21 +2072,21 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">14. Document Output Preview</h4>
-            <p className="text-sm text-[#6A7282]">Preview how the final document will appear</p>
+            <h4 className="text-xl font-semibold text-foreground">14. Document Output Preview</h4>
+            <p className="text-sm text-muted-foreground">Preview how the final document will appear</p>
           </div>
 
-          <div className="rounded-lg border border-[#E5E7EB] p-3">
-            <p className="text-xs text-[#6A7282] mb-2">Review before submitting</p>
-            <div className="rounded-md bg-[#F9FAFB] p-4 grid grid-cols-1 md:grid-cols-2 gap-y-2 text-sm">
-              <p><span className="text-[#6A7282]">Document Ref:</span> <span className="font-medium ml-2">{previewDocRef}</span></p>
-              <p><span className="text-[#6A7282]">Title:</span> <span className="font-medium ml-2">{title || "—"}</span></p>
-              <p><span className="text-[#6A7282]">Type:</span> <span className="font-medium ml-2">{documentClassification} - {documentClassification === "P" ? "Maintained Doc" : documentClassification === "F" ? "Retained Record" : "External Doc"}</span></p>
-              <p><span className="text-[#6A7282]">Standard:</span> <span className="font-medium ml-2">{managementStandard || "ISO 9001"}</span></p>
-              <p><span className="text-[#6A7282]">Clause:</span> <span className="font-medium ml-2">{clause || "—"}</span></p>
-              <p><span className="text-[#6A7282]">Priority:</span> <span className="font-medium ml-2">{priorityLevel === "high" ? "High" : "Low"}</span></p>
-              <p><span className="text-[#6A7282]">Risk Level:</span> <span className="font-medium ml-2">{riskLevel[0].toUpperCase() + riskLevel.slice(1)}</span></p>
-              <p><span className="text-[#6A7282]">Initial Status:</span> <span className="font-medium ml-2">Draft</span></p>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs text-muted-foreground">Review before submitting</p>
+            <div className="grid grid-cols-1 gap-y-2 rounded-md bg-muted p-4 text-sm md:grid-cols-2">
+              <p><span className="text-muted-foreground">Document Ref:</span> <span className="ml-2 font-medium">{previewDocRef}</span></p>
+              <p><span className="text-muted-foreground">Title:</span> <span className="ml-2 font-medium">{title || "—"}</span></p>
+              <p><span className="text-muted-foreground">Type:</span> <span className="ml-2 font-medium">{documentClassification} - {documentClassification === "P" ? "Maintained Doc" : documentClassification === "F" ? "Retained Record" : "External Doc"}</span></p>
+              <p><span className="text-muted-foreground">Standard:</span> <span className="ml-2 font-medium">{managementStandard || "ISO 9001"}</span></p>
+              <p><span className="text-muted-foreground">Clause:</span> <span className="ml-2 font-medium">{clause || "—"}</span></p>
+              <p><span className="text-muted-foreground">Priority:</span> <span className="ml-2 font-medium">{priorityLevel === "high" ? "High" : "Low"}</span></p>
+              <p><span className="text-muted-foreground">Risk Level:</span> <span className="ml-2 font-medium">{riskLevel[0].toUpperCase() + riskLevel.slice(1)}</span></p>
+              <p><span className="text-muted-foreground">Initial Status:</span> <span className="ml-2 font-medium">Draft</span></p>
             </div>
           </div>
         </CardContent>
@@ -2096,8 +2096,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">15. Submit Actions</h4>
-            <p className="text-sm text-[#6A7282]">
+            <h4 className="text-xl font-semibold text-foreground">15. Submit Actions</h4>
+            <p className="text-sm text-muted-foreground">
               Save as draft or submit; you will return to the document tables. Drafts can be edited later from
               the table screen.
             </p>
@@ -2131,7 +2131,7 @@ export default function CreateDocumentStep({
             </Button>
           </div>
           {!canProceed ? (
-            <p className="text-xs text-[#6A7282]">
+            <p className="text-xs text-muted-foreground">
               Select a site and process to proceed to review.
             </p>
           ) : null}

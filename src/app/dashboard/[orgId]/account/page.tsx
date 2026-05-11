@@ -208,7 +208,7 @@ export default function AccountPage() {
   if (loading && !profile.id) {
     return (
       <div className="flex items-center justify-center min-h-[320px]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#6A7282]" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -216,13 +216,13 @@ export default function AccountPage() {
   return (
     <div className="w-full space-y-6 pb-8">
       <div>
-        <h1 className="text-2xl font-semibold text-[#0A0A0A] tracking-tight">My Profile</h1>
-        <p className="text-sm text-[#6A7282] mt-1">Manage your personal information and preferences</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">My Profile</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your personal information and preferences</p>
       </div>
 
       <div className="space-y-6">
           {/* User Profile Card */}
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
+          <Card className="overflow-hidden rounded-xl border border-border shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-start gap-4 flex-wrap">
                 <div className="relative shrink-0">
@@ -233,9 +233,9 @@ export default function AccountPage() {
                     className="hidden"
                     onChange={handleAvatarChange}
                   />
-                  <Avatar className="h-20 w-20 rounded-full border-2 border-[#F3F3F5]">
+                  <Avatar className="h-20 w-20 rounded-full border-2 border-border">
                     <AvatarImage src={displayImage ?? undefined} alt={displayName || "Profile"} />
-                    <AvatarFallback className="bg-[#E5E7EB] text-[#374151] text-lg">
+                    <AvatarFallback className="bg-muted text-lg text-muted-foreground">
                       {firstName && lastName ? `${firstName[0]}${lastName[0]}` : displayEmail?.slice(0, 2)?.toUpperCase() ?? "?"}
                     </AvatarFallback>
                   </Avatar>
@@ -243,7 +243,7 @@ export default function AccountPage() {
                     type="button"
                     disabled={avatarUploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#0A0A0A] text-white shadow hover:bg-[#333] transition-colors disabled:opacity-60 disabled:pointer-events-none"
+                    className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background shadow transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-60"
                     aria-label="Change profile picture"
                   >
                     {avatarUploading ? (
@@ -254,22 +254,22 @@ export default function AccountPage() {
                   </button>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-semibold text-lg text-[#0A0A0A]">{displayName || "—"}</h2>
-                  <p className="text-sm text-[#6A7282] mt-0.5">{displayEmail || "—"}</p>
+                  <h2 className="text-lg font-semibold text-foreground">{displayName || "—"}</h2>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{displayEmail || "—"}</p>
                   <div className="flex flex-wrap gap-2 mt-3">
                     {roleTags.length > 0 ? (
                       roleTags.map((tag) => (
-                        <span key={tag} className="inline-flex items-center rounded-full bg-[#F3F3F5] px-3 py-1 text-xs font-medium text-[#374151]">
+                        <span key={tag} className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                           {tag}
                         </span>
                       ))
                     ) : (
-                      <span className="text-xs text-[#6A7282]">No role assigned in this organization</span>
+                      <span className="text-xs text-muted-foreground">No role assigned in this organization</span>
                     )}
                   </div>
                 </div>
                 {!isEditing ? (
-                  <Button className="rounded-lg bg-[#0A0A0A] text-white hover:bg-[#333] shrink-0" size="sm" onClick={handleEdit}>
+                  <Button className="shrink-0 rounded-lg" size="sm" onClick={handleEdit}>
                     Edit Profile
                   </Button>
                 ) : (
@@ -277,7 +277,7 @@ export default function AccountPage() {
                     <Button variant="outline" size="sm" onClick={handleCancel} disabled={saving}>
                       Cancel
                     </Button>
-                    <Button className="rounded-lg bg-[#0A0A0A] text-white hover:bg-[#333]" size="sm" onClick={handleSave} disabled={saving}>
+                    <Button className="rounded-lg" size="sm" onClick={handleSave} disabled={saving}>
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                     </Button>
                   </div>
@@ -287,131 +287,131 @@ export default function AccountPage() {
           </Card>
 
           {/* Personal Information */}
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
+          <Card className="overflow-hidden rounded-xl border border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-[#0A0A0A]">Personal Information</CardTitle>
+              <CardTitle className="text-foreground">Personal Information</CardTitle>
               <CardDescription>Update your personal details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm">First Name</Label>
+                  <Label className="text-sm text-foreground">First Name</Label>
                   <Input
                     readOnly={!isEditing}
                     value={form.firstName}
                     onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                    className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm">Last Name</Label>
+                  <Label className="text-sm text-foreground">Last Name</Label>
                   <Input
                     readOnly={!isEditing}
                     value={form.lastName}
                     onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                    className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[#374151] text-sm flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-[#6A7282]" /> Email Address
+                <Label className="flex items-center gap-2 text-sm text-foreground">
+                  <Mail className="h-4 w-4 text-muted-foreground" /> Email Address
                 </Label>
                 <Input
                   readOnly={!isEditing}
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                  className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                 />
-                <p className="text-xs text-[#6A7282]">
+                <p className="text-xs text-muted-foreground">
                   Changing your email will send a verification link to the new address. Your email will update after you confirm.
                 </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-[#374151] text-sm flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-[#6A7282]" /> Phone Number
+                <Label className="flex items-center gap-2 text-sm text-foreground">
+                  <Phone className="h-4 w-4 text-muted-foreground" /> Phone Number
                 </Label>
                 <Input
                   readOnly={!isEditing}
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                  className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[#374151] text-sm flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-[#6A7282]" /> Location
+                <Label className="flex items-center gap-2 text-sm text-foreground">
+                  <MapPin className="h-4 w-4 text-muted-foreground" /> Location
                 </Label>
                 <Input
                   readOnly={!isEditing}
                   value={form.location}
                   onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                  className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                  className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[#374151] text-sm">Bio</Label>
+                <Label className="text-sm text-foreground">Bio</Label>
                 <textarea
                   readOnly={!isEditing}
                   value={form.bio}
                   onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
                   rows={3}
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2 text-sm text-[#0A0A0A] resize-none read-only:cursor-default"
+                  className="w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground read-only:cursor-default"
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Work Information */}
-          <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
+          <Card className="overflow-hidden rounded-xl border border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-[#0A0A0A]">Work Information</CardTitle>
+              <CardTitle className="text-foreground">Work Information</CardTitle>
               <CardDescription>Your role and department details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm">Job Title</Label>
+                  <Label className="text-sm text-foreground">Job Title</Label>
                   <Input
                     readOnly={!isEditing}
                     value={form.jobTitle}
                     onChange={(e) => setForm((f) => ({ ...f, jobTitle: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                    className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm">Department</Label>
+                  <Label className="text-sm text-foreground">Department</Label>
                   <Input
                     readOnly={!isEditing}
                     value={form.department}
                     onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                    className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm">Employee ID</Label>
+                  <Label className="text-sm text-foreground">Employee ID</Label>
                   <Input
                     readOnly={!isEditing}
                     value={form.employeeId}
                     onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}
-                    className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                    className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[#374151] text-sm flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 text-[#6A7282]" /> Join Date
+                  <Label className="flex items-center gap-2 text-sm text-foreground">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" /> Join Date
                   </Label>
                   {isEditing ? (
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-left font-normal bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] hover:bg-[#F3F3F5]"
+                          className="w-full justify-start rounded-lg border-border bg-muted text-left font-normal text-foreground hover:bg-muted/80"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
+                          <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                           {form.joinDate
                             ? format(new Date(form.joinDate), "PPP")
                             : "Pick a date"}
@@ -432,7 +432,7 @@ export default function AccountPage() {
                       </PopoverContent>
                     </Popover>
                   ) : (
-                    <div className="flex h-9 w-full items-center rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#0A0A0A]">
+                    <div className="flex h-9 w-full items-center rounded-lg border border-border bg-muted px-3 text-sm text-foreground">
                       {form.joinDate
                         ? format(new Date(form.joinDate), "PPP")
                         : "—"}
@@ -441,14 +441,14 @@ export default function AccountPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[#374151] text-sm flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#6A7282]" /> Reports To
+                <Label className="flex items-center gap-2 text-sm text-foreground">
+                  <Building2 className="h-4 w-4 text-muted-foreground" /> Reports To
                 </Label>
                 <Input
                   readOnly={!isEditing}
                   value={form.reportsTo}
                   onChange={(e) => setForm((f) => ({ ...f, reportsTo: e.target.value }))}
-                  className="bg-[#F9FAFB] border-[#E5E7EB] rounded-lg text-[#0A0A0A] read-only:cursor-default"
+                  className="rounded-lg border-border bg-muted text-foreground read-only:cursor-default"
                 />
               </div>
             </CardContent>

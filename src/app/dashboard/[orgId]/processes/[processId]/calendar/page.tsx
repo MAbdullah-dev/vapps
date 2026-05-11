@@ -70,9 +70,9 @@ const Calendar = () => {
 
   return (
     <>
-      <div className="p-4 bg-white rounded-lg shadow-md [&_.fc-event]:cursor-pointer [&_.fc-daygrid-event]:cursor-pointer">
+      <div className="p-4 bg-background rounded-lg shadow-md [&_.fc-event]:cursor-pointer [&_.fc-daygrid-event]:cursor-pointer">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-gray-500">
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
             Loading calendar...
           </div>
         ) : (

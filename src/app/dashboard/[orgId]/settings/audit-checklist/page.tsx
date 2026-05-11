@@ -244,7 +244,7 @@ export default function AuditChecklistSettingsPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Audit Checklist</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Audit Checklist</h1>
         <p className="mt-1 text-sm text-gray-500">
           Create checklists (e.g. ISO 9001 Quality) and manage questions. These appear as audit criteria in the audit flow and drive checklist questions in Step 3.
         </p>

@@ -218,7 +218,7 @@ export default function SitesDepartmentsPage() {
           <div className="text-sm text-gray-500 mb-1">
             Settings &gt; Sites & Departments
           </div>
-          <h1 className="text-2xl font-semibold">Sites & Departments</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Sites & Departments</h1>
           <p className="text-sm text-gray-500 mt-1">
             Manage your locations and organizational structure.
           </p>

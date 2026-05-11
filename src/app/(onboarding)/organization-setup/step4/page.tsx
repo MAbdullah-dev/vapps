@@ -44,7 +44,7 @@ const Step4 = () => {
     <Form {...form}>
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold">Financial Setup</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Financial Setup</h1>
           <p className="text-sm text-muted-foreground">Configure your financial setup settings</p>
         </div>
 

@@ -25,9 +25,9 @@ export default function CustomersVendorsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Customers &amp; Vendors</div>
-          <h1 className="text-2xl font-semibold">Customers &amp; Vendors</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <div className="mb-1 text-sm text-muted-foreground">Settings &gt; Customers &amp; Vendors</div>
+          <h1 className="text-2xl font-semibold text-foreground">Customers &amp; Vendors</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage customer and vendor records moved from onboarding.
           </p>
         </div>
@@ -40,7 +40,7 @@ export default function CustomersVendorsPage() {
           <CardDescription>All onboarding fields are available for both customers and vendors.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex gap-3 p-1 bg-gray-100 border rounded-full w-fit">
+          <div className="flex w-fit gap-3 rounded-full border bg-muted p-1">
             <Button
               type="button"
               variant={activeTab === "customers" ? "default" : "ghost"}

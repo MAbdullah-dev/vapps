@@ -110,6 +110,57 @@ type ObjectiveEvidenceItem = {
   effectiveness: "effective" | "ineffective";
 };
 
+/** Parse objective_evidence from API (camelCase/snake_case; storage may use key or s3Key). */
+function normalizeObjectiveEvidenceFromApi(raw: unknown): ObjectiveEvidenceItem[] | null {
+  if (raw == null) return null;
+  let arr: unknown[] = [];
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      arr = Array.isArray(p) ? p : [];
+    } catch {
+      return null;
+    }
+  } else if (Array.isArray(raw)) {
+    arr = raw;
+  } else {
+    return null;
+  }
+  if (arr.length === 0) return [];
+  return arr.map((item, i) => {
+    if (!item || typeof item !== "object") {
+      return {
+        id: `ev-loaded-${i}`,
+        description: "",
+        fileName: "",
+        s3Key: "",
+        effectiveness: "effective" as const,
+      };
+    }
+    const o = item as Record<string, unknown>;
+    const s3Key =
+      typeof o.s3Key === "string"
+        ? o.s3Key
+        : typeof o.s3_key === "string"
+          ? o.s3_key
+          : typeof o.key === "string"
+            ? o.key
+            : "";
+    return {
+      id: typeof o.id === "string" ? o.id : `ev-loaded-${i}`,
+      description: typeof o.description === "string" ? o.description : "",
+      fileName:
+        typeof o.fileName === "string"
+          ? o.fileName
+          : typeof o.file_name === "string"
+            ? o.file_name
+            : "",
+      s3Key,
+      effectiveness: o.effectiveness === "ineffective" ? ("ineffective" as const) : ("effective" as const),
+    };
+  });
+}
+
 function isTrulyEmptyFindingRow(row: {
   clause?: string | null;
   subclauses?: string | null;
@@ -152,14 +203,14 @@ const PROGRAM_CRITERIA_TO_CHECKLIST: Record<string, string> = {
 };
 
 const LEGEND_ITEMS: { key: ComplianceStatus; label: string; className: string; icon?: "x" | "o" | "dash"; badge?: string }[] = [
-  { key: "compliant", label: "COMPLIANT", className: "bg-green-500 text-white rounded-full", icon: "x" },
-  { key: "not_audited", label: "NOT AUDITED", className: "bg-gray-300 text-gray-700 rounded-full", icon: "o" },
+  { key: "compliant", label: "COMPLIANT", className: "bg-primary text-primary-foreground rounded-full", icon: "x" },
+  { key: "not_audited", label: "NOT AUDITED", className: "bg-muted text-foreground rounded-full", icon: "o" },
   { key: "major_nc", label: "MAJOR NONCONFORMANCE", className: "bg-red-600 text-white rounded-md", badge: "MA" },
   { key: "minor_nc", label: "MINOR NONCONFORMANCE", className: "bg-orange-500 text-white rounded-md", badge: "mi" },
-  { key: "ofi", label: "OPPORTUNITY FOR IMPROVEMENT", className: "bg-blue-600 text-white rounded-md", badge: "OFI" },
-  { key: "positive", label: "POSITIVE ASPECT", className: "bg-green-600 text-white rounded-md", badge: "PA" },
-  { key: "na", label: "NOT APPLICABLE", className: "bg-gray-500 text-white rounded-md", badge: "NA" },
-  { key: "missing", label: "MISSING REQUIRED", className: "border-2 border-dashed border-gray-400 bg-gray-100 text-gray-700 rounded-md", icon: "dash" },
+  { key: "ofi", label: "OPPORTUNITY FOR IMPROVEMENT", className: "bg-primary text-primary-foreground rounded-md", badge: "OFI" },
+  { key: "positive", label: "POSITIVE ASPECT", className: "bg-primary text-primary-foreground rounded-md", badge: "PA" },
+  { key: "na", label: "NOT APPLICABLE", className: "bg-muted text-foreground rounded-md", badge: "NA" },
+  { key: "missing", label: "MISSING REQUIRED", className: "border-2 border-dashed border-border bg-muted text-foreground rounded-md", icon: "dash" },
 ];
 
 /** Short status labels for checklist list (e.g. "1. Conformity", "2. Not Auditable") */
@@ -371,7 +422,7 @@ export default function CreateAuditStep3Page() {
                 riskSeverity: f.riskSeverity ?? undefined,
                 riskJustification: f.riskJustification ?? "",
                 justificationForClassification: f.justificationForClassification ?? "",
-                objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
+                objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
               }));
             } else {
               // Fewer saved than template: merge by index then append any extra (safety)
@@ -392,7 +443,7 @@ export default function CreateAuditStep3Page() {
                     riskSeverity: f.riskSeverity ?? undefined,
                     riskJustification: f.riskJustification ?? "",
                     justificationForClassification: f.justificationForClassification ?? "",
-                    objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
+                    objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
                   };
                 }
                 return {
@@ -426,7 +477,7 @@ export default function CreateAuditStep3Page() {
                   riskSeverity: f.riskSeverity ?? undefined,
                   riskJustification: f.riskJustification ?? "",
                   justificationForClassification: f.justificationForClassification ?? "",
-                  objectiveEvidence: (f.objectiveEvidence as ObjectiveEvidenceItem[] | null) ?? null,
+                  objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
                 });
               }
               mapped = merged;
@@ -834,7 +885,7 @@ export default function CreateAuditStep3Page() {
   }, [planStatus, currentUserRole]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-400]:border-border [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted [&_.bg-gray-700]:bg-muted/80 [&_.bg-gray-800]:bg-muted/80 [&_.bg-gray-900]:bg-card">
       <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
 
       <Dialog
@@ -942,7 +993,7 @@ export default function CreateAuditStep3Page() {
             {canEditRowDialog && (
               <Button
                 type="button"
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={!rowDialogDraft || !rowDialogRowId || rowDialogSaving || savingFindings || !auditPlanIdFromUrl}
                 onClick={async () => {
                   if (!rowDialogDraft || !rowDialogRowId) return;
@@ -967,21 +1018,21 @@ export default function CreateAuditStep3Page() {
         </DialogContent>
       </Dialog>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-8">
+      <div className="rounded-lg border border-border bg-card p-8">
         <div className={cn(!canEditStep3 && "pointer-events-none select-none opacity-90")}>
         {/* Step 3 Header */}
-        <div className="border-b border-gray-200 mx-8 my-4 ">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-green-600">
+        <div className="border-b border-border mx-8 my-4 ">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">
             TO BE COMPLETED BY THE AUDITOR
           </p>
-          <h1 className="text-2xl font-bold uppercase text-gray-900">
+          <h1 className="text-2xl font-bold uppercase text-foreground">
             STEP 3 OF 6: AUDIT FINDINGS
           </h1>
         </div>
         {/* Audit Checklist — questions from Step 2 criteria (ISO 9001, ISO 14001, etc.) */}
         <div className="mx-8 my-4">
           {isLoading && (
-            <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-6 py-8 text-center text-gray-600">
+            <div className="mb-6 rounded-lg border border-border bg-muted px-6 py-8 text-center text-muted-foreground">
               Loading checklist questions based on audit criteria...
             </div>
           )}
@@ -1001,22 +1052,22 @@ export default function CreateAuditStep3Page() {
             <>
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold uppercase text-gray-900">AUDIT CHECKLIST</h2>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <h2 className="text-xl font-bold uppercase text-foreground">AUDIT CHECKLIST</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Criteria: {criteria}. One question at a time.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search questions..."
-                      className="h-10 w-64 rounded-lg border-gray-300 pl-9"
+                      className="h-10 w-64 rounded-lg border-input pl-9"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
+                  <Button onClick={addRow} size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Plus className="mr-2 h-4 w-4" />
                     ADD MANUAL ENTRY ROW
                   </Button>
@@ -1024,31 +1075,31 @@ export default function CreateAuditStep3Page() {
               </div>
 
               {filteredRows.length === 0 ? (
-                <div className="mx-8 my-4 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600">
+                <div className="mx-8 my-4 rounded-lg border border-border bg-muted p-8 text-center text-muted-foreground">
                   No questions match your search. Clear the search or add a manual entry row.
                 </div>
               ) : (
                 <Fragment>
                   {currentQuestionIndex >= filteredRows.length ? (
-                    <div className="mx-8 my-4 rounded-lg border border-green-200 bg-green-50 p-8 text-center">
-                      <p className="text-lg font-semibold text-green-800">All questions completed</p>
-                      <p className="mt-2 text-sm text-green-700">Use &quot;Save &amp; Continue Checklist Loop&quot; below to save findings and return to the audit list.</p>
+                    <div className="mx-8 my-4 rounded-lg border border-primary/20 bg-primary/5 p-8 text-center">
+                      <p className="text-lg font-semibold text-primary">All questions completed</p>
+                      <p className="mt-2 text-sm text-primary/90">Use &quot;Save &amp; Continue Checklist Loop&quot; below to save findings and return to the audit list.</p>
                     </div>
                   ) : (
                     <div ref={checklistTableRef} className="mx-8 my-4 space-y-3">
-                      <p className="text-sm font-medium text-gray-600">
+                      <p className="text-sm font-medium text-muted-foreground">
                         Question {currentQuestionIndex + 1} of {filteredRows.length}
                       </p>
                       {filteredRows[currentQuestionIndex]?.id?.startsWith?.("row-manual-") && (
                         <div
                           ref={manualRowSearchRef}
-                          className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                          className="rounded-lg border border-border bg-muted p-3"
                         >
-                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-600">
+                          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Search by Clause / Subclause under {criteria}
                           </label>
                           <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                               placeholder="e.g. 4.1 or 4.1.1"
                               className="h-9 pl-8 pr-3"
@@ -1060,16 +1111,16 @@ export default function CreateAuditStep3Page() {
                               onFocus={() => setManualRowSearchOpen(true)}
                             />
                             {manualRowSearchOpen && (
-                              <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                              <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-lg">
                                 {filteredManualChecklistItems.length === 0 ? (
-                                  <li className="px-3 py-2 text-sm text-gray-500">
+                                  <li className="px-3 py-2 text-sm text-muted-foreground">
                                     {manualRowSearchQuery.trim() ? "No matches" : "Type clause or subclause to search"}
                                   </li>
                                 ) : (
                                   filteredManualChecklistItems.slice(0, 12).map((item, i) => (
                                     <li
                                       key={`${item.clause}-${item.subclause}-${i}`}
-                                      className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
+                                      className="cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
                                       onClick={() => {
                                         const currentRow = filteredRows[currentQuestionIndex];
                                         if (currentRow) applyChecklistItemToRow(currentRow.id, item);
@@ -1077,10 +1128,10 @@ export default function CreateAuditStep3Page() {
                                         setManualRowSearchOpen(false);
                                       }}
                                     >
-                                      <span className="font-medium text-gray-900">
+                                      <span className="font-medium text-foreground">
                                         {item.clause} / {item.subclause}
                                       </span>
-                                      <span className="ml-1 text-gray-600 line-clamp-1">
+                                      <span className="ml-1 text-muted-foreground line-clamp-1">
                                         — {item.requirement}
                                       </span>
                                     </li>
@@ -1091,19 +1142,19 @@ export default function CreateAuditStep3Page() {
                           </div>
                         </div>
                       )}
-                      <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <div className="overflow-x-auto rounded-lg border border-border">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-gray-100">
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">STANDARD (SYSTEM)</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">CLAUSE</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">SUBCLAUSES</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                          <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">AUDIT QUESTION</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
-                          <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">EVIDENCE SEEN</TableHead>
-                          <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                          <TableHead className="w-[140px] font-semibold uppercase text-gray-700">ACTION</TableHead>
+                        <TableRow className="bg-muted">
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">STANDARD (SYSTEM)</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">CLAUSE</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">SUBCLAUSES</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-foreground">COMPLIANCE</TableHead>
+                          <TableHead className="min-w-[200px] font-semibold uppercase text-foreground">AUDIT QUESTION</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-foreground leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
+                          <TableHead className="min-w-[140px] font-semibold uppercase text-foreground">EVIDENCE SEEN</TableHead>
+                          <TableHead className="min-w-[120px] font-semibold uppercase text-foreground">COMPLIANCE</TableHead>
+                          <TableHead className="w-[140px] font-semibold uppercase text-foreground">ACTION</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1114,7 +1165,7 @@ export default function CreateAuditStep3Page() {
                           return (
                             <TableRow
                               key={row.id}
-                              className={cn("align-top", isCurrent ? "bg-white ring-1 ring-orange-200" : "bg-gray-50/80")}
+                              className={cn("align-top", isCurrent ? "bg-card ring-1 ring-orange-500/40" : "bg-muted/80")}
                             >
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
@@ -1122,10 +1173,10 @@ export default function CreateAuditStep3Page() {
                                     value={row.standard}
                                     onChange={(e) => updateRow(row.id, "standard", e.target.value)}
                                     placeholder="e.g. ISO 9001:2015"
-                                    className="h-9 min-w-[100px] rounded-md border-gray-200 bg-gray-50/50 text-sm text-gray-600"
+                                    className="h-9 min-w-[100px] rounded-md border-border bg-muted/50 text-sm text-muted-foreground"
                                   />
                                 ) : (
-                                  <span className="text-sm text-gray-700">{row.standard || "—"}</span>
+                                  <span className="text-sm text-foreground">{row.standard || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
@@ -1134,10 +1185,10 @@ export default function CreateAuditStep3Page() {
                                     value={row.clause}
                                     onChange={(e) => updateRow(row.id, "clause", e.target.value)}
                                     placeholder="e.g. 4.1"
-                                    className="h-9 w-20 rounded-md border-gray-200 text-sm font-bold text-gray-900"
+                                    className="h-9 w-20 rounded-md border-border text-sm font-bold text-foreground"
                                   />
                                 ) : (
-                                  <span className="text-sm font-medium text-gray-900">{row.clause || "—"}</span>
+                                  <span className="text-sm font-medium text-foreground">{row.clause || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
@@ -1146,10 +1197,10 @@ export default function CreateAuditStep3Page() {
                                     value={row.subclauses}
                                     onChange={(e) => updateRow(row.id, "subclauses", e.target.value)}
                                     placeholder="e.g. 4.1.1"
-                                    className="h-9 w-24 rounded-md border-gray-200 text-sm text-gray-600"
+                                    className="h-9 w-24 rounded-md border-border text-sm text-muted-foreground"
                                   />
                                 ) : (
-                                  <span className="text-sm text-gray-700">{row.subclauses || "—"}</span>
+                                  <span className="text-sm text-foreground">{row.subclauses || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[160px]">
@@ -1159,10 +1210,10 @@ export default function CreateAuditStep3Page() {
                                     onChange={(e) => updateRow(row.id, "requirement", e.target.value)}
                                     placeholder="Compliance requirement"
                                     rows={2}
-                                    className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
+                                    className="min-w-[140px] resize-none rounded-md border-border text-sm text-muted-foreground"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-700">{row.requirement || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-foreground">{row.requirement || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[200px]">
@@ -1172,10 +1223,10 @@ export default function CreateAuditStep3Page() {
                                     onChange={(e) => updateRow(row.id, "question", e.target.value)}
                                     placeholder="Audit question"
                                     rows={2}
-                                    className="min-w-[180px] resize-none rounded-md border-gray-200 text-sm font-medium text-gray-900"
+                                    className="min-w-[180px] resize-none rounded-md border-border text-sm font-medium text-foreground"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-800">{row.question || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-foreground">{row.question || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[160px]">
@@ -1185,10 +1236,10 @@ export default function CreateAuditStep3Page() {
                                     onChange={(e) => updateRow(row.id, "evidenceExample", e.target.value)}
                                     placeholder="Typical evidence"
                                     rows={2}
-                                    className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
+                                    className="min-w-[140px] resize-none rounded-md border-border text-sm text-muted-foreground"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-600">{row.evidenceExample || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-muted-foreground">{row.evidenceExample || "—"}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[140px]">
@@ -1197,16 +1248,36 @@ export default function CreateAuditStep3Page() {
                                     value={row.evidence}
                                     onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
                                     placeholder="Enter evidence details..."
-                                    className="min-w-[120px] rounded-md border-gray-200 bg-gray-50/80 text-sm italic text-muted-foreground placeholder:italic"
+                                    className="min-w-[120px] rounded-md border-border bg-muted/80 text-sm italic text-muted-foreground placeholder:italic"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm italic text-gray-600">{row.evidence || "—"}</span>
+                                  <span className="line-clamp-2 text-sm italic text-muted-foreground">{row.evidence || "—"}</span>
                                 )}
+                                {row.objectiveEvidence?.some((e) => (e.s3Key ?? "").trim() !== "") ? (
+                                  <div className="pointer-events-auto mt-1.5 space-y-1 border-t border-border pt-1.5">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Uploaded files
+                                    </p>
+                                    {row.objectiveEvidence
+                                      .filter((e) => (e.s3Key ?? "").trim() !== "")
+                                      .map((ev) => (
+                                        <a
+                                          key={ev.id}
+                                          href={`/api/files/download?key=${encodeURIComponent(ev.s3Key)}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block truncate text-xs font-medium text-primary hover:underline"
+                                        >
+                                          {ev.fileName || "Download"}
+                                        </a>
+                                      ))}
+                                  </div>
+                                ) : null}
                               </TableCell>
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
                                   <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
-                                    <SelectTrigger className="h-9 min-w-[100px] rounded-md border-gray-200">
+                                    <SelectTrigger className="h-9 min-w-[100px] rounded-md border-border">
                                       <SelectValue placeholder="Select" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1218,7 +1289,7 @@ export default function CreateAuditStep3Page() {
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <span className="text-sm font-medium text-gray-800">{statusLabel}</span>
+                                  <span className="text-sm font-medium text-foreground">{statusLabel}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
@@ -1227,7 +1298,7 @@ export default function CreateAuditStep3Page() {
                                     <div className="flex items-center gap-2">
                                       <Button
                                         size="sm"
-                                        className="gap-1.5 rounded-md bg-green-600 px-3 text-xs font-semibold uppercase text-white hover:bg-green-700"
+                                        className="gap-1.5 rounded-md bg-primary px-3 text-xs font-semibold uppercase text-primary-foreground hover:bg-primary/90"
                                         onClick={() => setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length))}
                                       >
                                         Next
@@ -1281,7 +1352,7 @@ export default function CreateAuditStep3Page() {
                                   )
                                 ) : (
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-medium text-green-700">Complete</span>
+                                    <span className="text-xs font-medium text-primary">Complete</span>
                                     <Button
                                       type="button"
                                       size="sm"
@@ -1328,8 +1399,8 @@ export default function CreateAuditStep3Page() {
           )}
         </div>
         {/* Compliance Legend */}
-        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-4 text-xl font-bold uppercase text-gray-900">COMPLIANCE LEGEND</h2>
+        <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
+          <h2 className="mb-4 text-xl font-bold uppercase text-foreground">COMPLIANCE LEGEND</h2>
           <div className="flex flex-wrap items-center gap-4">
             {LEGEND_ITEMS.map((item) => (
               <div key={item.key} className="flex items-center gap-2">
@@ -1344,68 +1415,68 @@ export default function CreateAuditStep3Page() {
                   {item.icon === "dash" && <Minus className="h-4 w-4" />}
                   {item.badge && item.badge}
                 </span>
-                <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                <span className="text-sm font-medium text-foreground">{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Compliance Details — pre-filled when user clicks Document Finding (CA); scroll target for CA flow */}
-        <div ref={checklistSectionRef} className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">COMPLIANCE DETAILS</h2>
+        <div ref={checklistSectionRef} className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
+          <h2 className="mb-6 text-xl font-bold uppercase text-foreground">COMPLIANCE DETAILS</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.1 STANDARD</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.1 STANDARD</Label>
               <Input
                 value={complianceDetails.standard}
                 readOnly
-                className="border-gray-200 bg-gray-50 text-sm"
+                className="border-border bg-muted text-sm"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.2 CLAUSE</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.2 CLAUSE</Label>
               <Input
                 value={complianceDetails.clause}
                 readOnly
-                className="border-gray-200 bg-green-50 text-sm font-medium"
+                className="border-border bg-primary/10 text-sm font-medium"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.3 SUBCLAUSES</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.3 SUBCLAUSES</Label>
               <Input
                 value={complianceDetails.subclauses}
                 readOnly
-                className="border-gray-200 bg-green-50 text-sm"
+                className="border-border bg-primary/10 text-sm"
               />
             </div>
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.4 COMPLIANCE REQUIREMENT</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.4 COMPLIANCE REQUIREMENT</Label>
             <Input
               value={complianceDetails.requirement}
               readOnly
-              className="border-gray-200 bg-gray-50 text-sm"
+              className="border-border bg-muted text-sm"
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.5 AUDIT QUESTION</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.5 AUDIT QUESTION</Label>
             <Input
               value={complianceDetails.question}
               readOnly
-              className="border-gray-200 bg-gray-50 text-sm"
+              className="border-border bg-muted text-sm"
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.6 TYPICAL EXAMPLE OF EVIDENCE</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.6 TYPICAL EXAMPLE OF EVIDENCE</Label>
             <Input
               value={complianceDetails.evidenceExample}
               readOnly
-              className="border-gray-200 bg-gray-50 text-sm"
+              className="border-border bg-muted text-sm"
             />
           </div>
-          <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.7 EVIDENCE SEEN</Label>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-gray-200")}>
+          <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30 p-4")}>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3.2.7 EVIDENCE SEEN</Label>
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-border")}>
               <RichTextEditor
                 value={complianceDetails.evidenceSeen ?? ""}
                 onChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
@@ -1418,7 +1489,7 @@ export default function CreateAuditStep3Page() {
             )}
           </div>
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
-            <Button variant="outline" size="sm" className="gap-2 border-gray-300 font-medium uppercase">
+            <Button variant="outline" size="sm" className="gap-2 border-input font-medium uppercase">
               <Upload className="h-4 w-4" />
               Upload Supporting Document
             </Button>
@@ -1432,8 +1503,8 @@ export default function CreateAuditStep3Page() {
         </div>
 
         {/* Risk Severity */}
-        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">RISK SEVERITY (CURRENT STATUS)</h2>
+        <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
+          <h2 className="mb-6 text-xl font-bold uppercase text-foreground">RISK SEVERITY (CURRENT STATUS)</h2>
           <div className="flex flex-wrap gap-6">
             {(["high", "medium", "low"] as const).map((level) => (
               <Label
@@ -1441,19 +1512,19 @@ export default function CreateAuditStep3Page() {
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-6 py-4 transition-colors",
                   riskSeverity === level
-                    ? "border-green-500 bg-green-50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:border-border hover:bg-accent/50"
                 )}
               >
                 <span
                   className={cn(
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
                     level === "high" && (riskSeverity === "high" ? "border-red-600 bg-red-500" : "border-red-300 bg-red-100"),
-                    level === "medium" && (riskSeverity === "medium" ? "border-green-600 bg-green-500" : "border-green-300 bg-green-50"),
-                    level === "low" && (riskSeverity === "low" ? "border-blue-600 bg-blue-500" : "border-blue-300 bg-blue-100")
+                    level === "medium" && (riskSeverity === "medium" ? "border-primary bg-primary" : "border-primary/30 bg-primary/10"),
+                    level === "low" && (riskSeverity === "low" ? "border-secondary bg-secondary" : "border-border bg-muted")
                   )}
                 >
-                  {riskSeverity === level && <span className="h-2 w-2 rounded-full bg-white" />}
+                  {riskSeverity === level && <span className="h-2 w-2 rounded-full bg-background" />}
                 </span>
                 <input
                   type="radio"
@@ -1463,17 +1534,17 @@ export default function CreateAuditStep3Page() {
                   onChange={() => setRiskSeverity(level)}
                   className="sr-only"
                 />
-                <span className={cn("font-semibold uppercase text-gray-900", riskSeverity === level && "font-bold")}>
+                <span className={cn("font-semibold uppercase text-foreground", riskSeverity === level && "font-bold")}>
                   {level}
                 </span>
               </Label>
             ))}
           </div>
           <div ref={refRiskJustification} className={cn("mt-8 space-y-2", fieldErrors.riskJustification && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               RISK JUSTIFICATION & COMMENTS (MANDATORY)
             </Label>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-gray-200")}>
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-border")}>
               <RichTextEditor
                 value={riskJustification}
                 onChange={setRiskJustification}
@@ -1485,29 +1556,29 @@ export default function CreateAuditStep3Page() {
               <p className="text-sm font-medium text-red-600">{fieldErrors.riskJustification}</p>
             )}
           </div>
-          <div className="mt-8 rounded-lg bg-slate-800 p-6 text-white">
+          <div className="mt-8 rounded-lg border border-border bg-muted p-6 text-foreground">
             <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
-                <Check className="h-4 w-4" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+                <Check className="h-4 w-4 text-primary-foreground" />
               </div>
-              <h3 className="text-lg font-bold uppercase text-green-300">RISK EVALUATION GUIDELINE</h3>
+              <h3 className="text-lg font-bold uppercase text-primary">RISK EVALUATION GUIDELINE</h3>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
                 <div className="mb-2 font-semibold uppercase text-red-300">HIGH SEVERITY</div>
-                <p className="text-sm text-slate-200">
+                <p className="text-sm text-muted-foreground">
                   Direct impact on product safety, regulatory compliance, or system-wide failure. Requires immediate containment.
                 </p>
               </div>
               <div>
                 <div className="mb-2 font-semibold uppercase text-orange-300">MEDIUM SEVERITY</div>
-                <p className="text-sm text-slate-200">
+                <p className="text-sm text-muted-foreground">
                   Partial failure of core process. May impact customer satisfaction or operational efficiency if not addressed.
                 </p>
               </div>
               <div>
-                <div className="mb-2 font-semibold uppercase text-blue-300">LOW SEVERITY</div>
-                <p className="text-sm text-slate-200">
+                <div className="mb-2 font-semibold uppercase text-primary">LOW SEVERITY</div>
+                <p className="text-sm text-muted-foreground">
                   Isolated administrative error or minor process deviation. Negligible impact on quality or safety.
                 </p>
               </div>
@@ -1518,113 +1589,113 @@ export default function CreateAuditStep3Page() {
         {/* Classification, Site, Process & Standard Requirement - 4 cards as in image */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 mx-8 my-4">
           {/* Card 1: CLASSIFICATION */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               CLASSIFICATION
             </h2>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 AUTO-DERIVED STATUS
               </Label>
               <div className="relative">
                 <Input
                   value="MA"
                   readOnly
-                  className="h-12 border-2 border-red-500 bg-white pr-10 text-2xl font-bold text-red-600"
+                  className="h-12 border-2 border-red-500 bg-background pr-10 text-2xl font-bold text-red-600"
                 />
-                <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 SYSTEM RULE: FIELD LOCKS AFTER SUBMISSION TO LEAD AUDITOR
               </p>
             </div>
           </div>
           {/* Card 2: SITE / UNIT */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               SITE / UNIT
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   3.5.1 SITE (SYSTEM GENERATED)
                 </Label>
                 <Input
                   value="MANUFACTURING COMPLEX - UNIT 4"
                   readOnly
-                  className="border-gray-200 bg-gray-100 text-sm font-medium text-gray-700"
+                  className="border-border bg-muted text-sm font-medium text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   LOCATION DESCRIPTION
                 </Label>
                 <Input
                   placeholder="e.g. Production Floor, Second Bay"
-                  className="border-gray-200 text-sm"
+                  className="border-border text-sm"
                 />
               </div>
             </div>
           </div>
           {/* Card 3: PROCESS / AREA */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               PROCESS / AREA
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   3.6.1 PROCESS ID (SYSTEM GENERATED)
                 </Label>
                 <Input
                   value="PROC-2026-MFG-008"
                   readOnly
-                  className="border-gray-200 bg-gray-100 text-sm font-medium text-gray-700"
+                  className="border-border bg-muted text-sm font-medium text-foreground"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   PROCESS NAME
                 </Label>
                 <Input
                   value="CORE PRODUCTION & ASSEMBLY"
                   readOnly
-                  className="border-gray-200 bg-gray-100 text-sm font-medium text-gray-700"
+                  className="border-border bg-muted text-sm font-medium text-foreground"
                 />
               </div>
             </div>
           </div>
           {/* Card 4: STANDARD REQUIREMENT */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               STANDARD REQUIREMENT
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   AUTO-LINKED CLAUSE REFERENCE
                 </Label>
                 <Input
                   value="4.1"
                   readOnly
-                  className="border-2 border-green-400 bg-green-50/50 text-lg font-bold text-green-700"
+                  className="border-2 border-primary/40 bg-primary/10 text-lg font-bold text-primary"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   MANUAL REFERENCE / ADDENDUM
                 </Label>
                 <Input
                   placeholder="e.g. Clause 4.1.2 - Local Addendum v2"
-                  className="border-gray-200 text-sm"
+                  className="border-border text-sm"
                 />
               </div>
             </div>
           </div>
         </div>
         {/* Statement of Nonconformity */}
-        <div ref={refStatementOfNonconformity} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.statementOfNonconformity && "border-2 border-red-500 bg-red-50/30")}>
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+        <div ref={refStatementOfNonconformity} className={cn("rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4", fieldErrors.statementOfNonconformity && "border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30")}>
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
             STATEMENT OF NONCONFORMITY
           </h2>
           <div className="space-y-3">
@@ -1634,7 +1705,7 @@ export default function CreateAuditStep3Page() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded border-gray-300"
+                  className="h-8 w-8 rounded border-input"
                   aria-label="Bold"
                 >
                   <Bold className="h-4 w-4" />
@@ -1643,7 +1714,7 @@ export default function CreateAuditStep3Page() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded border-gray-300"
+                  className="h-8 w-8 rounded border-input"
                   aria-label="Italic"
                 >
                   <Italic className="h-4 w-4" />
@@ -1652,7 +1723,7 @@ export default function CreateAuditStep3Page() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded border-gray-300"
+                  className="h-8 w-8 rounded border-input"
                   aria-label="Underline"
                 >
                   <Underline className="h-4 w-4" />
@@ -1661,7 +1732,7 @@ export default function CreateAuditStep3Page() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded border-gray-300"
+                  className="h-8 w-8 rounded border-input"
                   aria-label="Clear"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -1670,17 +1741,17 @@ export default function CreateAuditStep3Page() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded border-gray-300"
+                  className="h-8 w-8 rounded border-input"
                   aria-label="HTML"
                 >
                   <Code className="h-4 w-4" />
                 </Button>
               </div>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-muted-foreground">
                 PROFESSIONAL FINDINGS EDITOR (DOC 34 V10 MODE)
               </span>
             </div>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-gray-200")}>
+            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-border")}>
               <RichTextEditor
                 value={statementOfNonconformity}
                 onChange={setStatementOfNonconformity}
@@ -1694,43 +1765,43 @@ export default function CreateAuditStep3Page() {
           </div>
 
           {/* Guidelines / Tips */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm  my-4">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm  my-4">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="flex gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-700">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
                   1
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
                     WHAT WENT WRONG
                   </h3>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-muted-foreground">
                     Describe the deviation from the established requirement clearly.
                   </p>
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-700">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
                   2
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
                     NO ROOT CAUSE
                   </h3>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-muted-foreground">
                     <span className="underline">Do not analyze root causes in this section.</span> This is for findings only
                   </p>
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-700">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
                   3
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
                     NO SOLUTION
                   </h3>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-muted-foreground">
                     <span className="underline">Avoid proposing fixes or corrective actions in the finding statement</span>
                   </p>
                 </div>
@@ -1739,41 +1810,41 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4">
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4">
           {/* Objective Evidence */}
           <div className="space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               OBJECTIVE EVIDENCE
             </h2>
             <div className="space-y-4">
               {evidenceItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+                  className="rounded-lg border border-border bg-card p-6 shadow-sm"
                 >
                   <div className="flex gap-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-bold text-gray-700">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
                       {index + 1}
                     </div>
                     <div className="min-w-0 flex-1 space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                        <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
                           EVIDENCE DESCRIPTION
                         </Label>
                         <Input
                           placeholder="e.g. Employee Training Matrix - Unit 4 Rev 2"
                           value={item.description}
                           onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
-                          className="border-gray-200 text-sm"
+                          className="border-border text-sm"
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
                             LINKED MEDIA / UPLOAD
                           </Label>
-                          <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
-                            <FileText className="h-4 w-4 shrink-0 text-gray-500" />
+                          <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                             <span className="truncate">
                               {item.fileName || "Select file"}
                             </span>
@@ -1802,9 +1873,21 @@ export default function CreateAuditStep3Page() {
                               }}
                             />
                           </Label>
+                          {item.s3Key ? (
+                            <div className="pointer-events-auto pt-1">
+                              <a
+                                href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                Open uploaded file
+                              </a>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
                             EFFECTIVENESS SELECTOR
                           </Label>
                           <div className="flex gap-4">
@@ -1812,8 +1895,8 @@ export default function CreateAuditStep3Page() {
                               className={cn(
                                 "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "effective"
-                                  ? "border-green-500 bg-green-50 text-green-700 ring-1 ring-green-500"
-                                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                                  ? "border-primary bg-primary/10 text-primary ring-1 ring-primary"
+                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                               )}
                             >
                               <input
@@ -1823,8 +1906,8 @@ export default function CreateAuditStep3Page() {
                                 onChange={() => setEvidenceEffectiveness(item.id, "effective")}
                                 className="sr-only"
                               />
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-green-500", item.effectiveness === "effective" ? "bg-green-500" : "bg-white")}>
-                                {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-white" />}
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-background")}>
+                                {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-background" />}
                               </span>
                               EFFECTIVE
                             </Label>
@@ -1832,8 +1915,8 @@ export default function CreateAuditStep3Page() {
                               className={cn(
                                 "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "ineffective"
-                                  ? "border-red-500 bg-red-50 text-red-700 ring-1 ring-red-500"
-                                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                                  ? "border-red-500 bg-red-50 text-red-700 ring-1 ring-red-500 dark:bg-red-950/40 dark:text-red-300"
+                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                               )}
                             >
                               <input
@@ -1843,8 +1926,8 @@ export default function CreateAuditStep3Page() {
                                 onChange={() => setEvidenceEffectiveness(item.id, "ineffective")}
                                 className="sr-only"
                               />
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-white")}>
-                                {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-white" />}
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-background")}>
+                                {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-background" />}
                               </span>
                               INEFFECTIVE
                             </Label>
@@ -1860,7 +1943,7 @@ export default function CreateAuditStep3Page() {
               type="button"
               variant="ghost"
               onClick={addEvidenceItem}
-              className="text-green-600 hover:bg-green-50 hover:text-green-700"
+              className="text-primary hover:bg-primary/10 hover:text-primary"
             >
               <Plus className="mr-2 h-4 w-4" />
               <span className="font-bold">ADD ADDITIONAL EVIDENCE ITEM</span>
@@ -1868,14 +1951,14 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
         {/* Justification for Classification */}
-        <div ref={refJustificationForClassification} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.justificationForClassification && "border-2 border-red-500 bg-red-50/30")}>
-          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-900">
+        <div ref={refJustificationForClassification} className={cn("rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4", fieldErrors.justificationForClassification && "border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30")}>
+          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-foreground">
             JUSTIFICATION FOR CLASSIFICATION
           </h2>
-          <p className="mb-4 text-xs text-gray-500">
+          <p className="mb-4 text-xs text-muted-foreground">
             MANDATORY EXPLANATION: WHY MA OR MI?
           </p>
-          <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-gray-200")}>
+          <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-border")}>
             <RichTextEditor
               value={justificationForClassification}
               onChange={setJustificationForClassification}
@@ -1889,37 +1972,37 @@ export default function CreateAuditStep3Page() {
         </div>
 
         {/* OFI / Positive Aspect Recording */}
-        <div className="rounded-lg border border-green-200 bg-green-50/50 p-6 shadow-sm mx-8 my-4">
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 shadow-sm mx-8 my-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               OFI / POSITIVE ASPECT RECORDING
             </h2>
-            <span className="rounded-full border border-green-400 px-3 py-1 text-xs font-medium text-green-700">
+            <span className="rounded-full border border-primary/40 px-3 py-1 text-xs font-medium text-primary">
               OPTIONAL DOCUMENTATION FLOW
             </span>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50">
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">OFI REF #</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">STANDARD</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SITE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">PROCESS / AREA</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">CLAUSE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SUBCLAUSES (IF ANY)</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">OFI / PA</TableHead>
-                  <TableHead className="w-10 text-xs font-semibold uppercase text-gray-700"> </TableHead>
+                <TableRow className="border-border bg-muted">
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">OFI REF #</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">STANDARD</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">SITE</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">PROCESS / AREA</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">CLAUSE</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">SUBCLAUSES (IF ANY)</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">OFI / PA</TableHead>
+                  <TableHead className="w-10 text-xs font-semibold uppercase text-foreground"> </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {ofiRows.map((row) => (
-                  <TableRow key={row.id} className="border-gray-200">
+                  <TableRow key={row.id} className="border-border">
                     <TableCell className="p-2">
                       <Input
                         value={row.ofiRef}
                         onChange={(e) => updateOfiRow(row.id, "ofiRef", e.target.value)}
-                        className="h-8 border-gray-200 text-xs"
+                        className="h-8 border-border text-xs"
                         placeholder="e.g. OFI-2026-001"
                       />
                     </TableCell>
@@ -1927,7 +2010,7 @@ export default function CreateAuditStep3Page() {
                       <Input
                         value={row.standard}
                         onChange={(e) => updateOfiRow(row.id, "standard", e.target.value)}
-                        className="h-8 border-gray-200 text-xs"
+                        className="h-8 border-border text-xs"
                         placeholder="ISO 9001:2015"
                       />
                     </TableCell>
@@ -1935,7 +2018,7 @@ export default function CreateAuditStep3Page() {
                       <Input
                         value={row.site}
                         onChange={(e) => updateOfiRow(row.id, "site", e.target.value)}
-                        className="h-8 border-gray-200 text-xs"
+                        className="h-8 border-border text-xs"
                         placeholder="SITE A"
                       />
                     </TableCell>
@@ -1943,7 +2026,7 @@ export default function CreateAuditStep3Page() {
                       <Input
                         value={row.processArea}
                         onChange={(e) => updateOfiRow(row.id, "processArea", e.target.value)}
-                        className="h-8 border-gray-200 text-xs"
+                        className="h-8 border-border text-xs"
                         placeholder="PRODUCTION"
                       />
                     </TableCell>
@@ -1951,7 +2034,7 @@ export default function CreateAuditStep3Page() {
                       <Input
                         value={row.clause}
                         onChange={(e) => updateOfiRow(row.id, "clause", e.target.value)}
-                        className="h-8 border-gray-200 text-xs font-bold"
+                        className="h-8 border-border text-xs font-bold"
                         placeholder="7.1.3"
                       />
                     </TableCell>
@@ -1959,7 +2042,7 @@ export default function CreateAuditStep3Page() {
                       <Input
                         value={row.subclauses}
                         onChange={(e) => updateOfiRow(row.id, "subclauses", e.target.value)}
-                        className="h-8 border-gray-200 text-xs"
+                        className="h-8 border-border text-xs"
                         placeholder="N/A"
                       />
                     </TableCell>
@@ -1973,8 +2056,8 @@ export default function CreateAuditStep3Page() {
                           className={cn(
                             "h-auto rounded-md px-2 py-1 text-xs font-medium",
                             row.ofiPa === "ofi"
-                              ? "bg-blue-100 text-blue-700 border-blue-200"
-                              : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                              ? "bg-primary/15 text-primary border-primary/40 dark:bg-primary/25"
+                              : "border border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                           )}
                         >
                           OFI
@@ -1987,8 +2070,8 @@ export default function CreateAuditStep3Page() {
                           className={cn(
                             "h-auto rounded-md px-2 py-1 text-xs font-medium",
                             row.ofiPa === "pa"
-                              ? "bg-green-100 text-green-700 border-green-200"
-                              : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                              ? "bg-primary/15 text-primary border-primary/40 dark:bg-primary/25"
+                              : "border border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                           )}
                         >
                           PA
@@ -2000,7 +2083,7 @@ export default function CreateAuditStep3Page() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-gray-500 hover:text-red-600"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-600"
                         onClick={() => removeOfiRow(row.id)}
                         aria-label="Remove row"
                       >
@@ -2016,60 +2099,60 @@ export default function CreateAuditStep3Page() {
             type="button"
             variant="outline"
             onClick={addOfiRow}
-            className="mt-4 border-green-400 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
+            className="mt-4 border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
           >
             <Plus className="mr-2 h-4 w-4" />
             + ADD MORE OFIS / POSITIVE ASPECTS
           </Button>
         </div>
         {/* Audit Nonconformity Matrix */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
             AUDIT NONCONFORMITY MATRIX
           </h2>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-100">
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">
+                <TableRow className="border-border bg-muted">
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">
                     NONCONFORMITY REFERENCE
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">STANDARD</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SITE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">PROCESS / AREA</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">CLAUSE</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">STANDARD</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">SITE</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">PROCESS / AREA</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">CLAUSE</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow className="border-gray-200 bg-white">
-                  <TableCell className="text-sm text-gray-700">
-                    <span className="text-xs text-gray-500">REF:</span>{" "}
+                <TableRow className="border-border bg-background">
+                  <TableCell className="text-sm text-foreground">
+                    <span className="text-xs text-muted-foreground">REF:</span>{" "}
                     NC/2806/51/P3/FRA/881
                   </TableCell>
-                  <TableCell className="text-sm text-gray-700">ISO 9001:2015</TableCell>
-                  <TableCell className="text-sm font-bold text-gray-900">SITE A</TableCell>
-                  <TableCell className="text-sm text-gray-700">HR</TableCell>
+                  <TableCell className="text-sm text-foreground">ISO 9001:2015</TableCell>
+                  <TableCell className="text-sm font-bold text-foreground">SITE A</TableCell>
+                  <TableCell className="text-sm text-foreground">HR</TableCell>
                   <TableCell className="text-sm font-bold text-red-600">5.2.1</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
-          <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+          <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900 dark:bg-amber-950/40">
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
             <div className="min-w-0 space-y-1 text-sm">
-              <p className="font-bold text-gray-900">
+              <p className="font-bold text-foreground">
                 SYSTEM AUTOMATION RULE (MATRIX LOGIC)
               </p>
-              <p className="text-gray-700">
+              <p className="text-muted-foreground">
                 Nonconformity references follow the global standard{" "}
-                <span className="underline text-blue-600">Module</span>/
-                <span className="underline text-blue-600">Year</span>/
-                <span className="underline text-blue-600">Site</span>/
-                <span className="underline text-blue-600">Process</span>/
-                <span className="underline text-blue-600">AuditType</span>/
-                <span className="underline text-blue-600">NCE</span>
+                <span className="underline text-primary">Module</span>/
+                <span className="underline text-primary">Year</span>/
+                <span className="underline text-primary">Site</span>/
+                <span className="underline text-primary">Process</span>/
+                <span className="underline text-primary">AuditType</span>/
+                <span className="underline text-primary">NCE</span>
               </p>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (m) NCs require CA submission within 60 days.
               </p>
             </div>
@@ -2080,7 +2163,7 @@ export default function CreateAuditStep3Page() {
           <div className="flex justify-center">
             <Button
             type="button"
-            className="rounded-full border-2 border-green-500 bg-white px-8 py-6 text-base font-bold uppercase text-green-600 hover:bg-green-50 hover:text-green-700"
+            className="rounded-full border-2 border-primary bg-background px-8 py-6 text-base font-bold uppercase text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20"
             disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
             onClick={async () => {
               if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
@@ -2170,7 +2253,7 @@ export default function CreateAuditStep3Page() {
           </div>
         )}
         {/* Submission summary card (dark) — dynamic from plan */}
-        <div className="rounded-xl border-2 border-green-500/40 bg-gray-900 p-6 shadow-lg ring-2 ring-green-400/20 md:p-8 mx-8 my-4">
+        <div className="rounded-xl border-2 border-primary/40 bg-card p-6 text-card-foreground shadow-lg ring-2 ring-primary/20 md:p-8 mx-8 my-4">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {/* Auditor Profile */}
             <div className="space-y-2">
@@ -2178,7 +2261,7 @@ export default function CreateAuditStep3Page() {
                 <UserCheck className="h-4 w-4" />
                 <span className="text-xs font-semibold uppercase tracking-wide">Auditor Profile</span>
               </div>
-              <p className="text-xl font-bold text-white">{leadAuditorDisplay.split(" | ")[0] || "—"}</p>
+              <p className="text-xl font-bold text-foreground">{leadAuditorDisplay.split(" | ")[0] || "—"}</p>
               <p className="text-sm text-gray-400">{leadAuditorDisplay}</p>
             </div>
             {/* Audit Timeline */}
@@ -2189,23 +2272,23 @@ export default function CreateAuditStep3Page() {
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <span className="text-gray-500">START DATE</span>
-                <span className="text-white">{submissionCard.startDate}</span>
+                <span className="text-foreground">{submissionCard.startDate}</span>
                 <span className="text-gray-500">END DATE</span>
-                <span className="text-white">{submissionCard.endDate}</span>
+                <span className="text-foreground">{submissionCard.endDate}</span>
                 <span className="text-gray-500">TOTAL MAN-DAYS</span>
-                <span className="text-white">{submissionCard.manDays}</span>
+                <span className="text-foreground">{submissionCard.manDays}</span>
                 <span className="text-gray-500">SUBMISSION DATE</span>
-                <span className="text-white">{submissionCard.submissionDate}</span>
+                <span className="text-foreground">{submissionCard.submissionDate}</span>
               </div>
             </div>
             {/* Authentication Key */}
             <div className="flex flex-col items-start gap-2 md:items-end">
-              <div className="flex flex-col items-center gap-2 rounded-lg bg-gray-800 p-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-700">
+              <div className="flex flex-col items-center gap-2 rounded-lg bg-muted p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted/80">
                   <ShieldCheck className="h-7 w-7 text-red-500" />
                 </div>
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Authentication Key</span>
-                <span className="text-sm font-medium text-gray-300">{submissionCard.authKey}</span>
+                <span className="text-sm font-medium text-foreground">{submissionCard.authKey}</span>
               </div>
             </div>
           </div>
@@ -2220,7 +2303,7 @@ export default function CreateAuditStep3Page() {
           <div className="mt-6 flex justify-center gap-2">
             <Button
               type="button"
-              className="rounded-lg bg-green-600 px-8 py-6 text-base font-bold uppercase text-white hover:bg-green-700"
+              className="rounded-lg bg-primary px-8 py-6 text-base font-bold uppercase text-primary-foreground hover:bg-primary/90"
               disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
               onClick={async () => {
                 if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
@@ -2334,7 +2417,7 @@ export default function CreateAuditStep3Page() {
           </Link>
         </Button>
         <Button
-          className="bg-green-600 text-white hover:bg-green-700"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
           asChild
         >
           <Link

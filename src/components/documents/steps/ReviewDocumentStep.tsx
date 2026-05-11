@@ -158,9 +158,9 @@ export default function ReviewDocumentStep({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
+      <div className="space-y-5 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] font-normal">
+          <Badge variant="outline" className="border-border bg-muted font-normal text-muted-foreground">
             Doc/2025/S1/P1/P/D1/v1
           </Badge>
           <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
@@ -169,46 +169,46 @@ export default function ReviewDocumentStep({
         </div>
 
         <div>
-          <p className="text-sm text-[#6B7280]">Title:</p>
-          <p className="text-3xl font-bold text-[#111827]">{title || "Untitled Document"}</p>
+          <p className="text-sm text-muted-foreground">Title:</p>
+          <p className="text-3xl font-bold text-foreground">{title || "Untitled Document"}</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-4 text-sm">
           <div>
-            <p className="text-[#6B7280]">Type:</p>
-            <p className="font-semibold text-[#111827]">{documentTypeLabel}</p>
+            <p className="text-muted-foreground">Type:</p>
+            <p className="font-semibold text-foreground">{documentTypeLabel}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Doc Owner:</p>
-            <p className="font-semibold text-[#111827]">{processOwner || "Manager Manufacturing"}</p>
+            <p className="text-muted-foreground">Doc Owner:</p>
+            <p className="font-semibold text-foreground">{processOwner || "Manager Manufacturing"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Standard:</p>
-            <p className="font-semibold text-[#111827]">{managementStandard || "ISO 9001"}</p>
+            <p className="text-muted-foreground">Standard:</p>
+            <p className="font-semibold text-foreground">{managementStandard || "ISO 9001"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Clause:</p>
-            <p className="font-semibold text-[#111827]">{clause || "4.1"}</p>
+            <p className="text-muted-foreground">Clause:</p>
+            <p className="font-semibold text-foreground">{clause || "4.1"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Sub-Clause</p>
-            <p className="font-semibold text-[#111827]">{subClause || "4.1.6"}</p>
+            <p className="text-muted-foreground">Sub-Clause</p>
+            <p className="font-semibold text-foreground">{subClause || "4.1.6"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Site:</p>
-            <p className="font-semibold text-[#111827]">{site || "S1"}</p>
+            <p className="text-muted-foreground">Site:</p>
+            <p className="font-semibold text-foreground">{site || "S1"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Process:</p>
-            <p className="font-semibold text-[#111827]">{processName || "Manufacturing"}</p>
+            <p className="text-muted-foreground">Process:</p>
+            <p className="font-semibold text-foreground">{processName || "Manufacturing"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Doc#:</p>
-            <p className="font-semibold text-[#111827]">{processId || "D6"}</p>
+            <p className="text-muted-foreground">Doc#:</p>
+            <p className="font-semibold text-foreground">{processId || "D6"}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">Version:</p>
-            <p className="font-semibold text-[#111827]">v3</p>
+            <p className="text-muted-foreground">Version:</p>
+            <p className="font-semibold text-foreground">v3</p>
           </div>
         </div>
 
@@ -224,7 +224,7 @@ export default function ReviewDocumentStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Reviewer Name</Label>
@@ -233,9 +233,9 @@ export default function ReviewDocumentStep({
               tabIndex={-1}
               value={processOwner ?? ""}
               placeholder="Set in Create Document (Process Owner / Responsible Person)"
-              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="border-border bg-muted text-muted-foreground"
             />
-            <p className="text-xs text-[#6B7280]">System value from Process Owner / Responsible Person</p>
+            <p className="text-xs text-muted-foreground">System value from Process Owner / Responsible Person</p>
           </div>
           <div className="space-y-2">
             <Label>Role / Designation</Label>
@@ -244,64 +244,64 @@ export default function ReviewDocumentStep({
               tabIndex={-1}
               value={reviewerRole}
               placeholder="System generated role"
-              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="border-border bg-muted text-muted-foreground"
             />
           </div>
         </div>
 
         {description ? (
-          <div className="mt-4 rounded-lg border border-[#F3F4F6] bg-[#FAFAFA] px-4 py-3 text-sm text-[#4B5563]">
+          <div className="mt-4 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
             {description}
           </div>
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4">
-          <h4 className="text-base font-bold text-[#111827]">2.1 Review Points</h4>
-          <p className="text-sm text-[#6B7280] mt-1">Checking if the Rule Works!</p>
+          <h4 className="text-base font-bold text-foreground">2.1 Review Points</h4>
+          <p className="mt-1 text-sm text-muted-foreground">Checking if the Rule Works!</p>
         </div>
 
         <div className="rounded-lg bg-[#F0F7FF] border-l-4 border-l-[#3B82F6] pl-4 pr-4 py-4 text-sm">
-          <ol className="list-decimal pl-5 space-y-3 text-[#111827]">
+          <ol className="list-decimal pl-5 space-y-3 text-foreground">
             <li>
               <span className="font-semibold">Associated Standards:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Confirm relevant international / national standards have been reviewed (if applicable).
               </span>
             </li>
             <li>
               <span className="font-semibold">Organizational Procedures:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Verify related procedures have been checked for adequacy and consistency.
               </span>
             </li>
             <li>
               <span className="font-semibold">4M Change Verification:</span>
-              <ul className="mt-2 ml-4 list-disc space-y-1 text-[#6B7280] font-normal">
+              <ul className="mt-2 ml-4 list-disc space-y-1 font-normal text-muted-foreground">
                 <li>
-                  <span className="font-semibold text-[#111827]">Man</span> – Roles, responsibilities, or competency requirements reviewed.
+                  <span className="font-semibold text-foreground">Man</span> – Roles, responsibilities, or competency requirements reviewed.
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">Material</span> – Inputs, resources, or specifications assessed.
+                  <span className="font-semibold text-foreground">Material</span> – Inputs, resources, or specifications assessed.
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">Method</span> – Processes, workflows, or instructions confirmed.
+                  <span className="font-semibold text-foreground">Method</span> – Processes, workflows, or instructions confirmed.
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">Machine</span> – Tools, equipment, or systems validated.
+                  <span className="font-semibold text-foreground">Machine</span> – Tools, equipment, or systems validated.
                 </li>
               </ul>
             </li>
             <li>
               <span className="font-semibold">Legal &amp; Regulatory Requirements:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Compliance with all applicable laws, regulations, and customer requirements confirmed.
               </span>
             </li>
             <li>
               <span className="font-semibold">Document Accuracy &amp; Control:</span>
-              <ul className="mt-2 ml-4 list-disc space-y-1 text-[#6B7280] font-normal">
+              <ul className="mt-2 ml-4 list-disc space-y-1 font-normal text-muted-foreground">
                 <li>Purpose, scope, and content remain clear, current, and correct.</li>
                 <li>Version control, references, and linked documents are up to date.</li>
                 <li>Obsolete versions identified and marked for withdrawal.</li>
@@ -309,37 +309,37 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">Process &amp; Performance Impact:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Potential impacts on quality, safety, environment, and performance evaluated. Risks and opportunities documented where necessary.
               </span>
             </li>
             <li>
               <span className="font-semibold">Linkage &amp; References:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 All associated and supporting documents have been linked to ensure completeness and performance of the document/action.
               </span>
             </li>
             <li>
               <span className="font-semibold">Activity Feed Verification:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Notification and acknowledgement alerts have been checked; no conflicts remain in the &quot;Activity Feed&quot; section.
               </span>
             </li>
             <li>
               <span className="font-semibold">Corrective Action Record:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 For cases of Edit, Obsolete, or Transfer, the document owner has provided satisfactory comments and corrective action records.
               </span>
             </li>
             <li>
               <span className="font-semibold">Stakeholder Notification:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 All relevant concerns and stakeholders have been informed about the change in the document/action.
               </span>
             </li>
             <li>
               <span className="font-semibold">Integrity &amp; Accuracy:</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 Digital issuance complies with ISO 9001:2015 clause 7.5 requirements, ensuring the reliability, authenticity, and integrity of documented information.
               </span>
             </li>
@@ -355,24 +355,24 @@ export default function ReviewDocumentStep({
             className="mt-1"
           />
           <div className="space-y-1 min-w-0">
-            <label htmlFor="review-ack" className="font-semibold text-[#111827] cursor-pointer block">
+            <label htmlFor="review-ack" className="block cursor-pointer font-semibold text-foreground">
               Acknowledgement
             </label>
-            <p className="text-sm text-[#6B7280]">I confirm that I have taken full care and professional responsibility in reviewing the above document/action.</p>
+            <p className="text-sm text-muted-foreground">I confirm that I have taken full care and professional responsibility in reviewing the above document/action.</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-6">
+      <div className="space-y-6 rounded-xl border border-border bg-card p-5">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">2.2 Verification Outcome</h4>
-          <p className="text-sm text-[#6B7280] mt-2 leading-relaxed">
+          <h4 className="text-base font-bold text-foreground">2.2 Verification Outcome</h4>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Effective means producing intended results, while ineffective means not producing them. It also means action that is sufficient or insufficient to achieve a purpose, respectively.
           </p>
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-bold text-[#111827]">Decision (Yes-Effective / No-Ineffective)</p>
+          <p className="text-sm font-bold text-foreground">Decision (Yes-Effective / No-Ineffective)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
@@ -383,7 +383,7 @@ export default function ReviewDocumentStep({
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
                   ? "border-[#16A34A] bg-[#F0FDF4]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  : "border-border bg-card hover:bg-muted"
               )}
             >
               <span
@@ -391,15 +391,15 @@ export default function ReviewDocumentStep({
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "effective"
                     ? "border-[#16A34A] bg-[#16A34A]"
-                    : "border-[#D1D5DB] bg-white"
+                    : "border-border bg-card"
                 )}
                 aria-hidden
               >
                 {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">Effective - Close Document</p>
-                <p className="text-sm text-[#6B7280]">Proceed to next step Approval</p>
+                <p className="font-semibold text-foreground">Effective - Close Document</p>
+                <p className="text-sm text-muted-foreground">Proceed to next step Approval</p>
               </div>
             </button>
             <button
@@ -411,7 +411,7 @@ export default function ReviewDocumentStep({
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
                   ? "border-[#DC2626] bg-[#FEF2F2]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  : "border-border bg-card hover:bg-muted"
               )}
             >
               <span
@@ -419,15 +419,15 @@ export default function ReviewDocumentStep({
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "ineffective"
                     ? "border-[#DC2626] bg-[#DC2626]"
-                    : "border-[#D1D5DB] bg-white"
+                    : "border-border bg-card"
                 )}
                 aria-hidden
               >
                 {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">Ineffective - Re-open Document</p>
-                <p className="text-sm text-[#6B7280]">
+                <p className="font-semibold text-foreground">Ineffective - Re-open Document</p>
+                <p className="text-sm text-muted-foreground">
                   Send back to initiator of the document step 1 draft/create for corrective action and resubmission.
                 </p>
               </div>
@@ -436,7 +436,7 @@ export default function ReviewDocumentStep({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="review-comments" className="text-sm font-bold text-[#111827]">
+          <Label htmlFor="review-comments" className="text-sm font-bold text-foreground">
             Comments <span className="text-red-600">*</span>
           </Label>
           <Textarea
@@ -447,7 +447,7 @@ export default function ReviewDocumentStep({
             required={canPerformReview && !readOnlyObserver}
             aria-required={canPerformReview && !readOnlyObserver}
             placeholder="Enter your review comments here (required)…"
-            className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
+            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           {canPerformReview && !readOnlyObserver && !reviewComments.trim() ? (
             <p className="text-xs text-amber-800" role="status">
@@ -456,16 +456,16 @@ export default function ReviewDocumentStep({
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
+        <div className="space-y-4 rounded-lg border border-border bg-muted p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">Reviewer Name &amp; Identification#:</span>
-            <span className="text-sm text-[#6B7280] sm:text-right">[Login/System Generated]</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">Reviewer Name &amp; Identification#:</span>
+            <span className="text-sm text-muted-foreground sm:text-right">[Login/System Generated]</span>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">Review Date:</span>
-            <span className="text-sm font-semibold text-[#111827] sm:text-right">{reviewDateDisplay}</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">Review Date:</span>
+            <span className="text-sm font-semibold text-foreground sm:text-right">{reviewDateDisplay}</span>
           </div>
-          <p className="text-xs italic text-[#6B7280] pt-1">This document is valid without a signature</p>
+          <p className="pt-1 text-xs italic text-muted-foreground">This document is valid without a signature</p>
         </div>
       </div>
 

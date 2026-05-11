@@ -37,9 +37,9 @@ const Step5 = () => {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-2">Product & Inventory</h1>
+      <h1 className="mb-2 text-2xl font-bold text-foreground">Product & Inventory</h1>
       <p className="text-gray-600 mb-8">Configure your product & inventory settings</p>
-      <h3 className="text-xl font-semibold mb-4">Add Products / Services</h3>
+      <h3 className="mb-4 text-xl font-semibold text-foreground">Add Products / Services</h3>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">

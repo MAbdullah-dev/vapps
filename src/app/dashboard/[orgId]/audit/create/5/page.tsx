@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
+import { AuditUploadedFilesList, normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -78,7 +79,11 @@ export default function CreateAuditStep5Page() {
               setAuditorComments(step5.auditorComments);
             }
             if (Array.isArray(step5.evidenceFiles)) {
-              setEvidenceFiles(step5.evidenceFiles as { name: string; key: string }[]);
+              setEvidenceFiles(
+                step5.evidenceFiles
+                  .map((raw: unknown) => normalizeAuditUploadedFileRef(raw))
+                  .filter((f): f is { name: string; key: string } => f != null)
+              );
             }
             if (typeof step5.verificationStartedAt === "string") {
               setVerificationStartedAt(step5.verificationStartedAt);
@@ -187,7 +192,7 @@ export default function CreateAuditStep5Page() {
         <div className={cn(!canEditStep5 && "pointer-events-none select-none opacity-90")}>
         {/* Main title with thick green vertical bar to the left */}
         <div className="flex items-center">
-          <div className="h-9 w-1.5 shrink-0 rounded-full bg-green-500" />
+          <div className="h-9 w-1.5 shrink-0 rounded-full bg-primary" />
           <h1 className="pl-3 text-xl font-bold uppercase tracking-wide text-foreground">
             EFFECTIVENESS VERIFICATION
           </h1>
@@ -206,14 +211,14 @@ export default function CreateAuditStep5Page() {
               className={cn(
                 "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
                 verificationOutcome === "effective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
+                  ? "border-2 border-primary bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25"
                   : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
               )}
             >
               <CheckCircle
                 className={cn(
                   "h-14 w-14",
-                  verificationOutcome === "effective" ? "text-green-600" : "text-muted-foreground"
+                  verificationOutcome === "effective" ? "text-primary" : "text-muted-foreground"
                 )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
@@ -227,14 +232,14 @@ export default function CreateAuditStep5Page() {
               className={cn(
                 "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
                 verificationOutcome === "ineffective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
+                  ? "border-2 border-primary bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25"
                   : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
               )}
             >
               <XCircle
                 className={cn(
                   "h-14 w-14",
-                  verificationOutcome === "ineffective" ? "text-green-600" : "text-muted-foreground"
+                  verificationOutcome === "ineffective" ? "text-primary" : "text-muted-foreground"
                 )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
@@ -242,17 +247,17 @@ export default function CreateAuditStep5Page() {
               </span>
             </Button>
           </div>
-          <div className="flex gap-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-green-300 bg-green-100 text-green-600">
+          <div className="flex gap-4 rounded-lg border border-primary/20 bg-primary/5 px-5 py-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
               <RefreshCw className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-wide text-green-800">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">
                 SYSTEM LOGIC
               </p>
-              <p className="mt-1 italic leading-relaxed text-green-900/90">
+              <p className="mt-1 italic leading-relaxed text-primary/90">
                 Step 4 (Corrective Action) Marking as{" "}
-                <span className="font-bold not-italic text-green-700">
+                <span className="font-bold not-italic text-primary">
                   Ineffective
                 </span>{" "}
                 will automatically route the workflow back to and flag the
@@ -307,11 +312,15 @@ export default function CreateAuditStep5Page() {
               <Paperclip className="h-4 w-4 text-muted-foreground" />
               ATTACH EVIDENCE
             </Button>
-            {evidenceFiles.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {evidenceFiles.length} file(s) selected
-              </p>
-            )}
+            <AuditUploadedFilesList
+              files={evidenceFiles}
+              className={!canEditStep5 ? "pointer-events-auto" : undefined}
+              emptyHint={
+                canEditStep5 ? (
+                  <p className="text-xs text-muted-foreground">No files attached yet.</p>
+                ) : undefined
+              }
+            />
           </div>
         </div>
 
@@ -334,8 +343,8 @@ export default function CreateAuditStep5Page() {
             </Button>
           </div>
           <div className="space-y-0">
-            {/* First entry: solid green vertical bar alongside */}
-            <div className="border-l-4 border-green-500 pl-4 pb-1">
+            {/* First entry: solid primary vertical bar alongside */}
+            <div className="border-l-4 border-primary pl-4 pb-1">
               <p className="font-semibold text-foreground">
                 Verification Started
               </p>
@@ -367,7 +376,7 @@ export default function CreateAuditStep5Page() {
             {saving ? "Saving…" : "Save"}
           </Button>
           <Button
-            className="bg-green-600 text-white hover:bg-green-700"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={proceedingToStep6 || saving || !auditPlanId || !canEditStep5}
             onClick={async () => {
               if (!orgId || !auditPlanId) return;

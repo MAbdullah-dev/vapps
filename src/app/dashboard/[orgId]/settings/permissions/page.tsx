@@ -113,7 +113,7 @@ export default function PermissionsPage() {
             <ChevronRight className="h-4 w-4" />
             <span className="text-gray-900 font-medium">Permissions</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Role Permissions (RBAC)</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Role Permissions (RBAC)</h1>
           <p className="text-sm text-gray-500 mt-1">
             Configure what each system role can do. Only the organization owner can change these settings.
           </p>

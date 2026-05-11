@@ -320,7 +320,7 @@ export default function ProcessesListPage() {
     <div className="Processes p-2 max-w-6xl">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-lg font-bold">Processes</h1>
+          <h1 className="text-lg font-bold text-foreground">Processes</h1>
           <p className="text-sm text-muted-foreground">
             Create and manage processes for the site selected in the sidebar. Open a process to work
             with issues, audits, documents, and more.
@@ -469,7 +469,7 @@ export default function ProcessesListPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <h3 className="text-base font-semibold leading-snug">{process.name}</h3>
+                <h3 className="text-base font-semibold leading-snug text-foreground">{process.name}</h3>
                 {process.description ? (
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{process.description}</p>
                 ) : null}
@@ -495,7 +495,7 @@ export default function ProcessesListPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <AlertTriangle className="h-5 w-5 text-destructive" />
               Delete process
             </DialogTitle>
             <DialogDescription>

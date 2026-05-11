@@ -101,19 +101,19 @@ export default function PermissionsPage() {
     <div className="space-y-6 px-5">
       <div className="flex justify-between items-start">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <Link href={`/dashboard/${orgId}`} className="hover:text-gray-700 transition-colors">
+          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Link href={`/dashboard/${orgId}`} className="transition-colors hover:text-foreground">
               Dashboard
             </Link>
             <ChevronRight className="h-4 w-4" />
-            <Link href={`/dashboard/${orgId}/settings`} className="hover:text-gray-700 transition-colors">
+            <Link href={`/dashboard/${orgId}/settings`} className="transition-colors hover:text-foreground">
               Settings
             </Link>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-gray-900 font-medium">Permissions</span>
+            <span className="font-medium text-foreground">Permissions</span>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Role Permissions (RBAC)</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Role Permissions (RBAC)</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Configure what each system role can do. Only the organization owner can change these settings.
           </p>
         </div>
@@ -136,7 +136,7 @@ export default function PermissionsPage() {
             <CardTitle>Role Permissions (RBAC)</CardTitle>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                <Info className="h-4 w-4 cursor-help text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Permissions are defined per role and can only be edited by the organization owner.</p>
@@ -150,28 +150,28 @@ export default function PermissionsPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-4 pb-4 border-b">
-                <div className="font-medium text-sm text-gray-700">Permission</div>
+                <div className="text-sm font-medium text-foreground">Permission</div>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-400" />
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Admin</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-400" />
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Manager</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-400" />
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Member</span>
                 </div>
               </div>
               {permissions.map((permission, index) => (
                 <div key={permission.key} className="grid grid-cols-4 gap-4 items-center py-2">
-                  <div className="text-sm text-gray-700">{permission.label}</div>
+                  <div className="text-sm text-foreground">{permission.label}</div>
                   <div className="flex items-center">
                     <Switch
                       checked={permission.admin}

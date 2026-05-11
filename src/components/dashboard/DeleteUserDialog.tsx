@@ -70,7 +70,7 @@ export default function DeleteUserDialog({
             <p className="text-sm font-medium text-red-800 mb-1">{userName}</p>
             <p className="text-sm text-red-600">{userEmail}</p>
           </div>
-          <p className="text-sm text-gray-600 mt-4">
+          <p className="mt-4 text-sm text-muted-foreground">
             This user will lose access to all organization resources, sites, and processes.
           </p>
         </div>

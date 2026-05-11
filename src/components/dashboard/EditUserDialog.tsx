@@ -276,7 +276,7 @@ export default function EditUserDialog({
 
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input value={userEmail} disabled className="bg-gray-50 cursor-not-allowed" />
+            <Input value={userEmail} disabled className="bg-muted/30 cursor-not-allowed" />
           </div>
 
           {/* Job Title (read-only for org owner editing self) */}
@@ -287,7 +287,7 @@ export default function EditUserDialog({
                 {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>{isOwnerEditingSelf ? "Organization owner. You can set your site, process, and additional roles (e.g. Auditor) below." : "Defines the user's business designation and determines their system role."}</p>
@@ -296,7 +296,7 @@ export default function EditUserDialog({
               </div>
             </Label>
             {isOwnerEditingSelf ? (
-              <Input id="jobTitle" value="Owner" disabled className="bg-gray-50 cursor-not-allowed" />
+              <Input id="jobTitle" value="Owner" disabled className="bg-muted/30 cursor-not-allowed" />
             ) : (
               <>
                 <Select value={jobTitle} onValueChange={handleJobTitleChange}>
@@ -337,7 +337,7 @@ export default function EditUserDialog({
                   <span>Leadership Level</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Automatically set based on job title.</p>
@@ -348,7 +348,7 @@ export default function EditUserDialog({
               <Input
                 value={`Level ${roleLevel}`}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted/30 cursor-not-allowed"
               />
             </div>
           )}
@@ -361,7 +361,7 @@ export default function EditUserDialog({
                   <span>System Role</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Automatically assigned based on leadership level.</p>
@@ -372,7 +372,7 @@ export default function EditUserDialog({
               <Input
                 value={systemRole}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted/30 cursor-not-allowed"
               />
             </div>
           )}
@@ -384,7 +384,7 @@ export default function EditUserDialog({
                 <Label htmlFor="edit-site">
                   Site {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 </Label>
-                <p className="text-xs text-gray-500 mb-1">
+                <p className="text-xs text-muted-foreground mb-1">
                   Select the site where this user operates.
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
@@ -415,7 +415,7 @@ export default function EditUserDialog({
                   <Label htmlFor="edit-process">
                     Process {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                   </Label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="text-xs text-muted-foreground mb-1">
                     Select one process within this site.
                   </p>
                   <Select
@@ -458,10 +458,10 @@ export default function EditUserDialog({
           {additionalRoles.length > 0 && (
             <div className="space-y-2">
               <Label>Additional roles (e.g. Auditor)</Label>
-              <p className="text-xs text-gray-500 mb-1">
+              <p className="text-xs text-muted-foreground mb-1">
                 Assign or remove custom roles such as Auditor.
               </p>
-              <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+              <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-muted/20">
                 {additionalRoles.map((ar) => (
                   <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -474,9 +474,9 @@ export default function EditUserDialog({
                           setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
                         }
                       }}
-                      className="rounded border-gray-300"
+                      className="rounded border-border"
                     />
-                    <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                    <span className="text-sm font-medium text-foreground">{ar.name}</span>
                   </label>
                 ))}
               </div>

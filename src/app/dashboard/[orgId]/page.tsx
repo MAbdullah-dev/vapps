@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { ArrowUp, ChartNoAxesCombined, CircleAlert, CircleCheckBig, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { documentActivityVerb } from "@/lib/document-activity-labels";
 
 const chartConfig = {
     created: { label: "Issues created", color: "var(--chart-1)" },
@@ -72,6 +73,16 @@ function getActivityMessage(activity: ActivityItem): React.ReactNode {
       <>
         <span className="text-foreground font-medium">Audit</span>
         <span className="text-muted-foreground"> {label}: {entityTitle}</span>
+      </>
+    );
+  }
+
+  if (activity.entityType === "document" || activity.action.startsWith("document.")) {
+    const verb = documentActivityVerb(activity.action);
+    return (
+      <>
+        <span className="text-foreground font-medium">{userName}</span>
+        <span className="text-muted-foreground"> {verb}: {entityTitle}</span>
       </>
     );
   }
@@ -126,10 +137,12 @@ type DashboardStats = {
 };
 
 export default function OrgDashboardPage() {
+    const ACTIVITY_PAGE_SIZE = 10;
     const params = useParams();
     const orgId = params?.orgId as string;
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [activitiesLoading, setActivitiesLoading] = useState(true);
+    const [activitiesPage, setActivitiesPage] = useState(1);
     const [upcomingAudits, setUpcomingAudits] = useState<Array<{ id: string; title: string | null; auditNumber: string | null; status: string; plannedDate: string | null }>>([]);
     const [upcomingAuditsLoading, setUpcomingAuditsLoading] = useState(true);
     const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -150,11 +163,38 @@ export default function OrgDashboardPage() {
     useEffect(() => {
         if (!orgId) return;
         apiClient
-            .getOrganizationActivity(orgId, 20)
+            .getOrganizationActivity(orgId, 100)
             .then((res) => setActivities(res.activities || []))
             .catch(() => setActivities([]))
             .finally(() => setActivitiesLoading(false));
     }, [orgId]);
+
+    const lastMonthActivities = useMemo(() => {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        return activities.filter((activity) => {
+            const activityDate = new Date(activity.createdAt);
+            if (Number.isNaN(activityDate.getTime())) return false;
+            return activityDate >= oneMonthAgo;
+        });
+    }, [activities]);
+
+    const totalActivityPages = Math.max(1, Math.ceil(lastMonthActivities.length / ACTIVITY_PAGE_SIZE));
+    const paginatedActivities = useMemo(() => {
+        const start = (activitiesPage - 1) * ACTIVITY_PAGE_SIZE;
+        const end = start + ACTIVITY_PAGE_SIZE;
+        return lastMonthActivities.slice(start, end);
+    }, [lastMonthActivities, activitiesPage]);
+
+    useEffect(() => {
+        setActivitiesPage(1);
+    }, [orgId]);
+
+    useEffect(() => {
+        if (activitiesPage > totalActivityPages) {
+            setActivitiesPage(totalActivityPages);
+        }
+    }, [activitiesPage, totalActivityPages]);
 
     useEffect(() => {
         if (!orgId) return;
@@ -342,10 +382,10 @@ export default function OrgDashboardPage() {
                     <CardContent className="space-y-4">
                         {activitiesLoading ? (
                             <p className="text-sm text-muted-foreground py-4">Loading activity…</p>
-                        ) : activities.length === 0 ? (
+                        ) : lastMonthActivities.length === 0 ? (
                             <p className="text-sm text-muted-foreground py-4">No recent activity</p>
                         ) : (
-                            activities.map((activity) => (
+                            paginatedActivities.map((activity) => (
                                 <ul key={activity.id} className="flex items-start gap-3">
                                     <li>
                                         <Avatar
@@ -368,6 +408,33 @@ export default function OrgDashboardPage() {
                                 </ul>
                             ))
                         )}
+                        {!activitiesLoading && lastMonthActivities.length > ACTIVITY_PAGE_SIZE ? (
+                            <div className="flex items-center justify-between pt-2">
+                                <span className="text-xs text-muted-foreground">
+                                    Page {activitiesPage} of {totalActivityPages}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setActivitiesPage((prev) => Math.max(1, prev - 1))}
+                                        disabled={activitiesPage === 1}
+                                    >
+                                        Previous
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setActivitiesPage((prev) => Math.min(totalActivityPages, prev + 1))}
+                                        disabled={activitiesPage === totalActivityPages}
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
                     </CardContent>
                 </Card>
 

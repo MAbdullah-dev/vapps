@@ -73,12 +73,12 @@ export default function AuthenticationAccessPage() {
       {/* Header Section */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Authentication & Access</div>
-          <h1 className="text-2xl font-semibold">Authentication & Access</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure login methods, SSO, and security policies.</p>
+          <div className="mb-1 text-sm text-muted-foreground">Settings &gt; Authentication & Access</div>
+          <h1 className="text-2xl font-semibold text-foreground">Authentication & Access</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Configure login methods, SSO, and security policies.</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Last updated: November 10, 2025 at 2:30 PM
           </div>
           {isEditMode ? (
@@ -190,7 +190,7 @@ export default function AuthenticationAccessPage() {
               <Shield className="size-5 text-purple-600" />
               <div>
                 <div className="font-medium">Email & Password</div>
-                <div className="text-sm text-gray-500">Standard email login.</div>
+                <div className="text-sm text-muted-foreground">Standard email login.</div>
               </div>
             </div>
             <Switch checked={emailPassword} onCheckedChange={setEmailPassword} />
@@ -200,17 +200,17 @@ export default function AuthenticationAccessPage() {
               <Shield className="size-5 text-blue-600" />
               <div>
                 <div className="font-medium">Google SSO</div>
-                <div className="text-sm text-gray-500">Sign in with Google accounts.</div>
+                <div className="text-sm text-muted-foreground">Sign in with Google accounts.</div>
               </div>
             </div>
             <Switch checked={googleSSO} onCheckedChange={setGoogleSSO} />
           </div>
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-3">
-              <Shield className="size-5 text-gray-400" />
+              <Shield className="size-5 text-muted-foreground" />
               <div>
                 <div className="font-medium">Microsoft SSO</div>
-                <div className="text-sm text-gray-500">Sign in with Microsoft accounts.</div>
+                <div className="text-sm text-muted-foreground">Sign in with Microsoft accounts.</div>
               </div>
             </div>
             <Switch checked={microsoftSSO} onCheckedChange={setMicrosoftSSO} />
@@ -220,7 +220,7 @@ export default function AuthenticationAccessPage() {
               <Shield className="size-5 text-purple-600" />
               <div>
                 <div className="font-medium">SAML SSO</div>
-                <div className="text-sm text-gray-500">Enterprise single sign-on.</div>
+                <div className="text-sm text-muted-foreground">Enterprise single sign-on.</div>
               </div>
             </div>
             <Switch checked={samlSSO} onCheckedChange={setSamlSSO} />
@@ -238,21 +238,21 @@ export default function AuthenticationAccessPage() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
               <div className="font-medium">Enforce MFA for All Users</div>
-              <div className="text-sm text-gray-500">Require all users to set up two-factor authentication.</div>
+              <div className="text-sm text-muted-foreground">Require all users to set up two-factor authentication.</div>
             </div>
             <Switch checked={enforceMFA} onCheckedChange={setEnforceMFA} />
           </div>
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
               <div className="font-medium">MFA for Admins Only</div>
-              <div className="text-sm text-gray-500">Require MFA only for administrator accounts.</div>
+              <div className="text-sm text-muted-foreground">Require MFA only for administrator accounts.</div>
             </div>
             <Switch checked={mfaAdminsOnly} onCheckedChange={setMfaAdminsOnly} />
           </div>
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
               <div className="font-medium">Remember Trusted Devices</div>
-              <div className="text-sm text-gray-500">Skip MFA on recognized devices for 30 days.</div>
+              <div className="text-sm text-muted-foreground">Skip MFA on recognized devices for 30 days.</div>
             </div>
             <Switch checked={rememberDevices} onCheckedChange={setRememberDevices} />
           </div>
@@ -291,10 +291,10 @@ export default function AuthenticationAccessPage() {
             </div>
           </div>
           <div className="pt-2 space-y-2">
-            <div className="text-sm text-gray-700">Require uppercase letters</div>
-            <div className="text-sm text-gray-700">Require lowercase letters</div>
-            <div className="text-sm text-gray-700">Require numbers</div>
-            <div className="text-sm text-gray-700">Require special characters</div>
+            <div className="text-sm text-foreground">Require uppercase letters</div>
+            <div className="text-sm text-foreground">Require lowercase letters</div>
+            <div className="text-sm text-foreground">Require numbers</div>
+            <div className="text-sm text-foreground">Require special characters</div>
           </div>
         </CardContent>
       </Card>
@@ -316,12 +316,12 @@ export default function AuthenticationAccessPage() {
               readOnly={!isEditMode}
               className={`transition-opacity ${!isEditMode ? "opacity-60" : ""}`}
             />
-            <p className="text-sm text-gray-500">Users will be logged out after this period of inactivity.</p>
+            <p className="text-sm text-muted-foreground">Users will be logged out after this period of inactivity.</p>
           </div>
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
               <div className="font-medium">Allow Concurrent Sessions</div>
-              <div className="text-sm text-gray-500">Let users be logged in on multiple devices simultaneously.</div>
+              <div className="text-sm text-muted-foreground">Let users be logged in on multiple devices simultaneously.</div>
             </div>
             <Switch checked={concurrentSessions} onCheckedChange={setConcurrentSessions} />
           </div>
@@ -351,7 +351,7 @@ export default function AuthenticationAccessPage() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex-1">
               <div className="font-medium">Production API Token</div>
-              <div className="text-sm text-gray-500">Created Jan 15, 2024 • Expires Jan 15, 2025</div>
+              <div className="text-sm text-muted-foreground">Created Jan 15, 2024 • Expires Jan 15, 2025</div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm">
@@ -370,7 +370,7 @@ export default function AuthenticationAccessPage() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex-1">
               <div className="font-medium">Development API Token</div>
-              <div className="text-sm text-gray-500">Created Feb 1, 2024 • Expires Feb 1, 2025</div>
+              <div className="text-sm text-muted-foreground">Created Feb 1, 2024 • Expires Feb 1, 2025</div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm">

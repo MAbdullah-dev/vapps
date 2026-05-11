@@ -67,7 +67,7 @@ const columns: ColumnDef<Audit>[] = [
     header: "Reviewer",
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <Avatar className="bg-[#432DD7] h-7 w-7 text-white">
+        <Avatar className="h-7 w-7 bg-primary text-primary-foreground">
           <AvatarFallback>{row.original.reviewerInitials}</AvatarFallback>
         </Avatar>
         <span>{row.original.reviewer}</span>
@@ -102,7 +102,7 @@ const columns: ColumnDef<Audit>[] = [
     header: "Progress",
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <Progress value={row.original.progress} className="h-2 bg-gray-200" />
+        <Progress value={row.original.progress} className="h-2 bg-muted" />
         <span className="text-xs">{row.original.progress}%</span>
       </div>
     ),
@@ -112,7 +112,7 @@ const columns: ColumnDef<Audit>[] = [
     accessorKey: "findings",
     header: "Findings",
     cell: ({ row }) => (
-      <span className="flex items-center gap-1 py-1 px-2 border border-[#0000001A] rounded-2xl text-xs w-max">
+      <span className="flex w-max items-center gap-1 rounded-2xl border border-border px-2 py-1 text-xs">
         <Clock size={10} /> {row.original.findings}
       </span>
     ),
@@ -140,10 +140,10 @@ export default function AuditsPage() {
           <div className="relative w-full max-w-md">
             <Search
               size={18}
-              className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-500"
+              className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              className="pl-10 border-none bg-[#F3F3F5]"
+              className="border-input bg-muted pl-10"
               placeholder="Search tasks, docs, processes..."
             />
           </div>
@@ -165,20 +165,20 @@ export default function AuditsPage() {
 
       {/* Stats Cards */}
       <div className="audits-progress-cards grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-        <div className="card border border-[#0000001A] rounded-lg p-4">
-          <p className="text-[#717182] text-base">Total Processes</p>
+        <div className="card rounded-lg border border-border p-4">
+          <p className="text-base text-muted-foreground">Total Processes</p>
           <span className="text-lg font-semibold">6</span>
         </div>
-        <div className="card border border-[#0000001A] rounded-lg p-4">
-          <p className="text-[#717182] text-base">Active Projects</p>
+        <div className="card rounded-lg border border-border p-4">
+          <p className="text-base text-muted-foreground">Active Projects</p>
           <span className="text-lg font-semibold text-[#155DFC]">4</span>
         </div>
-        <div className="card border border-[#0000001A] rounded-lg p-4">
-          <p className="text-[#717182] text-base">Total Issues</p>
+        <div className="card rounded-lg border border-border p-4">
+          <p className="text-base text-muted-foreground">Total Issues</p>
           <span className="text-lg font-semibold text-green-500">2</span>
         </div>
-        <div className="card border border-[#0000001A] rounded-lg p-4">
-          <p className="text-[#717182] text-base">Avg. Progress</p>
+        <div className="card rounded-lg border border-border p-4">
+          <p className="text-base text-muted-foreground">Avg. Progress</p>
           <span className="text-lg font-semibold text-orange-500">0 %</span>
         </div>
       </div>
@@ -188,7 +188,7 @@ export default function AuditsPage() {
         <CardContent className="p-4">
           <div className="overflow-x-auto rounded-md">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100">
+              <thead className="bg-muted">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (

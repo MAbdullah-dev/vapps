@@ -64,10 +64,10 @@ export default function Step3Page() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Leadership Structure</h2>
-      <p className="text-gray-600">Configure your leadership structure settings</p>
+      <h2 className="text-2xl font-bold text-foreground">Leadership Structure</h2>
+      <p className="text-muted-foreground">Configure your leadership structure settings</p>
 
-      <h3 className="text-xl font-semibold mt-4">Add Leadership Roles</h3>
+      <h3 className="mt-4 text-xl font-semibold text-foreground">Add Leadership Roles</h3>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

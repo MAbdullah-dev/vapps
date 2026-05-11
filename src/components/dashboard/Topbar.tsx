@@ -12,6 +12,7 @@ import { signOut } from "next-auth/react";
 import { apiClient } from "@/lib/api-client";
 import { getDashboardPath } from "@/lib/subdomain";
 import ThemeToggle from "@/components/common/ThemeToggle";
+import { documentActivityVerb } from "@/lib/document-activity-labels";
 
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -48,36 +49,43 @@ type NotificationActivity = {
     details: Record<string, unknown>;
     createdAt: string;
     processId: string | null;
+    processName?: string | null;
 };
 
 function formatNotificationMessage(a: NotificationActivity): string {
     const userName = a.userName || a.userEmail || "Someone";
     const entityTitle = a.entityTitle || a.entityId || "item";
+    const processCtx = a.processName ? ` in ${a.processName}` : "";
 
     if (a.entityType === "audit_plan") {
         const statusLabel = (a.details?.statusLabel as string) || (a.details?.status as string) || "updated";
         return `Audit plan ${entityTitle}: ${statusLabel}`;
     }
 
+    if (a.entityType === "document" || a.action.startsWith("document.")) {
+        const verb = documentActivityVerb(a.action);
+        return `${userName} ${verb}: ${entityTitle}`;
+    }
+
     switch (a.action) {
         case "issue.created":
-            return `${userName} created issue ${entityTitle}`;
+            return `${userName} created issue ${entityTitle}${processCtx}`;
         case "issue.updated":
-            return `${userName} updated issue ${entityTitle}`;
+            return `${userName} updated issue ${entityTitle}${processCtx}`;
         case "issue.status_changed":
             const newStatus = (a.details?.newStatus as string) || "updated";
-            return `${userName} changed status of ${entityTitle} to ${newStatus}`;
+            return `${userName} changed status of ${entityTitle} to ${newStatus}${processCtx}`;
         case "issue.assigned":
             const assignee = (a.details?.assignee as string) || "someone";
-            return `${userName} assigned ${entityTitle} to ${assignee}`;
+            return `${userName} assigned ${entityTitle} to ${assignee}${processCtx}`;
         case "sprint.created":
-            return `${userName} created sprint ${entityTitle}`;
+            return `${userName} created sprint ${entityTitle}${processCtx}`;
         case "review.submitted":
-            return `${userName} submitted review for ${entityTitle}`;
+            return `${userName} submitted review for ${entityTitle}${processCtx}`;
         case "verification.completed":
-            return `${userName} completed verification for ${entityTitle}`;
+            return `${userName} completed verification for ${entityTitle}${processCtx}`;
         default:
-            return `${userName} ${a.action} ${entityTitle}`;
+            return `${userName} ${a.action} ${entityTitle}${processCtx}`;
     }
 }
 
@@ -102,6 +110,14 @@ function getNotificationHref(slug: string | undefined, a: NotificationActivity):
         const base = getDashboardPath(slug, "audit/create/1");
         return `${base}?auditPlanId=${encodeURIComponent(a.entityId)}`;
     }
+    if (a.entityType === "document" && a.entityId) {
+        const q = new URLSearchParams({
+            recordId: a.entityId,
+            mode: "view",
+        });
+        return getDashboardPath(slug, `documents/create?${q.toString()}`);
+    }
+
     if (a.processId) {
         const action = (a.action || "").toLowerCase();
         if (action.includes("issue"))
@@ -236,7 +252,7 @@ export default function Topbar() {
 
                     <PopoverContent className="w-100 p-4 -translate-x-30 border shadow-lg max-h-[min(24rem,70vh)] overflow-hidden flex flex-col">
                         <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-base">Notifications</h4>
+                            <h4 className="text-base font-semibold text-foreground">Notifications</h4>
                             {!notificationsLoading && visibleNotifications.length > 0 && (
                                 <Button
                                     variant="ghost"

@@ -128,7 +128,7 @@ function getAuditStatusByDays(
 }
 
 const getStatusColor = (status: string) => {
-  if (status === AUDIT_STATUS_SUCCESS) return "bg-green-100 text-green-800";
+  if (status === AUDIT_STATUS_SUCCESS) return "bg-primary/15 text-primary dark:bg-primary/25";
   if (status === AUDIT_STATUS_IN_PROGRESS) return "bg-yellow-100 text-yellow-800";
   if (status === AUDIT_STATUS_PENDING) return "bg-gray-100 text-gray-800";
   if (status === AUDIT_STATUS_FAIL) return "bg-red-100 text-red-700";
@@ -253,7 +253,7 @@ function getColumns(
       const score = row.original.kpiScore;
       if (!score) return <span className="text-muted-foreground">—</span>;
       if (score === "Consistent" || score.toLowerCase() === "consistent")
-        return <span className="font-medium text-green-600">Consistent</span>;
+        return <span className="font-medium text-primary">Consistent</span>;
       if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
         return <span className="font-medium text-red-600">Inconsistent</span>;
       return <span className="text-muted-foreground">{score}</span>;
@@ -289,7 +289,7 @@ function getColumns(
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}
-            className="text-sm font-medium text-green-700 hover:underline focus:outline-none"
+            className="text-sm font-medium text-primary hover:underline focus:outline-none"
           >
             Complete
           </button>
@@ -298,7 +298,7 @@ function getColumns(
       const step = audit.nextStepForUser;
       if (step == null) return <span className="text-muted-foreground">—</span>;
       return (
-        <span className="text-sm font-medium text-green-700">
+        <span className="text-sm font-medium text-primary">
           {NEXT_STEP_LABELS[step] ?? `Step ${step}`}
         </span>
       );
@@ -629,26 +629,28 @@ export default function AuditsContent() {
       </div>
 
       {/* Tenant Information Banner */}
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+      <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-3">
-            <Cloud className="text-blue-600" size={20} />
+            <Cloud className="text-primary" size={20} />
             <div>
               <p className="text-sm font-medium text-foreground">Active Tenant: Acme Corporation</p>
-              <a href="#" className="text-xs text-blue-600 hover:underline">Auth0 Organization</a>
+              <a href="#" className="text-xs text-primary hover:underline">
+                Auth0 Organization
+              </a>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Folder className="text-muted-foreground" size={18} />
-              <span className="bg-yellow-100 text-yellow-800 text-xs font-medium py-1 px-2 rounded-full">
+              <span className="rounded-full bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
                 Shared S3
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Upload className="text-muted-foreground" size={18} />
               <span className="text-sm text-muted-foreground">100 MB limit</span>
-              <span className="bg-blue-600 text-white text-xs font-medium py-1 px-2 rounded-full">
+              <span className="rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
                 Pro
               </span>
             </div>
@@ -667,7 +669,7 @@ export default function AuditsContent() {
           <p className="text-sm text-muted-foreground mb-1">Success Rate</p>
           <div className="flex items-center gap-2">
             <p className="text-2xl font-bold text-foreground">50%</p>
-            <span className="bg-green-100 text-green-700 text-xs font-medium py-0.5 px-2 rounded-full">
+            <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
               Good
             </span>
           </div>
