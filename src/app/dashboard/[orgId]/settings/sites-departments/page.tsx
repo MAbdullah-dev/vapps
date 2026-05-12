@@ -197,7 +197,7 @@ export default function SitesDepartmentsPage() {
   if (!orgId || orgId === 'undefined') {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading organization...</p>
+        <p className="text-muted-foreground">Loading organization...</p>
       </div>
     );
   }
@@ -205,7 +205,7 @@ export default function SitesDepartmentsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -215,17 +215,17 @@ export default function SitesDepartmentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">
+          <div className="mb-1 text-sm text-muted-foreground">
             Settings &gt; Sites & Departments
           </div>
           <h1 className="text-2xl font-semibold text-foreground">Sites & Departments</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage your locations and organizational structure.
           </p>
         </div>
         <div className="flex items-center gap-4">
           {lastUpdated && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Last updated: {formatDate(lastUpdated)}
             </span>
           )}
@@ -243,7 +243,7 @@ export default function SitesDepartmentsPage() {
         {stats.map((stat, idx) => (
           <Card key={idx}>
             <CardContent className="p-6">
-              <p className="text-sm text-gray-500 mb-2">{stat.title}</p>
+              <p className="mb-2 text-sm text-muted-foreground">{stat.title}</p>
               <p className="text-3xl font-bold">{stat.value}</p>
             </CardContent>
           </Card>
@@ -261,8 +261,8 @@ export default function SitesDepartmentsPage() {
         <CardContent>
           {sites.length === 0 ? (
             <div className="text-center py-12">
-              <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 mb-4">No sites yet</p>
+              <Building2 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <p className="mb-4 text-muted-foreground">No sites yet</p>
               <Button onClick={() => setIsAddDialogOpen(true)} variant="outline">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Your First Site
@@ -279,24 +279,24 @@ export default function SitesDepartmentsPage() {
                 <AccordionItem
                   key={site.id}
                   value={site.id}
-                  className="border rounded-lg px-4"
+                  className="rounded-lg border border-border border-b-0 bg-card px-4 text-card-foreground"
                 >
-                  <div className="flex items-center justify-between w-full pr-4 py-4">
-                    <AccordionTrigger className="hover:no-underline py-0 flex-1 flex items-center gap-3 group">
+                  <div className="flex w-full items-center justify-between py-4 pr-4">
+                    <AccordionTrigger className="group flex flex-1 items-center gap-3 py-0 text-left text-foreground hover:no-underline">
                       <span className="inline-block transition-transform group-data-[state=open]:rotate-90">
-                        <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </span>
-                      <Building2 className="h-5 w-5 text-gray-400 shrink-0" />
-                      <div className="text-left flex-1 min-w-0">
+                      <Building2 className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1 text-left">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{site.name}</span>
+                          <span className="font-medium text-foreground">{site.name}</span>
                           <Badge
                             variant="secondary"
                             className={
                               site.name.toLowerCase().includes("headquarters") ||
                               site.name.toLowerCase().includes("hq")
-                                ? "bg-purple-100 text-purple-700"
-                                : "bg-blue-100 text-blue-700"
+                                ? "border-transparent bg-purple-500/15 text-purple-950 dark:bg-purple-400/20 dark:text-purple-100"
+                                : "border-transparent bg-blue-500/15 text-blue-950 dark:bg-blue-400/20 dark:text-blue-100"
                             }
                           >
                             {site.name.toLowerCase().includes("headquarters") ||
@@ -305,7 +305,7 @@ export default function SitesDepartmentsPage() {
                               : "office"}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                        <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
                             <span>{site.location}</span>
@@ -333,7 +333,7 @@ export default function SitesDepartmentsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteSite(site)}
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -343,20 +343,20 @@ export default function SitesDepartmentsPage() {
                   <AccordionContent>
                     <div className="pt-4 pb-2 pl-8">
                       {site.processes.length === 0 ? (
-                        <p className="text-sm text-gray-500">No processes for this site</p>
+                        <p className="text-sm text-muted-foreground">No processes for this site</p>
                       ) : (
                         <div className="space-y-2">
-                          <p className="text-sm font-medium text-gray-700 mb-3">
+                          <p className="mb-3 text-sm font-medium text-foreground">
                             Processes ({site.processes.length})
                           </p>
                           <div className="space-y-2">
                             {site.processes.map((process) => (
                               <div
                                 key={process.id}
-                                className="flex items-center gap-2 p-2 rounded bg-gray-50 hover:bg-gray-100"
+                                className="flex items-center gap-2 rounded-md bg-muted/50 p-2 transition-colors hover:bg-muted"
                               >
-                                <FolderKanban className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{process.name}</span>
+                                <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="text-sm text-foreground">{process.name}</span>
                               </div>
                             ))}
                           </div>
@@ -462,8 +462,11 @@ export default function SitesDepartmentsPage() {
               />
             </div>
             {editingSite && (
-              <div className="text-sm text-gray-500">
-                <p>Site Code: <span className="font-mono">{editingSite.code}</span></p>
+              <div className="text-sm text-muted-foreground">
+                <p>
+                  Site Code:{" "}
+                  <span className="font-mono text-foreground">{editingSite.code}</span>
+                </p>
               </div>
             )}
           </div>

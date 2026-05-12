@@ -78,7 +78,11 @@ export default function ProcessLayout({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "member">("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [processData, setProcessData] = useState<{ siteId: string } | null>(null);
+  const [processData, setProcessData] = useState<{
+    siteId: string;
+    name?: string;
+    description?: string | null;
+  } | null>(null);
   const [isLoadingProcess, setIsLoadingProcess] = useState(true);
   const [userRole, setUserRole] = useState<string>("member");
 
@@ -729,13 +733,18 @@ export default function ProcessLayout({
                     const site = sitesForIssue.find((s) => s.id === selectedIssueSiteId);
                     return site ? `Issues — ${site.name}` : "Issues";
                   })()
-                : processId?.toString().replaceAll("-", " ")}
+                : processData?.name?.trim() ||
+                  (isLoadingProcess ? "Loading…" : "Process")}
             </h1>
           </div>
 
-          <p className="text-sm text-muted-foreground mb-4">
-            Building the next generation mobile experience...
-          </p>
+          {workspaceSegment !== "issues" && (
+            <p className="text-sm text-muted-foreground mb-4">
+              {isLoadingProcess && !processData?.description?.trim()
+                ? "Loading…"
+                : processData?.description?.trim() || "No description yet."}
+            </p>
+          )}
         </div>
 
         {/* Create Issue Dialog - any level can create issues */}

@@ -38,6 +38,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { apiClient } from "@/lib/api-client";
 import { getDashboardPath } from "@/lib/subdomain";
+import { organizationInfoQueryKey } from "@/lib/organization-info-query";
 
 interface Site {
   id: string;
@@ -63,8 +64,26 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     enabled: !!orgId,
   });
 
+  const { data: orgInfoResponse } = useQuery({
+    queryKey: organizationInfoQueryKey(orgId),
+    queryFn: () => apiClient.getOrganizationInfo(orgId),
+    staleTime: 2 * 60 * 1000,
+    enabled: !!orgId,
+  });
+
   const sites = sitesData?.sites ?? [];
   const organization = sitesData?.organization ?? null;
+  const orgInfo = orgInfoResponse?.organizationInfo as
+    | { name?: string; logo?: string | null }
+    | null
+    | undefined;
+  const orgLogo =
+    typeof orgInfo?.logo === "string" && orgInfo.logo.length > 0
+      ? orgInfo.logo
+      : null;
+  const footerOrgName =
+    orgInfo?.name?.trim() || organization?.name || "Organization";
+  const footerInitials = footerOrgName.slice(0, 2).toUpperCase() || "—";
   const userRole = sitesData?.userRole ?? "member";
 
   // On subdomain use short paths (/processes); otherwise /dashboard/slug/processes
@@ -473,18 +492,22 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
           Settings
         </Link>
 
-        <div className="flex py-3 items-center">
+        <div className="flex py-3 items-center gap-0 min-w-0">
 
-          <Avatar className="mr-2">
-            <AvatarImage src="https://github.com/shadcn.png" alt="Company Image" />
-            <AvatarFallback>SS</AvatarFallback>
+          <Avatar className="mr-2 h-9 w-9 shrink-0">
+            {orgLogo ? (
+              <AvatarImage src={orgLogo} alt="" className="object-cover" />
+            ) : null}
+            <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
+              {footerInitials}
+            </AvatarFallback>
           </Avatar>
-          <div className="description">
-            <h3 className="text-sm text-foreground">{organization?.name || "Organization"}</h3>
+          <div className="description min-w-0 flex-1">
+            <h3 className="text-sm text-foreground truncate">{footerOrgName}</h3>
        
             <p className="text-xs">Free</p>
           </div>
-          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto">Upgrade</Link>
+          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto shrink-0">Upgrade</Link>
         </div>
       </div>
     </aside>
