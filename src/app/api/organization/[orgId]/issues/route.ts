@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 import type { PoolClient } from "pg";
+import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
 
 const ISSUE_SCHEMA_ENSURE_TTL_MS = 10 * 60 * 1000;
 const issuesSchemaEnsuredAt = new Map<string, number>();
@@ -20,6 +21,7 @@ async function ensureIssuesColumnsForSelect(client: PoolClient) {
   await client.query(
     `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "issuer" TEXT, ADD COLUMN IF NOT EXISTS "verifier" TEXT`
   );
+  await ensureIssueCommentsColumn(client);
 }
 
 async function ensureIssuesColumnsForSelectCached(

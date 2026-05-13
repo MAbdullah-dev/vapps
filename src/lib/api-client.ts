@@ -637,6 +637,13 @@ class ApiClient {
     sprintId?: string | null;
     order?: number;
     deadline?: string | null;
+    comments?: Array<{
+      id: string | number;
+      author: string;
+      authorImage?: string | null;
+      text: string;
+      createdAt: string;
+    }>;
   }) {
     return this.put<{ issue: any; message: string }>(
       `/organization/${orgId}/processes/${processId}/issues/${issueId}`,
@@ -660,6 +667,13 @@ class ApiClient {
     deadline?: string | null;
     processId?: string | null;
     siteId?: string | null;
+    comments?: Array<{
+      id: string | number;
+      author: string;
+      authorImage?: string | null;
+      text: string;
+      createdAt: string;
+    }>;
   }) {
     return this.put<{ issue: any; message: string }>(
       `/organization/${orgId}/issues/${issueId}`,

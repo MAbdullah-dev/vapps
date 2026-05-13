@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
@@ -55,7 +56,60 @@ import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
-import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resolveProfileImageSrc } from "@/lib/profile-image";
+import { coerceCommentsArray } from "@/lib/issue-comments-normalize";
+
+function initialsFromLabel(label: string): string {
+  const t = label.trim();
+  if (!t) return "?";
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2 && parts[0][0] && parts[parts.length - 1][0]) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return t.slice(0, 2).toUpperCase();
+}
+
+type IssueCommentRow = {
+  id: string;
+  author: string;
+  authorImage: string | null;
+  text: string;
+  createdAt: string;
+};
+
+function parseIssueComments(raw: unknown): IssueCommentRow[] {
+  const arr = coerceCommentsArray(raw);
+
+  return arr
+    .filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === "object" && !Array.isArray(c))
+    .map((c) => {
+      const id =
+        c.id != null && (typeof c.id === "string" || typeof c.id === "number")
+          ? String(c.id)
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const author =
+        typeof c.author === "string" && c.author.trim() ? c.author.trim() : "User";
+      const authorImage =
+        typeof c.authorImage === "string" ? c.authorImage : null;
+      const text = typeof c.text === "string" ? c.text : "";
+      const createdAt =
+        typeof c.createdAt === "string" && c.createdAt.trim()
+          ? c.createdAt.trim()
+          : new Date().toISOString();
+      return { id, author, authorImage, text, createdAt };
+    })
+    .filter((c) => c.text.trim() !== "");
+}
+
+function commentTimeLabel(isoOrPhrase: string): string {
+  const t = isoOrPhrase.trim();
+  if (!t) return "";
+  if (t === "Just now") return t;
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return t;
+  return formatDistanceToNow(d, { addSuffix: true });
+}
 
 type WorkspaceSegment = "processes" | "issues";
 
@@ -95,30 +149,12 @@ export default function ProcessLayout({
 
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
 
-  type Comment = {
-    id: number
-    author: string
-    text: string
-    createdAt: string
-  }
+  type Comment = IssueCommentRow
 
   const [commentText, setCommentText] = useState("")
   const [comments, setComments] = useState<Comment[]>([])
+  const [isPostingComment, setIsPostingComment] = useState(false)
 
-
-  const handleAddComment = () => {
-    if (!commentText.trim()) return
-
-    const newComment: Comment = {
-      id: Date.now(),
-      author: "John Doe", // later replace with logged-in user
-      text: commentText,
-      createdAt: "Just now",
-    }
-
-    setComments((prev) => [newComment, ...prev])
-    setCommentText("")
-  }
 
   // Fetch current user role (Level 1 = owner/admin, Level 2 = manager, Level 3 = member)
   useEffect(() => {
@@ -234,6 +270,8 @@ export default function ProcessLayout({
         setPoints(0);
         setEditorContent("");
         setDate(undefined);
+        setComments([]);
+        setCommentText("");
         if (workspaceSegment === "issues") {
           setSelectedIssueProcessId("__none__");
           const sid = getSelectedSiteIdFromStorage(orgId as string);
@@ -249,13 +287,18 @@ export default function ProcessLayout({
 
       try {
         setIsLoadingIssue(true);
+        setComments([]);
+        setCommentText("");
+        const requestedIssueId = issueId;
         const response =
           workspaceSegment === "issues"
             ? await apiClient.getOrgIssue(orgId as string, issueId)
             : await apiClient.getIssue(orgId as string, processId as string, issueId);
         const issue = response.issue;
 
-        // Populate form with issue data
+        if (!issue || String(issue.id) !== String(requestedIssueId)) {
+          return;
+        }
         setEditingIssue(issue);
         setTitle(issue.title || "");
         setTag(issue.tags && issue.tags.length > 0 ? issue.tags[0] : "");
@@ -270,6 +313,7 @@ export default function ProcessLayout({
         setPoints(issue.points || 0);
         setEditorContent(issue.description || "");
         setDate(issue.deadline ? new Date(issue.deadline) : undefined);
+        setComments(parseIssueComments(issue.comments));
         if (workspaceSegment === "issues") {
           await loadIssuePeopleAndSprints(processForIssue);
         }
@@ -306,6 +350,8 @@ export default function ProcessLayout({
       setPoints(0);
       setEditorContent("");
       setDate(undefined);
+      setComments([]);
+      setCommentText("");
       setCustomTitleMode(false);
       setCustomTagMode(false);
       setCustomSourceMode(false);
@@ -410,6 +456,70 @@ export default function ProcessLayout({
     (!editingIssue || editingIssue.assignee === currentUserId);
   const isViewOnly = !!editingIssue && !canEditIssue;
 
+  const canAddIssueComment = useMemo(() => {
+    if (!editingIssue?.id || !currentUserId) return false;
+    const uid = String(currentUserId);
+    const assigneeId =
+      editingIssue.assignee != null ? String(editingIssue.assignee) : "";
+    const issuerId =
+      editingIssue.issuer != null ? String(editingIssue.issuer) : "";
+    return uid === assigneeId || (issuerId !== "" && uid === issuerId);
+  }, [editingIssue?.id, editingIssue?.assignee, editingIssue?.issuer, currentUserId]);
+
+  const handleAddComment = useCallback(async () => {
+    if (!commentText.trim() || !canAddIssueComment) return;
+
+    const displayName =
+      session?.user?.name?.trim() ||
+      session?.user?.email?.trim() ||
+      "User";
+
+    const text = commentText.trim();
+    const newComment: Comment = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      author: displayName,
+      authorImage: session?.user?.image ?? null,
+      text,
+      createdAt: new Date().toISOString(),
+    }
+
+    const previous = comments;
+    const next = [newComment, ...previous];
+    setComments(next);
+    setCommentText("");
+
+    if (!editingIssue?.id) return;
+
+    setIsPostingComment(true);
+    try {
+      if (workspaceSegment === "issues") {
+        await apiClient.updateOrgIssue(orgId as string, editingIssue.id, { comments: next });
+      } else if (processId) {
+        await apiClient.updateIssue(orgId as string, processId, editingIssue.id, { comments: next });
+      }
+    } catch (error: any) {
+      setComments(previous);
+      setCommentText(text);
+      toast.error(error?.message || "Failed to save comment");
+    } finally {
+      setIsPostingComment(false);
+    }
+  }, [
+    commentText,
+    canAddIssueComment,
+    session?.user?.name,
+    session?.user?.email,
+    session?.user?.image,
+    comments,
+    editingIssue?.id,
+    workspaceSegment,
+    orgId,
+    processId,
+  ]);
+
   const handleAddCustomTitle = () => {
     setCustomTitleMode(true);
   };
@@ -509,6 +619,7 @@ export default function ProcessLayout({
           sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
           status: selectedStatus || undefined,
           deadline: date ? date.toISOString() : null,
+          comments,
         };
 
         if (workspaceSegment === "issues") {
@@ -536,6 +647,8 @@ export default function ProcessLayout({
         setPoints(0);
         setEditorContent("");
         setDate(undefined);
+        setComments([]);
+        setCommentText("");
         if (workspaceSegment === "issues") {
           setSelectedIssueProcessId("__none__");
         }
@@ -608,6 +721,8 @@ export default function ProcessLayout({
       setPoints(0);
       setEditorContent("");
       setDate(undefined);
+      setComments([]);
+      setCommentText("");
       if (workspaceSegment === "issues") {
         setSelectedIssueProcessId("__none__");
       }
@@ -849,7 +964,7 @@ export default function ProcessLayout({
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomTitleMode(true)}
                     >
                       Add Custom Title
@@ -933,7 +1048,7 @@ export default function ProcessLayout({
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomTagMode(true)}
                     >
                       Add Custom Tag
@@ -1022,7 +1137,7 @@ export default function ProcessLayout({
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomSourceMode(true)}
                     >
                       Add Custom Source
@@ -1318,7 +1433,7 @@ export default function ProcessLayout({
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue}
                     >
                       {date ? date.toLocaleDateString() : "Select date"}
-                      <ChevronDownIcon className="text-muted" />
+                      <ChevronDownIcon className="text-muted-foreground" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto overflow-hidden p-0" align="start">
@@ -1348,62 +1463,76 @@ export default function ProcessLayout({
                 />
               </div>
 
-              {/* Comments Section */}
-              <div className="space-y-1 border p-4 rounded-2xl">
-                <div className="mb-3">
-                  <Label className="mb-4 flex items-center gap-2">
-                    <MessageSquare size={20} /> Comments
+              {editingIssue && (
+              <div className="space-y-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="space-y-3">
+                  <Label className="mb-0 flex items-center gap-2 text-base font-medium text-foreground">
+                    <MessageSquare className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                    Comments
                   </Label>
 
-                  <div className="pl-5">
+                  {canAddIssueComment ? (
+                  <div className="space-y-3 pl-0 sm:pl-1">
                     <Textarea
-                      placeholder="Add a comment..."
-                      className="bg-muted mb-3"
+                      placeholder="Add a comment…"
+                      className="min-h-[88px] resize-y border border-input bg-background text-foreground placeholder:text-muted-foreground shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
-                      disabled={isViewOnly}
+                      disabled={isPostingComment}
                     />
                     <Button
                       type="button"
-                      variant="dark"
-                      className="mb-6"
-                      onClick={handleAddComment}
-                      disabled={isViewOnly}
+                      variant="default"
+                      className="mb-0"
+                      onClick={() => void handleAddComment()}
+                      disabled={isPostingComment}
                     >
                       <Send size={16} /> Comment
                     </Button>
                   </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                      Only the assignee or the person who created this issue can add comments.
+                    </p>
+                  )}
                 </div>
 
                 {/* Comments List */}
                 {comments.length === 0 && (
-                  <p className="text-sm text-muted-foreground pl-5">No comments yet</p>
+                  <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
+                    No comments yet
+                  </p>
                 )}
 
-                {comments.map((comment) => (
+                {comments.map((comment) => {
+                  const avatarSrc = resolveProfileImageSrc(comment.authorImage);
+                  return (
                   <div
                     key={comment.id}
-                    className="border border-border p-3 rounded-2xl bg-card flex gap-3 mb-3"
+                    className="flex gap-3 rounded-xl border border-border bg-muted/30 p-3 text-card-foreground shadow-xs dark:bg-muted/20"
                   >
-                    <Image
-                      src="/svgs/apple.svg"
-                      alt="User avatar"
-                      width={24}
-                      height={24}
-                      className="rounded-full h-6 w-6"
-                    />
+                    <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border">
+                      {avatarSrc ? (
+                        <AvatarImage src={avatarSrc} alt="" />
+                      ) : null}
+                      <AvatarFallback className="bg-muted text-[10px] font-medium text-muted-foreground">
+                        {initialsFromLabel(comment.author)}
+                      </AvatarFallback>
+                    </Avatar>
 
-                    <div className="flex flex-col flex-1">
-                      <h6 className="font-medium">{comment.author}</h6>
-                      <p>{comment.text}</p>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <h6 className="truncate text-sm font-semibold text-foreground">{comment.author}</h6>
+                      <p className="wrap-break-word whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{comment.text}</p>
                     </div>
 
-                    <small className="text-muted-foreground ml-auto">
-                      {comment.createdAt}
+                    <small className="ml-auto shrink-0 self-start text-xs text-muted-foreground tabular-nums">
+                      {commentTimeLabel(comment.createdAt)}
                     </small>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+              )}
 
               <DialogFooter>
                 <DialogClose asChild>
