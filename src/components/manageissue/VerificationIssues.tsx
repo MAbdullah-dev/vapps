@@ -67,6 +67,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useOrgOptional } from "@/components/providers/org-provider"
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site"
+import { useTranslate } from "@/components/providers/translation-provider"
 
 import SignatureCanvas from "react-signature-canvas";
 
@@ -119,6 +120,7 @@ export default function IssuesDashboard({
     // Fallback to route param only when provider is unavailable.
     const orgId = orgOptional?.orgId ?? (params.orgId as string)
     const routeProcessId = standaloneProcessId ?? (params.processId as string | undefined)
+    const { t } = useTranslate()
 
     const [siteIdForIssues, setSiteIdForIssues] = useState("")
     useEffect(() => {
@@ -189,7 +191,7 @@ export default function IssuesDashboard({
             const signatureData = sigCanvas.current.toDataURL();
             setSignature(signatureData); // Save the base64 image string
         } else {
-            alert("Please provide a signature.");
+            toast.error(t("Please provide a signature."));
         }
     };
     const handleClick = () => {
@@ -239,7 +241,7 @@ export default function IssuesDashboard({
                 setPendingIssues(inReviewIssues)
             } catch (error: any) {
                 console.error("Error fetching data:", error)
-                toast.error("Failed to load issues")
+                toast.error(t("Failed to load issues"))
             } finally {
                 setIsLoading(false)
             }
@@ -255,7 +257,7 @@ export default function IssuesDashboard({
 
         const pid = processIdForIssue(issue)
         if (!pid) {
-            toast.error("This issue must be linked to a process to load review data.")
+            toast.error(t("This issue must be linked to a process to load review data."))
             setIssueReview(null)
             return
         }
@@ -266,7 +268,7 @@ export default function IssuesDashboard({
             setIssueReview(reviewRes.review || null)
         } catch (error: any) {
             console.error("Error fetching review:", error)
-            toast.error("Failed to load issue review data")
+            toast.error(t("Failed to load issue review data"))
             setIssueReview(null)
         } finally {
             setIsLoadingReview(false)
@@ -305,33 +307,33 @@ export default function IssuesDashboard({
         })
 
         if (!selectedIssue) {
-            toast.error("No issue selected")
+            toast.error(t("No issue selected"))
             return
         }
 
         const pid = processIdForIssue(selectedIssue)
         if (!pid) {
-            toast.error("This issue must be linked to a process to submit verification.")
+            toast.error(t("This issue must be linked to a process to submit verification."))
             return
         }
 
         if (!closureComments || !closureComments.trim()) {
-            toast.error("Please provide closure comments")
+            toast.error(t("Please provide closure comments"))
             return
         }
 
         if (!closeOutDate) {
-            toast.error("Please select issue close out date")
+            toast.error(t("Please select issue close out date"))
             return
         }
 
         if (!verificationDate) {
-            toast.error("Please select effectiveness verification date")
+            toast.error(t("Please select effectiveness verification date"))
             return
         }
 
         if (!signature || !signature.trim()) {
-            toast.error("Please provide your signature")
+            toast.error(t("Please provide your signature"))
             return
         }
 
@@ -357,13 +359,13 @@ export default function IssuesDashboard({
                     })
                 } catch (error: any) {
                     console.error("Error uploading file:", error)
-                    toast.error(`Failed to upload ${file.name}`)
+                    toast.error(`${t("Failed to upload")} ${file.name}`)
                 }
             }
 
             // Submit verification
             if (!closeOutDate || !verificationDate) {
-                toast.error("Please select both close out date and verification date")
+                toast.error(t("Please select both close out date and verification date"))
                 setIsSubmitting(false)
                 return
             }
@@ -390,7 +392,7 @@ export default function IssuesDashboard({
             })
 
             console.log("[VerificationIssues] Verification submitted successfully:", response)
-            toast.success("Issue marked as effective and closed")
+            toast.success(t("Issue marked as effective and closed"))
 
             // Notify board (and other tabs) so issue moves to Done
             if (typeof window !== "undefined") {
@@ -432,7 +434,7 @@ export default function IssuesDashboard({
             setSignature("")
         } catch (error: any) {
             console.error("Error submitting verification:", error)
-            toast.error(error.message || "Failed to submit verification")
+            toast.error(error.message || t("Failed to submit verification"))
         } finally {
             setIsSubmitting(false)
         }
@@ -441,13 +443,13 @@ export default function IssuesDashboard({
     // Handle ineffective submission
     const handleSubmitIneffective = async () => {
         if (!selectedIssue || !selectedAssignee || !dueDate || !reassignmentInstructions) {
-            toast.error("Please fill all required fields")
+            toast.error(t("Please fill all required fields"))
             return
         }
 
         const pid = processIdForIssue(selectedIssue)
         if (!pid) {
-            toast.error("This issue must be linked to a process to submit verification.")
+            toast.error(t("This issue must be linked to a process to submit verification."))
             return
         }
 
@@ -472,7 +474,7 @@ export default function IssuesDashboard({
                     })
                 } catch (error: any) {
                     console.error("Error uploading file:", error)
-                    toast.error(`Failed to upload ${file.name}`)
+                    toast.error(`${t("Failed to upload")} ${file.name}`)
                 }
             }
 
@@ -485,7 +487,7 @@ export default function IssuesDashboard({
                 reassignmentFiles: uploadedFiles,
             })
 
-            toast.success("Issue marked as ineffective and reassigned")
+            toast.success(t("Issue marked as ineffective and reassigned"))
 
             // Refresh data
             if (issuesWorkspaceForOrg && siteIdForIssues) {
@@ -508,7 +510,7 @@ export default function IssuesDashboard({
             resetIneffectiveForm()
         } catch (error: any) {
             console.error("Error submitting verification:", error)
-            toast.error(error.message || "Failed to submit verification")
+            toast.error(error.message || t("Failed to submit verification"))
         } finally {
             setIsSubmitting(false)
         }
@@ -625,7 +627,7 @@ export default function IssuesDashboard({
         return (
             <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30">
                 <div className="text-sm text-muted-foreground">
-                    Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
+                    {t("Showing")} {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} {t("of")} {total}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -640,10 +642,10 @@ export default function IssuesDashboard({
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="5">5 per page</SelectItem>
-                            <SelectItem value="10">10 per page</SelectItem>
-                            <SelectItem value="20">20 per page</SelectItem>
-                            <SelectItem value="50">50 per page</SelectItem>
+                            <SelectItem value="5">{t("5 per page")}</SelectItem>
+                            <SelectItem value="10">{t("10 per page")}</SelectItem>
+                            <SelectItem value="20">{t("20 per page")}</SelectItem>
+                            <SelectItem value="50">{t("50 per page")}</SelectItem>
                         </SelectContent>
                     </Select>
 
@@ -658,7 +660,7 @@ export default function IssuesDashboard({
                         </Button>
 
                         <span className="text-sm font-medium px-3">
-                            Page {page} / {totalPages}
+                            {t("Page")} {page} / {totalPages}
                         </span>
 
                         <Button
@@ -680,7 +682,7 @@ export default function IssuesDashboard({
             <div className="flex items-center justify-center py-12">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-sm text-muted-foreground">Loading issues...</p>
+                    <p className="text-sm text-muted-foreground">{t("Loading issues...")}</p>
                 </div>
             </div>
         )
@@ -691,10 +693,10 @@ export default function IssuesDashboard({
             <Tabs defaultValue="all" className="w-full">
                 {/* ---------------- TABS ---------------- */}
                 <TabsList className="grid w-full max-w-md grid-cols-2 mb-10">
-                    <TabsTrigger value="all">All Issues</TabsTrigger>
+                    <TabsTrigger value="all">{t("All Issues")}</TabsTrigger>
 
                     <TabsTrigger value="verification">
-                        Verification Required
+                        {t("Verification Required")}
                         <Badge className="text-[#8200DB] bg-[#F3E8FF] border-[#DAB2FF] rounded-md ml-2">
                             {filteredPending.length}
                         </Badge>
@@ -708,7 +710,7 @@ export default function IssuesDashboard({
                         <div className="relative w-full max-w-md">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
                             <Input
-                                placeholder="Search by title or reference..."
+                                placeholder={t("Search by title or reference...")}
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-10"
@@ -718,29 +720,29 @@ export default function IssuesDashboard({
                         <div className="flex flex-wrap gap-3">
                             <Select value={tag} onValueChange={setTag}>
                                 <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="All Tags" />
+                                    <SelectValue placeholder={t("All Tags")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Tags</SelectItem>
-                                    <SelectItem value="Quality Issue">Quality Issue</SelectItem>
-                                    <SelectItem value="Process Improvement">Process Improvement</SelectItem>
-                                    <SelectItem value="Risk Mitigation">Risk Mitigation</SelectItem>
-                                    <SelectItem value="Customer Concern">Customer Concern</SelectItem>
+                                    <SelectItem value="all">{t("All Tags")}</SelectItem>
+                                    <SelectItem value="Quality Issue">{t("Quality Issue")}</SelectItem>
+                                    <SelectItem value="Process Improvement">{t("Process Improvement")}</SelectItem>
+                                    <SelectItem value="Risk Mitigation">{t("Risk Mitigation")}</SelectItem>
+                                    <SelectItem value="Customer Concern">{t("Customer Concern")}</SelectItem>
                                 </SelectContent>
                             </Select>
 
                             <Select value={status} onValueChange={setStatus}>
                                 <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="All Status" />
+                                    <SelectValue placeholder={t("All Status")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="success">Success</SelectItem>
-                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="all">{t("All Status")}</SelectItem>
+                                    <SelectItem value="success">{t("Success")}</SelectItem>
+                                    <SelectItem value="pending">{t("Pending")}</SelectItem>
                                 </SelectContent>
                             </Select>
 
-                            <Button variant="outline">Export</Button>
+                            <Button variant="outline">{t("Export")}</Button>
                         </div>
                     </div>
 
@@ -750,7 +752,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Total Issues</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Total Issues")}</p>
                                         <p className="text-2xl font-bold mt-2">{filteredAll.length}</p>
                                     </div>
                                     <FileText className="h-8 w-8 text-blue-500" />
@@ -762,7 +764,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Open Issues</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Open Issues")}</p>
                                         <p className="text-2xl font-bold mt-2">
                                             {filteredAll.filter((i) => i.status !== "done").length}
                                         </p>
@@ -776,7 +778,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Closed Issues</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Closed Issues")}</p>
                                         <p className="text-2xl font-bold mt-2">
                                             {filteredAll.filter((i) => i.status === "done").length}
                                         </p>
@@ -790,7 +792,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Avg. KPI Score</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Avg. KPI Score")}</p>
                                         <p className="text-2xl font-bold mt-2">2.3</p>
                                     </div>
                                     <AlertCircle className="h-8 w-8 text-purple-500" />
@@ -806,19 +808,19 @@ export default function IssuesDashboard({
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-muted/50">
-                                            <SortHeader field="ref">Issue Ref</SortHeader>
-                                            <SortHeader field="title">Title</SortHeader>
-                                            <SortHeader field="tag">TAG</SortHeader>
-                                            <SortHeader field="source">Source</SortHeader>
-                                            <SortHeader field="issuer">Issuer</SortHeader>
-                                            <SortHeader field="assignee">Assignee</SortHeader>
-                                            <SortHeader field="planDate">Plan Date</SortHeader>
-                                            <SortHeader field="actualDate">Actual Date</SortHeader>
-                                            <SortHeader field="dueDate">Due Date</SortHeader>
-                                            <SortHeader field="status">Status</SortHeader>
-                                            <SortHeader field="kpi">KPI</SortHeader>
-                                            <TableHead>JIRA</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
+                                            <SortHeader field="ref">{t("Issue Ref")}</SortHeader>
+                                            <SortHeader field="title">{t("Title")}</SortHeader>
+                                            <SortHeader field="tag">{t("TAG")}</SortHeader>
+                                            <SortHeader field="source">{t("Source")}</SortHeader>
+                                            <SortHeader field="issuer">{t("Issuer")}</SortHeader>
+                                            <SortHeader field="assignee">{t("Assignee")}</SortHeader>
+                                            <SortHeader field="planDate">{t("Plan Date")}</SortHeader>
+                                            <SortHeader field="actualDate">{t("Actual Date")}</SortHeader>
+                                            <SortHeader field="dueDate">{t("Due Date")}</SortHeader>
+                                            <SortHeader field="status">{t("Status")}</SortHeader>
+                                            <SortHeader field="kpi">{t("KPI")}</SortHeader>
+                                            <TableHead>{t("JIRA")}</TableHead>
+                                            <TableHead className="text-right">{t("Actions")}</TableHead>
                                         </TableRow>
                                     </TableHeader>
 
@@ -826,7 +828,7 @@ export default function IssuesDashboard({
                                         {paginatedAll.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={13} className="text-center py-12 text-muted-foreground">
-                                                    No issues found
+                                                    {t("No issues found")}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
@@ -878,7 +880,7 @@ export default function IssuesDashboard({
                         <div className="relative w-full max-w-md">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
                             <Input
-                                placeholder="Search by title or ID..."
+                                placeholder={t("Search by title or ID...")}
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-10"
@@ -888,16 +890,16 @@ export default function IssuesDashboard({
                         <div className="flex gap-3">
                             <Select value={tag} onValueChange={setTag}>
                                 <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="All Tags" />
+                                    <SelectValue placeholder={t("All Tags")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Tags</SelectItem>
-                                    <SelectItem value="Quality Issue">Quality Issue</SelectItem>
-                                    <SelectItem value="Risk Mitigation">Risk Mitigation</SelectItem>
-                                    <SelectItem value="Customer Concern">Customer Concern</SelectItem>
+                                    <SelectItem value="all">{t("All Tags")}</SelectItem>
+                                    <SelectItem value="Quality Issue">{t("Quality Issue")}</SelectItem>
+                                    <SelectItem value="Risk Mitigation">{t("Risk Mitigation")}</SelectItem>
+                                    <SelectItem value="Customer Concern">{t("Customer Concern")}</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Button variant="outline">Export</Button>
+                            <Button variant="outline">{t("Export")}</Button>
                         </div>
                     </div>
 
@@ -907,7 +909,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Pending Verification</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Pending Verification")}</p>
                                         <p className="text-2xl font-bold mt-2">{filteredPending.length}</p>
                                     </div>
                                     <Clock className="h-8 w-8 text-purple-500" />
@@ -919,8 +921,8 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Avg. Resolution Time</p>
-                                        <p className="text-2xl font-bold mt-2">22 days</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Avg. Resolution Time")}</p>
+                                        <p className="text-2xl font-bold mt-2">{t("22 days")}</p>
                                     </div>
                                     <CheckCircle2 className="h-8 w-8 text-green-500" />
                                 </div>
@@ -931,7 +933,7 @@ export default function IssuesDashboard({
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Expected KPI</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t("Expected KPI")}</p>
                                         <p className="text-2xl font-bold mt-2">2.7</p>
                                     </div>
                                     <FileText className="h-8 w-8 text-blue-500" />
@@ -947,16 +949,16 @@ export default function IssuesDashboard({
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-muted/50">
-                                            <SortHeader field="id">Issue ID</SortHeader>
-                                            <SortHeader field="title">Title</SortHeader>
-                                            <SortHeader field="tag">Tag</SortHeader>
-                                            <SortHeader field="assignee">Assignee</SortHeader>
-                                            <SortHeader field="assigned">Assigned</SortHeader>
-                                            <SortHeader field="due">Due</SortHeader>
-                                            <SortHeader field="completed">Completed</SortHeader>
-                                            <SortHeader field="kpi">KPI</SortHeader>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead className="text-right">Action</TableHead>
+                                            <SortHeader field="id">{t("Issue ID")}</SortHeader>
+                                            <SortHeader field="title">{t("Title")}</SortHeader>
+                                            <SortHeader field="tag">{t("Tag")}</SortHeader>
+                                            <SortHeader field="assignee">{t("Assignee")}</SortHeader>
+                                            <SortHeader field="assigned">{t("Assigned")}</SortHeader>
+                                            <SortHeader field="due">{t("Due")}</SortHeader>
+                                            <SortHeader field="completed">{t("Completed")}</SortHeader>
+                                            <SortHeader field="kpi">{t("KPI")}</SortHeader>
+                                            <TableHead>{t("Status")}</TableHead>
+                                            <TableHead className="text-right">{t("Action")}</TableHead>
                                         </TableRow>
                                     </TableHeader>
 
@@ -964,7 +966,7 @@ export default function IssuesDashboard({
                                         {paginatedPending.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
-                                                    No pending verification issues
+                                                    {t("No pending verification issues")}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
@@ -994,7 +996,7 @@ export default function IssuesDashboard({
                                                     </TableCell>
 
                                                     <TableCell>
-                                                        <Badge variant="outline">Pending Verification</Badge>
+                                                        <Badge variant="outline">{t("Pending Verification")}</Badge>
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
@@ -1003,7 +1005,7 @@ export default function IssuesDashboard({
                                                             variant="default"
                                                             onClick={() => handleReviewClick(issue)}
                                                         >
-                                                            <Eye className="mr-1 h-4 w-4" /> Review
+                                                            <Eye className="mr-1 h-4 w-4" /> {t("Review")}
                                                         </Button>
                                                     </TableCell>
                                                 </TableRow>
@@ -1023,38 +1025,38 @@ export default function IssuesDashboard({
                     {/* Header */}
                     <DialogHeader>
                         <DialogTitle className="text-lg font-semibold">
-                            Verify Corrective Action Effectiveness
+                            {t("Verify Corrective Action Effectiveness")}
                         </DialogTitle>
                         <DialogDescription>
-                            Review the corrective action and determine if it is effective or requires reassignment
+                            {t("Review the corrective action and determine if it is effective or requires reassignment")}
                         </DialogDescription>
                     </DialogHeader>
 
                     {/* Issue Summary */}
                     <div className="space-y-4">
-                        <h3 className="font-semibold text-sm">Issue Summary</h3>
+                        <h3 className="font-semibold text-sm">{t("Issue Summary")}</h3>
 
                         {isLoadingReview ? (
                             <div className="flex items-center justify-center py-8">
-                                <p className="text-sm text-muted-foreground">Loading issue review data...</p>
+                                <p className="text-sm text-muted-foreground">{t("Loading issue review data...")}</p>
                             </div>
                         ) : (
                             <>
                                 <div className="space-y-2 text-sm">
                                     <p>
-                                        <span className="text-muted-foreground block">Issue ID</span>
+                                        <span className="text-muted-foreground block">{t("Issue ID")}</span>
                                         <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
                                     </p>
 
                                     <p>
-                                        <span className="text-muted-foreground block">Title</span>
+                                        <span className="text-muted-foreground block">{t("Title")}</span>
                                         <span className="font-medium text-[#0A0A0A]">
                                             {selectedIssue?.title || "—"}
                                         </span>
                                     </p>
 
                                     <p>
-                                        <span className="text-muted-foreground block mb-1">Tag Category</span>
+                                        <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
                                             {selectedIssue?.tag || "—"}
                                         </Badge>
@@ -1063,16 +1065,16 @@ export default function IssuesDashboard({
 
                                 {/* Description */}
                                 <div>
-                                    <p className="text-sm text-muted-foreground mb-1">Description</p>
+                                    <p className="text-sm text-muted-foreground mb-1">{t("Description")}</p>
                                     <p className="text-sm text-[#0A0A0A]">
-                                        {selectedIssue?.description || "No description provided"}
+                                        {selectedIssue?.description || t("No description provided")}
                                     </p>
                                 </div>
 
                                 {/* Root Cause */}
                                 {issueReview?.rootCauseText && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Root Cause Analysis")}</p>
                                         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
                                             {issueReview.rootCauseText}
                                         </div>
@@ -1082,7 +1084,7 @@ export default function IssuesDashboard({
                                 {/* Containment Action */}
                                 {issueReview?.containmentText && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Containment Action")}</p>
                                         <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
                                             {issueReview.containmentText}
                                         </div>
@@ -1092,15 +1094,15 @@ export default function IssuesDashboard({
                                 {/* Corrective Action Plan */}
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Corrective Action Plan")}</p>
                                         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        Responsible: {plan.responsible} |
-                                                        Planned: {plan.plannedDate || "—"} |
-                                                        Actual: {plan.actualDate || "—"}
+                                                        {t("Responsible:")} {plan.responsible} |{" "}
+                                                        {t("Planned:")} {plan.plannedDate || "—"} |{" "}
+                                                        {t("Actual:")} {plan.actualDate || "—"}
                                                     </p>
                                                 </div>
                                             ))}
@@ -1112,7 +1114,7 @@ export default function IssuesDashboard({
                                 {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length ||
                                     issueReview?.actionPlans?.some(p => p.files?.length)) ? (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{t("Attachments")}</p>
                                         <div className="space-y-2">
                                             {/* Containment files */}
                                             {issueReview.containmentFiles?.map((file, idx) => (
@@ -1130,11 +1132,11 @@ export default function IssuesDashboard({
                                                                         const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                         window.open(result.url, "_blank")
                                                                     } catch (error: any) {
-                                                                        toast.error("Failed to download file")
+                                                                        toast.error(t("Failed to download file"))
                                                                     }
                                                                 }}
                                                             >
-                                                                Download
+                                                                {t("Download")}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1159,11 +1161,11 @@ export default function IssuesDashboard({
                                                                         const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                         window.open(result.url, "_blank")
                                                                     } catch (error: any) {
-                                                                        toast.error("Failed to download file")
+                                                                        toast.error(t("Failed to download file"))
                                                                     }
                                                                 }}
                                                             >
-                                                                Download
+                                                                {t("Download")}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1189,11 +1191,11 @@ export default function IssuesDashboard({
                                                                             const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                             window.open(result.url, "_blank")
                                                                         } catch (error: any) {
-                                                                            toast.error("Failed to download file")
+                                                                            toast.error(t("Failed to download file"))
                                                                         }
                                                                     }}
                                                                 >
-                                                                    Download
+                                                                    {t("Download")}
                                                                 </Button>
                                                             )}
                                                         </div>
@@ -1207,8 +1209,8 @@ export default function IssuesDashboard({
                                     </div>
                                 ) : (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
-                                        <p className="text-sm text-muted-foreground">No attachments</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{t("Attachments")}</p>
+                                        <p className="text-sm text-muted-foreground">{t("No attachments")}</p>
                                     </div>
                                 )}
                             </>
@@ -1217,7 +1219,7 @@ export default function IssuesDashboard({
                         {/* Decision */}
                         <div className="pt-2">
                             <p className="text-sm font-semibold mb-3 text-[#0A0A0A]">
-                                Issuer Verification Decision
+                                {t("Issuer Verification Decision")}
                             </p>
 
                             <div className="space-y-3">
@@ -1232,8 +1234,8 @@ export default function IssuesDashboard({
                                 >
                                     <CircleCheck />
                                     <div className="flex flex-col items-start">
-                                        <span className="text-base">Mark as Effective and Close Issue</span>
-                                        <span className="text-xs">Corrective action successfully resolved the issue</span>
+                                        <span className="text-base">{t("Mark as Effective and Close Issue")}</span>
+                                        <span className="text-xs">{t("Corrective action successfully resolved the issue")}</span>
                                     </div>
                                 </Button>
 
@@ -1249,8 +1251,8 @@ export default function IssuesDashboard({
                                 >
                                     <CircleX />
                                     <div className="flex flex-col items-start">
-                                        <span className="text-base">Mark as Ineffective & Reassign</span>
-                                        <span className="text-xs">Corrective action did not adequately resolve the issue</span>
+                                        <span className="text-base">{t("Mark as Ineffective & Reassign")}</span>
+                                        <span className="text-xs">{t("Corrective action did not adequately resolve the issue")}</span>
                                     </div>
                                 </Button>
                             </div>
@@ -1263,24 +1265,24 @@ export default function IssuesDashboard({
                 <DialogContent className="max-w-3xl! max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-semibold">
-                            Effectiveness Verification & Closure
+                            {t("Effectiveness Verification & Closure")}
                         </DialogTitle>
                         <DialogDescription>
-                            Review investigation details and verify corrective action effectiveness.
+                            {t("Review investigation details and verify corrective action effectiveness.")}
                         </DialogDescription>
                     </DialogHeader>
 
                     {/* Assignee Investigation Summary */}
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-4">
                         <div className="flex items-center gap-2 font-semibold text-sm">
-                            <Info className="text-[#155DFC]" /> Assignee Investigation Summary
+                            <Info className="text-[#155DFC]" /> {t("Assignee Investigation Summary")}
                         </div>
 
                         <div className="space-y-2 text-sm">
                             {issueReview?.containmentText && (
                                 <div>
                                     <p className="text-muted-foreground mb-1">
-                                        Containment / Immediate Correction:
+                                        {t("Containment / Immediate Correction:")}
                                     </p>
                                     <div className="rounded-md border bg-white p-2">{issueReview.containmentText}</div>
                                 </div>
@@ -1289,7 +1291,7 @@ export default function IssuesDashboard({
                             {issueReview?.rootCauseText && (
                                 <div>
                                     <p className="text-muted-foreground mb-1">
-                                        Root Cause of Problem:
+                                        {t("Root Cause of Problem:")}
                                     </p>
                                     <div className="rounded-md border bg-white p-2">{issueReview.rootCauseText}</div>
                                 </div>
@@ -1297,14 +1299,14 @@ export default function IssuesDashboard({
 
                             {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                 <div>
-                                    <p className="text-muted-foreground mb-1">Action Plan:</p>
+                                    <p className="text-muted-foreground mb-1">{t("Action Plan:")}</p>
                                     <div className="overflow-hidden rounded-md border bg-white">
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted">
                                                 <tr>
-                                                    <th className="px-3 py-2 text-left">Action</th>
-                                                    <th className="px-3 py-2 text-left">Responsible</th>
-                                                    <th className="px-3 py-2 text-left">Planned Date</th>
+                                                    <th className="px-3 py-2 text-left">{t("Action")}</th>
+                                                    <th className="px-3 py-2 text-left">{t("Responsible")}</th>
+                                                    <th className="px-3 py-2 text-left">{t("Planned Date")}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1326,24 +1328,24 @@ export default function IssuesDashboard({
                     {/* Effectiveness Verification */}
                     <div className="space-y-4 pt-4">
                         <h3 className="font-semibold text-sm">
-                            Effectiveness Verification & Closure
+                            {t("Effectiveness Verification & Closure")}
                         </h3>
 
                         <p className="text-sm text-muted-foreground">
-                            As the issuer, review the assignee's investigation and corrective actions.
-                            Verify if the actions taken effectively resolved the issue and prevented
-                            recurrence.
+                            {t(
+                                "As the issuer, review the assignee's investigation and corrective actions. Verify if the actions taken effectively resolved the issue and prevented recurrence."
+                            )}
                         </p>
 
                         {/* Closure Comments */}
                         <div>
                             <Label className="text-sm font-medium">
-                                Closure Comments <span className="text-red-500">*</span>
+                                {t("Closure Comments")} <span className="text-red-500">*</span>
                             </Label>
                             <Textarea
                                 className="mt-1"
                                 rows={4}
-                                placeholder="Enter your effectiveness verification comments here..."
+                                placeholder={t("Enter your effectiveness verification comments here...")}
                                 value={closureComments}
                                 onChange={(e) => setClosureComments(e.target.value)}
                                 required
@@ -1353,10 +1355,11 @@ export default function IssuesDashboard({
                         {/* Attachments */}
                         <div className="flex items-center justify-between gap-4">
                             <div>
-                                <p className="text-sm font-medium text-[#0A0A0A]">Attach Verification Evidence</p>
+                                <p className="text-sm font-medium text-[#0A0A0A]">{t("Attach Verification Evidence")}</p>
                                 <p className="text-xs text-muted-foreground">
-                                    Upload photos, documents, or test results proving effectiveness.
-                                    Max 5 files, JPEG/JPG/PNG up to 2MB each.
+                                    {t(
+                                        "Upload photos, documents, or test results proving effectiveness. Max 5 files, JPEG/JPG/PNG up to 2MB each."
+                                    )}
                                 </p>
                             </div>
 
@@ -1372,11 +1375,11 @@ export default function IssuesDashboard({
 
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" onClick={handleClick}>
-                                        <Upload className="mr-2 h-4 w-4" /> Upload Attachments
+                                        <Upload className="mr-2 h-4 w-4" /> {t("Upload Attachments")}
                                     </Button>
                                     {verificationFiles.length > 0 && (
                                         <span className="text-sm text-muted-foreground">
-                                            {verificationFiles.length} file(s) selected
+                                            {verificationFiles.length} {t("file(s) selected")}
                                         </span>
                                     )}
                                 </div>
@@ -1388,7 +1391,7 @@ export default function IssuesDashboard({
                             {/* Issue Close Out Date */}
                             <div>
                                 <Label className="text-sm font-medium">
-                                    Issue Close Out Date <span className="text-red-500">*</span>
+                                    {t("Issue Close Out Date")} <span className="text-red-500">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1400,7 +1403,7 @@ export default function IssuesDashboard({
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {closeOutDate
                                                 ? format(closeOutDate, "MMMM do, yyyy")
-                                                : "Pick a date"}
+                                                : t("Pick a date")}
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
@@ -1417,7 +1420,7 @@ export default function IssuesDashboard({
                             {/* Effectiveness Verification Date */}
                             <div>
                                 <Label className="text-sm font-medium">
-                                    Effectiveness Verification Date <span className="text-red-500">*</span>
+                                    {t("Effectiveness Verification Date")} <span className="text-red-500">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1429,7 +1432,7 @@ export default function IssuesDashboard({
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {verificationDate
                                                 ? format(verificationDate, "MMMM do, yyyy")
-                                                : "Pick a date"}
+                                                : t("Pick a date")}
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
@@ -1448,7 +1451,7 @@ export default function IssuesDashboard({
                         {/* Signature */}
                         <div>
                             <Label className="text-sm font-medium">
-                                Issuer Signature <span className="text-red-500">*</span>
+                                {t("Issuer Signature")} <span className="text-red-500">*</span>
                             </Label>
 
                             {/* Signature Pad */}
@@ -1469,22 +1472,22 @@ export default function IssuesDashboard({
                             {/* Clear and Save Buttons */}
                             <div className="mt-2">
                                 <button onClick={handleClear} className="mr-2 text-sm text-blue-500">
-                                    Clear
+                                    {t("Clear")}
                                 </button>
                                 <button onClick={handleSave} className="text-sm text-blue-500">
-                                    Save Signature
+                                    {t("Save Signature")}
                                 </button>
                             </div>
 
                             {/* Signature Preview */}
                             <p className="text-xs text-muted-foreground mt-2">
-                                Digital Signature Preview:
+                                {t("Digital Signature Preview:")}
                             </p>
                             <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times h-30">
                                 {signature ? (
-                                    <img src={signature} alt="Signature Preview" />
+                                    <img src={signature} alt={t("Signature Preview")} />
                                 ) : (
-                                    <i>Draw your signature above</i>
+                                    <i>{t("Draw your signature above")}</i>
                                 )}
                             </div>
 
@@ -1494,24 +1497,25 @@ export default function IssuesDashboard({
                                     className="mt-1 w-full"
                                     value={signature || ""}
                                     onChange={(e) => setSignature(e.target.value)}
-                                    placeholder="Enter signature (if not drawn)"
+                                    placeholder={t("Enter signature (if not drawn)")}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Decision */}
-                    <p className="text-[#0A0A0A] font-semibold">Issuer Verification Decision</p>
+                    <p className="text-[#0A0A0A] font-semibold">{t("Issuer Verification Decision")}</p>
                     <div className="rounded-lg border border-[#B9F8CF] bg-[#F0FDF4] p-4">
                         <div className="flex gap-2.5">
                             <CircleCheck className="text-[#00A63E]" size={20} />
                             <div>
                                 <p className="font-semibold text-sm mb-1 text-[#00A63E]">
-                                    Confirm Effectiveness
+                                    {t("Confirm Effectiveness")}
                                 </p>
                                 <p className="text-xs mb-3 text-[#00A63E]">
-                                    This will close the issue, calculate the KPI score, and move it to
-                                    Completed Issues.
+                                    {t(
+                                        "This will close the issue, calculate the KPI score, and move it to Completed Issues."
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -1522,7 +1526,7 @@ export default function IssuesDashboard({
                                 onClick={handleSubmitEffective}
                                 disabled={isSubmitting || !closureComments || !closeOutDate || !verificationDate || !signature}
                             >
-                                {isSubmitting ? "Submitting..." : "Confirm & Close Issue"}
+                                {isSubmitting ? t("Submitting...") : t("Confirm & Close Issue")}
                             </Button>
 
                             <Button
@@ -1531,7 +1535,7 @@ export default function IssuesDashboard({
                                 onClick={() => setOpenSubmit(false)}
                                 disabled={isSubmitting}
                             >
-                                Cancel
+                                {t("Cancel")}
                             </Button>
                         </div>
                     </div>
@@ -1549,34 +1553,34 @@ export default function IssuesDashboard({
                 <DialogContent className="max-w-3xl! max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-semibold">
-                            Verify Corrective Action Effectiveness
+                            {t("Verify Corrective Action Effectiveness")}
                         </DialogTitle>
                         <DialogDescription>
-                            Review the corrective action and determine if it is effective or requires reassignment
+                            {t("Review the corrective action and determine if it is effective or requires reassignment")}
                         </DialogDescription>
                     </DialogHeader>
                     {/* Issue Summary */}
                     <div className="space-y-4">
-                        <h3 className="font-semibold text-sm">Issue Summary</h3>
+                        <h3 className="font-semibold text-sm">{t("Issue Summary")}</h3>
                         {isLoadingReview ? (
                             <div className="flex items-center justify-center py-8">
-                                <p className="text-sm text-muted-foreground">Loading issue review data...</p>
+                                <p className="text-sm text-muted-foreground">{t("Loading issue review data...")}</p>
                             </div>
                         ) : (
                             <>
                                 <div className="space-y-2 text-sm">
                                     <p>
-                                        <span className="text-muted-foreground block">Issue ID</span>
+                                        <span className="text-muted-foreground block">{t("Issue ID")}</span>
                                         <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
                                     </p>
                                     <p>
-                                        <span className="text-muted-foreground block">Title</span>
+                                        <span className="text-muted-foreground block">{t("Title")}</span>
                                         <span className="font-medium text-[#0A0A0A]">
                                             {selectedIssue?.title || "—"}
                                         </span>
                                     </p>
                                     <p>
-                                        <span className="text-muted-foreground block mb-1">Tag Category</span>
+                                        <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
                                             {selectedIssue?.tag || "—"}
                                         </Badge>
@@ -1584,15 +1588,15 @@ export default function IssuesDashboard({
                                 </div>
                                 {/* Description */}
                                 <div>
-                                    <p className="text-sm text-muted-foreground mb-1">Description</p>
+                                    <p className="text-sm text-muted-foreground mb-1">{t("Description")}</p>
                                     <p className="text-sm text-[#0A0A0A]">
-                                        {selectedIssue?.description || "No description provided"}
+                                        {selectedIssue?.description || t("No description provided")}
                                     </p>
                                 </div>
                                 {/* Root Cause */}
                                 {issueReview?.rootCauseText && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Root Cause Analysis</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Root Cause Analysis")}</p>
                                         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
                                             {issueReview.rootCauseText}
                                         </div>
@@ -1601,7 +1605,7 @@ export default function IssuesDashboard({
                                 {/* Containment Action */}
                                 {issueReview?.containmentText && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Containment Action</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Containment Action")}</p>
                                         <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
                                             {issueReview.containmentText}
                                         </div>
@@ -1610,15 +1614,15 @@ export default function IssuesDashboard({
                                 {/* Corrective Action Plan */}
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-1">Corrective Action Plan</p>
+                                        <p className="text-sm text-muted-foreground mb-1">{t("Corrective Action Plan")}</p>
                                         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        Responsible: {plan.responsible} |
-                                                        Planned: {plan.plannedDate || "—"} |
-                                                        Actual: {plan.actualDate || "—"}
+                                                        {t("Responsible:")} {plan.responsible} |{" "}
+                                                        {t("Planned:")} {plan.plannedDate || "—"} |{" "}
+                                                        {t("Actual:")} {plan.actualDate || "—"}
                                                     </p>
                                                 </div>
                                             ))}
@@ -1629,7 +1633,7 @@ export default function IssuesDashboard({
                                 {(issueReview?.containmentFiles?.length || issueReview?.rootCauseFiles?.length ||
                                     issueReview?.actionPlans?.some(p => p.files?.length)) ? (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{t("Attachments")}</p>
                                         <div className="space-y-2">
                                             {/* Show all files with download buttons */}
                                             {issueReview.containmentFiles?.map((file, idx) => (
@@ -1647,11 +1651,11 @@ export default function IssuesDashboard({
                                                                         const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                         window.open(result.url, "_blank")
                                                                     } catch (error: any) {
-                                                                        toast.error("Failed to download file")
+                                                                        toast.error(t("Failed to download file"))
                                                                     }
                                                                 }}
                                                             >
-                                                                Download
+                                                                {t("Download")}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1675,11 +1679,11 @@ export default function IssuesDashboard({
                                                                         const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                         window.open(result.url, "_blank")
                                                                     } catch (error: any) {
-                                                                        toast.error("Failed to download file")
+                                                                        toast.error(t("Failed to download file"))
                                                                     }
                                                                 }}
                                                             >
-                                                                Download
+                                                                {t("Download")}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1704,11 +1708,11 @@ export default function IssuesDashboard({
                                                                             const result = await apiClient.getFileDownloadUrl(file.key!)
                                                                             window.open(result.url, "_blank")
                                                                         } catch (error: any) {
-                                                                            toast.error("Failed to download file")
+                                                                            toast.error(t("Failed to download file"))
                                                                         }
                                                                     }}
                                                                 >
-                                                                    Download
+                                                                    {t("Download")}
                                                                 </Button>
                                                             )}
                                                         </div>
@@ -1722,14 +1726,14 @@ export default function IssuesDashboard({
                                     </div>
                                 ) : (
                                     <div>
-                                        <p className="text-sm text-muted-foreground mb-2">Attachments</p>
-                                        <p className="text-sm text-muted-foreground">No attachments</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{t("Attachments")}</p>
+                                        <p className="text-sm text-muted-foreground">{t("No attachments")}</p>
                                     </div>
                                 )}
                             </>
                         )}
                         <p className="text-sm font-semibold text-[#0A0A0A]">
-                            Issuer Verification Decision
+                            {t("Issuer Verification Decision")}
                         </p>
                         <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 space-y-4">
                             {/* Header */}
@@ -1737,10 +1741,10 @@ export default function IssuesDashboard({
                                 <AlertCircle className="text-red-700 mt-1" size={20} />
                                 <div>
                                     <h3 className="font-semibold text-sm text-red-700">
-                                        Reassignment Required
+                                        {t("Reassignment Required")}
                                     </h3>
                                     <p className="text-sm text-red-600">
-                                        Provide new instructions and reassign the issue for corrective action.
+                                        {t("Provide new instructions and reassign the issue for corrective action.")}
                                     </p>
                                 </div>
                             </div>
@@ -1748,11 +1752,13 @@ export default function IssuesDashboard({
                             {/* New Instructions */}
                             <div className="space-y-1">
                                 <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    New Instructions <span className="text-red-600">*</span>
+                                    {t("New Instructions")} <span className="text-red-600">*</span>
                                 </Label>
                                 <Textarea
                                     rows={3}
-                                    placeholder="Explain why the corrective action was ineffective and provide new guidance..."
+                                    placeholder={t(
+                                        "Explain why the corrective action was ineffective and provide new guidance..."
+                                    )}
                                     className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
                                     value={reassignmentInstructions}
                                     onChange={(e) => setReassignmentInstructions(e.target.value)}
@@ -1762,12 +1768,12 @@ export default function IssuesDashboard({
                             {/* New Assignee */}
                             <div className="space-y-1">
                                 <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    New Assignee <span className="text-red-600">*</span>
+                                    {t("New Assignee")} <span className="text-red-600">*</span>
                                 </Label>
 
                                 <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
                                     <SelectTrigger className="w-full border-red-200">
-                                        <SelectValue placeholder="Select assignee" />
+                                        <SelectValue placeholder={t("Select assignee")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {processUsers.map((user) => (
@@ -1782,7 +1788,7 @@ export default function IssuesDashboard({
                             {/* New Due Date */}
                             <div className="space-y-1">
                                 <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    New Due Date <span className="text-red-600">*</span>
+                                    {t("New Due Date")} <span className="text-red-600">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1795,7 +1801,7 @@ export default function IssuesDashboard({
                                             )}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {dueDate ? format(dueDate, "PPP") : "Pick a date"}
+                                            {dueDate ? format(dueDate, "PPP") : t("Pick a date")}
                                         </Button>
                                     </PopoverTrigger>
 
@@ -1813,7 +1819,7 @@ export default function IssuesDashboard({
                             {/* Attachment */}
                             <div className="space-y-1">
                                 <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    Attachment (Optional)
+                                    {t("Attachment (Optional)")}
                                 </Label>
                                 <input
                                     type="file"
@@ -1829,11 +1835,11 @@ export default function IssuesDashboard({
                                         onClick={() => reassignmentFileInputRef.current?.click()}
                                         className="border-red-200"
                                     >
-                                        <Upload className="mr-2 h-4 w-4" /> Upload Files
+                                        <Upload className="mr-2 h-4 w-4" /> {t("Upload Files")}
                                     </Button>
                                     {reassignmentFiles.length > 0 && (
                                         <span className="text-sm text-muted-foreground">
-                                            {reassignmentFiles.length} file(s) selected
+                                            {reassignmentFiles.length} {t("file(s) selected")}
                                         </span>
                                     )}
                                 </div>
@@ -1846,7 +1852,7 @@ export default function IssuesDashboard({
                                     onClick={handleSubmitIneffective}
                                     disabled={isSubmitting || !selectedAssignee || !dueDate || !reassignmentInstructions}
                                 >
-                                    {isSubmitting ? "Submitting..." : "Reassign Issue"}
+                                    {isSubmitting ? t("Submitting...") : t("Reassign Issue")}
                                 </Button>
 
                                 <Button
@@ -1858,7 +1864,7 @@ export default function IssuesDashboard({
                                     }}
                                     disabled={isSubmitting}
                                 >
-                                    Cancel
+                                    {t("Cancel")}
                                 </Button>
                             </div>
                         </div>

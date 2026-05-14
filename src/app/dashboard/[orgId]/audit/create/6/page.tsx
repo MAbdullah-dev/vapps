@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getDashboardPath } from "@/lib/subdomain";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle,
-  ChevronLeft,
   ChevronRight,
   FileCheck,
   MessageSquare,
@@ -80,7 +78,7 @@ export default function CreateAuditStep6Page() {
           const member = lead as { name?: string; email?: string; systemRole?: string } | undefined;
           setLeadAuditorDisplay({
             name: member ? (member.name || member.email || "—") : "—",
-            role: member?.systemRole || "Lead Auditor",
+            role: member?.systemRole || t("Lead Auditor"),
           });
         }
         const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanId);
@@ -97,7 +95,7 @@ export default function CreateAuditStep6Page() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orgId, auditPlanId]);
+  }, [orgId, auditPlanId, t]);
 
   const canEditStep6 =
     planStatus !== "closed" && currentUserRole === "lead_auditor";
@@ -131,10 +129,10 @@ export default function CreateAuditStep6Page() {
             {t(AUDIT_STEP_HERO[6])}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Audit ID:{" "}
+            {t("Audit ID:")}{" "}
             <span className="font-semibold text-green-600">{isLoading ? "…" : auditIdDisplay}</span>
             {" • "}
-            ISO 19011:2026 Compliant
+            {t("ISO 19011:2026 Compliant")}
           </p>
         </div>
 
@@ -143,7 +141,7 @@ export default function CreateAuditStep6Page() {
           {/* Left: Management Final Decision */}
           <div className="space-y-4">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              MANAGEMENT FINAL DECISION
+              {t("MANAGEMENT FINAL DECISION")}
             </h2>
             <div className="space-y-3">
               <Button
@@ -164,10 +162,10 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    Effective - Close Audit
+                    {t("Effective - Close Audit")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Confirming all findings are addressed and system is stable.
+                    {t("Confirming all findings are addressed and system is stable.")}
                   </p>
                 </div>
               </Button>
@@ -189,11 +187,12 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    Ineffective - Re-open Audit
+                    {t("Ineffective - Re-open Audit")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Audit does not meet criteria for closure. Further action
-                    required.
+                    {t(
+                      "Audit does not meet criteria for closure. Further action required."
+                    )}
                   </p>
                 </div>
               </Button>
@@ -205,11 +204,13 @@ export default function CreateAuditStep6Page() {
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 shrink-0 text-green-500" />
               <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-                MANAGEMENT COMMENTS
+                {t("MANAGEMENT COMMENTS")}
               </h2>
             </div>
             <Textarea
-              placeholder="Executive summary of the audit cycle and final approval notes..."
+              placeholder={t(
+                "Executive summary of the audit cycle and final approval notes..."
+              )}
               className="min-h-44 rounded-lg border-border bg-background italic text-muted-foreground placeholder:text-muted-foreground"
               rows={8}
               value={managementComments}
@@ -223,19 +224,19 @@ export default function CreateAuditStep6Page() {
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              AUTHENTICATION & SEAL
+              {t("AUTHENTICATION & SEAL")}
             </h2>
           </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            By closing this audit, the management confirms that the audit
-            process was conducted in accordance with the established program
-            and ISO 19011:2026 guidelines.
+            {t(
+              "By closing this audit, the management confirms that the audit process was conducted in accordance with the established program and ISO 19011:2026 guidelines."
+            )}
           </p>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             <div className="flex flex-1 gap-8">
               <div className="bg-card rounded-lg p-4 border border-border">
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  APPROVED BY (LEAD AUDITOR)
+                  {t("APPROVED BY (LEAD AUDITOR)")}
                 </p>
                 <p className="mt-1 font-bold text-foreground">{isLoading ? "…" : leadAuditorDisplay.name}</p>
                 <p className="text-sm text-muted-foreground">
@@ -244,7 +245,7 @@ export default function CreateAuditStep6Page() {
               </div>
               <div className="bg-card rounded-lg p-4 border border-border">
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  DATE APPROVED
+                  {t("DATE APPROVED")}
                 </p>
                 <p className="mt-1 font-bold text-foreground">{dateApproved}</p>
                 <p className="text-sm text-muted-foreground">{timeApproved}</p>
@@ -256,7 +257,7 @@ export default function CreateAuditStep6Page() {
                   className="block max-w-[80px] text-center text-[9px] font-medium uppercase leading-tight text-muted-foreground"
                   style={{ transform: "rotate(-45deg)" }}
                 >
-                  VIE OFFICIAL SEAL
+                  {t("VIE OFFICIAL SEAL")}
                 </span>
               </div>
             </div>
@@ -267,19 +268,19 @@ export default function CreateAuditStep6Page() {
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              TOTAL FINDINGS
+              {t("TOTAL FINDINGS")}
             </p>
             <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.total}</p>
           </div>
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              MAJOR NCS CLOSED
+              {t("MAJOR NCS CLOSED")}
             </p>
             <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.majorNcs}</p>
           </div>
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              MINOR NCS CLOSED
+              {t("MINOR NCS CLOSED")}
             </p>
             <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.minorNcs}</p>
           </div>
@@ -311,7 +312,7 @@ export default function CreateAuditStep6Page() {
             try {
               if (finalDecision === "effective") {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "closed");
-                toast.success("Audit complete. Status: Closed.");
+                toast.success(t("Audit complete. Status: Closed."));
               } else {
                 await apiClient.updateAuditPlan(orgId, auditPlanId, {
                   step6Data: {
@@ -322,22 +323,26 @@ export default function CreateAuditStep6Page() {
                   },
                 });
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
-                toast.success("Returned to Auditee for revision.");
+                toast.success(t("Returned to Auditee for revision."));
               }
               router.push(getDashboardPath(orgId, "audit"));
             } catch (e) {
               console.error(e);
-              toast.error(finalDecision === "effective" ? "Failed to close audit." : "Failed to return to Auditee.");
+              toast.error(
+                finalDecision === "effective"
+                  ? t("Failed to close audit.")
+                  : t("Failed to return to Auditee.")
+              );
             } finally {
               setClosing(false);
             }
           }}
         >
           {closing
-            ? "Saving…"
+            ? t("Saving…")
             : finalDecision === "effective"
-              ? "Finalize Audit & Close"
-              : "Return to Auditee"}
+              ? t("Finalize Audit & Close")
+              : t("Return to Auditee")}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

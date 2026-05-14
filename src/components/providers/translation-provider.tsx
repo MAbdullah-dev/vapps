@@ -71,9 +71,10 @@ function persistDict(locale: LocaleCode, dict: Record<string, string>) {
   }
 }
 
-/** Map legacy Hindi selection to Japanese. */
+/** Normalize cookie / DB values to a supported `LocaleCode` (legacy codes map to defaults). */
 function normalizeLocaleFromStorage(code: string): LocaleCode {
   if (code === "hi") return "ja";
+  if (code === "de") return "en";
   if (isLocaleCode(code)) return code;
   return DEFAULT_LOCALE;
 }
@@ -123,7 +124,8 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
 
   const applyDocLocale = useCallback((code: LocaleCode) => {
     if (typeof document === "undefined") return;
-    document.documentElement.lang = code;
+    const meta = LOCALES_BY_CODE[code];
+    document.documentElement.lang = meta.googleTarget.replace(/_/g, "-");
     document.documentElement.dir = isRtlLocale(code) ? "rtl" : "ltr";
   }, []);
 

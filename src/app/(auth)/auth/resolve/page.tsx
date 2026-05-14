@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import BrandLogo from "@/components/common/BrandLogo";
 import { getOrgDashboardUrl } from "@/lib/subdomain";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 interface Organization {
   id: string;
@@ -20,6 +21,7 @@ interface Organization {
 }
 
 export default function ResolvePage() {
+  const { t } = useTranslate();
   const router = useRouter();
   const { data: session, status } = useSession();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -33,8 +35,8 @@ export default function ResolvePage() {
       const response = await apiClient.getOrganizations();
       setOrganizations(response.organizations || []);
     } catch (err: any) {
-      setError(err.message || "Failed to load organizations");
-      toast.error("Failed to load organizations");
+      setError(err.message || t("Failed to load organizations"));
+      toast.error(t("Failed to load organizations"));
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +81,7 @@ export default function ResolvePage() {
         <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            {isRedirecting ? "Redirecting..." : "Loading..."}
+            {isRedirecting ? t("Redirecting...") : t("Loading...")}
           </p>
         </div>
       </div>
@@ -98,7 +100,7 @@ export default function ResolvePage() {
         <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
           <p className="text-destructive">{error}</p>
           <Button className="mt-4" onClick={fetchOrganizations}>
-            Try Again
+            {t("Try Again")}
           </Button>
         </div>
       </div>
@@ -111,30 +113,12 @@ export default function ResolvePage() {
       <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
         <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
           <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h1 className="mt-4 text-xl font-semibold">No Organizations</h1>
+          <h1 className="mt-4 text-xl font-semibold">{t("No Organizations")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            You don't belong to any organizations yet.
+            {t("You don't belong to any organizations yet.")}
           </p>
           <Button className="mt-6" onClick={() => router.push("/")}>
-            Go to Home
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // If no organizations, show message
-  if (organizations.length === 0) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-        <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h1 className="mt-4 text-xl font-semibold">No Organizations</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            You don't belong to any organizations yet.
-          </p>
-          <Button className="mt-6" onClick={() => router.push("/")}>
-            Go to Home
+            {t("Go to Home")}
           </Button>
         </div>
       </div>
@@ -147,14 +131,14 @@ export default function ResolvePage() {
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm">
         {/* Logo */}
         <div className="mb-6 flex justify-center">
-          <BrandLogo alt="Logo" width={140} height={60} priority />
+          <BrandLogo alt={t("Logo")} width={140} height={60} priority />
         </div>
 
         {/* Heading */}
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold">Select Organization</h1>
+          <h1 className="text-xl font-semibold">{t("Select Organization")}</h1>
           <p className="text-sm text-muted-foreground">
-            You belong to multiple organizations. Please select one to continue.
+            {t("You belong to multiple organizations. Please select one to continue.")}
           </p>
         </div>
 
@@ -174,7 +158,8 @@ export default function ResolvePage() {
                 <div className="flex-1 text-left">
                   <p className="font-medium">{org.name}</p>
                   <p className="text-xs text-muted-foreground capitalize">
-                    {org.role} • {org.memberCount} member{org.memberCount !== 1 ? "s" : ""}
+                    {org.role} • {org.memberCount}{" "}
+                    {org.memberCount !== 1 ? t("members") : t("member")}
                   </p>
                 </div>
               </div>
@@ -184,7 +169,7 @@ export default function ResolvePage() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Logged in as: {session?.user?.email}
+          {t("Logged in as:")} {session?.user?.email}
         </p>
       </div>
     </div>

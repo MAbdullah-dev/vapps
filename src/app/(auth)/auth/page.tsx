@@ -5,8 +5,19 @@ import Login from "@/components/Auth/Login";
 import Register from "@/components/Auth/Register";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useTranslate } from "@/components/providers/translation-provider";
+
+function AuthSuspenseFallback() {
+  const { t } = useTranslate();
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-muted/40">
+      <div className="animate-pulse text-muted-foreground">{t("Loading...")}</div>
+    </div>
+  );
+}
 
 function AuthPageContent() {
+  const { t } = useTranslate();
   const [isLogin, setIsLogin] = useState(true);
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
@@ -15,7 +26,7 @@ function AuthPageContent() {
   useEffect(() => {
     const verified = searchParams.get("verified");
     if (verified === "true") {
-      toast.success("Email verified successfully!");
+      toast.success(t("Email verified successfully!"));
     }
     
     // If there's an invite token, show login form (not register)
@@ -41,7 +52,7 @@ function AuthPageContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/40"><div className="animate-pulse text-muted-foreground">Loading...</div></div>}>
+    <Suspense fallback={<AuthSuspenseFallback />}>
       <AuthPageContent />
     </Suspense>
   );

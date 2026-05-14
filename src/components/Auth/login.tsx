@@ -15,8 +15,15 @@ import { Label } from "@/components/ui/label";
 
 import { Eye, EyeOff, Github, Apple, Chrome } from "lucide-react";
 
+import { Turnstile } from "@marsidev/react-turnstile";
+
 import { loginSchema, LoginInput } from "@/schemas/auth/auth.schema";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+
 type LoginProps = {
   onSwitch: () => void;
   inviteToken?: string;
@@ -24,10 +31,14 @@ type LoginProps = {
 };
 
 const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
+  const { t } = useTranslate();
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
+  const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY);
 
   const {
     register,
@@ -42,11 +53,21 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
 
   const onSubmit = async (data: LoginInput) => {
     try {
+      if (turnstileEnabled && !turnstileToken) {
+        toast.error(t("Please complete the security check"));
+        return;
+      }
+
       setLoading(true);
 
-      await apiClient.login(data); // credentials login API
+      await apiClient.login({
+        ...data,
+        ...(turnstileEnabled && turnstileToken
+          ? { turnstileToken }
+          : {}),
+      });
 
-      toast.success("Logged in successfully");
+      toast.success(t("Logged in successfully"));
 
       // ✅ Redirect based on invite token
       if (inviteToken) {
@@ -57,8 +78,14 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         router.push("/");
       }
       router.refresh(); // optional but recommended for auth state update
-    } catch (error: any) {
-      toast.error(error.message || "Login failed");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : t("Login failed");
+      toast.error(message);
+      if (turnstileEnabled) {
+        setTurnstileToken(null);
+        setTurnstileKey((k) => k + 1);
+      }
     } finally {
       setLoading(false);
     }
@@ -78,7 +105,7 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         callbackUrl,
       });
     } catch {
-      toast.error("SSO login failed");
+      toast.error(t("SSO login failed"));
     }
   };
 
@@ -86,11 +113,11 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
     <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       {/* Heading */}
       <div className="text-center mb-8">
-        <h1 className="text-xl mb-2">Welcome Back</h1>
+        <h1 className="text-xl mb-2">{t("Welcome Back")}</h1>
         {inviteToken ? (
-          <p className="text-base text-muted-foreground">Log in to accept your invitation</p>
+          <p className="text-base text-muted-foreground">{t("Log in to accept your invitation")}</p>
         ) : (
-          <p className="text-base text-muted-foreground">Login to your account</p>
+          <p className="text-base text-muted-foreground">{t("Login to your account")}</p>
         )}
       </div>
 
@@ -98,10 +125,10 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* Email */}
         <div className="mb-4">
-          <Label className="text-sm mb-2">Email</Label>
+          <Label className="text-sm mb-2">{t("Email")}</Label>
           <Input 
             type="email" 
-            placeholder="Email" 
+            placeholder={t("Email")} 
             defaultValue={inviteEmail || ""}
             {...register("email")} 
           />
@@ -114,11 +141,11 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
 
         {/* Password */}
         <div className="mb-4">
-          <Label className="text-sm mb-2">Password</Label>
+          <Label className="text-sm mb-2">{t("Password")}</Label>
           <div className="relative">
             <Input
               type={showPassword ? "text" : "password"}
-              placeholder="Password"
+              placeholder={t("Password")}
               className="pr-10"
               {...register("password")}
             />
@@ -140,27 +167,41 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         {/* Remember + Forgot */}
         <div className="flex justify-between items-center mb-6">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" /> Remember me
+            <input type="checkbox" /> {t("Remember me")}
           </label>
 
           <Link
             href="/auth/forgot-password"
             className="text-sm text-primary hover:underline"
           >
-            Forgot password?
+            {t("Forgot password?")}
           </Link>
         </div>
 
+        {turnstileEnabled && (
+          <div className="mb-4 flex justify-center min-h-[65px]" key={turnstileKey}>
+            <Turnstile
+              siteKey={TURNSTILE_SITE_KEY}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              onError={() => setTurnstileToken(null)}
+            />
+          </div>
+        )}
+
         {/* Submit */}
-        <Button className="w-full" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+        <Button
+          className="w-full"
+          disabled={loading || (turnstileEnabled && !turnstileToken)}
+        >
+          {loading ? t("Logging in...") : t("Login")}
         </Button>
       </form>
 
       {/* Divider */}
       <div className="flex items-center gap-4 my-6">
         <Separator className="flex-1" />
-        <span className="text-sm text-muted-foreground">or continue with</span>
+        <span className="text-sm text-muted-foreground">{t("or continue with")}</span>
         <Separator className="flex-1" />
       </div>
 
@@ -171,7 +212,7 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         </Button>
 
         <Button variant="outline" onClick={() => handleSSO("atlassian")}>
-          <Image src="/svgs/atlassian.svg" alt="Atlassian" width={16} height={16} />
+          <Image src="/svgs/atlassian.svg" alt={t("Atlassian")} width={16} height={16} />
         </Button>
 
         <Button variant="outline" onClick={() => handleSSO("github")}>
@@ -185,12 +226,12 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
 
       {/* Switch */}
       <div className="text-center mt-6 text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
+        {t("Don't have an account?")}{" "}
         <button
           onClick={onSwitch}
           className="text-primary hover:underline"
         >
-          Sign Up
+          {t("Sign Up")}
         </button>
       </div>
     </div>

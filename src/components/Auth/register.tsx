@@ -14,16 +14,26 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Github, Apple, Chrome } from "lucide-react";
 import Image from "next/image";
 
+import { Turnstile } from "@marsidev/react-turnstile";
+
 import { registerSchema, RegisterInput } from "@/schemas/auth/auth.schema";
 import { apiClient } from "@/lib/api-client";
+import { useTranslate } from "@/components/providers/translation-provider";
+
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 type RegisterProps = {
   onSwitch: () => void;
 };
 
 const Register = ({ onSwitch }: RegisterProps) => {
+  const { t } = useTranslate();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
+  const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY);
 
   const {
     register,
@@ -37,18 +47,38 @@ const Register = ({ onSwitch }: RegisterProps) => {
   // ✅ REGISTER HANDLER
   const onSubmit = async (data: RegisterInput) => {
     try {
+      if (turnstileEnabled && !turnstileToken) {
+        toast.error(t("Please complete the security check"));
+        return;
+      }
+
       setLoading(true);
 
-      await apiClient.register(data);
+      await apiClient.register({
+        ...data,
+        ...(turnstileEnabled && turnstileToken
+          ? { turnstileToken }
+          : {}),
+      });
 
       toast.success(
-        "Account created! Please check your email to verify your account."
+        t("Account created! Please check your email to verify your account.")
       );
 
       reset();
+      if (turnstileEnabled) {
+        setTurnstileToken(null);
+        setTurnstileKey((k) => k + 1);
+      }
       onSwitch(); // switch to login
-    } catch (error: any) {
-      toast.error(error.message || "Registration failed");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : t("Registration failed");
+      toast.error(message);
+      if (turnstileEnabled) {
+        setTurnstileToken(null);
+        setTurnstileKey((k) => k + 1);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,9 +88,9 @@ const Register = ({ onSwitch }: RegisterProps) => {
     <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       {/* Heading */}
       <div className="text-center mb-8">
-        <h1 className="text-xl mb-2">Create Account</h1>
+        <h1 className="text-xl mb-2">{t("Create Account")}</h1>
         <p className="text-base text-muted-foreground">
-          Start your journey with Vie
+          {t("Start your journey with Vie")}
         </p>
       </div>
 
@@ -69,9 +99,9 @@ const Register = ({ onSwitch }: RegisterProps) => {
         {/* Email */}
         <div className="mb-4">
           <Label htmlFor="email" className="text-sm mb-2">
-            Email
+            {t("Email")}
           </Label>
-          <Input placeholder="Email" type="email" {...register("email")} />
+          <Input placeholder={t("Email")} type="email" {...register("email")} />
           {errors.email && (
             <p className="text-red-500 text-xs mt-1">
               {errors.email.message}
@@ -82,11 +112,11 @@ const Register = ({ onSwitch }: RegisterProps) => {
         {/* Password */}
         <div className="mb-4">
           <Label htmlFor="password" className="text-sm mb-2">
-            Password
+            {t("Password")}
           </Label>
           <div className="relative">
             <Input
-              placeholder="Password"
+              placeholder={t("Password")}
               type={showPassword ? "text" : "password"}
               className="pr-10"
               {...register("password")}
@@ -109,11 +139,11 @@ const Register = ({ onSwitch }: RegisterProps) => {
         {/* Confirm Password */}
         <div className="mb-6">
           <Label htmlFor="confirmPassword" className="text-sm mb-2">
-            Confirm Password
+            {t("Confirm Password")}
           </Label>
           <div className="relative">
             <Input
-              placeholder="Confirm Password"
+              placeholder={t("Confirm Password")}
               type={showPassword ? "text" : "password"}
               className="pr-10"
               {...register("confirmPassword")}
@@ -133,16 +163,31 @@ const Register = ({ onSwitch }: RegisterProps) => {
           )}
         </div>
 
+        {turnstileEnabled && (
+          <div className="mb-4 flex justify-center min-h-[65px]" key={turnstileKey}>
+            <Turnstile
+              siteKey={TURNSTILE_SITE_KEY}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              onError={() => setTurnstileToken(null)}
+            />
+          </div>
+        )}
+
         {/* Submit */}
-        <Button disabled={loading} className="w-full py-2 text-sm" variant="default">
-          {loading ? "Creating Account..." : "Create Account"}
+        <Button
+          disabled={loading || (turnstileEnabled && !turnstileToken)}
+          className="w-full py-2 text-sm"
+          variant="default"
+        >
+          {loading ? t("Creating Account...") : t("Create Account")}
         </Button>
       </form>
 
       {/* Divider */}
       <div className="flex items-center gap-4 my-6">
         <Separator className="flex-1" />
-        <span className="text-muted-foreground text-sm">or continue with</span>
+        <span className="text-muted-foreground text-sm">{t("or continue with")}</span>
         <Separator className="flex-1" />
       </div>
 
@@ -165,7 +210,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
         >
           <Image
             src="/svgs/atlassian.svg"
-            alt="atlassian"
+            alt={t("atlassian")}
             width={16}
             height={16}
           />
@@ -192,12 +237,12 @@ const Register = ({ onSwitch }: RegisterProps) => {
 
       {/* Switch */}
       <div className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        {t("Already have an account?")}{" "}
         <button
           onClick={onSwitch}
           className="text-primary text-base hover:underline"
         >
-          Log In
+          {t("Log In")}
         </button>
       </div>
     </div>

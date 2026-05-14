@@ -29,13 +29,7 @@ import { getSelectedSiteIdFromStorage } from '@/lib/selected-site';
 import groupBy from 'lodash.groupby';
 import { addDays, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
-
-const STATUS_CONFIG: Record<string, GanttStatus> = {
-  'to-do': { id: 'to-do', name: 'To Do', color: '#6B7280' },
-  'in-progress': { id: 'in-progress', name: 'In Progress', color: '#F59E0B' },
-  'in-review': { id: 'in-review', name: 'In Review', color: '#8B5CF6' },
-  done: { id: 'done', name: 'Done', color: '#10B981' },
-};
+import { useTranslate } from '@/components/providers/translation-provider';
 
 type Issue = {
   id: string;
@@ -46,7 +40,11 @@ type Issue = {
   processId?: string | null;
 };
 
-function issueToFeature(issue: Issue): GanttFeature {
+function issueToFeature(
+  issue: Issue,
+  statusById: Record<string, GanttStatus>,
+  t: (s: string) => string
+): GanttFeature {
   const startAt = new Date(issue.createdAt);
   let endAt: Date;
   if (issue.deadline) {
@@ -55,10 +53,10 @@ function issueToFeature(issue: Issue): GanttFeature {
   } else {
     endAt = addDays(startAt, 1);
   }
-  const status = STATUS_CONFIG[issue.status] ?? STATUS_CONFIG['to-do'];
+  const status = statusById[issue.status] ?? statusById['to-do'];
   return {
     id: issue.id,
-    name: issue.title || 'Untitled',
+    name: issue.title || t('Untitled'),
     startAt,
     endAt,
     status,
@@ -67,9 +65,20 @@ function issueToFeature(issue: Issue): GanttFeature {
 
 export default function IssuesOrgTimelinePage() {
   const { orgId, slug: orgSlug } = useOrg();
+  const { t } = useTranslate();
   const [siteId, setSiteId] = useState('');
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const statusById = useMemo<Record<string, GanttStatus>>(
+    () => ({
+      'to-do': { id: 'to-do', name: t('To Do'), color: '#6B7280' },
+      'in-progress': { id: 'in-progress', name: t('In Progress'), color: '#F59E0B' },
+      'in-review': { id: 'in-review', name: t('In Review'), color: '#8B5CF6' },
+      done: { id: 'done', name: t('Done'), color: '#10B981' },
+    }),
+    [t]
+  );
 
   useEffect(() => {
     if (!orgId) return;
@@ -100,12 +109,12 @@ export default function IssuesOrgTimelinePage() {
       setIssues((res.issues ?? []) as Issue[]);
     } catch (err: unknown) {
       console.error('Failed to fetch issues:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to load issues');
+      toast.error(err instanceof Error ? err.message : t('Failed to load issues'));
       setIssues([]);
     } finally {
       setLoading(false);
     }
-  }, [orgId, siteId]);
+  }, [orgId, siteId, t]);
 
   useEffect(() => {
     fetchIssues();
@@ -140,9 +149,12 @@ export default function IssuesOrgTimelinePage() {
     };
   }, [fetchIssues, shouldRefresh]);
 
-  const features = useMemo(() => issues.map(issueToFeature), [issues]);
+  const features = useMemo(
+    () => issues.map((i) => issueToFeature(i, statusById, t)),
+    [issues, statusById, t]
+  );
   const groupedByStatus = useMemo(() => {
-    const g = groupBy(features, (f) => f.status.name);
+    const g = groupBy(features, (f) => f.status.id);
     return Object.fromEntries(Object.entries(g).sort(([a], [b]) => a.localeCompare(b)));
   }, [features]);
 
@@ -166,11 +178,11 @@ export default function IssuesOrgTimelinePage() {
       const path = getDashboardPath(orgSlug, `issues/timeline`);
       const url = `${typeof window !== 'undefined' ? window.location.origin : ''}${path}?issueId=${issueId}`;
       navigator.clipboard.writeText(url).then(
-        () => toast.success('Link copied'),
-        () => toast.error('Failed to copy')
+        () => toast.success(t('Link copied')),
+        () => toast.error(t('Failed to copy'))
       );
     },
-    [orgId]
+    [orgSlug, t]
   );
 
   const handleRemove = useCallback(
@@ -178,13 +190,13 @@ export default function IssuesOrgTimelinePage() {
       if (!orgId) return;
       try {
         await apiClient.deleteOrgIssue(orgId, issueId);
-        toast.success('Issue removed');
+        toast.success(t('Issue removed'));
         fetchIssues();
       } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : 'Failed to remove issue');
+        toast.error(err instanceof Error ? err.message : t('Failed to remove issue'));
       }
     },
-    [orgId, fetchIssues]
+    [orgId, fetchIssues, t]
   );
 
   const handleAddItem = useCallback(() => {
@@ -198,7 +210,7 @@ export default function IssuesOrgTimelinePage() {
   if (!siteId) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        Select a site in the sidebar to load the timeline.
+        {t('Select a site in the sidebar to load the timeline.')}
       </div>
     );
   }
@@ -206,7 +218,7 @@ export default function IssuesOrgTimelinePage() {
   if (loading) {
     return (
       <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        Loading timeline...
+        {t('Loading timeline...')}
       </div>
     );
   }
@@ -214,8 +226,8 @@ export default function IssuesOrgTimelinePage() {
   if (features.length === 0) {
     return (
       <div className="flex h-[400px] flex-col items-center justify-center gap-2 text-muted-foreground">
-        <p>No issues to show on the timeline.</p>
-        <p className="text-sm">Create an issue to see it from created date to deadline.</p>
+        <p>{t('No issues to show on the timeline.')}</p>
+        <p className="text-sm">{t('Create an issue to see it from created date to deadline.')}</p>
       </div>
     );
   }
@@ -225,7 +237,7 @@ export default function IssuesOrgTimelinePage() {
       <GanttProvider className="border" onAddItem={handleAddItem} range="monthly" zoom={100}>
         <GanttSidebar>
           {Object.entries(groupedByStatus).map(([groupName, groupFeatures]) => (
-            <GanttSidebarGroup key={groupName} name={groupName}>
+            <GanttSidebarGroup key={groupName} name={statusById[groupName]?.name ?? groupName}>
               {groupFeatures.map((feature) => (
                 <GanttSidebarItem
                   key={feature.id}
@@ -261,21 +273,21 @@ export default function IssuesOrgTimelinePage() {
                           onClick={() => openIssueDialog(feature.id)}
                         >
                           <EyeIcon className="text-muted-foreground" size={16} />
-                          View issue
+                          {t('View issue')}
                         </ContextMenuItem>
                         <ContextMenuItem
                           className="flex items-center gap-2"
                           onClick={() => handleCopyLink(feature.id)}
                         >
                           <LinkIcon className="text-muted-foreground" size={16} />
-                          Copy link
+                          {t('Copy link')}
                         </ContextMenuItem>
                         <ContextMenuItem
                           className="flex items-center gap-2 text-destructive"
                           onClick={() => handleRemove(feature.id)}
                         >
                           <TrashIcon size={16} />
-                          Remove from timeline
+                          {t('Remove from timeline')}
                         </ContextMenuItem>
                       </ContextMenuContent>
                     </ContextMenu>

@@ -41,26 +41,27 @@ import {
 import { format } from "date-fns";
 import { cn, documentActorMatches } from "@/lib/utils";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
+import { useTranslate } from "@/components/providers/translation-provider";
 
-function managementStandardLabel(value: string): string {
+function managementStandardLabel(value: string, t: (text: string) => string): string {
   switch (value) {
     case "iso-9001":
-      return "ISO 9001";
+      return t("ISO 9001");
     case "iso-14001":
-      return "ISO 14001";
+      return t("ISO 14001");
     case "iso-45001":
-      return "ISO 45001";
+      return t("ISO 45001");
     case "integrated":
-      return "Integrated Management System";
+      return t("Integrated Management System");
     default:
-      return "ISO 9001";
+      return t("ISO 9001");
   }
 }
 
-function classificationTypeLabel(c: "P" | "F" | "EXT"): string {
-  if (c === "P") return "P — Maintained Doc";
-  if (c === "F") return "F — Retained Record";
-  return "EXT — External Doc";
+function classificationTypeLabel(c: "P" | "F" | "EXT", t: (text: string) => string): string {
+  if (c === "P") return t("P — Maintained Doc");
+  if (c === "F") return t("F — Retained Record");
+  return t("EXT — External Doc");
 }
 
 function limitToWords(text: string, maxWords: number): string {
@@ -223,6 +224,7 @@ export default function CreateDocumentStep({
   onSubmitProceed,
   onSaveDraft,
 }: CreateDocumentStepProps) {
+  const { t } = useTranslate();
   const [pathDocNumber, setPathDocNumber] = useState("D1");
   const [previousRefNumber, setPreviousRefNumber] = useState("");
   const [priorityLevel, setPriorityLevel] = useState<"high" | "low">("high");
@@ -474,10 +476,10 @@ export default function CreateDocumentStep({
   const isReviseTransfer = actionType === "revise" && reviseSubAction === "transfer";
 
   const documentEditorPlaceholder = isReviseTransfer
-    ? "Document body for the transferred record…"
+    ? t("Document body for the transferred record…")
     : isReviseUpdate
-      ? "Document body appears here after revision…"
-      : "Enter or paste document content…";
+      ? t("Document body appears here after revision…")
+      : t("Enter or paste document content…");
 
   const currentSiteDisplay = siteId.trim() || "S1";
   const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
@@ -696,7 +698,7 @@ export default function CreateDocumentStep({
   };
 
   const flowTitle =
-    actionType === "create" ? "Create" : actionType === "revise" ? "Revise" : "Obsolete";
+    actionType === "create" ? t("Create") : actionType === "revise" ? t("Revise") : t("Obsolete");
 
   const isReviseUpdateReady =
     !isReviseUpdate ||
@@ -717,6 +719,16 @@ export default function CreateDocumentStep({
 
   const reviseSubmitGuardsSatisfied =
     bypassReviseSubmitGuards || (isReviseUpdateReady && isReviseTransferReady);
+
+  const previewTypeSubtitle =
+    documentClassification === "P"
+      ? t("Maintained Doc")
+      : documentClassification === "F"
+        ? t("Retained Record")
+        : t("External Doc");
+
+  const previewRiskLabel =
+    riskLevel === "high" ? t("High") : riskLevel === "medium" ? t("Medium") : t("Low");
 
   const handleLockSelection = () => {
     setFilePin("");
@@ -752,20 +764,20 @@ export default function CreateDocumentStep({
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h3 className="text-3xl font-semibold text-[#0A0A0A]">{flowTitle}</h3>
-            <p className="text-sm text-[#6A7282]">Start Procedure(P) or Form(F)!</p>
+            <p className="text-sm text-[#6A7282]">{t("Start Procedure(P) or Form(F)!")}</p>
           </div>
 
           <div className="space-y-1 pt-2">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">1. Identity Information</h4>
-            <p className="text-sm text-[#6A7282]">Auto-generated and basic organizational data</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("1. Identity Information")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Auto-generated and basic organizational data")}</p>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">User Information</h5>
+              <h5 className="text-lg font-semibold text-[#0A0A0A]">{t("User Information")}</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-user-name">Name (Login User)</Label>
+                  <Label htmlFor="login-user-name">{t("Name (Login User)")}</Label>
                   <Input
                     id="login-user-name"
                     value={loginUserName}
@@ -774,17 +786,17 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="organization-name">Organization Name</Label>
+                  <Label htmlFor="organization-name">{t("Organization Name")}</Label>
                   <Input
                     id="organization-name"
                     value={organizationName}
                     readOnly
                     className="bg-[#F9FAFB] text-[#6A7282]"
-                    placeholder="Organization name"
+                    placeholder={t("Organization name")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="organization-identification">Organization Identification</Label>
+                  <Label htmlFor="organization-identification">{t("Organization Identification")}</Label>
                   <Input
                     id="organization-identification"
                     value={organizationIdentification}
@@ -793,7 +805,7 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="industry-type">Industry Type (NAICS Code)</Label>
+                  <Label htmlFor="industry-type">{t("Industry Type (NAICS Code)")}</Label>
                   <Input
                     id="industry-type"
                     value={industryType}
@@ -802,12 +814,12 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="other-industry">Other Industry (if applicable)</Label>
+                  <Label htmlFor="other-industry">{t("Other Industry (if applicable)")}</Label>
                   <Input
                     id="other-industry"
                     value={otherIndustry}
                     onChange={(e) => setOtherIndustry(e.target.value)}
-                    placeholder="Specify if other..."
+                    placeholder={t("Specify if other...")}
                   />
                 </div>
               </div>
@@ -816,13 +828,15 @@ export default function CreateDocumentStep({
             <div className="border-t border-[#E5E7EB]" />
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Site Information</h5>
+              <h5 className="text-lg font-semibold text-[#0A0A0A]">{t("Site Information")}</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="doc-site">Site / Unit *</Label>
+                  <Label htmlFor="doc-site">{t("Site / Unit *")}</Label>
                   <Select value={site} onValueChange={setSite} disabled={isLoadingContext || isLoadingSites}>
                     <SelectTrigger id="doc-site" className="w-full">
-                      <SelectValue placeholder={isLoadingSites ? "Loading sites..." : "Select site"} />
+                      <SelectValue
+                        placeholder={isLoadingSites ? t("Loading sites...") : t("Select site")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {sites.map((siteOption) => (
@@ -834,7 +848,7 @@ export default function CreateDocumentStep({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="site-id">Site ID</Label>
+                  <Label htmlFor="site-id">{t("Site ID")}</Label>
                   <Input
                     id="site-id"
                     value={siteId}
@@ -843,13 +857,13 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location (factory / office)</Label>
+                  <Label htmlFor="location">{t("Location (factory / office)")}</Label>
                   <Input
                     id="location"
                     value={location}
                     readOnly
                     className="bg-[#F9FAFB] text-[#6A7282]"
-                    placeholder="e.g., Main Factory"
+                    placeholder={t("e.g., Main Factory")}
                   />
                 </div>
               </div>
@@ -858,10 +872,10 @@ export default function CreateDocumentStep({
             <div className="border-t border-[#E5E7EB]" />
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Process Area</h5>
+              <h5 className="text-lg font-semibold text-[#0A0A0A]">{t("Process Area")}</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="doc-process">Process / Area *</Label>
+                  <Label htmlFor="doc-process">{t("Process / Area *")}</Label>
                   <Select
                     value={processId}
                     onValueChange={setProcessName}
@@ -871,10 +885,10 @@ export default function CreateDocumentStep({
                       <SelectValue
                         placeholder={
                           !site
-                            ? "Select site first"
+                            ? t("Select site first")
                             : isLoadingProcesses
-                              ? "Loading processes..."
-                              : "Select process"
+                              ? t("Loading processes...")
+                              : t("Select process")
                         }
                       />
                     </SelectTrigger>
@@ -888,17 +902,17 @@ export default function CreateDocumentStep({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="process-id">Process ID</Label>
+                  <Label htmlFor="process-id">{t("Process ID")}</Label>
                   <Input
                     id="process-id"
                     value={processId}
                     readOnly
                     className="bg-[#F9FAFB] text-[#6A7282]"
-                    placeholder="Auto-filled"
+                    placeholder={t("Auto-filled")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="process-owner">Process Owner / Responsible Person *</Label>
+                  <Label htmlFor="process-owner">{t("Process Owner / Responsible Person *")}</Label>
                   <Select
                     value={processOwner || undefined}
                     onValueChange={handleProcessOwnerChange}
@@ -907,7 +921,7 @@ export default function CreateDocumentStep({
                     <SelectTrigger id="process-owner" className="w-full">
                       <SelectValue
                         placeholder={
-                          isLoadingProcessOwners ? "Loading users..." : "Select process owner"
+                          isLoadingProcessOwners ? t("Loading users...") : t("Select process owner")
                         }
                       />
                     </SelectTrigger>
@@ -926,18 +940,20 @@ export default function CreateDocumentStep({
                         ))
                       ) : (
                         <div className="px-2 py-1.5 text-sm text-[#6B7280]">
-                          No eligible top or middle-tier users available
+                          {t("No eligible top or middle-tier users available")}
                         </div>
                       )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-[#6A7282]">
-                    Top/middle tier only. The person creating this document cannot be Process Owner.
+                    {t(
+                      "Top/middle tier only. The person creating this document cannot be Process Owner."
+                    )}
                   </p>
                 </div>
               </div>
               <div className="space-y-2 max-w-xl">
-                <Label htmlFor="doc-approver">Approver *</Label>
+                <Label htmlFor="doc-approver">{t("Approver *")}</Label>
                 <Select
                   value={approverName || undefined}
                   onValueChange={handleApproverChange}
@@ -946,7 +962,7 @@ export default function CreateDocumentStep({
                   <SelectTrigger id="doc-approver" className="w-full">
                     <SelectValue
                       placeholder={
-                        isLoadingProcessOwners ? "Loading users..." : "Select approver (top tier)"
+                        isLoadingProcessOwners ? t("Loading users...") : t("Select approver (top tier)")
                       }
                     />
                   </SelectTrigger>
@@ -965,14 +981,15 @@ export default function CreateDocumentStep({
                       ))
                     ) : (
                       <div className="px-2 py-1.5 text-sm text-[#6B7280]">
-                        No eligible top-tier approvers available
+                        {t("No eligible top-tier approvers available")}
                       </div>
                     )}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-[#6A7282]">
-                  Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be
-                  approver.
+                  {t(
+                    "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
+                  )}
                 </p>
               </div>
             </div>
@@ -982,17 +999,17 @@ export default function CreateDocumentStep({
             {!isReviseUpdate && !isReviseTransfer ? (
               <>
                 <div className="space-y-3">
-                  <h5 className="text-lg font-semibold text-[#0A0A0A]">Previous Document Reference</h5>
+                  <h5 className="text-lg font-semibold text-[#0A0A0A]">{t("Previous Document Reference")}</h5>
                   <div className="space-y-2">
-                    <Label htmlFor="previous-ref">Old Reference Number (if any)</Label>
+                    <Label htmlFor="previous-ref">{t("Old Reference Number (if any)")}</Label>
                     <Input
                       id="previous-ref"
                       value={previousRefNumber}
                       onChange={(e) => setPreviousRefNumber(e.target.value)}
-                      placeholder="e.g., Doc/2024/S1/P2/P/D1/v1"
+                      placeholder={t("e.g., Doc/2024/S1/P2/P/D1/v1")}
                     />
                     <p className="text-xs text-[#6A7282]">
-                      Enter previous document reference if this is a revision
+                      {t("Enter previous document reference if this is a revision")}
                     </p>
                   </div>
                 </div>
@@ -1003,14 +1020,14 @@ export default function CreateDocumentStep({
 
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-[#0A0A0A]">Document Details</h5>
+              <h5 className="text-lg font-semibold text-[#0A0A0A]">{t("Document Details")}</h5>
               <div className="space-y-2">
-                <Label htmlFor="doc-description">Description</Label>
+                <Label htmlFor="doc-description">{t("Description")}</Label>
                 <Textarea
                   id="doc-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Write document scope..."
+                  placeholder={t("Write document scope...")}
                 />
               </div>
             </div>
@@ -1021,8 +1038,8 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">2. Change Request</h4>
-            <p className="text-sm text-[#6A7282]">Document priority level</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("2. Change Request")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Document priority level")}</p>
           </div>
 
           <RadioGroup
@@ -1040,9 +1057,9 @@ export default function CreateDocumentStep({
             >
               <RadioGroupItem value="high" id="priority-high" className="mt-1" />
               <div>
-                <p className="font-semibold text-[#0A0A0A]">High (Strategic Documents)</p>
+                <p className="font-semibold text-[#0A0A0A]">{t("High (Strategic Documents)")}</p>
                 <p className="text-sm text-[#6A7282]">
-                  Policy, Manual, Procedure, SOP, Governance documents
+                  {t("Policy, Manual, Procedure, SOP, Governance documents")}
                 </p>
               </div>
             </Label>
@@ -1057,8 +1074,8 @@ export default function CreateDocumentStep({
             >
               <RadioGroupItem value="low" id="priority-low" className="mt-1" />
               <div>
-                <p className="font-semibold text-[#0A0A0A]">Low (Operational Records)</p>
-                <p className="text-sm text-[#6A7282]">Forms, Checklists, Logs, Templates</p>
+                <p className="font-semibold text-[#0A0A0A]">{t("Low (Operational Records)")}</p>
+                <p className="text-sm text-[#6A7282]">{t("Forms, Checklists, Logs, Templates")}</p>
               </div>
             </Label>
           </RadioGroup>
@@ -1069,15 +1086,15 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">3. Document Type</h4>
-            <p className="text-sm text-[#6A7282]">Select document classification</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("3. Document Type")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Select document classification")}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {[
-              { value: "P" as const, title: "P", subtitle: "Maintained Doc" },
-              { value: "F" as const, title: "F", subtitle: "Retained Record" },
-              { value: "EXT" as const, title: "EXT", subtitle: "External Doc" },
+              { value: "P" as const, title: "P", subtitle: t("Maintained Doc") },
+              { value: "F" as const, title: "F", subtitle: t("Retained Record") },
+              { value: "EXT" as const, title: "EXT", subtitle: t("External Doc") },
             ].map((item) => {
               const isActive = documentClassification === item.value;
               return (
@@ -1121,17 +1138,17 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">4. Action Selection</h4>
-            <p className="text-sm text-[#6A7282]">Select one action only (mutually exclusive)</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("4. Action Selection")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Select one action only (mutually exclusive)")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Action Type*</Label>
+            <Label>{t("Action Type*")}</Label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
-                { value: "create" as const, label: "Create" },
-                { value: "revise" as const, label: "Revise" },
-                { value: "obsolete" as const, label: "Obsolete" },
+                { value: "create" as const, label: t("Create") },
+                { value: "revise" as const, label: t("Revise") },
+                { value: "obsolete" as const, label: t("Obsolete") },
               ].map((item) => {
                 const isActive = actionType === item.value;
                 return (
@@ -1153,11 +1170,11 @@ export default function CreateDocumentStep({
 
           {actionType === "revise" ? (
             <div className="space-y-2">
-              <Label>Revise Sub-Action</Label>
+              <Label>{t("Revise Sub-Action")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
-                  { value: "update" as const, label: "Revise -> Update" },
-                  { value: "transfer" as const, label: "Revise -> Transfer" },
+                  { value: "update" as const, label: t("Revise -> Update") },
+                  { value: "transfer" as const, label: t("Revise -> Transfer") },
                 ].map((item) => {
                   const isActive = reviseSubAction === item.value;
                   return (
@@ -1211,14 +1228,16 @@ export default function CreateDocumentStep({
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#0A0A0A]">1.9 Revision Details</h4>
+              <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("1.9 Revision Details")}</h4>
               <p className="text-sm text-[#6A7282]">
-                Revision/Update — version increments (v1 → v2), previous version archived
+                {t(
+                  "Revision/Update — version increments (v1 → v2), previous version archived"
+                )}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="search-current-doc">Search Current Document (Required)</Label>
+              <Label htmlFor="search-current-doc">{t("Search Current Document (Required)")}</Label>
               <div className="relative">
                 <Search
                   size={16}
@@ -1229,18 +1248,18 @@ export default function CreateDocumentStep({
                   value={searchCurrentDocumentRef}
                   onChange={(e) => setSearchCurrentDocumentRef(e.target.value)}
                   className="pl-9"
-                  placeholder="e.g. Doc/2025/S1/P1/P/D1/v1"
+                  placeholder={t("e.g. Doc/2025/S1/P1/P/D1/v1")}
                 />
               </div>
               <p className="text-xs text-[#6A7282]">
-                Enter the existing document reference number to revise
+                {t("Enter the existing document reference number to revise")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Reasons for Change (Required)</Label>
+              <Label>{t("Reasons for Change (Required)")}</Label>
               <p className="text-xs text-[#6A7282]">
-                Select all applicable reasons (multiple selections allowed)
+                {t("Select all applicable reasons (multiple selections allowed)")}
               </p>
               <div className="flex flex-wrap gap-2">
                 {reasonOptions.map((reason) => {
@@ -1256,7 +1275,7 @@ export default function CreateDocumentStep({
                           : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
                       }`}
                     >
-                      {reason}
+                      {t(reason)}
                     </button>
                   );
                 })}
@@ -1264,18 +1283,20 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="revision-comment">Reasons / Comments</Label>
+              <Label htmlFor="revision-comment">{t("Reasons / Comments")}</Label>
               <Textarea
                 id="revision-comment"
                 value={revisionComment}
                 onChange={(e) =>
                   setRevisionComment(limitToWords(e.target.value, 50))
                 }
-                placeholder="Other (please specify integration, max 50 words)"
+                placeholder={t("Other (please specify integration, max 50 words)")}
               />
               <div className="flex justify-between text-xs text-[#6A7282]">
-                <span>Max 50 words — briefly explain the reason for this revision</span>
-                <span>{countWords(revisionComment)}/50 words</span>
+                <span>{t("Max 50 words — briefly explain the reason for this revision")}</span>
+                <span>
+                  {countWords(revisionComment)}/50 {t("words")}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -1291,26 +1312,30 @@ export default function CreateDocumentStep({
                 <RefreshCw className="shrink-0 text-[#2563EB] mt-0.5" size={20} />
                 <div>
                   <p className="text-sm font-semibold text-[#1E40AF]">
-                    1.10 Transfer the Document (Manual)
+                    {t("1.10 Transfer the Document (Manual)")}
                   </p>
                   <p className="text-xs text-[#1D4ED8] mt-1 leading-relaxed">
-                    Transfers must preserve document history, linked approvals, and audit trail. Use this
-                    section to record the source document, target site and process, and any standard or
-                    type change so compliance and traceability remain intact across the transfer.
+                    {t(
+                      "Transfers must preserve document history, linked approvals, and audit trail. Use this section to record the source document, target site and process, and any standard or type change so compliance and traceability remain intact across the transfer."
+                    )}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#22B323]">1.10. Transfer the Document (Manual)</h4>
+              <h4 className="text-xl font-semibold text-[#22B323]">
+                {t("1.10. Transfer the Document (Manual)")}
+              </h4>
               <p className="text-sm text-[#6A7282]">
-                Move document to a new site, process, standard, or type with originator approval.
+                {t(
+                  "Move document to a new site, process, standard, or type with originator approval."
+                )}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="transfer-doc-search">Documented Information Search</Label>
+              <Label htmlFor="transfer-doc-search">{t("Documented Information Search")}</Label>
               <div className="relative">
                 <Search
                   size={16}
@@ -1321,17 +1346,17 @@ export default function CreateDocumentStep({
                   value={transferSearchRef}
                   onChange={(e) => setTransferSearchRef(e.target.value)}
                   className="pl-9"
-                  placeholder="e.g. Doc/2025/S1/P2/F/D1/v1"
+                  placeholder={t("e.g. Doc/2025/S1/P2/F/D1/v1")}
                 />
               </div>
-              <p className="text-xs text-[#6A7282]">Enter the reference of the document to transfer</p>
+              <p className="text-xs text-[#6A7282]">{t("Enter the reference of the document to transfer")}</p>
             </div>
 
             <div className="space-y-2">
-              <Label>Site</Label>
+              <Label>{t("Site")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Site</span>
+                  <span className="text-xs text-[#6A7282]">{t("Current Site")}</span>
                   <Input
                     readOnly
                     value={currentSiteDisplay}
@@ -1339,7 +1364,7 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Transfer to Site</span>
+                  <span className="text-xs text-[#6A7282]">{t("Transfer to Site")}</span>
                   <div className="flex flex-wrap gap-2">
                     {transferSiteCodes.map((s) => {
                       const on = transferTargetSite === s;
@@ -1369,10 +1394,10 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label>Process</Label>
+              <Label>{t("Process")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Process</span>
+                  <span className="text-xs text-[#6A7282]">{t("Current Process")}</span>
                   <Input
                     readOnly
                     value={currentProcessDisplay}
@@ -1380,10 +1405,10 @@ export default function CreateDocumentStep({
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Transfer to Process</span>
+                  <span className="text-xs text-[#6A7282]">{t("Transfer to Process")}</span>
                   <div className="flex flex-wrap gap-2">
                     {isLoadingTransferProcesses && transferProcessOptions.length === 0 ? (
-                      <p className="text-xs text-[#6A7282]">Loading...</p>
+                      <p className="text-xs text-[#6A7282]">{t("Loading...")}</p>
                     ) : (
                       transferProcessOptions.map((p) => {
                         const on = transferTargetProcess === p.code;
@@ -1412,43 +1437,43 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label>Standard</Label>
+              <Label>{t("Standard")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Standard</span>
+                  <span className="text-xs text-[#6A7282]">{t("Current Standard")}</span>
                   <Input
                     readOnly
-                    value={managementStandardLabel(managementStandard)}
+                    value={managementStandardLabel(managementStandard, t)}
                     className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="transfer-standard-change" className="text-xs text-[#6A7282]">
-                    Change (If Required)
+                    {t("Change (If Required)")}
                   </Label>
                   <Input
                     id="transfer-standard-change"
                     value={transferStandardChange}
                     onChange={(e) => setTransferStandardChange(e.target.value)}
-                    placeholder="e.g. ISO 14001"
+                    placeholder={t("e.g. ISO 14001")}
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Document Type</Label>
+              <Label>{t("Document Type")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Current Type</span>
+                  <span className="text-xs text-[#6A7282]">{t("Current Type")}</span>
                   <Input
                     readOnly
-                    value={classificationTypeLabel(documentClassification)}
+                    value={classificationTypeLabel(documentClassification, t)}
                     className="bg-[#F9FAFB] text-[#6A7282]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs text-[#6A7282]">Change (If Required)</span>
+                  <span className="text-xs text-[#6A7282]">{t("Change (If Required)")}</span>
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
@@ -1488,18 +1513,18 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="transfer-initiator-request">Request by the Initiator</Label>
+              <Label htmlFor="transfer-initiator-request">{t("Request by the Initiator")}</Label>
               <Textarea
                 id="transfer-initiator-request"
                 value={transferInitiatorRequest}
                 onChange={(e) => setTransferInitiatorRequest(e.target.value)}
-                placeholder="Describe the reason for transfer and accountability context..."
+                placeholder={t("Describe the reason for transfer and accountability context...")}
                 className="min-h-[120px]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Originator Consent (if different)</Label>
+              <Label>{t("Originator Consent (if different)")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1510,7 +1535,7 @@ export default function CreateDocumentStep({
                       : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
                   }`}
                 >
-                  ✓ Accepted
+                  {t("✓ Accepted")}
                 </button>
                 <button
                   type="button"
@@ -1521,12 +1546,13 @@ export default function CreateDocumentStep({
                       : "border-[#E5E7EB] bg-white text-[#6A7282] hover:bg-[#F9FAFB]"
                   }`}
                 >
-                  ✕ Declined
+                  {t("✕ Declined")}
                 </button>
               </div>
               <p className="text-xs text-[#6A7282]">
-                Originator consent is mandatory before any transfer. If process owner initiates, no consent
-                required.
+                {t(
+                  "Originator consent is mandatory before any transfer. If process owner initiates, no consent required."
+                )}
               </p>
             </div>
           </CardContent>
@@ -1537,19 +1563,21 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">5. Document Title</h4>
-            <p className="text-sm text-[#6A7282]">Enter document title (max 30 characters)</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("5. Document Title")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Enter document title (max 30 characters)")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="doc-title">Document Title *</Label>
+            <Label htmlFor="doc-title">{t("Document Title *")}</Label>
             <Input
               id="doc-title"
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, 30))}
-              placeholder="e.g., Machine Maintenance SOP"
+              placeholder={t("e.g., Machine Maintenance SOP")}
             />
-            <p className="text-xs text-[#6A7282] text-right">{title.length}/30 characters</p>
+            <p className="text-xs text-[#6A7282] text-right">
+              {title.length}/30 {t("characters")}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -1558,15 +1586,17 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">6. Standard Selection</h4>
-            <p className="text-sm text-[#6A7282]">Select applicable management system standard</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("6. Standard Selection")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Select applicable management system standard")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Management System Standard *</Label>
+            <Label>{t("Management System Standard *")}</Label>
             <Select value={managementStandard} onValueChange={setManagementStandard}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={isLoadingStandards ? "Loading standards..." : "Select standard"} />
+                <SelectValue
+                  placeholder={isLoadingStandards ? t("Loading standards...") : t("Select standard")}
+                />
               </SelectTrigger>
               <SelectContent>
                 {standards.map((standard) => (
@@ -1580,7 +1610,7 @@ export default function CreateDocumentStep({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Clause</Label>
+              <Label>{t("Clause")}</Label>
               <Select
                 value={clause}
                 onValueChange={setClause}
@@ -1590,10 +1620,10 @@ export default function CreateDocumentStep({
                   <SelectValue
                     placeholder={
                       !managementStandard
-                        ? "Select standard first"
+                        ? t("Select standard first")
                         : isLoadingClauses
-                          ? "Loading clauses..."
-                          : "Clause"
+                          ? t("Loading clauses...")
+                          : t("Clause")
                     }
                   />
                 </SelectTrigger>
@@ -1607,14 +1637,14 @@ export default function CreateDocumentStep({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Sub-Clause</Label>
+              <Label>{t("Sub-Clause")}</Label>
               <Select
                 value={subClause}
                 onValueChange={setSubClause}
                 disabled={!clause || isLoadingClauses}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={!clause ? "Select clause first" : "Sub-Clause"} />
+                  <SelectValue placeholder={!clause ? t("Select clause first") : t("Sub-Clause")} />
                 </SelectTrigger>
                 <SelectContent>
                   {subClauseOptions.map((subClauseOption) => (
@@ -1633,16 +1663,17 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">7. Document Restriction (Security)</h4>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("7. Document Restriction (Security)")}</h4>
             <p className="text-sm text-[#6A7282]">
-              Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter
-              this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft.
+              {t(
+                "Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft."
+              )}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
             <div className="space-y-2 md:col-span-3">
-              <Label>Document Restriction</Label>
+              <Label>{t("Document Restriction")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1657,7 +1688,7 @@ export default function CreateDocumentStep({
                       : "border-[#E5E7EB] bg-white text-[#6A7282]"
                     }`}
                 >
-                  <Unlock size={14} /> Unlocked
+                  <Unlock size={14} /> {t("Unlocked")}
                 </button>
                 <button
                   type="button"
@@ -1667,13 +1698,13 @@ export default function CreateDocumentStep({
                       : "border-[#E5E7EB] bg-white text-[#6A7282]"
                     }`}
                 >
-                  <Lock size={14} /> Locked
+                  <Lock size={14} /> {t("Locked")}
                 </button>
               </div>
               {restriction === "locked" && filePin ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
                   <p className="text-xs text-[#6A7282]">
-                    PIN configured for this file: {"*".repeat(filePin.length)}
+                    {t("PIN configured for this file:")} {"*".repeat(filePin.length)}
                   </p>
                   <Button
                     type="button"
@@ -1682,7 +1713,7 @@ export default function CreateDocumentStep({
                     className="h-7 px-2 text-xs"
                     onClick={handleEditPin}
                   >
-                    Edit PIN
+                    {t("Edit PIN")}
                   </Button>
                 </div>
               ) : null}
@@ -1693,35 +1724,37 @@ export default function CreateDocumentStep({
       <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{restriction === "locked" && !!filePin ? "Update File PIN" : "Set File PIN"}</DialogTitle>
+            <DialogTitle>
+              {restriction === "locked" && !!filePin ? t("Update File PIN") : t("Set File PIN")}
+            </DialogTitle>
             <DialogDescription>
-              Set a PIN to lock this document. Users will need this PIN to access or edit it.
+              {t("Set a PIN to lock this document. Users will need this PIN to access or edit it.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="file-pin">PIN</Label>
+              <Label htmlFor="file-pin">{t("PIN")}</Label>
               <Input
                 id="file-pin"
                 type="password"
                 inputMode="numeric"
                 value={filePin}
                 onChange={(e) => setFilePin(e.target.value.replace(/\D/g, ""))}
-                placeholder="Enter 4-8 digit PIN"
+                placeholder={t("Enter 4-8 digit PIN")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="file-pin-confirm">Confirm PIN</Label>
+              <Label htmlFor="file-pin-confirm">{t("Confirm PIN")}</Label>
               <Input
                 id="file-pin-confirm"
                 type="password"
                 inputMode="numeric"
                 value={confirmFilePin}
                 onChange={(e) => setConfirmFilePin(e.target.value.replace(/\D/g, ""))}
-                placeholder="Re-enter PIN"
+                placeholder={t("Re-enter PIN")}
               />
             </div>
-            {pinError ? <p className="text-xs text-[#DC2626]">{pinError}</p> : null}
+            {pinError ? <p className="text-xs text-[#DC2626]">{t(pinError)}</p> : null}
           </div>
           <DialogFooter>
             <Button
@@ -1732,10 +1765,10 @@ export default function CreateDocumentStep({
                 if (!filePin) setRestriction("unlocked");
               }}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="button" className="bg-[#22B323] hover:bg-[#1a9825]" onClick={saveFilePin}>
-              {restriction === "locked" && !!filePin ? "Update PIN" : "Save PIN"}
+              {restriction === "locked" && !!filePin ? t("Update PIN") : t("Save PIN")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1746,9 +1779,9 @@ export default function CreateDocumentStep({
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#0A0A0A]">8. Reasons for Document Change</h4>
+              <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("8. Reasons for Document Change")}</h4>
               <p className="text-sm text-[#6A7282]">
-                Select all applicable reasons (multiple selection)
+                {t("Select all applicable reasons (multiple selection)")}
               </p>
             </div>
 
@@ -1763,7 +1796,7 @@ export default function CreateDocumentStep({
                       onCheckedChange={() => toggleReason(reason)}
                     />
                     <Label htmlFor={reasonId} className="text-sm font-normal text-[#0A0A0A] cursor-pointer">
-                      {reason}
+                      {t(reason)}
                     </Label>
                   </div>
                 );
@@ -1773,12 +1806,12 @@ export default function CreateDocumentStep({
             <div className="border-t border-[#E5E7EB]" />
 
             <div className="space-y-2">
-              <Label htmlFor="reasons-comment">Reasons / Comments (Max 50 words)</Label>
+              <Label htmlFor="reasons-comment">{t("Reasons / Comments (Max 50 words)")}</Label>
               <Textarea
                 id="reasons-comment"
                 value={reasonComment}
                 onChange={(e) => setReasonComment(e.target.value)}
-                placeholder="Describe the reasons for this change..."
+                placeholder={t("Describe the reasons for this change...")}
               />
             </div>
           </CardContent>
@@ -1789,12 +1822,12 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">9. Impact Assessment</h4>
-            <p className="text-sm text-[#6A7282]">Identify impact on other documents</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("9. Impact Assessment")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Identify impact on other documents")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Does this change affect other documents?</Label>
+            <Label>{t("Does this change affect other documents?")}</Label>
             <RadioGroup
               value={affectsOtherDocs}
               onValueChange={(v) => setAffectsOtherDocs(v as "yes" | "no")}
@@ -1803,13 +1836,13 @@ export default function CreateDocumentStep({
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="yes" id="affects-other-yes" />
                 <Label htmlFor="affects-other-yes" className="text-sm font-normal cursor-pointer">
-                  Yes
+                  {t("Yes")}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="no" id="affects-other-no" />
                 <Label htmlFor="affects-other-no" className="text-sm font-normal cursor-pointer">
-                  No
+                  {t("No")}
                 </Label>
               </div>
             </RadioGroup>
@@ -1821,12 +1854,12 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">10. Risk Severity</h4>
-            <p className="text-sm text-[#6A7282]">Assess risk level of this change</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("10. Risk Severity")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Assess risk level of this change")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Risk Severity Level</Label>
+            <Label>{t("Risk Severity Level")}</Label>
             <RadioGroup
               value={riskLevel}
               onValueChange={(v) => setRiskLevel(v as "high" | "medium" | "low")}
@@ -1840,7 +1873,8 @@ export default function CreateDocumentStep({
               >
                 <RadioGroupItem value="high" id="risk-level-high" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#EF4444]">High</span> Significant impact on operations or compliance
+                  <span className="font-semibold text-[#EF4444]">{t("High")}</span>{" "}
+                  {t("Significant impact on operations or compliance")}
                 </span>
               </Label>
               <Label
@@ -1851,7 +1885,8 @@ export default function CreateDocumentStep({
               >
                 <RadioGroupItem value="medium" id="risk-level-medium" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#F59E0B]">Medium</span> Moderate impact with manageable risks
+                  <span className="font-semibold text-[#F59E0B]">{t("Medium")}</span>{" "}
+                  {t("Moderate impact with manageable risks")}
                 </span>
               </Label>
               <Label
@@ -1862,19 +1897,20 @@ export default function CreateDocumentStep({
               >
                 <RadioGroupItem value="low" id="risk-level-low" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#22B323]">Low</span> Minimal impact on operations
+                  <span className="font-semibold text-[#22B323]">{t("Low")}</span>{" "}
+                  {t("Minimal impact on operations")}
                 </span>
               </Label>
             </RadioGroup>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="risk-comments">Risk Comments</Label>
+            <Label htmlFor="risk-comments">{t("Risk Comments")}</Label>
             <Textarea
               id="risk-comments"
               value={riskComments}
               onChange={(e) => setRiskComments(e.target.value)}
-              placeholder="Describe risk factors and mitigation measures..."
+              placeholder={t("Describe risk factors and mitigation measures...")}
             />
           </div>
         </CardContent>
@@ -1884,12 +1920,12 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">11. Staff Training Requirement</h4>
-            <p className="text-sm text-[#6A7282]">Determine if training is needed for this change</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("11. Staff Training Requirement")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Determine if training is needed for this change")}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Is staff training required?</Label>
+            <Label>{t("Is staff training required?")}</Label>
             <RadioGroup
               value={trainingRequired}
               onValueChange={(v) => setTrainingRequired(v as "yes" | "no")}
@@ -1898,25 +1934,25 @@ export default function CreateDocumentStep({
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="yes" id="training-required-yes" />
                 <Label htmlFor="training-required-yes" className="text-sm font-normal cursor-pointer">
-                  Yes
+                  {t("Yes")}
                 </Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="no" id="training-required-no" />
                 <Label htmlFor="training-required-no" className="text-sm font-normal cursor-pointer">
-                  No
+                  {t("No")}
                 </Label>
               </div>
             </RadioGroup>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="training-details">Training Details</Label>
+            <Label htmlFor="training-details">{t("Training Details")}</Label>
             <Textarea
               id="training-details"
               value={trainingDetails}
               onChange={(e) => setTrainingDetails(e.target.value)}
-              placeholder="Provide training scope, participants, and schedule..."
+              placeholder={t("Provide training scope, participants, and schedule...")}
               disabled={trainingRequired === "no"}
             />
           </div>
@@ -1927,14 +1963,14 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">12. Document Editor (Main Content)</h4>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("12. Document Editor (Main Content)")}</h4>
             {documentClassification === "EXT" ? (
-              <p className="text-sm text-[#6A7282]">Upload the external document file</p>
+              <p className="text-sm text-[#6A7282]">{t("Upload the external document file")}</p>
             ) : isReviseTransfer ? null : (
               <p className="text-sm text-[#6A7282]">
                 {isReviseUpdate
-                  ? "Enter or paste the revised document body"
-                  : "Enter or paste the document body"}
+                  ? t("Enter or paste the revised document body")
+                  : t("Enter or paste the document body")}
               </p>
             )}
           </div>
@@ -1957,7 +1993,7 @@ export default function CreateDocumentStep({
                 className="absolute bottom-4 right-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#E5E7EB] bg-white px-4 py-2.5 text-xs font-bold tracking-wide text-[#0A0A0A] shadow-sm transition-colors hover:bg-[#F9FAFB]"
               >
                 <Paperclip className="text-[#22B323]" size={16} aria-hidden />
-                UPLOAD FILE
+                {t("UPLOAD FILE")}
               </label>
             </div>
           ) : (
@@ -1977,13 +2013,13 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">13. Document Dates</h4>
-            <p className="text-sm text-[#6A7282]">Set planning and execution dates</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("13. Document Dates")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Set planning and execution dates")}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="plan-date">Document Plan Date *</Label>
+              <Label htmlFor="plan-date">{t("Document Plan Date *")}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1996,7 +2032,7 @@ export default function CreateDocumentStep({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
-                    {planDate ? format(parseDateInput(planDate) as Date, "PPP") : "Pick a date"}
+                    {planDate ? format(parseDateInput(planDate) as Date, "PPP") : t("Pick a date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -2008,10 +2044,10 @@ export default function CreateDocumentStep({
                   />
                 </PopoverContent>
               </Popover>
-              <p className="text-xs text-[#6A7282]">System generated</p>
+              <p className="text-xs text-[#6A7282]">{t("System generated")}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="actual-date">Actual Date</Label>
+              <Label htmlFor="actual-date">{t("Actual Date")}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -2024,7 +2060,7 @@ export default function CreateDocumentStep({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
-                    {actualDate ? format(parseDateInput(actualDate) as Date, "PPP") : "Pick a date"}
+                    {actualDate ? format(parseDateInput(actualDate) as Date, "PPP") : t("Pick a date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -2038,7 +2074,7 @@ export default function CreateDocumentStep({
               </Popover>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end-date">End Date</Label>
+              <Label htmlFor="end-date">{t("End Date")}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -2051,7 +2087,7 @@ export default function CreateDocumentStep({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4 text-[#6A7282]" />
-                    {endDate ? format(parseDateInput(endDate) as Date, "PPP") : "Pick a date"}
+                    {endDate ? format(parseDateInput(endDate) as Date, "PPP") : t("Pick a date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -2072,21 +2108,49 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">14. Document Output Preview</h4>
-            <p className="text-sm text-[#6A7282]">Preview how the final document will appear</p>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("14. Document Output Preview")}</h4>
+            <p className="text-sm text-[#6A7282]">{t("Preview how the final document will appear")}</p>
           </div>
 
           <div className="rounded-lg border border-[#E5E7EB] p-3">
-            <p className="text-xs text-[#6A7282] mb-2">Review before submitting</p>
+            <p className="text-xs text-[#6A7282] mb-2">{t("Review before submitting")}</p>
             <div className="rounded-md bg-[#F9FAFB] p-4 grid grid-cols-1 md:grid-cols-2 gap-y-2 text-sm">
-              <p><span className="text-[#6A7282]">Document Ref:</span> <span className="font-medium ml-2">{previewDocRef}</span></p>
-              <p><span className="text-[#6A7282]">Title:</span> <span className="font-medium ml-2">{title || "—"}</span></p>
-              <p><span className="text-[#6A7282]">Type:</span> <span className="font-medium ml-2">{documentClassification} - {documentClassification === "P" ? "Maintained Doc" : documentClassification === "F" ? "Retained Record" : "External Doc"}</span></p>
-              <p><span className="text-[#6A7282]">Standard:</span> <span className="font-medium ml-2">{managementStandard || "ISO 9001"}</span></p>
-              <p><span className="text-[#6A7282]">Clause:</span> <span className="font-medium ml-2">{clause || "—"}</span></p>
-              <p><span className="text-[#6A7282]">Priority:</span> <span className="font-medium ml-2">{priorityLevel === "high" ? "High" : "Low"}</span></p>
-              <p><span className="text-[#6A7282]">Risk Level:</span> <span className="font-medium ml-2">{riskLevel[0].toUpperCase() + riskLevel.slice(1)}</span></p>
-              <p><span className="text-[#6A7282]">Initial Status:</span> <span className="font-medium ml-2">Draft</span></p>
+              <p>
+                <span className="text-[#6A7282]">{t("Document Ref:")}</span>{" "}
+                <span className="font-medium ml-2">{previewDocRef}</span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Title:")}</span>{" "}
+                <span className="font-medium ml-2">{title || t("—")}</span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Type:")}</span>{" "}
+                <span className="font-medium ml-2">
+                  {documentClassification} - {previewTypeSubtitle}
+                </span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Standard:")}</span>{" "}
+                <span className="font-medium ml-2">{managementStandard || t("ISO 9001")}</span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Clause:")}</span>{" "}
+                <span className="font-medium ml-2">{clause || t("—")}</span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Priority:")}</span>{" "}
+                <span className="font-medium ml-2">
+                  {priorityLevel === "high" ? t("High") : t("Low")}
+                </span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Risk Level:")}</span>{" "}
+                <span className="font-medium ml-2">{previewRiskLabel}</span>
+              </p>
+              <p>
+                <span className="text-[#6A7282]">{t("Initial Status:")}</span>{" "}
+                <span className="font-medium ml-2">{t("Draft")}</span>
+              </p>
             </div>
           </div>
         </CardContent>
@@ -2096,10 +2160,11 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-[#0A0A0A]">15. Submit Actions</h4>
+            <h4 className="text-xl font-semibold text-[#0A0A0A]">{t("15. Submit Actions")}</h4>
             <p className="text-sm text-[#6A7282]">
-              Save as draft or submit; you will return to the document tables. Drafts can be edited later from
-              the table screen.
+              {t(
+                "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."
+              )}
             </p>
           </div>
 
@@ -2112,7 +2177,7 @@ export default function CreateDocumentStep({
               disabled={isViewMode || isSaving || isLoadingContext}
             >
               <Save size={14} />
-              Save as Draft
+              {t("Save as Draft")}
             </Button>
             <Button
               type="button"
@@ -2127,12 +2192,12 @@ export default function CreateDocumentStep({
               }
             >
               <Send size={14} />
-              Submit &amp; Proceed
+              {t("Submit & Proceed")}
             </Button>
           </div>
           {!canProceed ? (
             <p className="text-xs text-[#6A7282]">
-              Select a site and process to proceed to review.
+              {t("Select a site and process to proceed to review.")}
             </p>
           ) : null}
 
@@ -2140,10 +2205,11 @@ export default function CreateDocumentStep({
             <div className="flex items-start gap-2">
               <CircleAlert className="text-[#2563EB] mt-0.5" size={16} />
               <div>
-                <p className="text-sm font-semibold text-[#1E40AF]">After Submission</p>
+                <p className="text-sm font-semibold text-[#1E40AF]">{t("After Submission")}</p>
                 <p className="text-xs text-[#1D4ED8]">
-                  After submit, your entry is saved and you return to the document tables. Review and approval
-                  workflows can be connected here when the backend is ready.
+                  {t(
+                    "After submit, your entry is saved and you return to the document tables. Review and approval workflows can be connected here when the backend is ready."
+                  )}
                 </p>
               </div>
             </div>

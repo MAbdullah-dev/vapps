@@ -15,8 +15,10 @@ import {
   resetPasswordSchema,
   type ResetPasswordInput,
 } from "@/schemas/auth/auth.schema";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 function ResetPasswordForm() {
+  const { t } = useTranslate();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -47,15 +49,15 @@ function ResetPasswordForm() {
         const msg =
           typeof json.error === "string"
             ? json.error
-            : "Could not reset password";
+            : t("Could not reset password");
         toast.error(msg);
         return;
       }
-      toast.success(json.message || "Password updated");
+      toast.success(json.message || t("Password updated"));
       router.push("/auth");
       router.refresh();
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(t("Something went wrong. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -64,13 +66,14 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto text-center">
-        <h1 className="text-xl mb-2">Invalid link</h1>
+        <h1 className="text-xl mb-2">{t("Invalid link")}</h1>
         <p className="text-muted-foreground text-sm mb-6">
-          This reset link is missing a token. Open the link from your email or
-          request a new reset.
+          {t(
+            "This reset link is missing a token. Open the link from your email or request a new reset."
+          )}
         </p>
         <Link href="/auth/forgot-password" className="text-primary hover:underline text-sm">
-          Request a new link
+          {t("Request a new link")}
         </Link>
       </div>
     );
@@ -79,9 +82,9 @@ function ResetPasswordForm() {
   return (
     <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-xl mb-2">Set a new password</h1>
+        <h1 className="text-xl mb-2">{t("Set a new password")}</h1>
         <p className="text-base text-muted-foreground">
-          Choose a new password for your account.
+          {t("Choose a new password for your account.")}
         </p>
       </div>
 
@@ -89,7 +92,7 @@ function ResetPasswordForm() {
         <input type="hidden" {...register("token")} />
 
         <div className="mb-4">
-          <Label className="text-sm mb-2">New password</Label>
+          <Label className="text-sm mb-2">{t("New password")}</Label>
           <div className="relative">
             <Input
               type={showPassword ? "text" : "password"}
@@ -101,7 +104,7 @@ function ResetPasswordForm() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("Hide password") : t("Show password")}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -112,7 +115,7 @@ function ResetPasswordForm() {
         </div>
 
         <div className="mb-6">
-          <Label className="text-sm mb-2">Confirm password</Label>
+          <Label className="text-sm mb-2">{t("Confirm password")}</Label>
           <div className="relative">
             <Input
               type={showConfirm ? "text" : "password"}
@@ -124,7 +127,7 @@ function ResetPasswordForm() {
               type="button"
               onClick={() => setShowConfirm(!showConfirm)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              aria-label={showConfirm ? "Hide password" : "Show password"}
+              aria-label={showConfirm ? t("Hide password") : t("Show password")}
             >
               {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -137,13 +140,13 @@ function ResetPasswordForm() {
         </div>
 
         <Button className="w-full" disabled={loading}>
-          {loading ? "Saving…" : "Update password"}
+          {loading ? t("Saving…") : t("Update password")}
         </Button>
       </form>
 
       <div className="text-center mt-6 text-sm text-muted-foreground">
         <Link href="/auth" className="text-primary hover:underline">
-          Back to sign in
+          {t("Back to sign in")}
         </Link>
       </div>
     </div>
@@ -151,11 +154,12 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslate();
   return (
     <Suspense
       fallback={
         <div className="min-h-[200px] flex items-center justify-center text-muted-foreground">
-          Loading…
+          {t("Loading…")}
         </div>
       }
     >

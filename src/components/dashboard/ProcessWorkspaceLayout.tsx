@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useParams, usePathname } from "next/navigation";
 import { getDashboardPath } from "@/lib/subdomain";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
 import { useOrg } from "@/components/providers/org-provider";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -69,6 +70,7 @@ export default function ProcessLayout({
   const params = useParams();
   /** Canonical org UUID (matches Sidebar localStorage keys). URL segment can be slug. */
   const { orgId, slug: orgSlug } = useOrg();
+  const { t } = useTranslate();
   const processId = params.processId as string | undefined;
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -330,26 +332,32 @@ export default function ProcessLayout({
       }
       setTitle(title.trim());
     setCustomTitleMode(false);
-      toast.success("Title added successfully");
+      toast.success(t("Title added successfully"));
     } catch (error: any) {
       console.error("Error adding title:", error);
-      toast.error(error.message || "Failed to add title");
+      toast.error(error.message || t("Failed to add title"));
     }
   };
 
-  const issueWorkspaceTabs = [
-    { name: "Summary", href: "summary" },
-    { name: "Manage Issues", href: "manage-issues" },
-    { name: "Backlog", href: "backlog" },
-    { name: "Board", href: "board" },
-    { name: "Calendar", href: "calendar" },
-    { name: "Timeline", href: "timeline" },
-  ];
-  const processOnlyTabs = [
-    { name: "Documents", href: "documents" },
-    { name: "Audits", href: "audits" },
-    { name: "Settings", href: "settings" },
-  ];
+  const issueWorkspaceTabs = useMemo(
+    () => [
+      { name: t("Summary"), href: "summary" },
+      { name: t("Manage Issues"), href: "manage-issues" },
+      { name: t("Backlog"), href: "backlog" },
+      { name: t("Board"), href: "board" },
+      { name: t("Calendar"), href: "calendar" },
+      { name: t("Timeline"), href: "timeline" },
+    ],
+    [t]
+  );
+  const processOnlyTabs = useMemo(
+    () => [
+      { name: t("Documents"), href: "documents" },
+      { name: t("Audits"), href: "audits" },
+      { name: t("Settings"), href: "settings" },
+    ],
+    [t]
+  );
   const tabs =
     workspaceSegment === "issues"
       ? issueWorkspaceTabs
@@ -423,10 +431,10 @@ export default function ProcessLayout({
       }
       setTag(tag.trim());
     setCustomTagMode(false);
-      toast.success("Tag added successfully");
+      toast.success(t("Tag added successfully"));
     } catch (error: any) {
       console.error("Error adding tag:", error);
-      toast.error(error.message || "Failed to add tag");
+      toast.error(error.message || t("Failed to add tag"));
     }
   };
 
@@ -443,10 +451,10 @@ export default function ProcessLayout({
       }
       setSource(source.trim());
     setCustomSourceMode(false);
-      toast.success("Source added successfully");
+      toast.success(t("Source added successfully"));
     } catch (error: any) {
       console.error("Error adding source:", error);
-      toast.error(error.message || "Failed to add source");
+      toast.error(error.message || t("Failed to add source"));
     }
   };
 
@@ -457,28 +465,28 @@ export default function ProcessLayout({
 
     // Validate mandatory fields
     if (!title || !title.trim()) {
-      toast.error("Title is required");
+      toast.error(t("Title is required"));
       return;
     }
 
     if (!tag || !tag.trim()) {
-      toast.error("Tag is required");
+      toast.error(t("Tag is required"));
       return;
     }
 
     if (!source || !source.trim()) {
-      toast.error("Source is required");
+      toast.error(t("Source is required"));
       return;
     }
 
     // Validate assignee is mandatory
     if (!selectedAssignees || selectedAssignees.length === 0) {
-      toast.error("At least one assignee is required");
+      toast.error(t("At least one assignee is required"));
       return;
     }
 
     if (workspaceSegment === "issues" && !selectedIssueSiteId) {
-      toast.error("Site is required");
+      toast.error(t("Site is required"));
       return;
     }
     if (
@@ -487,7 +495,7 @@ export default function ProcessLayout({
       selectedSprint !== "__backlog__" &&
       (!selectedIssueProcessId || selectedIssueProcessId === "__none__")
     ) {
-      toast.error("Sprint can only be used when a process is linked");
+      toast.error(t("Sprint can only be used when a process is linked"));
       return;
     }
 
@@ -518,7 +526,7 @@ export default function ProcessLayout({
           await apiClient.updateIssue(orgId as string, processId as string, editingIssue.id, issueData);
         }
 
-        toast.success("Issue updated successfully!");
+        toast.success(t("Issue updated successfully!"));
 
         // Reset form and close dialog
         setEditingIssue(null);
@@ -554,7 +562,7 @@ export default function ProcessLayout({
         }
       } catch (error: any) {
         console.error("Error updating issue:", error);
-        toast.error(error.message || "Failed to update issue");
+        toast.error(error.message || t("Failed to update issue"));
       } finally {
         setIsUpdatingIssue(false);
       }
@@ -591,7 +599,7 @@ export default function ProcessLayout({
         await apiClient.createIssue(orgId as string, processId as string, issueData);
       }
 
-      toast.success("Issue created successfully!");
+      toast.success(t("Issue created successfully!"));
 
       // Reset form
       setTitle("");
@@ -624,7 +632,7 @@ export default function ProcessLayout({
       }
     } catch (error: any) {
       console.error("Error creating issue:", error);
-      toast.error(error.message || "Failed to create issue");
+      toast.error(error.message || t("Failed to create issue"));
     } finally {
       setIsCreatingIssue(false);
     }
@@ -637,7 +645,7 @@ export default function ProcessLayout({
       ? getDashboardPath(orgSlug, "issues")
       : getDashboardPath(orgSlug, `processes/${String(processId)}`);
   const backHref = getDashboardPath(orgSlug, workspaceSegment);
-  const backLabel = workspaceSegment === "issues" ? "Issues" : "Processes";
+  const backLabel = workspaceSegment === "issues" ? t("Issues") : t("Processes");
 
   // Fetch process data to get siteId
   useEffect(() => {
@@ -727,14 +735,14 @@ export default function ProcessLayout({
               {workspaceSegment === "issues"
                 ? (() => {
                     const site = sitesForIssue.find((s) => s.id === selectedIssueSiteId);
-                    return site ? `Issues — ${site.name}` : "Issues";
+                    return site ? `${t("Issues")} — ${site.name}` : t("Issues");
                   })()
                 : processId?.toString().replaceAll("-", " ")}
             </h1>
           </div>
 
           <p className="text-sm text-muted-foreground mb-4">
-            Building the next generation mobile experience...
+            {t("Building the next generation mobile experience...")}
           </p>
         </div>
 
@@ -742,18 +750,18 @@ export default function ProcessLayout({
         <Dialog open={isCreateDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button variant="default">
-              <Plus size={16} /> New Issue
+              <Plus size={16} /> {t("New Issue")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingIssue ? (isViewOnly ? "View Issue" : "Edit Issue") : "Create Issue"}</DialogTitle>
+              <DialogTitle>{editingIssue ? (isViewOnly ? t("View Issue") : t("Edit Issue")) : t("Create Issue")}</DialogTitle>
               <DialogDescription>
                 {isViewOnly
-                  ? "You are viewing this issue. Only the assignee can edit it."
+                  ? t("You are viewing this issue. Only the assignee can edit it.")
                   : editingIssue
-                  ? "Update the issue details."
-                  : "Fill the details to create a new issue."}
+                  ? t("Update the issue details.")
+                  : t("Fill the details to create a new issue.")}
               </DialogDescription>
             </DialogHeader>
 
@@ -790,9 +798,9 @@ export default function ProcessLayout({
                           setTitle(value); // ✅ auto-select
                           setCustomTitleMode(false);
 
-                          toast.success("Title added successfully");
+                          toast.success(t("Title added successfully"));
                         } catch (error: any) {
-                          toast.error(error.message || "Failed to add title");
+                          toast.error(error.message || t("Failed to add title"));
                         }
                       }}
                     >
@@ -879,9 +887,9 @@ export default function ProcessLayout({
                           setTag(value); // ✅ auto-select
                           setCustomTagMode(false);
 
-                          toast.success("Tag added successfully");
+                          toast.success(t("Tag added successfully"));
                         } catch (error: any) {
-                          toast.error(error.message || "Failed to add tag");
+                          toast.error(error.message || t("Failed to add tag"));
                         }
                       }}
                     >
@@ -963,9 +971,9 @@ export default function ProcessLayout({
                           setSource(value); // ✅ auto-select
                           setCustomSourceMode(false);
 
-                          toast.success("Source added successfully");
+                          toast.success(t("Source added successfully"));
                         } catch (error: any) {
-                          toast.error(error.message || "Failed to add source");
+                          toast.error(error.message || t("Failed to add source"));
                         }
                       }}
                     >

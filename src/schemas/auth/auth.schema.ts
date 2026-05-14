@@ -5,6 +5,8 @@ export const registerSchema = z.object({
   password: z.string().min(6),
   confirmPassword: z.string().min(6),
   inviteToken: z.string().optional(),
+  /** Cloudflare Turnstile token (required when `CLOUDFLARE_TURNSTILE_SECRET_KEY` is set). */
+  turnstileToken: z.string().min(1).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],

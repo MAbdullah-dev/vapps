@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/schemas/auth/auth.schema";
 import { sendVerificationEmail } from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
+import { clientIpFromRequest, verifyTurnstileResponse } from "@/lib/turnstile";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,9 +20,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, password } = parsed.data;
-    // Get inviteToken from raw body (it's optional and may not be in schema)
-    const inviteToken = (body as any).inviteToken;
+    const { email, password, turnstileToken, inviteToken } = parsed.data;
+
+    const turnstileOk = await verifyTurnstileResponse(
+      turnstileToken,
+      clientIpFromRequest(req)
+    );
+    if (!turnstileOk.success) {
+      return NextResponse.json(
+        { error: "Security check failed. Please try again." },
+        { status: 403 }
+      );
+    }
 
     const exists = await prisma.user.findUnique({
       where: { email },

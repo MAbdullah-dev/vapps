@@ -13,8 +13,10 @@ import {
   forgotPasswordSchema,
   type ForgotPasswordInput,
 } from "@/schemas/auth/auth.schema";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 export default function ForgotPasswordPage() {
+  const { t } = useTranslate();
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -38,15 +40,15 @@ export default function ForgotPasswordPage() {
       if (!res.ok) {
         toast.error(
           typeof json.error === "object"
-            ? "Please check the email field"
-            : json.error || "Request failed"
+            ? t("Please check the email field")
+            : json.error || t("Request failed")
         );
         return;
       }
-      toast.success(json.message || "Check your email");
+      toast.success(json.message || t("Check your email"));
       setSent(true);
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(t("Something went wrong. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -55,21 +57,21 @@ export default function ForgotPasswordPage() {
   return (
     <div className="border border-border bg-card text-card-foreground shadow-lg p-8 rounded-2xl max-w-[400px] w-full mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-xl mb-2">Forgot password</h1>
+        <h1 className="text-xl mb-2">{t("Forgot password")}</h1>
         <p className="text-base text-muted-foreground">
           {sent
-            ? "If we found an account, we sent a reset link to that address."
-            : "Enter your email and we will send you a link to reset your password."}
+            ? t("If we found an account, we sent a reset link to that address.")
+            : t("Enter your email and we will send you a link to reset your password.")}
         </p>
       </div>
 
       {!sent && (
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="mb-6">
-            <Label className="text-sm mb-2">Email</Label>
+            <Label className="text-sm mb-2">{t("Email")}</Label>
             <Input
               type="email"
-              placeholder="you@company.com"
+              placeholder={t("you@company.com")}
               autoComplete="email"
               {...register("email")}
             />
@@ -78,14 +80,14 @@ export default function ForgotPasswordPage() {
             )}
           </div>
           <Button className="w-full" disabled={loading}>
-            {loading ? "Sending…" : "Send reset link"}
+            {loading ? t("Sending…") : t("Send reset link")}
           </Button>
         </form>
       )}
 
       <div className="text-center mt-6 text-sm text-muted-foreground">
         <Link href="/auth" className="text-primary hover:underline">
-          Back to sign in
+          {t("Back to sign in")}
         </Link>
       </div>
     </div>

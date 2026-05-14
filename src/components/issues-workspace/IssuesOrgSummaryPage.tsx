@@ -10,6 +10,7 @@ import { Clock, CheckCircle2, Circle, PlayCircle, FileText, GitBranch } from "lu
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 type Activity = {
   id?: string | null;
@@ -41,6 +42,7 @@ type ProcessUser = {
 
 export default function IssuesOrgSummaryPage() {
   const { orgId } = useOrg();
+  const { t } = useTranslate();
 
   const [siteId, setSiteId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -104,11 +106,11 @@ export default function IssuesOrgSummaryPage() {
       );
     } catch (error: unknown) {
       console.error("Error fetching summary data:", error);
-      toast.error("Failed to load dashboard data");
+      toast.error(t("Failed to load dashboard data"));
     } finally {
       setIsLoading(false);
     }
-  }, [orgId, siteId]);
+  }, [orgId, siteId, t]);
 
   useEffect(() => {
     fetchData();
@@ -147,10 +149,10 @@ export default function IssuesOrgSummaryPage() {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 60) return `${diffInSeconds} ${t("seconds ago")}`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} ${t("minutes ago")}`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} ${t("hours ago")}`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} ${t("days ago")}`;
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
@@ -181,60 +183,60 @@ export default function IssuesOrgSummaryPage() {
       case "issue.created":
         return (
           <>
-            <span className="font-medium">{userName}</span> created issue{" "}
+            <span className="font-medium">{userName}</span> {t("created issue")}{" "}
             <span className="font-medium">{entityTitle}</span>
           </>
         );
       case "issue.updated":
         return (
           <>
-            <span className="font-medium">{userName}</span> updated issue{" "}
+            <span className="font-medium">{userName}</span> {t("updated issue")}{" "}
             <span className="font-medium">{entityTitle}</span>
           </>
         );
       case "issue.status_changed": {
-        const newStatus = (activity.details?.newStatus as string) || "updated";
+        const newStatus = (activity.details?.newStatus as string) || t("updated");
         return (
           <>
-            <span className="font-medium">{userName}</span> changed status of{" "}
-            <span className="font-medium">{entityTitle}</span> to {newStatus}
+            <span className="font-medium">{userName}</span> {t("changed status of")}{" "}
+            <span className="font-medium">{entityTitle}</span> {t("to")} {newStatus}
           </>
         );
       }
       case "issue.assigned": {
-        const assignee = (activity.details?.assignee as string) || "someone";
+        const assignee = (activity.details?.assignee as string) || t("someone");
         return (
           <>
-            <span className="font-medium">{userName}</span> assigned{" "}
-            <span className="font-medium">{entityTitle}</span> to {assignee}
+            <span className="font-medium">{userName}</span> {t("assigned")}{" "}
+            <span className="font-medium">{entityTitle}</span> {t("to")} {assignee}
           </>
         );
       }
       case "sprint.created":
         return (
           <>
-            <span className="font-medium">{userName}</span> created sprint{" "}
+            <span className="font-medium">{userName}</span> {t("created sprint")}{" "}
             <span className="font-medium">{entityTitle}</span>
           </>
         );
       case "review.submitted":
         return (
           <>
-            <span className="font-medium">{userName}</span> submitted review for{" "}
+            <span className="font-medium">{userName}</span> {t("submitted review for")}{" "}
             <span className="font-medium">{entityTitle}</span>
           </>
         );
       case "verification.completed":
         return (
           <>
-            <span className="font-medium">{userName}</span> completed verification for{" "}
+            <span className="font-medium">{userName}</span> {t("completed verification for")}{" "}
             <span className="font-medium">{entityTitle}</span>
           </>
         );
       default:
         return (
           <>
-            <span className="font-medium">{userName}</span> {act || "updated"} {entityTitle}
+            <span className="font-medium">{userName}</span> {act || t("updated")} {entityTitle}
           </>
         );
     }
@@ -267,7 +269,7 @@ export default function IssuesOrgSummaryPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+        <p className="text-muted-foreground">{t("Loading dashboard...")}</p>
       </div>
     );
   }
@@ -275,7 +277,7 @@ export default function IssuesOrgSummaryPage() {
   if (!siteId) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        Select a site in the sidebar to see issues for that site.
+        {t("Select a site in the sidebar to see issues for that site.")}
       </div>
     );
   }
@@ -284,10 +286,10 @@ export default function IssuesOrgSummaryPage() {
     <div className="space-y-6 p-4">
       <div className="summary-progress-cards grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { title: "To Do", value: stats.toDo.toString(), progress: stats.total > 0 ? (stats.toDo / stats.total) * 100 : 0, color: "hsl(var(--muted-foreground))" },
-          { title: "In Progress", value: stats.inProgress.toString(), progress: stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0, color: "hsl(var(--primary))" },
-          { title: "Completed", value: stats.completed.toString(), progress: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0, color: "hsl(var(--primary))" },
-          { title: "Completion", value: `${stats.completionPercentage}%`, progress: stats.completionPercentage, color: "hsl(var(--foreground))" },
+          { title: t("To Do"), value: stats.toDo.toString(), progress: stats.total > 0 ? (stats.toDo / stats.total) * 100 : 0, color: "hsl(var(--muted-foreground))" },
+          { title: t("In Progress"), value: stats.inProgress.toString(), progress: stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0, color: "hsl(var(--primary))" },
+          { title: t("Completed"), value: stats.completed.toString(), progress: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0, color: "hsl(var(--primary))" },
+          { title: t("Completion"), value: `${stats.completionPercentage}%`, progress: stats.completionPercentage, color: "hsl(var(--foreground))" },
         ].map((card, idx) => (
           <div
             key={idx}
@@ -311,12 +313,12 @@ export default function IssuesOrgSummaryPage() {
         <div className="flex-1 flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Organization-wide updates</CardDescription>
+              <CardTitle>{t("Recent Activity")}</CardTitle>
+              <CardDescription>{t("Organization-wide updates")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No activity yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t("No activity yet")}</p>
               ) : (
                 activities.map((activity, idx) => (
                   <div
@@ -347,12 +349,14 @@ export default function IssuesOrgSummaryPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Upcoming Milestones</CardTitle>
-              <CardDescription>Sprint dates when issues are linked to a process</CardDescription>
+              <CardTitle>{t("Upcoming Milestones")}</CardTitle>
+              <CardDescription>{t("Sprint dates when issues are linked to a process")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground text-center py-4">
-                Open an issue and link it to a process to use sprint milestones on the Backlog tab.
+                {t(
+                  "Open an issue and link it to a process to use sprint milestones on the Backlog tab."
+                )}
               </p>
             </CardContent>
           </Card>
@@ -361,12 +365,12 @@ export default function IssuesOrgSummaryPage() {
         <div className="flex-1 flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle>Team Members</CardTitle>
-              <CardDescription>Organization members</CardDescription>
+              <CardTitle>{t("Team Members")}</CardTitle>
+              <CardDescription>{t("Organization members")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {teamMembers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No team members yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t("No team members yet")}</p>
               ) : (
                 teamMembers.map((member, i) => (
                   <div key={member.id || `member-${i}`} className="flex items-center gap-3">
@@ -387,8 +391,8 @@ export default function IssuesOrgSummaryPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Space Statistics</CardTitle>
-              <CardDescription>Issues for the selected site</CardDescription>
+              <CardTitle>{t("Space Statistics")}</CardTitle>
+              <CardDescription>{t("Issues for the selected site")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress
@@ -398,16 +402,16 @@ export default function IssuesOrgSummaryPage() {
                 className="mb-4"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Total tasks</span>
+                <span>{t("Total tasks")}</span>
                 <span>{stats.total}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Open tasks</span>
+                <span>{t("Open tasks")}</span>
                 <span>{stats.toDo + stats.inProgress}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Sync Status</span>
-                <Badge variant="outline">Synced</Badge>
+                <span>{t("Sync Status")}</span>
+                <Badge variant="outline">{t("Synced")}</Badge>
               </div>
             </CardContent>
           </Card>

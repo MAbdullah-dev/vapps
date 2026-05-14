@@ -13,6 +13,7 @@ import BrandLogo from "@/components/common/BrandLogo";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 interface InviteData {
   email: string;
@@ -34,6 +35,7 @@ interface InviteData {
 }
 
 function InvitePageContent() {
+  const { t } = useTranslate();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -51,7 +53,7 @@ function InvitePageContent() {
   useEffect(() => {
     const fetchInvite = async () => {
       if (!token) {
-        setError("Invalid invitation link. Token is missing.");
+        setError(t("Invalid invitation link. Token is missing."));
         setIsLoading(false);
         return;
       }
@@ -73,7 +75,7 @@ function InvitePageContent() {
           router.push(`/auth/resolve`);
           return;
         }
-        setError(err.message || "Failed to load invitation");
+        setError(err.message || t("Failed to load invitation"));
       } finally {
         setIsLoading(false);
       }
@@ -99,7 +101,7 @@ function InvitePageContent() {
         setIsAccepting(true);
         try {
           const result = await apiClient.acceptInvite(token);
-          toast.success(`Successfully joined ${result.organizationName}!`);
+          toast.success(`${t("Successfully joined")} ${result.organizationName}!`);
           router.push(`/auth/resolve`);
         } catch (err: any) {
           // If invite was already accepted, just redirect (don't show error)
@@ -109,7 +111,7 @@ function InvitePageContent() {
             // Invite already accepted, just redirect
             router.push(`/auth/resolve`);
           } else {
-            toast.error(err.message || "Failed to accept invitation");
+            toast.error(err.message || t("Failed to accept invitation"));
             setIsAccepting(false);
           }
         }
@@ -150,12 +152,12 @@ function InvitePageContent() {
       setIsAccepting(true);
       const result = await apiClient.acceptInvite(token);
       
-      toast.success(`Successfully joined ${result.organizationName}!`);
+      toast.success(`${t("Successfully joined")} ${result.organizationName}!`);
       
       // Redirect to resolve page
       router.push(`/auth/resolve`);
     } catch (err: any) {
-      toast.error(err.message || "Failed to accept invitation");
+      toast.error(err.message || t("Failed to accept invitation"));
     } finally {
       setIsAccepting(false);
     }
@@ -165,12 +167,12 @@ function InvitePageContent() {
     e.preventDefault();
     
     if (!email || !password) {
-      toast.error("Please enter email and password");
+      toast.error(t("Please enter email and password"));
       return;
     }
 
     if (!token) {
-      toast.error("Invalid invitation token");
+      toast.error(t("Invalid invitation token"));
       return;
     }
 
@@ -185,7 +187,7 @@ function InvitePageContent() {
       await new Promise(resolve => setTimeout(resolve, 500));
       await apiClient.login({ email, password });
       
-      toast.success(`Successfully joined ${result.organizationName}!`);
+      toast.success(`${t("Successfully joined")} ${result.organizationName}!`);
       router.push(`/auth/resolve`);
     } catch (err: any) {
       // Check if error is ACCOUNT_EXISTS (user already has account)
@@ -194,12 +196,12 @@ function InvitePageContent() {
       
       if (errorMessage === "ACCOUNT_EXISTS" || errorMessage.toLowerCase().includes("account with this email already exists") || errorMessage.toLowerCase().includes("please log in")) {
         // User exists - they need to log in first, then accept invite
-        toast.error("An account with this email already exists. Please log in to accept this invitation.");
+        toast.error(t("An account with this email already exists. Please log in to accept this invitation."));
         // Redirect to login page with invite token
         router.push(`/auth?invite=${token}&email=${encodeURIComponent(email)}`);
       } else {
         // Other errors (invalid password, etc.)
-        const errorMsg = errorMessage || "Failed to accept invitation";
+        const errorMsg = errorMessage || t("Failed to accept invitation");
         toast.error(errorMsg);
         console.error("Invite acceptance error:", err);
       }
@@ -215,7 +217,7 @@ function InvitePageContent() {
         callbackUrl,
       });
     } catch {
-      toast.error("SSO login failed");
+      toast.error(t("SSO login failed"));
     }
   };
 
@@ -224,7 +226,7 @@ function InvitePageContent() {
       <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
         <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">Loading invitation...</p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("Loading invitation...")}</p>
         </div>
       </div>
     );
@@ -235,13 +237,13 @@ function InvitePageContent() {
       <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
         <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
           <XCircle className="mx-auto h-12 w-12 text-destructive" />
-          <h1 className="mt-4 text-xl font-semibold">Invalid Invitation</h1>
+          <h1 className="mt-4 text-xl font-semibold">{t("Invalid Invitation")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {error || "This invitation link is invalid or has expired."}
+            {error || t("This invitation link is invalid or has expired.")}
           </p>
           <Link href="/auth">
             <Button className="mt-6" variant="outline">
-              Go to Login
+              {t("Go to Login")}
             </Button>
           </Link>
         </div>
@@ -256,32 +258,37 @@ function InvitePageContent() {
         <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
           <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-sm text-muted-foreground">Accepting invitation...</p>
+            <p className="mt-4 text-sm text-muted-foreground">{t("Accepting invitation...")}</p>
           </div>
         </div>
       );
     }
   }
 
-  const roleText = inviteData.role === "admin" ? "Administrator" : inviteData.role === "owner" ? "Owner" : "Member";
+  const roleText =
+    inviteData.role === "admin"
+      ? t("Administrator")
+      : inviteData.role === "owner"
+        ? t("Owner")
+        : t("Member");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm">
         {/* Logo */}
         <div className="mb-6 flex justify-center">
-          <BrandLogo alt="Logo" width={140} height={60} priority />
+          <BrandLogo alt={t("Logo")} width={140} height={60} priority />
         </div>
 
         {/* Heading */}
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold">You've been invited</h1>
+          <h1 className="text-xl font-semibold">{t("You've been invited")}</h1>
           <p className="text-sm text-muted-foreground">
-            Join <strong>{inviteData.org.name}</strong> as a <strong>{roleText}</strong>
+            {t("Join")} <strong>{inviteData.org.name}</strong> {t("as a")} <strong>{roleText}</strong>
           </p>
           {inviteData.process && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Process: {inviteData.process.name}
+              {t("Process:")} {inviteData.process.name}
             </p>
           )}
         </div>
@@ -294,13 +301,13 @@ function InvitePageContent() {
             <div className="space-y-4">
               <div className="rounded-lg border p-4 bg-muted/50">
                 <p className="text-sm">
-                  <strong>Logged in as:</strong> {session.user.email}
+                  <strong>{t("Logged in as:")}</strong> {session.user.email}
                 </p>
                 <p className="text-sm mt-2">
-                  <strong>Organization:</strong> {inviteData.org.name}
+                  <strong>{t("Organization:")}</strong> {inviteData.org.name}
                 </p>
                 <p className="text-sm mt-1">
-                  <strong>Role:</strong> {roleText}
+                  <strong>{t("Role:")}</strong> {roleText}
                 </p>
               </div>
               <Button
@@ -312,10 +319,10 @@ function InvitePageContent() {
                 {isAccepting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Accepting...
+                    {t("Accepting...")}
                   </>
                 ) : (
-                  "Accept Invitation"
+                  t("Accept Invitation")
                 )}
               </Button>
             </div>
@@ -324,7 +331,7 @@ function InvitePageContent() {
             <div className="space-y-4">
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                 <p className="text-sm text-destructive">
-                  This invitation was sent to <strong>{inviteData.email}</strong>, but you're logged in as{" "}
+                  {t("This invitation was sent to")} <strong>{inviteData.email}</strong>, {t("but you're logged in as")}{" "}
                   <strong>{session.user.email}</strong>.
                 </p>
               </div>
@@ -333,7 +340,7 @@ function InvitePageContent() {
                 className="w-full"
                 onClick={() => signIn()}
               >
-                Switch Account
+                {t("Switch Account")}
               </Button>
             </div>
           )
@@ -342,23 +349,23 @@ function InvitePageContent() {
           <>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("Email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t("you@example.com")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={true} // Email is pre-filled and disabled
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  This invitation was sent to: <strong>{inviteData.email}</strong>
+                  {t("This invitation was sent to:")} <strong>{inviteData.email}</strong>
                 </p>
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("Password")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -379,24 +386,24 @@ function InvitePageContent() {
                 {isLoggingIn ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
+                    {t("Logging in...")}
                   </>
                 ) : (
-                  "Continue"
+                  t("Continue")
                 )}
               </Button>
             </form>
 
             <div className="mt-4 text-center">
               <Link href={`/auth?invite=${token}`} className="text-sm text-primary hover:underline">
-                Don't have an account? Sign up
+                {t("Don't have an account? Sign up")}
               </Link>
             </div>
 
             {/* Divider */}
             <div className="my-6 flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">OR</span>
+              <span className="text-xs text-muted-foreground">{t("OR")}</span>
               <Separator className="flex-1" />
             </div>
 
@@ -410,7 +417,7 @@ function InvitePageContent() {
                 disabled={isLoggingIn}
               >
                 <Chrome size={16} />
-                Continue with Google
+                {t("Continue with Google")}
               </Button>
 
               <Button
@@ -422,11 +429,11 @@ function InvitePageContent() {
               >
                 <Image
                   src="/svgs/atlassian.svg"
-                  alt="Atlassian"
+                  alt={t("Atlassian")}
                   width={16}
                   height={16}
                 />
-                Continue with Atlassian
+                {t("Continue with Atlassian")}
               </Button>
 
               <Button
@@ -437,7 +444,7 @@ function InvitePageContent() {
                 disabled={isLoggingIn}
               >
                 <GithubIcon size={16} />
-                Continue with GitHub
+                {t("Continue with GitHub")}
               </Button>
             </div>
           </>
@@ -445,7 +452,7 @@ function InvitePageContent() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
+          {t("By continuing, you agree to our Terms of Service and Privacy Policy.")}
         </p>
       </div>
     </div>
@@ -453,11 +460,12 @@ function InvitePageContent() {
 }
 
 function InvitePageFallback() {
+  const { t } = useTranslate();
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
         <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">Loading invitation...</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("Loading invitation...")}</p>
       </div>
     </div>
   );

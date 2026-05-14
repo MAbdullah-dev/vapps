@@ -5,6 +5,7 @@ import { useOrg } from "@/components/providers/org-provider";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
+import { useTranslate } from "@/components/providers/translation-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +70,7 @@ type Process = {
 
 export default function IssuesOrgBacklogPage() {
   const { orgId } = useOrg();
+  const { t } = useTranslate();
   const [siteId, setSiteId] = useState("");
   const [processes, setProcesses] = useState<Process[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string>("");
@@ -104,7 +106,7 @@ export default function IssuesOrgBacklogPage() {
       );
     } catch (e: unknown) {
       console.error(e);
-      toast.error("Failed to load processes");
+      toast.error(t("Failed to load processes"));
       setProcesses([]);
       setSelectedProcessId("");
     }
@@ -150,11 +152,11 @@ export default function IssuesOrgBacklogPage() {
       setUnlinkedIssues(siteUnlinked);
     } catch (error: any) {
       console.error("Error fetching backlog data:", error);
-      toast.error("Failed to load backlog");
+      toast.error(t("Failed to load backlog"));
     } finally {
       setIsLoading(false);
     }
-  }, [orgId, siteId, selectedProcessId]);
+  }, [orgId, siteId, selectedProcessId, t]);
 
   useEffect(() => {
     fetchData();
@@ -226,10 +228,10 @@ export default function IssuesOrgBacklogPage() {
         ...prev,
         { ...result.sprint, isOpen: true, isRenaming: false, issues: [] },
       ]);
-      toast.success("Sprint created successfully");
+      toast.success(t("Sprint created successfully"));
     } catch (error: any) {
       console.error("Error creating sprint:", error);
-      toast.error(error.message || "Failed to create sprint");
+      toast.error(error.message || t("Failed to create sprint"));
     }
   };
 
@@ -238,11 +240,11 @@ export default function IssuesOrgBacklogPage() {
     try {
       await apiClient.deleteSprint(orgId, selectedProcessId, id);
       setSprints((prev) => prev.filter((s) => s.id !== id));
-      toast.success("Sprint deleted successfully");
+      toast.success(t("Sprint deleted successfully"));
       fetchData();
     } catch (error: any) {
       console.error("Error deleting sprint:", error);
-      toast.error(error.message || "Failed to delete sprint");
+      toast.error(error.message || t("Failed to delete sprint"));
     }
   };
 
@@ -263,10 +265,10 @@ export default function IssuesOrgBacklogPage() {
       setSprints((prev) =>
         prev.map((s) => (s.id === id ? { ...s, name: newName.trim(), isRenaming: false } : s))
       );
-      toast.success("Sprint renamed successfully");
+      toast.success(t("Sprint renamed successfully"));
     } catch (error: any) {
       console.error("Error renaming sprint:", error);
-      toast.error(error.message || "Failed to rename sprint");
+      toast.error(error.message || t("Failed to rename sprint"));
       setSprints((prev) => prev.map((s) => (s.id === id ? { ...s, isRenaming: false } : s)));
     }
   };
@@ -340,7 +342,7 @@ export default function IssuesOrgBacklogPage() {
       );
     } catch (error: any) {
       console.error("Error updating issue:", error);
-      toast.error(error.message || "Failed to move issue");
+      toast.error(error.message || t("Failed to move issue"));
       fetchData();
     }
   };
@@ -351,10 +353,10 @@ export default function IssuesOrgBacklogPage() {
       setIsDeleting(true);
       await apiClient.deleteOrgIssue(orgId, issueToDelete.id);
       setIssueToDelete(null);
-      toast.success("Issue deleted");
+      toast.success(t("Issue deleted"));
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete issue");
+      toast.error(error.message || t("Failed to delete issue"));
     } finally {
       setIsDeleting(false);
     }
@@ -403,17 +405,17 @@ export default function IssuesOrgBacklogPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <MoreVertical className="h-4 w-4" />
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">{t("Open menu")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => openUpdateForm(issue.id)}>
                 <Pencil className="mr-2 h-4 w-4" />
-                Update
+                {t("Update")}
               </DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={() => setIssueToDelete(issue)}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                {t("Delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -423,21 +425,21 @@ export default function IssuesOrgBacklogPage() {
   );
 
   if (!siteId) {
-    return <p className="p-4 text-sm text-muted-foreground">Select a site in the sidebar.</p>;
+    return <p className="p-4 text-sm text-muted-foreground">{t("Select a site in the sidebar.")}</p>;
   }
 
   if (!selectedProcessId) {
     return (
       <div className="p-4">
         <p className="text-sm text-muted-foreground">
-          No process found for this site. Create a process first to manage sprint backlog.
+          {t("No process found for this site. Create a process first to manage sprint backlog.")}
         </p>
       </div>
     );
   }
 
   if (isLoading) {
-    return <p className="p-4 text-sm text-muted-foreground">Loading backlog…</p>;
+    return <p className="p-4 text-sm text-muted-foreground">{t("Loading backlog…")}</p>;
   }
 
   return (
@@ -447,7 +449,7 @@ export default function IssuesOrgBacklogPage() {
           <div className="w-full sm:max-w-sm">
             <Select value={selectedProcessId} onValueChange={setSelectedProcessId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select process" />
+                <SelectValue placeholder={t("Select process")} />
               </SelectTrigger>
               <SelectContent>
                 {processes.map((p) => (
@@ -459,7 +461,7 @@ export default function IssuesOrgBacklogPage() {
             </Select>
           </div>
           <Button type="button" variant="outline" onClick={fetchData}>
-            Refresh
+            {t("Refresh")}
           </Button>
         </div>
 
@@ -475,7 +477,7 @@ export default function IssuesOrgBacklogPage() {
                     )
                   }
                   className="p-0.5 rounded hover:bg-muted"
-                  aria-label={sprint.isOpen ? "Collapse" : "Expand"}
+                  aria-label={sprint.isOpen ? t("Collapse") : t("Expand")}
                 >
                   {sprint.isOpen ? (
                     <ChevronDown className="h-5 w-5" />
@@ -520,9 +522,9 @@ export default function IssuesOrgBacklogPage() {
                   }}
                 >
                   <Info className="h-4 w-4 mr-1" />
-                  View details
+                  {t("View details")}
                 </Button>
-                <Badge variant="secondary">{sprint.issues.length} issues</Badge>
+                <Badge variant="secondary">{sprint.issues.length} {t("issues")}</Badge>
                 <Badge variant="secondary">
                   {formatDate(sprint.startDate)} - {formatDate(sprint.endDate)}
                 </Badge>
@@ -554,9 +556,9 @@ export default function IssuesOrgBacklogPage() {
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between p-4">
             <h2 className="text-lg font-medium flex items-center gap-2">
-              <ChevronDown /> Backlog
+              <ChevronDown /> {t("Backlog")}
             </h2>
-            <Badge variant="secondary">{backlogIssues.length} issues</Badge>
+            <Badge variant="secondary">{backlogIssues.length} {t("issues")}</Badge>
           </div>
 
           <Droppable droppableId="backlog">
@@ -570,19 +572,19 @@ export default function IssuesOrgBacklogPage() {
         </div>
 
         <Button variant="outline" size="lg" className="w-full mt-4" onClick={addSprint}>
-          Create Sprint <Plus />
+          {t("Create Sprint")} <Plus />
         </Button>
 
         <div className="rounded-xl border bg-card">
           <div className="p-4 border-b">
-            <h3 className="text-sm font-semibold">Unlinked Issues (no process)</h3>
+            <h3 className="text-sm font-semibold">{t("Unlinked Issues (no process)")}</h3>
             <p className="text-xs text-muted-foreground">
-              These stay outside sprint planning until linked to a process.
+              {t("These stay outside sprint planning until linked to a process.")}
             </p>
           </div>
           <div className="divide-y">
             {unlinkedIssues.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">No unlinked issues.</p>
+              <p className="p-4 text-sm text-muted-foreground">{t("No unlinked issues.")}</p>
             ) : (
               unlinkedIssues.map((issue) => (
                 <button
@@ -614,10 +616,10 @@ export default function IssuesOrgBacklogPage() {
         <Dialog open={!!issueToDelete} onOpenChange={(open) => !open && setIssueToDelete(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Delete issue</DialogTitle>
+              <DialogTitle>{t("Delete issue")}</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete &quot;{issueToDelete?.title}&quot;? This action cannot
-                be undone.
+                {t("Are you sure you want to delete")} &quot;{issueToDelete?.title}&quot;?{" "}
+                {t("This action cannot be undone.")}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2">
@@ -626,10 +628,10 @@ export default function IssuesOrgBacklogPage() {
                 onClick={() => setIssueToDelete(null)}
                 disabled={isDeleting}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? t("Deleting...") : t("Delete")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -640,13 +642,13 @@ export default function IssuesOrgBacklogPage() {
             <DialogHeader>
               <DialogTitle>{sprintDetail?.name}</DialogTitle>
               <DialogDescription>
-                Sprint from {sprintDetail && formatDate(sprintDetail.startDate)} to{" "}
+                {t("Sprint from")} {sprintDetail && formatDate(sprintDetail.startDate)} {t("to")}{" "}
                 {sprintDetail && formatDate(sprintDetail.endDate)}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant="secondary">{sprintDetail?.issues.length ?? 0} issues</Badge>
+                <Badge variant="secondary">{sprintDetail?.issues.length ?? 0} {t("issues")}</Badge>
               </div>
               <div className="border rounded-lg divide-y max-h-[280px] overflow-y-auto">
                 {sprintDetail?.issues.length ? (
@@ -668,14 +670,14 @@ export default function IssuesOrgBacklogPage() {
                   ))
                 ) : (
                   <p className="px-4 py-6 text-sm text-muted-foreground text-center">
-                    No issues in this sprint
+                    {t("No issues in this sprint")}
                   </p>
                 )}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setSprintDetail(null)}>
-                Close
+                {t("Close")}
               </Button>
             </DialogFooter>
           </DialogContent>

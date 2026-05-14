@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
+import { useTranslate } from "@/components/providers/translation-provider";
 import { isTopOrOperationalLeadershipTier } from "@/lib/documentaryEvidenceAccess";
 import { toast } from "sonner";
 
@@ -59,6 +60,7 @@ export default function CaptureEvidenceStep({
   serverDesignatedVerifierUserId,
   serverDesignatedVerifierName,
 }: CaptureEvidenceStepProps) {
+  const { t } = useTranslate();
   // Placeholder values to match the screenshot layout.
   const reference = templateRef;
   const [shift, setShift] = useState("");
@@ -84,10 +86,10 @@ export default function CaptureEvidenceStep({
         const res = await fetch("/api/user/profile", { credentials: "include" });
         const j = res.ok ? await res.json() : {};
         if (ignore) return;
-        const name = String(j.name ?? j.email ?? "").trim() || "—";
+        const name = String(j.name ?? j.email ?? "").trim() || t("—");
         const emp = j.employeeId != null ? String(j.employeeId).trim() : "";
         const uid = String(j.id ?? "").trim();
-        const idLabel = emp || uid || "—";
+        const idLabel = emp || uid || t("—");
         setCaptureOperator({ name, idLabel });
       } catch {
         if (!ignore) setCaptureOperator(null);
@@ -99,7 +101,7 @@ export default function CaptureEvidenceStep({
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let ignore = false;
@@ -187,7 +189,7 @@ export default function CaptureEvidenceStep({
   const saveDraftToTenant = async () => {
     if (readOnly) return;
     if (!templateRecordId.trim()) {
-      toast.error("Missing template link. Open capture from the templates list.");
+      toast.error(t("Missing template link. Open capture from the templates list."));
       return;
     }
     setIsSaving(true);
@@ -206,13 +208,15 @@ export default function CaptureEvidenceStep({
       });
       const j = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok) {
-        toast.error(typeof j.error === "string" && j.error.trim() ? j.error : "Could not save draft.");
+        toast.error(
+          typeof j.error === "string" && j.error.trim() ? j.error : t("Could not save draft.")
+        );
         return;
       }
       if (j.id) onEvidenceRecordIdChange(j.id);
-      toast.success("Draft saved to tenant database.");
+      toast.success(t("Draft saved to tenant database."));
     } catch {
-      toast.error("Network error while saving.");
+      toast.error(t("Network error while saving."));
     } finally {
       setIsSaving(false);
     }
@@ -222,7 +226,7 @@ export default function CaptureEvidenceStep({
     if (readOnly) return;
     if (!canSubmit) return;
     if (!templateRecordId.trim()) {
-      toast.error("Missing template link.");
+      toast.error(t("Missing template link."));
       return;
     }
     setIsSaving(true);
@@ -245,16 +249,18 @@ export default function CaptureEvidenceStep({
         captureData?: Record<string, unknown>;
       };
       if (!res.ok) {
-        toast.error(typeof j.error === "string" && j.error.trim() ? j.error : "Could not submit capture.");
+        toast.error(
+          typeof j.error === "string" && j.error.trim() ? j.error : t("Could not submit capture.")
+        );
         return;
       }
       const eid = String(j.id ?? "").trim();
       if (!eid) {
-        toast.error("Save did not return a record id.");
+        toast.error(t("Save did not return a record id."));
         return;
       }
       onEvidenceRecordIdChange(eid);
-      toast.success("Capture submitted and saved.");
+      toast.success(t("Capture submitted and saved."));
       onSubmit({
         evidenceRecordId: eid,
         verifierUserId: verifierUserId.trim(),
@@ -265,7 +271,7 @@ export default function CaptureEvidenceStep({
         >,
       });
     } catch {
-      toast.error("Network error while submitting.");
+      toast.error(t("Network error while submitting."));
     } finally {
       setIsSaving(false);
     }
@@ -278,8 +284,11 @@ export default function CaptureEvidenceStep({
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
           role="alert"
         >
-          Missing template document. Use <span className="font-medium">Start Capture</span> from the F-record
-          templates table so this session is linked to the Master Document List.
+          {t("Missing template document. Use")}{" "}
+          <span className="font-medium">{t("Start Capture")}</span>{" "}
+          {t(
+            "from the F-record templates table so this session is linked to the Master Document List."
+          )}
         </div>
       ) : null}
 
@@ -287,15 +296,17 @@ export default function CaptureEvidenceStep({
         <CardContent className="py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <h3 className="text-3xl leading-none font-bold text-[#111827] mb-3">Capture</h3>
-              <p className="text-sm text-[#6B7280]">Real-time operational data capture by support staff</p>
+              <h3 className="text-3xl leading-none font-bold text-[#111827] mb-3">{t("Capture")}</h3>
+              <p className="text-sm text-[#6B7280]">
+                {t("Real-time operational data capture by support staff")}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Badge className="bg-[#DCFCE7] text-[#16A34A] border border-[#BBF7D0] hover:bg-[#DCFCE7]">
                 REC-000124
               </Badge>
               <Button size="sm" className="gap-1.5 bg-[#1E3A8A] hover:bg-[#1E40AF] text-white rounded-full px-4">
-                Learn More
+                {t("Learn More")}
                 <ArrowUpRight size={14} />
               </Button>
             </div>
@@ -310,14 +321,11 @@ export default function CaptureEvidenceStep({
               <Info size={16} className="text-[#2563EB]" />
             </div>
             <div className="text-[#1E3A8A]">
-              <p className="text-xl font-bold tracking-wide text-[#1E40AF]">ACKNOWLEDGEMENT:</p>
+              <p className="text-xl font-bold tracking-wide text-[#1E40AF]">{t("ACKNOWLEDGEMENT:")}</p>
               <p className="mt-2 text-sm leading-relaxed">
-                Mid-level leadership will verify that the required compliance data has been updated in the
-                designated sections of the form to ensure proper documentation. They will confirm the
-                form&apos;s content and layout remain unchanged. Any unauthorized alterations will result in
-                rejection or discarding of the documentation. If changes are necessary, they will instruct
-                the data entry personnel to follow the document change request workflow (P/F/EXT). They
-                will also verify the accuracy and evidentiary basis of the data.
+                {t(
+                  "Mid-level leadership will verify that the required compliance data has been updated in the designated sections of the form to ensure proper documentation. They will confirm the form's content and layout remain unchanged. Any unauthorized alterations will result in rejection or discarding of the documentation. If changes are necessary, they will instruct the data entry personnel to follow the document change request workflow (P/F/EXT). They will also verify the accuracy and evidentiary basis of the data."
+                )}
               </p>
             </div>
 
@@ -333,14 +341,18 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-[#111827]">
-              <span className="text-[#22B323]">1.</span> Designated verifier
+              <span className="text-[#22B323]">1.</span> {t("Designated verifier")}
             </h4>
             <p className="text-sm text-[#6B7280] mt-1">
-              Choose who will verify this record (Top Leadership and Operational Leadership members).
+              {t(
+                "Choose who will verify this record (Top Leadership and Operational Leadership members)."
+              )}
             </p>
           </div>
           <div className="max-w-xl space-y-2">
-            <Label htmlFor="designated-verifier">Verifier <span className="text-red-500">*</span></Label>
+            <Label htmlFor="designated-verifier">
+              {t("Verifier")} <span className="text-red-500">*</span>
+            </Label>
             <Select
               value={verifierUserId}
               onValueChange={(id) => setVerifierUserId(id)}
@@ -350,10 +362,10 @@ export default function CaptureEvidenceStep({
                 <SelectValue
                   placeholder={
                     isLoadingVerifiers
-                      ? "Loading members…"
+                      ? t("Loading members…")
                       : verifierOptions.length === 0
-                        ? "No eligible verifiers"
-                        : "Select verifier"
+                        ? t("No eligible verifiers")
+                        : t("Select verifier")
                   }
                 />
               </SelectTrigger>
@@ -376,17 +388,22 @@ export default function CaptureEvidenceStep({
       <Card className="border border-[#0000001A]">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]"> <span className="text-[#22B323]">2.</span> Record Metadata</h4>
-            <p className="text-sm text-[#6B7280] mt-1">Auto-generated and basic organizational data</p>
+            <h4 className="text-base font-semibold text-[#111827]">
+              {" "}
+              <span className="text-[#22B323]">2.</span> {t("Record Metadata")}
+            </h4>
+            <p className="text-sm text-[#6B7280] mt-1">
+              {t("Auto-generated and basic organizational data")}
+            </p>
           </div>
 
           <div className="border-t border-[#E5E7EB] pt-4">
-            <h5 className="text-sm font-semibold text-[#111827]">Record Information</h5>
+            <h5 className="text-sm font-semibold text-[#111827]">{t("Record Information")}</h5>
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Record ID
+                  {t("Record ID")}
                 </Label>
                 <Input
                   readOnly
@@ -397,7 +414,7 @@ export default function CaptureEvidenceStep({
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  UIN
+                  {t("UIN")}
                 </Label>
                 <Input
                   readOnly
@@ -408,7 +425,7 @@ export default function CaptureEvidenceStep({
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Reference
+                  {t("Reference")}
                 </Label>
                 <Input
                   readOnly
@@ -423,18 +440,18 @@ export default function CaptureEvidenceStep({
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Form Title
+                  {t("Form Title")}
                 </Label>
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value="Inspection Checklist"
+                  value={t("Inspection Checklist")}
                   className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
                 />
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Site
+                  {t("Site")}
                 </Label>
                 <Input
                   readOnly
@@ -445,7 +462,7 @@ export default function CaptureEvidenceStep({
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Process
+                  {t("Process")}
                 </Label>
                 <Input
                   readOnly
@@ -459,34 +476,34 @@ export default function CaptureEvidenceStep({
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Standard
+                  {t("Standard")}
                 </Label>
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value="ISO 9001"
+                  value={t("ISO 9001")}
                   className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
                 />
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Clause
+                  {t("Clause")}
                 </Label>
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value="8.6 Release"
+                  value={t("8.6 Release")}
                   className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
                 />
               </div>
               <div>
                 <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                  Sub-Clause
+                  {t("Sub-Clause")}
                 </Label>
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value="8.6.1 Product Release"
+                  value={t("8.6.1 Product Release")}
                   className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
                 />
               </div>
@@ -494,19 +511,19 @@ export default function CaptureEvidenceStep({
 
             <div className="mt-4">
               <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                Status
+                {t("Status")}
               </Label>
               <Input
                 readOnly
                 tabIndex={-1}
-                value="Draft"
+                value={t("Draft")}
                 className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
               />
             </div>
 
             <div className="mt-4">
               <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                System Auto-Stamp
+                {t("System Auto-Stamp")}
               </Label>
             </div>
           </div>
@@ -516,14 +533,19 @@ export default function CaptureEvidenceStep({
       <Card className="border border-[#0000001A]">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]"> <span className="text-[#22B323]">3.</span> Operational Metadata</h4>
-            <p className="text-sm text-[#6B7280] mt-1">Shift, batch/lot, and technician details</p>
+            <h4 className="text-base font-semibold text-[#111827]">
+              {" "}
+              <span className="text-[#22B323]">3.</span> {t("Operational Metadata")}
+            </h4>
+            <p className="text-sm text-[#6B7280] mt-1">
+              {t("Shift, batch/lot, and technician details")}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                Shift*
+                {t("Shift*")}
               </Label>
               <Input
                 value={shift}
@@ -536,13 +558,13 @@ export default function CaptureEvidenceStep({
 
             <div>
               <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                Lot / Batch / Serial*
+                {t("Lot / Batch / Serial*")}
               </Label>
               <Input
                 value={lotBatchSerial}
                 onChange={(e) => setLotBatchSerial(e.target.value)}
                 readOnly={readOnly}
-                placeholder="e.g. 00010"
+                placeholder={t("e.g. 00010")}
                 className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280] placeholder:text-[#9CA3AF]"
               />
             </div>
@@ -553,8 +575,11 @@ export default function CaptureEvidenceStep({
       <Card className="border border-[#0000001A]">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]"> <span className="text-[#22B323]">4.</span> Captured Data</h4>
-            <p className="text-sm text-[#6B7280] mt-1">Documentary Evidence</p>
+            <h4 className="text-base font-semibold text-[#111827]">
+              {" "}
+              <span className="text-[#22B323]">4.</span> {t("Captured Data")}
+            </h4>
+            <p className="text-sm text-[#6B7280] mt-1">{t("Documentary Evidence")}</p>
           </div>
 
           <div className="overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F9FAFB]">
@@ -572,13 +597,18 @@ export default function CaptureEvidenceStep({
       <Card className="border border-[#0000001A]">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]"> <span className="text-[#22B323]">5.</span> Additional Notes</h4>
+            <h4 className="text-base font-semibold text-[#111827]">
+              {" "}
+              <span className="text-[#22B323]">5.</span> {t("Additional Notes")}
+            </h4>
           </div>
           <Textarea
             value={additionalNotes}
             onChange={(e) => setAdditionalNotes(e.target.value)}
             readOnly={readOnly}
-            placeholder="e.g. Immediate 5S audit should be conducted, safety concern observed at station 3..."
+            placeholder={t(
+              "e.g. Immediate 5S audit should be conducted, safety concern observed at station 3..."
+            )}
             className="min-h-[72px] resize-none bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280] placeholder:text-[#9CA3AF]"
           />
         </CardContent>
@@ -587,9 +617,13 @@ export default function CaptureEvidenceStep({
       <Card className="border border-[#0000001A]">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-sm font-semibold text-[#6B7280]">Support Leadership (capture operator)</h4>
+            <h4 className="text-sm font-semibold text-[#6B7280]">
+              {t("Support Leadership (capture operator)")}
+            </h4>
             <p className="text-xs text-[#9CA3AF] mt-1">
-              Who is performing data entry — must be Support Leadership. Updates when your account session changes.
+              {t(
+                "Who is performing data entry — must be Support Leadership. Updates when your account session changes."
+              )}
             </p>
           </div>
 
@@ -597,17 +631,17 @@ export default function CaptureEvidenceStep({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <p className="text-xs text-[#9CA3AF]">
-                  Name:{" "}
+                  {t("Name:")}{" "}
                   <span className="text-[#111827] font-medium">
-                    {isLoadingCaptureOperator ? "Loading…" : captureOperator?.name ?? "—"}
+                    {isLoadingCaptureOperator ? t("Loading…") : captureOperator?.name ?? t("—")}
                   </span>
                 </p>
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-[#9CA3AF]">
-                  ID (employee or user):{" "}
+                  {t("ID (employee or user):")}{" "}
                   <span className="text-[#111827] font-medium font-mono text-[11px] sm:text-xs break-all">
-                    {isLoadingCaptureOperator ? "Loading…" : captureOperator?.idLabel ?? "—"}
+                    {isLoadingCaptureOperator ? t("Loading…") : captureOperator?.idLabel ?? t("—")}
                   </span>
                 </p>
               </div>
@@ -615,18 +649,22 @@ export default function CaptureEvidenceStep({
             {verifierUserId ? (
               <div className="border-t border-[#E5E7EB] pt-3">
                 <p className="text-xs text-[#9CA3AF]">
-                  Designated verifier (your selection in step 1):{" "}
+                  {t("Designated verifier (your selection in step 1):")}{" "}
                   <span className="text-[#111827] font-medium">
                     {verifierById.get(verifierUserId)?.name ?? verifierUserId}
                   </span>
                   <span className="text-[#9CA3AF] ml-1">
-                    ({String(verifierById.get(verifierUserId)?.leadershipTier ?? "").trim() || "—"})
+                    (
+                    {String(verifierById.get(verifierUserId)?.leadershipTier ?? "").trim() || t("—")}
+                    )
                   </span>
                 </p>
               </div>
             ) : (
               <p className="text-xs text-amber-800/90 border-t border-amber-200/80 pt-3">
-                Select a designated verifier in <span className="font-medium">section 1</span> — it will appear here.
+                {t("Select a designated verifier in")}{" "}
+                <span className="font-medium">{t("section 1")}</span>{" "}
+                {t("— it will appear here.")}
               </p>
             )}
           </div>
@@ -638,7 +676,9 @@ export default function CaptureEvidenceStep({
           <AlertTriangle className="h-4 w-4 text-[#F59E0B]" />
         </span>
         <p className="text-[#92400E] leading-relaxed">
-          Caution! Only authorized data entry personnel should fill forms. No edits to layout or content.
+          {t(
+            "Caution! Only authorized data entry personnel should fill forms. No edits to layout or content."
+          )}
         </p>
       </div>
 
@@ -646,7 +686,7 @@ export default function CaptureEvidenceStep({
         <Button variant="outline" asChild>
           <Link href={templatesHref}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Templates
+            {t("Back to Templates")}
           </Link>
         </Button>
 
@@ -659,7 +699,7 @@ export default function CaptureEvidenceStep({
                 disabled={isSaving || !templateRecordId.trim()}
                 onClick={() => void saveDraftToTenant()}
               >
-                Save draft (tenant)
+                {t("Save draft (tenant)")}
               </Button>
               <Button
                 type="button"
@@ -667,12 +707,12 @@ export default function CaptureEvidenceStep({
                 className="gap-2"
                 onClick={() => void submitCaptureToTenant()}
               >
-                Submit Capture
+                {t("Submit Capture")}
                 <ChevronRight size={16} />
               </Button>
             </>
           ) : (
-            <span className="text-xs font-medium text-[#6B7280]">This capture is read-only.</span>
+            <span className="text-xs font-medium text-[#6B7280]">{t("This capture is read-only.")}</span>
           )}
         </div>
       </div>

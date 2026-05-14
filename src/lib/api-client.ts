@@ -97,7 +97,13 @@ class ApiClient {
 
   // ========== Auth Methods ==========
 
-  register(data: { email: string; password: string; inviteToken?: string }) {
+  register(data: {
+    email: string;
+    password: string;
+    confirmPassword: string;
+    inviteToken?: string;
+    turnstileToken?: string;
+  }) {
     return this.fetch("/auth/register", {
       method: "POST",
       body: data,
@@ -216,7 +222,11 @@ class ApiClient {
     }>("/admin/audit-logs");
   }
 
-  async login(credentials: { email: string; password: string }) {
+  async login(credentials: {
+    email: string;
+    password: string;
+    turnstileToken?: string;
+  }) {
     const { signIn } = await import("next-auth/react");
 
     const result = await signIn("credentials", {

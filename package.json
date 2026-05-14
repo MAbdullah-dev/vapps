@@ -25,6 +25,7 @@
     "@fullcalendar/timegrid": "^6.1.19",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
+    "@marsidev/react-turnstile": "^1.5.2",
     "@next-auth/prisma-adapter": "^1.0.7",
     "@prisma/adapter-pg": "^6.19.0",
     "@prisma/client": "^6.19.0",

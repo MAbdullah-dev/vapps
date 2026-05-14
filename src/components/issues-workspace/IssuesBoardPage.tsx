@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { getSelectedSiteIdFromStorage } from '@/lib/selected-site';
 import { useOrg } from '@/components/providers/org-provider';
 import { useSession } from 'next-auth/react';
@@ -26,16 +26,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useTranslate } from '@/components/providers/translation-provider';
 
-// Define columns for the board
-const columns = [
-  { id: 'to-do', name: 'To Do', color: 'hsl(var(--muted-foreground))' },
-  { id: 'in-progress', name: 'In Progress', color: 'hsl(var(--primary))' },
-  { id: 'in-review', name: 'In Review', color: 'hsl(var(--primary))' },
-  { id: 'done', name: 'Done', color: 'hsl(var(--primary))' },
-];
-
-// Map status to column ID
 const statusToColumnId = (status: string): string => {
   const statusMap: Record<string, string> = {
     'to-do': 'to-do',
@@ -87,7 +79,18 @@ type QueuedUpdate = {
 
 export default function IssuesBoardPage() {
   const { orgId } = useOrg();
+  const { t } = useTranslate();
   const [siteId, setSiteId] = useState('');
+  const columns = useMemo(
+    () => [
+      { id: 'to-do', name: t('To Do'), color: 'hsl(var(--muted-foreground))' },
+      { id: 'in-progress', name: t('In Progress'), color: 'hsl(var(--primary))' },
+      { id: 'in-review', name: t('In Review'), color: 'hsl(var(--primary))' },
+      { id: 'done', name: t('Done'), color: 'hsl(var(--primary))' },
+    ],
+    [t]
+  );
+
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
 
@@ -175,11 +178,11 @@ export default function IssuesBoardPage() {
       );
     } catch (error: any) {
       console.error('Error fetching board data:', error);
-      toast.error('Failed to load board. Please refresh the page.');
+      toast.error(t('Failed to load board. Please refresh the page.'));
     } finally {
       setIsLoading(false);
     }
-  }, [orgId, siteId]);
+  }, [orgId, siteId, t]);
 
   useEffect(() => {
     fetchData();
@@ -284,7 +287,7 @@ export default function IssuesBoardPage() {
         }
         
         const errMsg = error?.response?.data?.error ?? error?.message;
-        toast.error(errMsg && typeof errMsg === "string" ? errMsg : "Could not save the new status. Please try again.");
+        toast.error(errMsg && typeof errMsg === "string" ? errMsg : t("Could not save the new status. Please try again."));
       }
     }
 
@@ -294,9 +297,7 @@ export default function IssuesBoardPage() {
     if (updateQueueRef.current.size > 0) {
       scheduleQueueProcessing();
     }
-  }, [orgId, siteId]);
-
-  // Schedule queue processing with debouncing
+  }, [orgId, siteId, t]);
   const scheduleQueueProcessing = useCallback(() => {
     // Clear existing timeout
     if (processTimeoutRef.current) {
@@ -356,20 +357,20 @@ export default function IssuesBoardPage() {
 
         // If no current user, block all moves (session may still be loading)
         if (!currentUserId) {
-          toast.error("Please sign in to move or update issues on the board.");
+          toast.error(t("Please sign in to move or update issues on the board."));
           return originalIssue;
         }
 
         // Moving to Done is not allowed from the board – only the issuer can verify from Manage Issues
         if (newStatus === 'done' && oldStatus !== 'done') {
-          toast.error("Only the issuer can verify this issue from Manage Issues. Issues cannot be moved to Done from the board.");
+          toast.error(t("Only the issuer can verify this issue from Manage Issues. Issues cannot be moved to Done from the board."));
           return originalIssue;
         }
 
         // Moving from To Do: only the assignee can move the issue from To Do
         if (oldStatus === 'to-do' && (newStatus === 'in-progress' || newStatus === 'in-review')) {
           if (originalIssue.assignee !== currentUserId) {
-            toast.error("Only the assignee can move this issue from To Do.");
+            toast.error(t("Only the assignee can move this issue from To Do."));
             return originalIssue;
           }
         }
@@ -377,11 +378,11 @@ export default function IssuesBoardPage() {
         // Moving from In Progress to In Review: only the assignee can move to In Review
         if (oldStatus === 'in-progress' && newStatus === 'in-review') {
           if (originalIssue.assignee !== currentUserId) {
-            toast.error("Only the assignee can move this issue to In Review.");
+            toast.error(t("Only the assignee can move this issue to In Review."));
             return originalIssue;
           }
           if (!originalIssue.processId) {
-            toast.error('Link this issue to a process to use In Review and the review form.');
+            toast.error(t("Link this issue to a process to use In Review and the review form."));
             return originalIssue;
           }
           // Check if there's already a pending review update for this issue
@@ -418,7 +419,7 @@ export default function IssuesBoardPage() {
     });
 
     setIssues(updatedIssues);
-  }, [queueUpdate, pendingReviewUpdate, currentUserId]);
+  }, [queueUpdate, pendingReviewUpdate, currentUserId, t]);
 
   // Handle drag start - track that dragging has started
   const handleDragStart = useCallback((event: any) => {
@@ -574,7 +575,7 @@ export default function IssuesBoardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading board...</p>
+        <p className="text-muted-foreground">{t('Loading board...')}</p>
       </div>
     );
   }
@@ -582,7 +583,7 @@ export default function IssuesBoardPage() {
   if (!siteId) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        Select a site in the sidebar to load the board for that site.
+        {t('Select a site in the sidebar to load the board for that site.')}
       </div>
     );
   }
@@ -764,9 +765,9 @@ export default function IssuesBoardPage() {
       >
         <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
-            <DialogTitle>Delete issue</DialogTitle>
+            <DialogTitle>{t('Delete issue')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &quot;{issueToDelete?.title ?? 'this issue'}&quot;? This action cannot be undone.
+              {t('Are you sure you want to delete')} &quot;{issueToDelete?.title ?? t('this issue')}&quot;? {t('This action cannot be undone.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -779,7 +780,7 @@ export default function IssuesBoardPage() {
               }}
               disabled={isDeleting}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button
               type="button"
@@ -793,16 +794,16 @@ export default function IssuesBoardPage() {
                   setIssues((prev) => prev.filter((i) => i.id !== issueToDelete.id));
                   setDeleteDialogOpen(false);
                   setIssueToDelete(null);
-                  toast.success("Issue deleted successfully.");
+                  toast.success(t("Issue deleted successfully."));
                 } catch (err: any) {
                   const msg = err?.response?.data?.error ?? err?.message;
-                  toast.error(msg && typeof msg === "string" ? msg : "Could not delete the issue. Please try again.");
+                  toast.error(msg && typeof msg === "string" ? msg : t("Could not delete the issue. Please try again."));
                 } finally {
                   setIsDeleting(false);
                 }
               }}
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? t('Deleting...') : t('Delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

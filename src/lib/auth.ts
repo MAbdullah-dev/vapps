@@ -8,6 +8,7 @@ import GitHub from "next-auth/providers/github";
 import Apple from "next-auth/providers/apple";
 import Atlassian from "next-auth/providers/atlassian";
 import bcrypt from "bcryptjs";
+import { verifyTurnstileResponse } from "./turnstile";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -43,10 +44,20 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        turnstileToken: { label: "Turnstile token", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) {
           throw new Error("Email and password are required");
+        }
+
+        const turnstileToken =
+          typeof credentials.turnstileToken === "string"
+            ? credentials.turnstileToken
+            : undefined;
+        const turnstileOk = await verifyTurnstileResponse(turnstileToken);
+        if (!turnstileOk.success) {
+          throw new Error("Security check failed. Please try again.");
         }
 
         const user = await prisma.user.findUnique({
@@ -170,7 +181,7 @@ export const authOptions: NextAuthOptions = {
       return baseUrl;
     },
 
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       // Handle OAuth account linking for existing users
       if (account?.provider !== "credentials" && user.email && account) {
         const dbUser = await prisma.user.findUnique({

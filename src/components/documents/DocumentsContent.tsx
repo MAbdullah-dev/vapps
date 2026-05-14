@@ -25,7 +25,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Archive,
   Cloud,
   Download,
   Eye,
@@ -41,11 +40,11 @@ import {
   Send,
   Server,
   Share2,
-  Trash2,
   Upload,
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
+import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
 
 export type MasterDocumentRow = {
@@ -170,21 +169,21 @@ function copyTextToClipboardSync(text: string): boolean {
   }
 }
 
-function copyShareUrlToClipboard(absoluteUrl: string): void {
+function copyShareUrlToClipboard(absoluteUrl: string, t: (text: string) => string): void {
   const showManualFallback = () => {
-    toast.message("Copy this link", {
+    toast.message(t("Copy this link"), {
       description: absoluteUrl,
       duration: 25_000,
     });
   };
 
   if (copyTextToClipboardSync(absoluteUrl)) {
-    toast.success("Link copied to clipboard.");
+    toast.success(t("Link copied to clipboard."));
     return;
   }
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText && window.isSecureContext) {
     void navigator.clipboard.writeText(absoluteUrl).then(
-      () => toast.success("Link copied to clipboard."),
+      () => toast.success(t("Link copied to clipboard.")),
       showManualFallback
     );
     return;
@@ -281,34 +280,6 @@ type ObsoleteDocumentRow = {
   archivedLocation: string;
 };
 
-type DocumentaryEvidenceRow = {
-  documentRef: string;
-  title: string;
-  processOwner: string;
-  batchLot: string;
-  yearMonth: string;
-  site: string;
-  docNumber: string;
-  version: string;
-  captureBy: string;
-  captureDate: string;
-  verifyBy: string | null;
-  verifyDate: string | null;
-  kpi: "Consistent" | "Pending" | "Inconsistent";
-  recordStatus: "Success" | "Pending" | "Fail";
-  recordRank: "Verified" | "Captured" | "Archived";
-};
-
-type RecordsDisposalRow = {
-  recordId: string;
-  description: string;
-  disposedBy: string;
-  disposalDate: string;
-  retentionPeriod: string;
-  disposalMethod: "Delete" | "Shred";
-  storageMedia: "Cloud" | "Physical" | "Local Server";
-};
-
 function ObsoleteTypeBadge({ type }: { type: ObsoleteDocumentRow["type"] }) {
   const map: Record<ObsoleteDocumentRow["type"], string> = {
     P: "border-transparent bg-violet-100 text-violet-800 hover:bg-violet-100",
@@ -328,12 +299,13 @@ function ObsoleteTypeBadge({ type }: { type: ObsoleteDocumentRow["type"] }) {
 }
 
 function ArchivedLocationBadge({ label }: { label: string }) {
+  const { t } = useTranslate();
   return (
     <Badge
       variant="outline"
       className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2.5 py-1 text-xs font-medium text-[#4B5563] hover:bg-[#F3F4F6]"
     >
-      {label}
+      {t(label)}
     </Badge>
   );
 }
@@ -379,112 +351,8 @@ function ObsoleteRegisterColumnHead({
   );
 }
 
-function EvidenceKpiText({ kpi }: { kpi: DocumentaryEvidenceRow["kpi"] }) {
-  const map: Record<DocumentaryEvidenceRow["kpi"], string> = {
-    Consistent: "text-[#16A34A]",
-    Pending: "text-[#EA580C]",
-    Inconsistent: "text-[#DC2626]",
-  };
-  return <span className={cn("text-sm font-medium", map[kpi])}>{kpi}</span>;
-}
-
-function EvidenceRecordStatusBadge({ status }: { status: DocumentaryEvidenceRow["recordStatus"] }) {
-  const map: Record<DocumentaryEvidenceRow["recordStatus"], string> = {
-    Success:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Pending:
-      "border-transparent bg-orange-500 text-white hover:bg-orange-500 shadow-none",
-    Fail: "border-transparent bg-red-600 text-white hover:bg-red-600 shadow-none",
-  };
-  return (
-    <Badge
-      className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-semibold",
-        map[status]
-      )}
-    >
-      {status}
-    </Badge>
-  );
-}
-
-function RetentionPeriodBadge({ label }: { label: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2.5 py-1 text-xs font-medium text-[#4B5563] hover:bg-[#F3F4F6]"
-    >
-      {label}
-    </Badge>
-  );
-}
-
-function DisposalMethodBadge({ method }: { method: RecordsDisposalRow["disposalMethod"] }) {
-  if (method === "Delete") {
-    return (
-      <Badge className="gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 shadow-none hover:bg-red-50">
-        <Trash2 className="size-3.5" aria-hidden />
-        Delete
-      </Badge>
-    );
-  }
-  return (
-    <Badge className="gap-1 rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 shadow-none hover:bg-slate-100">
-      <Scissors className="size-3.5" aria-hidden />
-      Shred
-    </Badge>
-  );
-}
-
-function StorageMediaCell({ media }: { media: RecordsDisposalRow["storageMedia"] }) {
-  const map = {
-    Cloud: {
-      Icon: Cloud,
-      text: "text-violet-600",
-      label: "Cloud",
-    },
-    Physical: {
-      Icon: HardDrive,
-      text: "text-slate-600",
-      label: "Physical",
-    },
-    "Local Server": {
-      Icon: Server,
-      text: "text-orange-600",
-      label: "Local Server",
-    },
-  } as const;
-  const { Icon, text, label } = map[media];
-  return (
-    <div className={cn("flex items-center gap-1.5 text-sm font-medium", text)}>
-      <Icon className="size-4 shrink-0" aria-hidden />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recordRank"] }) {
-  const map: Record<DocumentaryEvidenceRow["recordRank"], string> = {
-    Verified:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Captured:
-      "border-transparent bg-amber-500 text-white hover:bg-amber-500 shadow-none",
-    Archived:
-      "border-transparent bg-slate-500 text-white hover:bg-slate-500 shadow-none",
-  };
-  return (
-    <Badge
-      className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-semibold",
-        map[rank]
-      )}
-    >
-      {rank}
-    </Badge>
-  );
-}
-
 function DocStatusBadge({ status }: { status: MasterDocumentRow["docStatus"] }) {
+  const { t } = useTranslate();
   const map: Record<MasterDocumentRow["docStatus"], string> = {
     "In-Progress": "bg-sky-50 text-sky-700 border border-sky-200",
     Success: "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -493,12 +361,13 @@ function DocStatusBadge({ status }: { status: MasterDocumentRow["docStatus"] }) 
   };
   return (
     <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", map[status])}>
-      {status}
+      {t(status)}
     </span>
   );
 }
 
 function DocPositionBadge({ position }: { position: MasterDocumentRow["docPosition"] }) {
+  const { t } = useTranslate();
   return (
     <span
       className={cn(
@@ -514,7 +383,7 @@ function DocPositionBadge({ position }: { position: MasterDocumentRow["docPositi
             : "bg-neutral-700"
       )}
     >
-      {position}
+      {t(position)}
     </span>
   );
 }
@@ -542,6 +411,7 @@ function MasterDocumentRowActionsMenu({
   onDownloadPdf: (row: MasterDocumentRow) => void | Promise<void>;
   onDownloadExcel: (row: MasterDocumentRow) => void;
 }) {
+  const { t } = useTranslate();
   const workflowStep =
     workflowStatus === "in_review"
       ? "2"
@@ -553,17 +423,17 @@ function MasterDocumentRowActionsMenu({
   const workflowHref = `${editHref}&step=${workflowStep}`;
   const workflowLabel =
     workflowStatus === "in_review"
-      ? "Submit for Approval"
+      ? t("Submit for Approval")
       : workflowStatus === "in_approval"
-        ? "Open Approval"
-        : "Submit for Review";
+        ? t("Open Approval")
+        : t("Submit for Review");
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6A7282] hover:bg-[#F3F4F6] hover:text-[#0A0A0A] data-[state=open]:bg-[#F3F4F6]"
-          aria-label="Row actions"
+          aria-label={t("Row actions")}
         >
           <MoreVertical size={18} />
         </button>
@@ -575,31 +445,31 @@ function MasterDocumentRowActionsMenu({
         <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
           <Link href={viewHref}>
             <Eye size={16} className="text-[#6A7282]" />
-            View
+            {t("View")}
           </Link>
         </DropdownMenuItem>
         {canEditDirectly ? (
           <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
             <Link href={editHref}>
               <Pencil size={16} className="text-[#6A7282]" />
-              Edit
+              {t("Edit")}
             </Link>
           </DropdownMenuItem>
         ) : (
           <>
             <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
-              Revision Required
+              {t("Revision Required")}
             </DropdownMenuLabel>
             <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
               <Link href={reviseUpdateHref}>
                 <Pencil size={16} className="text-[#6A7282]" />
-                Revise &amp; Update
+                {t("Revise & Update")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
               <Link href={reviseTransferHref}>
                 <Pencil size={16} className="text-[#6A7282]" />
-                Revise &amp; Transfer
+                {t("Revise & Transfer")}
               </Link>
             </DropdownMenuItem>
           </>
@@ -613,7 +483,7 @@ function MasterDocumentRowActionsMenu({
             }}
           >
             <Share2 size={16} />
-            Share
+            {t("Share")}
           </button>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -623,18 +493,18 @@ function MasterDocumentRowActionsMenu({
           }}
         >
           <FileDown size={16} />
-          Download PDF
+          {t("Download PDF")}
         </DropdownMenuItem>
         <DropdownMenuItem
           className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]"
           onSelect={() => onDownloadExcel(row)}
         >
           <FileSpreadsheet size={16} />
-          Download Excel
+          {t("Download Excel")}
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
         <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
-          Workflow
+          {t("Workflow")}
         </DropdownMenuLabel>
         <DropdownMenuItem
           asChild
@@ -651,6 +521,7 @@ function MasterDocumentRowActionsMenu({
 }
 
 function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
+  const { t } = useTranslate();
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -659,7 +530,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Row actions"
+          aria-label={t("Row actions")}
         >
           <MoreVertical className="size-[18px]" />
         </Button>
@@ -670,7 +541,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6] focus:text-[#0A0A0A]">
           <Eye size={16} className="text-[#0A0A0A]" />
-          View
+          {t("View")}
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
           <button
@@ -679,106 +550,16 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
             onClick={() => onShare()}
           >
             <Share2 size={16} />
-            Share
+            {t("Share")}
           </button>
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
           <FileDown size={16} />
-          Download PDF
+          {t("Download PDF")}
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
           <FileSpreadsheet size={16} />
-          Download Excel
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function DocumentaryEvidenceRowActionsMenu() {
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Row actions"
-        >
-          <MoreVertical className="size-[18px]" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
-      >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Eye size={16} className="text-[#0A0A0A]" />
-          View
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Pencil size={16} className="text-[#0A0A0A]" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6366F1] focus:bg-[#EEF2FF] focus:text-[#6366F1] [&_svg]:text-[#6366F1]">
-          <Share2 size={16} />
-          Share
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
-          <FileDown size={16} />
-          Download PDF
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} />
-          Download Excel
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
-          Record lifecycle
-        </DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
-          <Archive size={16} />
-          Archive Record
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function RecordsDisposalRowActionsMenu() {
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Row actions"
-        >
-          <MoreVertical className="size-[18px]" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
-      >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
-          <Eye size={16} className="text-[#0A0A0A]" />
-          View
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
-          <Share2 size={16} />
-          Share
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
-          <FileDown size={16} />
-          Download PDF
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} />
-          Download Excel
+          {t("Download Excel")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -787,6 +568,7 @@ function RecordsDisposalRowActionsMenu() {
 
 export default function DocumentsContent() {
   const params = useParams();
+  const { t } = useTranslate();
   const orgId = (params?.orgId as string) || "";
   const createDocumentHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
   const createDocumentBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
@@ -1233,15 +1015,15 @@ export default function DocumentsContent() {
       );
       const filename = `master-doc-${sanitizeFilePart(docRow.docNumber || docRow.id)}.pdf`;
       pdf.save(filename);
-      toast.success("PDF downloaded.");
+      toast.success(t("PDF downloaded."));
     } catch {
-      toast.error("Could not generate PDF for this row.");
+      toast.error(t("Could not generate PDF for this row."));
     }
   };
 
   const downloadMasterRowExcel = (docRow: MasterDocumentRow) => {
     const isP = pTypeDocument(docRow.type);
-    const titleLabel = isP ? "Policy/Procedure/SOP Title" : "Form/Blank Template Title";
+    const titleLabel = isP ? t("Policy/Procedure/SOP Title") : t("Form/Blank Template Title");
     const wf = docRow.workflowStatus;
     const hasReviewed = wf === "in_approval" || wf === "approved";
     const hasApproved = wf === "approved";
@@ -1254,8 +1036,8 @@ export default function DocumentsContent() {
     const capLabel = String(docRow.createdByName ?? "").trim() || "na";
     const verLabel = hasApproved ? appLabel : "na";
     const stepLane = isP
-      ? `Created By: ${capLabel} | Reviewed By: ${revLabel} | Approved By: ${appLabel}`
-      : `Capture By: ${capLabel} | Verified By: ${verLabel} | DISCARD`;
+      ? `${t("Created By")}: ${capLabel} | ${t("Reviewed By")}: ${revLabel} | ${t("Approved By")}: ${appLabel}`
+      : `${t("Capture By")}: ${capLabel} | ${t("Verified By")}: ${verLabel} | ${t("DISCARD")}`;
     const bodyPlain = htmlToPlain(docRow.mainContent ?? "") || docRow.title || "—";
     const esc = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1279,16 +1061,16 @@ export default function DocumentsContent() {
   <div class="sheet">
     <div class="header">
       <div class="topline">
-        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">${esc(organizationName || "Company Name")}</span>
-        <span>Ref# ${esc(docRow.documentRef)}</span>
+        <span style="color:${isP ? "#6d28d9" : "#ea580c"}">${esc(organizationName || t("Company Name"))}</span>
+        <span>${esc(t("Ref#"))} ${esc(docRow.documentRef)}</span>
       </div>
-      <div class="title">${titleLabel}: ${esc(docRow.title)}</div>
-      <div class="meta">Site: ${esc(docRow.site)} | Process: ${esc(docRow.process)} | Standard: ${esc(docRow.standard)} | Clause: ${esc(docRow.clause)} | Subclause: ${esc(docRow.subclause)}</div>
+      <div class="title">${esc(titleLabel)}: ${esc(docRow.title)}</div>
+      <div class="meta">${esc(t("Site"))}: ${esc(docRow.site)} | ${esc(t("Process"))}: ${esc(docRow.process)} | ${esc(t("Standard"))}: ${esc(docRow.standard)} | ${esc(t("Clause"))}: ${esc(docRow.clause)} | ${esc(t("Subclause"))}: ${esc(docRow.subclause)}</div>
     </div>
     <div class="body">${esc(bodyPlain)}</div>
     <div class="footer">
       ${stepLane}
-      ${!isP ? `<div class="small">Comments (if any): Workflow ${esc(docRow.docPosition)} (${esc(docRow.docStatus)})</div>` : ""}
+      ${!isP ? `<div class="small">${esc(t("Comments (if any): Workflow"))} ${esc(docRow.docPosition)} (${esc(docRow.docStatus)})</div>` : ""}
     </div>
   </div>
 </body>
@@ -1298,7 +1080,7 @@ export default function DocumentsContent() {
       html,
       "application/vnd.ms-excel;charset=utf-8"
     );
-    toast.success("Excel file downloaded.");
+    toast.success(t("Excel file downloaded."));
   };
 
   const downloadCurrentTableExcel = () => {
@@ -1307,28 +1089,28 @@ export default function DocumentsContent() {
     if (selectedTable === "Master Document List") {
       if (filteredMaster.length === 0) return;
       const headers = [
-        "Document Ref.",
-        "Nature of Document",
-        "Title",
-        "Type",
-        "Site",
-        "Process",
-        "Standard",
-        "Clause",
-        "Subclause",
-        "Doc#",
-        "Version",
-        "Plan Date",
-        "Release Date",
-        "Review Due (Lifecycle in Years)",
-        "KPI",
-        "Doc Status",
-        "Doc Position",
-        "Workflow Status",
+        t("Document Ref."),
+        t("Nature of Document"),
+        t("Title"),
+        t("Type"),
+        t("Site"),
+        t("Process"),
+        t("Standard"),
+        t("Clause"),
+        t("Subclause"),
+        t("Doc#"),
+        t("Version"),
+        t("Plan Date"),
+        t("Release Date"),
+        t("Review Due (Lifecycle in Years)"),
+        t("KPI"),
+        t("Doc Status"),
+        t("Doc Position"),
+        t("Workflow Status"),
       ];
       const rows = filteredMaster.map((docRow) => [
         docRow.documentRef,
-        docRow.natureOfDocument,
+        t(docRow.natureOfDocument),
         docRow.title,
         docRow.type,
         docRow.site,
@@ -1341,31 +1123,31 @@ export default function DocumentsContent() {
         docRow.planDate,
         docRow.releaseDate,
         docRow.reviewDue,
-        docRow.kpi,
-        docRow.docStatus,
-        docRow.docPosition,
-        docRow.workflowStatus,
+        t(docRow.kpi),
+        t(docRow.docStatus),
+        t(docRow.docPosition),
+        t(docRow.workflowStatus),
       ]);
       downloadExcelTable("master-document-list.xls", headers, rows);
-      toast.success("Excel file downloaded.");
+      toast.success(t("Excel file downloaded."));
       return;
     }
 
     if (selectedTable === "Obsolete Document Register") {
       if (filteredObsolete.length === 0) return;
       const headers = [
-        "Document Ref.",
-        "Title",
-        "Type",
-        "Process Owner",
-        "Standard",
-        "Site",
-        "Doc#",
-        "Version",
-        "Obsoleted By",
-        "Obsolete Date",
-        "Replaced By",
-        "Archived Location",
+        t("Document Ref."),
+        t("Title"),
+        t("Type"),
+        t("Process Owner"),
+        t("Standard"),
+        t("Site"),
+        t("Doc#"),
+        t("Version"),
+        t("Obsoleted By"),
+        t("Obsolete Date"),
+        t("Replaced By"),
+        t("Archived Location"),
       ];
       const rows = filteredObsolete.map((row) => [
         row.documentRef,
@@ -1382,27 +1164,27 @@ export default function DocumentsContent() {
         row.archivedLocation,
       ]);
       downloadExcelTable("obsolete-document-register.xls", headers, rows);
-      toast.success("Excel file downloaded.");
+      toast.success(t("Excel file downloaded."));
       return;
     }
 
     if (selectedTable === "Documentary Evidence") {
       if (filteredEvidence.length === 0) return;
       const headers = [
-        "Document Ref.",
-        "Title",
-        "Process Owner",
-        "Batch/Lot#",
-        "Year/Month",
-        "Site",
-        "Doc#",
-        "Version",
-        "Capture By",
-        "Capture Date",
-        "Verify By",
-        "Verify Date",
-        "KPI",
-        "Record Status",
+        t("Document Ref."),
+        t("Title"),
+        t("Process Owner"),
+        t("Batch/Lot#"),
+        t("Year/Month"),
+        t("Site"),
+        t("Doc#"),
+        t("Version"),
+        t("Capture By"),
+        t("Capture Date"),
+        t("Verify By"),
+        t("Verify Date"),
+        t("KPI"),
+        t("Record Status"),
       ];
       const rows = filteredEvidence.map((row) => {
         const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
@@ -1443,25 +1225,25 @@ export default function DocumentsContent() {
           captureDate,
           verifyBy,
           verifyDate,
-          kpiLabel,
-          statusLabel,
+          t(kpiLabel),
+          t(statusLabel),
         ];
       });
       downloadExcelTable("documentary-evidence.xls", headers, rows);
-      toast.success("Excel file downloaded.");
+      toast.success(t("Excel file downloaded."));
       return;
     }
 
     if (selectedTable === "Records Disposal Log") {
       if (filteredDisposal.length === 0) return;
       const headers = [
-        "Record ID",
-        "Description",
-        "Disposed By",
-        "Disposal Date",
-        "Retention Period",
-        "Disposal Method",
-        "Storage Media",
+        t("Record ID"),
+        t("Description"),
+        t("Disposed By"),
+        t("Disposal Date"),
+        t("Retention Period"),
+        t("Disposal Method"),
+        t("Storage Media"),
       ];
       const rows = filteredDisposal.map((row) => {
         const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
@@ -1479,39 +1261,39 @@ export default function DocumentsContent() {
         const isShred = storageRaw.includes("shred") || storageRaw.includes("physical");
         const disposalMethod = isShred ? "Shred" : "Delete";
         const storage = String(va.archiveLocation ?? "").trim() || "Cloud";
-        return [shortId, desc, disposedBy, disposalDate, retention, disposalMethod, storage];
+        return [shortId, desc, disposedBy, disposalDate, t(retention), t(disposalMethod), t(storage)];
       });
       downloadExcelTable("records-disposal-log.xls", headers, rows);
-      toast.success("Excel file downloaded.");
+      toast.success(t("Excel file downloaded."));
     }
   };
 
   const shareMasterRow = (_docRow: MasterDocumentRow, viewHref: string) => {
     const absoluteUrl =
       typeof window !== "undefined" ? new URL(viewHref, window.location.origin).toString() : viewHref;
-    copyShareUrlToClipboard(absoluteUrl);
+    copyShareUrlToClipboard(absoluteUrl, t);
   };
 
   const copyDocumentViewLink = (recordId: string) => {
     if (!orgId) {
-      toast.error("Could not copy link.");
+      toast.error(t("Could not copy link."));
       return;
     }
     const relativePath = `${createDocumentBaseHref}?recordId=${encodeURIComponent(recordId)}&mode=view`;
     const absoluteUrl =
       typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
-    copyShareUrlToClipboard(absoluteUrl);
+    copyShareUrlToClipboard(absoluteUrl, t);
   };
 
   const copyDisposalShareLink = (recordId: string) => {
     if (!orgId) {
-      toast.error("Could not copy link.");
+      toast.error(t("Could not copy link."));
       return;
     }
     const relativePath = `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?evidenceRecordId=${encodeURIComponent(recordId)}`;
     const absoluteUrl =
       typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
-    copyShareUrlToClipboard(absoluteUrl);
+    copyShareUrlToClipboard(absoluteUrl, t);
   };
 
   return (
@@ -1524,11 +1306,11 @@ export default function DocumentsContent() {
               <div className="flex items-center gap-2">
                 <FileText size={20} />
                 <h1 className="text-xl sm:text-2xl font-semibold text-[#0A0A0A]">
-                  Document Management Tables
+                  {t("Document Management Tables")}
                 </h1>
               </div>
               <p className="text-sm text-[#9CA3AF] mt-1">
-                View and manage documents across different categories
+                {t("View and manage documents across different categories")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1538,13 +1320,13 @@ export default function DocumentsContent() {
               >
                 <Link href={documentaryEvidenceTemplatesHref}>
                   <FileText size={16} />
-                  Documentary Evidence Records
+                  {t("Documentary Evidence Records")}
                 </Link>
               </Button>
               <Button asChild className="text-white flex items-center gap-2" variant="default">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
-                  Create Document
+                  {t("Create Document")}
                 </Link>
               </Button>
             </div>
@@ -1556,23 +1338,23 @@ export default function DocumentsContent() {
       <Card className="py-4">
         <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="w-full sm:w-auto">
-            <p className="text-xs text-[#6A7282] mb-2">Select Table</p>
+            <p className="text-xs text-[#6A7282] mb-2">{t("Select Table")}</p>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
               <SelectTrigger className="w-full sm:min-w-[340px] sm:max-w-[520px] border border-[#0000001A] rounded-xl bg-white px-3 py-2 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Master Document List">
-                  Master Document List
+                  {t("Master Document List")}
                 </SelectItem>
                 <SelectItem value="Obsolete Document Register">
-                  Obsolete Document Register
+                  {t("Obsolete Document Register")}
                 </SelectItem>
                 <SelectItem value="Documentary Evidence">
-                  Documentary Evidence (F) - Completed Form/Template - Archive
+                  {t("Documentary Evidence (F) - Completed Form/Template - Archive")}
                 </SelectItem>
                 <SelectItem value="Records Disposal Log">
-                  Records Disposal Log (F) - Completed Form/Template
+                  {t("Records Disposal Log (F) - Completed Form/Template")}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1588,14 +1370,16 @@ export default function DocumentsContent() {
               className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">Superseded versions and retention</p>
+              <p className="font-semibold text-[#1E40AF]">{t("Superseded versions and retention")}</p>
               <p className="mt-2 leading-relaxed">
-                When a <span className="font-medium">new version</span> of a document is created as a revision and{" "}
-                <span className="font-medium">approved</span>, the previous version is moved here automatically (it
-                stays linked to the new active record). Obsolete rows are{" "}
-                <span className="font-medium">permanently deleted</span> once{" "}
-                <span className="font-medium">three years</span> have passed since they became obsolete; cleanup runs
-                when document lists are loaded.
+                {t("When a")}{" "}
+                <span className="font-medium">{t("new version")}</span>{" "}
+                {t("of a document is created as a revision and")}{" "}
+                <span className="font-medium">{t("approved")}</span>
+                {t(", the previous version is moved here automatically (it stays linked to the new active record). Obsolete rows are")}{" "}
+                <span className="font-medium">{t("permanently deleted")}</span> {t("once")}{" "}
+                <span className="font-medium">{t("three years")}</span>{" "}
+                {t("have passed since they became obsolete; cleanup runs when document lists are loaded.")}
               </p>
             </div>
           ) : null}
@@ -1604,11 +1388,14 @@ export default function DocumentsContent() {
               className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]"
               role="note"
             >
-              <p className="font-semibold text-[#15803D]">Captured F-type evidence records — awaiting verification</p>
+              <p className="font-semibold text-[#15803D]">
+                {t("Captured F-type evidence records — awaiting verification")}
+              </p>
               <p className="mt-2 leading-relaxed">
-                This table shows F-type documentary evidence records where the <span className="font-medium">capture step is complete</span> but
-                verification is still pending. Once the designated verifier completes Verify &amp; Archive, the record moves to the{" "}
-                <span className="font-medium">Records Disposal Log</span>.
+                {t("This table shows F-type documentary evidence records where the")}{" "}
+                <span className="font-medium">{t("capture step is complete")}</span>{" "}
+                {t("but verification is still pending. Once the designated verifier completes Verify & Archive, the record moves to the")}{" "}
+                <span className="font-medium">{t("Records Disposal Log")}</span>.
               </p>
             </div>
           ) : null}
@@ -1617,11 +1404,12 @@ export default function DocumentsContent() {
               className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">Completed evidence records — verified &amp; archived</p>
+              <p className="font-semibold text-[#1E40AF]">
+                {t("Completed evidence records — verified & archived")}
+              </p>
               <p className="mt-2 leading-relaxed">
-                Records appear here once <span className="font-medium">both</span> steps are finished: capture by Support Leadership and
-                verification by the designated Top/Operational verifier. Each row shows the retention period and archive location
-                set during verification.
+                {t("Records appear here once")} <span className="font-medium">{t("both")}</span>{" "}
+                {t("steps are finished: capture by Support Leadership and verification by the designated Top/Operational verifier. Each row shows the retention period and archive location set during verification.")}
               </p>
             </div>
           ) : null}
@@ -1631,9 +1419,9 @@ export default function DocumentsContent() {
               role="note"
             >
               <p className="leading-relaxed">
-                Revising an <span className="font-medium">approved</span> document creates a new version; when that new
-                version completes approval, the prior version appears in the{" "}
-                <span className="font-medium">Obsolete Document Register</span>.
+                {t("Revising an")} <span className="font-medium">{t("approved")}</span>{" "}
+                {t("document creates a new version; when that new version completes approval, the prior version appears in the")}{" "}
+                <span className="font-medium">{t("Obsolete Document Register")}</span>.
               </p>
             </div>
           ) : null}
@@ -1641,12 +1429,12 @@ export default function DocumentsContent() {
             <div>
               <h2 className="text-base font-semibold text-[#0A0A0A]">
                 {selectedTable === "Obsolete Document Register"
-                  ? "Obsolete Document Register P/F"
+                  ? t("Obsolete Document Register P/F")
                   : selectedTable === "Documentary Evidence"
-                    ? "Documentary Evidence (F) - Completed Form/Template - Archive"
+                    ? t("Documentary Evidence (F) - Completed Form/Template - Archive")
                     : selectedTable === "Records Disposal Log"
-                      ? "Records Disposal Log (F) - Completed Form/Template"
-                      : selectedTable}
+                      ? t("Records Disposal Log (F) - Completed Form/Template")
+                      : t(selectedTable)}
               </h2>
             </div>
 
@@ -1660,7 +1448,7 @@ export default function DocumentsContent() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
-                  placeholder="Search..."
+                  placeholder={t("Search...")}
                 />
               </div>
 
@@ -1677,7 +1465,7 @@ export default function DocumentsContent() {
                 }
               >
                 <Download size={16} />
-                Download Excel Sheet
+                {t("Download Excel Sheet")}
               </Button>
             </div>
           </div>
@@ -1688,30 +1476,30 @@ export default function DocumentsContent() {
                 <TableHeader>
                   <TableRow className="bg-[#FAFAFA] hover:bg-[#FAFAFA]">
                     <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
-                      Document Ref.
+                      {t("Document Ref.")}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
-                      Nature of Document
+                      {t("Nature of Document")}
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Title</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Type</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Site</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Process</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Standard</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Clause</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Subclause</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc#</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Version</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Plan Date</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Release Date</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Title")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Type")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Site")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Process")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Standard")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Clause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Subclause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc#")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Version")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Plan Date")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Release Date")}</TableHead>
                     <TableHead className="text-xs font-semibold text-[#0A0A0A] min-w-[140px]">
-                      Review Due (Lifecycle in Years)
+                      {t("Review Due (Lifecycle in Years)")}
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">KPI</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc Status</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">Doc Position</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("KPI")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc Status")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc Position")}</TableHead>
                     <TableHead className="text-xs font-semibold text-[#0A0A0A] w-[56px] text-center">
-                      Actions
+                      {t("Actions")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1719,17 +1507,17 @@ export default function DocumentsContent() {
                   {!documentsLoaded && orgId ? (
                     <TableRow>
                       <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
-                        Loading documents…
+                        {t("Loading documents…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredMaster.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
-                          ? "Open this page from your organization dashboard to load documents."
+                          ? t("Open this page from your organization dashboard to load documents.")
                           : masterApiRows.length === 0
-                            ? "No active documents yet. Use Create Document to add one."
-                            : "No documents match your search."}
+                            ? t("No active documents yet. Use Create Document to add one.")
+                            : t("No documents match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1738,7 +1526,7 @@ export default function DocumentsContent() {
                         <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
                           {doc.documentRef}
                         </TableCell>
-                        <TableCell className="text-sm text-[#0A0A0A]">{doc.natureOfDocument}</TableCell>
+                        <TableCell className="text-sm text-[#0A0A0A]">{t(doc.natureOfDocument)}</TableCell>
                         <TableCell className="text-sm text-[#0A0A0A] max-w-[200px]">{doc.title}</TableCell>
                         <TableCell>
                           <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl text-[#0A0A0A]">
@@ -1755,7 +1543,7 @@ export default function DocumentsContent() {
                         <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
-                        <TableCell className="text-sm">{doc.kpi}</TableCell>
+                        <TableCell className="text-sm">{t(doc.kpi)}</TableCell>
                         <TableCell>
                           <DocStatusBadge status={doc.docStatus} />
                         </TableCell>
@@ -1786,25 +1574,25 @@ export default function DocumentsContent() {
                 <TableHeader>
                   <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
                     <ObsoleteRegisterColumnHead
-                      title="Document Ref."
-                      hint="(Doc/Year/Site/Process/Type/Doc#/Version)"
+                      title={t("Document Ref.")}
+                      hint={t("(Doc/Year/Site/Process/Type/Doc#/Version)")}
                     />
-                    <ObsoleteRegisterColumnHead title="Title" />
-                    <ObsoleteRegisterColumnHead title="Type" hint="(P / F / EXT)" />
+                    <ObsoleteRegisterColumnHead title={t("Title")} />
+                    <ObsoleteRegisterColumnHead title={t("Type")} hint={t("(P / F / EXT)")} />
                     <ObsoleteRegisterColumnHead
-                      title="Process Owner"
-                      hint="(P1=Quality, P2=Manufacturing...)"
+                      title={t("Process Owner")}
+                      hint={t("(P1=Quality, P2=Manufacturing...)")}
                     />
-                    <ObsoleteRegisterColumnHead title="Standard" />
-                    <ObsoleteRegisterColumnHead title="Site" />
-                    <ObsoleteRegisterColumnHead title="Doc#" />
-                    <ObsoleteRegisterColumnHead title="Version" />
-                    <ObsoleteRegisterColumnHead title="Obsoleted By" />
-                    <ObsoleteRegisterColumnHead title="Obsolete Date" />
-                    <ObsoleteRegisterColumnHead title="Replaced By" hint="(If Any)" />
-                    <ObsoleteRegisterColumnHead title="Archived Location" />
+                    <ObsoleteRegisterColumnHead title={t("Standard")} />
+                    <ObsoleteRegisterColumnHead title={t("Site")} />
+                    <ObsoleteRegisterColumnHead title={t("Doc#")} />
+                    <ObsoleteRegisterColumnHead title={t("Version")} />
+                    <ObsoleteRegisterColumnHead title={t("Obsoleted By")} />
+                    <ObsoleteRegisterColumnHead title={t("Obsolete Date")} />
+                    <ObsoleteRegisterColumnHead title={t("Replaced By")} hint={t("(If Any)")} />
+                    <ObsoleteRegisterColumnHead title={t("Archived Location")} />
                     <TableHead className="w-14 px-3 py-2.5 text-center text-xs font-semibold text-foreground first:pl-4 last:pr-4">
-                      Actions
+                      {t("Actions")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1812,17 +1600,17 @@ export default function DocumentsContent() {
                   {!documentsLoaded && orgId ? (
                     <TableRow>
                       <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
-                        Loading…
+                        {t("Loading…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredObsolete.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
-                          ? "Open this page from your organization dashboard to load documents."
+                          ? t("Open this page from your organization dashboard to load documents.")
                           : obsoleteApiRows.length === 0
-                            ? "No obsolete documents. Superseded versions appear here after a new revision is approved."
-                            : "No obsolete documents match your search."}
+                            ? t("No obsolete documents. Superseded versions appear here after a new revision is approved.")
+                            : t("No obsolete documents match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1868,32 +1656,32 @@ export default function DocumentsContent() {
                 <TableHeader>
                   <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
                     <ObsoleteRegisterColumnHead
-                      title="Document Ref."
-                      hint="(Doc/Year/Site/Process/Type/Doc#/Version)"
+                      title={t("Document Ref.")}
+                      hint={t("(Doc/Year/Site/Process/Type/Doc#/Version)")}
                     />
-                    <ObsoleteRegisterColumnHead title="Title" />
+                    <ObsoleteRegisterColumnHead title={t("Title")} />
                     <ObsoleteRegisterColumnHead
-                      title="Process Owner"
-                      hint="(P1=Quality, P2=Manufacturing...)"
+                      title={t("Process Owner")}
+                      hint={t("(P1=Quality, P2=Manufacturing...)")}
                     />
-                    <ObsoleteRegisterColumnHead title="Batch/Lot#" />
-                    <ObsoleteRegisterColumnHead title="Year/Month" />
-                    <ObsoleteRegisterColumnHead title="Site" />
-                    <ObsoleteRegisterColumnHead title="Doc#" />
-                    <ObsoleteRegisterColumnHead title="Version" />
-                    <ObsoleteRegisterColumnHead title="Capture By" />
-                    <ObsoleteRegisterColumnHead title="Capture Date" />
-                    <ObsoleteRegisterColumnHead title="Verify By" />
-                    <ObsoleteRegisterColumnHead title="Verify Date" />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title="KPI"
-                      hint="≤30d Green · >30d Yellow · >40d Red"
-                    />
+                    <ObsoleteRegisterColumnHead title={t("Batch/Lot#")} />
+                    <ObsoleteRegisterColumnHead title={t("Year/Month")} />
+                    <ObsoleteRegisterColumnHead title={t("Site")} />
+                    <ObsoleteRegisterColumnHead title={t("Doc#")} />
+                    <ObsoleteRegisterColumnHead title={t("Version")} />
+                    <ObsoleteRegisterColumnHead title={t("Capture By")} />
+                    <ObsoleteRegisterColumnHead title={t("Capture Date")} />
+                    <ObsoleteRegisterColumnHead title={t("Verify By")} />
+                    <ObsoleteRegisterColumnHead title={t("Verify Date")} />
                     <ObsoleteRegisterColumnHead
                       align="center"
-                      title="Record Status"
-                      hint="Success / Pending / Fail"
+                      title={t("KPI")}
+                      hint={t("≤30d Green · >30d Yellow · >40d Red")}
+                    />
+                    <ObsoleteRegisterColumnHead
+                      align="center"
+                      title={t("Record Status")}
+                      hint={t("Success / Pending / Fail")}
                     />
                   </TableRow>
                 </TableHeader>
@@ -1901,15 +1689,15 @@ export default function DocumentsContent() {
                   {!evidenceLoaded ? (
                     <TableRow>
                       <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
-                        Loading evidence records…
+                        {t("Loading evidence records…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredEvidence.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
                         {evidenceCapturedOnly.length === 0
-                          ? "No documentary evidence records loaded yet. This view will use captured F-type records when the API is connected."
-                          : "No records match your search."}
+                          ? t("No documentary evidence records loaded yet. This view will use captured F-type records when the API is connected.")
+                          : t("No records match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1961,11 +1749,11 @@ export default function DocumentsContent() {
                           <TableCell className="px-3 py-2.5 text-sm text-foreground">{verifyBy}</TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{verifyDate}</TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold", kpiColor)}>{kpiLabel}</span>
+                            <span className={cn("text-sm font-semibold", kpiColor)}>{t(kpiLabel)}</span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
                             <span className={cn("inline-block rounded-md px-3 py-1 text-xs font-semibold text-white", statusBg)}>
-                              {statusLabel}
+                              {t(statusLabel)}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -1978,23 +1766,23 @@ export default function DocumentsContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
-                    <ObsoleteRegisterColumnHead title="Record ID" />
-                    <ObsoleteRegisterColumnHead title="Description" />
-                    <ObsoleteRegisterColumnHead title="Disposed By" />
-                    <ObsoleteRegisterColumnHead title="Disposal Date" />
+                    <ObsoleteRegisterColumnHead title={t("Record ID")} />
+                    <ObsoleteRegisterColumnHead title={t("Description")} />
+                    <ObsoleteRegisterColumnHead title={t("Disposed By")} />
+                    <ObsoleteRegisterColumnHead title={t("Disposal Date")} />
                     <ObsoleteRegisterColumnHead
-                      title="Retention Period"
-                      hint="(1Y / 2Y / 3Y / Legal / Lifetime)"
+                      title={t("Retention Period")}
+                      hint={t("(1Y / 2Y / 3Y / Legal / Lifetime)")}
                     />
-                    <ObsoleteRegisterColumnHead title="Disposal Method" hint="(Delete / Shred)" />
+                    <ObsoleteRegisterColumnHead title={t("Disposal Method")} hint={t("(Delete / Shred)")} />
                     <ObsoleteRegisterColumnHead
-                      title="Storage Media"
-                      hint="(Cloud / Physical / Local Server)"
+                      title={t("Storage Media")}
+                      hint={t("(Cloud / Physical / Local Server)")}
                     />
                     <ObsoleteRegisterColumnHead
                       align="center"
-                      title="Actions"
-                      hint="(View / Share / Download)"
+                      title={t("Actions")}
+                      hint={t("(View / Share / Download)")}
                     />
                   </TableRow>
                 </TableHeader>
@@ -2002,15 +1790,15 @@ export default function DocumentsContent() {
                   {!evidenceLoaded ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
-                        Loading disposal records…
+                        {t("Loading disposal records…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredDisposal.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                         {evidenceCompletedOnly.length === 0
-                          ? "No disposal log entries yet. This view will list disposed records when the API is connected."
-                          : "No records match your search."}
+                          ? t("No disposal log entries yet. This view will list disposed records when the API is connected.")
+                          : t("No records match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -2048,17 +1836,17 @@ export default function DocumentsContent() {
                           <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[220px]">{desc}</TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground">{disposedBy}</TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{disposalDate}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{retention}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{t(retention)}</TableCell>
                           <TableCell className="px-3 py-2.5">
                             <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium", disposalMethodColor)}>
                               <Scissors className="h-3 w-3" />
-                              {disposalMethod}
+                              {t(disposalMethod)}
                             </span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5">
                             <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
                               <StorageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                              {storage}
+                              {t(storage)}
                             </span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
@@ -2069,10 +1857,10 @@ export default function DocumentsContent() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuLabel className="text-xs text-muted-foreground">Actions</DropdownMenuLabel>
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">{t("Actions")}</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="gap-2 text-sm">
-                                  <Eye className="h-4 w-4" /> View
+                                  <Eye className="h-4 w-4" /> {t("View")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
                                   <button
@@ -2080,14 +1868,14 @@ export default function DocumentsContent() {
                                     className="relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
                                     onClick={() => copyDisposalShareLink(row.id)}
                                   >
-                                    <Share2 className="h-4 w-4" /> Share
+                                    <Share2 className="h-4 w-4" /> {t("Share")}
                                   </button>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2 text-sm">
-                                  <FileDown className="h-4 w-4" /> Download PDF
+                                  <FileDown className="h-4 w-4" /> {t("Download PDF")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="gap-2 text-sm">
-                                  <FileSpreadsheet className="h-4 w-4" /> Download Excel
+                                  <FileSpreadsheet className="h-4 w-4" /> {t("Download Excel")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -2102,44 +1890,44 @@ export default function DocumentsContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Document Ref.</TableHead>
-                    <TableHead>Nature of Document</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Process</TableHead>
-                    <TableHead>Standard</TableHead>
-                    <TableHead>Clause</TableHead>
-                    <TableHead>Subclause</TableHead>
-                    <TableHead>Doc#</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Plan Date</TableHead>
-                    <TableHead>Release Date</TableHead>
-                    <TableHead>Review Due</TableHead>
+                    <TableHead>{t("Document Ref.")}</TableHead>
+                    <TableHead>{t("Nature of Document")}</TableHead>
+                    <TableHead>{t("Title")}</TableHead>
+                    <TableHead>{t("Type")}</TableHead>
+                    <TableHead>{t("Site")}</TableHead>
+                    <TableHead>{t("Process")}</TableHead>
+                    <TableHead>{t("Standard")}</TableHead>
+                    <TableHead>{t("Clause")}</TableHead>
+                    <TableHead>{t("Subclause")}</TableHead>
+                    <TableHead>{t("Doc#")}</TableHead>
+                    <TableHead>{t("Version")}</TableHead>
+                    <TableHead>{t("Plan Date")}</TableHead>
+                    <TableHead>{t("Release Date")}</TableHead>
+                    <TableHead>{t("Review Due")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!documentsLoaded && orgId ? (
                     <TableRow>
                       <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
-                        Loading documents…
+                        {t("Loading documents…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredMaster.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
-                          ? "Open this page from your organization dashboard to load documents."
+                          ? t("Open this page from your organization dashboard to load documents.")
                           : masterApiRows.length === 0
-                            ? "No active documents yet."
-                            : "No documents match your search."}
+                            ? t("No active documents yet.")
+                            : t("No documents match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredMaster.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-[#0A0A0A]">{doc.documentRef}</TableCell>
-                        <TableCell>{doc.natureOfDocument}</TableCell>
+                        <TableCell>{t(doc.natureOfDocument)}</TableCell>
                         <TableCell>{doc.title}</TableCell>
                         <TableCell>
                           <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl">
@@ -2168,7 +1956,7 @@ export default function DocumentsContent() {
           <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
             <Button variant="outline" className="flex items-center gap-2">
               <Upload size={16} />
-              Upload
+              {t("Upload")}
             </Button>
           </div>
         </CardContent>
@@ -2177,23 +1965,23 @@ export default function DocumentsContent() {
       {selectedTable === "Records Disposal Log" ? (
         <Card>
           <CardContent className="space-y-3 py-4">
-            <h2 className="text-base font-semibold text-foreground">KPI Status Logic</h2>
+            <h2 className="text-base font-semibold text-foreground">{t("KPI Status Logic")}</h2>
             <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className="size-3 shrink-0 rounded-sm bg-emerald-500" aria-hidden />
-                <span>Success ≤30 days → Green (Consistent)</span>
+                <span>{t("Success ≤30 days → Green (Consistent)")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="size-3 shrink-0 rounded-sm bg-amber-400" aria-hidden />
-                <span>In-Progress {'<'}30 days → Yellow</span>
+                <span>{t("In-Progress <30 days → Yellow")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="size-3 shrink-0 rounded-sm bg-red-500" aria-hidden />
-                <span>Pending {'>'}30 days → Red</span>
+                <span>{t("Pending >30 days → Red")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="size-3 shrink-0 rounded-full bg-red-600" aria-hidden />
-                <span>Fail {'>'}40 days → Red (Inconsistent)</span>
+                <span>{t("Fail >40 days → Red (Inconsistent)")}</span>
               </div>
             </div>
           </CardContent>
@@ -2204,36 +1992,37 @@ export default function DocumentsContent() {
       <Card>
         <CardContent className="space-y-4">
           <h2 className="text-base font-semibold text-[#0A0A0A]">
-            Document Classification
+            {t("Document Classification")}
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl border border-[#0000001A] p-4">
               <h3 className="font-semibold text-sm mb-3">
-                Category 1 - Maintained Documents <span className="text-[#22B323]">(Type P)</span>
+                {t("Category 1 - Maintained Documents")} <span className="text-[#22B323]">(Type P)</span>
               </h3>
               <div className="text-sm text-[#6A7282] space-y-1">
-                <div>Policy</div>
-                <div>Procedure</div>
-                <div>SOP</div>
-                <div>Work Instruction</div>
+                <div>{t("Policy")}</div>
+                <div>{t("Procedure")}</div>
+                <div>{t("SOP")}</div>
+                <div>{t("Work Instruction")}</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">Lifecycle:</span> Draft -&gt; Create -&gt; Review -&gt; Approve -&gt; Obsolete
+                  <span className="font-medium text-[#0A0A0A]">{t("Lifecycle:")}</span>{" "}
+                  {t("Draft -> Create -> Review -> Approve -> Obsolete")}
                 </div>
               </div>
             </div>
 
             <div className="rounded-xl border border-[#0000001A] p-4">
               <h3 className="font-semibold text-sm mb-3">
-                Category 2 - Retained Records <span className="text-[#0EA5E9]">(Type F)</span>
+                {t("Category 2 - Retained Records")} <span className="text-[#0EA5E9]">(Type F)</span>
               </h3>
               <div className="text-sm text-[#6A7282] space-y-1">
-                <div>Templates</div>
-                <div>Forms</div>
-                <div>Checklists</div>
+                <div>{t("Templates")}</div>
+                <div>{t("Forms")}</div>
+                <div>{t("Checklists")}</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">Lifecycle:</span>{" "}
-                  Draft + Capture -&gt; Verify &amp; Archive -&gt; Dispose
+                  <span className="font-medium text-[#0A0A0A]">{t("Lifecycle:")}</span>{" "}
+                  {t("Draft + Capture -> Verify & Archive -> Dispose")}
                 </div>
               </div>
             </div>

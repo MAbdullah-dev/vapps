@@ -284,7 +284,7 @@ export default function CreateAuditStep3Page() {
           const membersRes = await apiClient.getMembers(orgId);
           if (!cancelled && membersRes.teamMembers?.length) {
             const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
-            setLeadAuditorDisplay(lead ? `${lead.name || lead.email || "—"} | LEAD AUDITOR` : "—");
+            setLeadAuditorDisplay(lead ? `${lead.name || lead.email || t("—")} | ${t("LEAD AUDITOR")}` : t("—"));
           }
         }
 
@@ -464,7 +464,7 @@ export default function CreateAuditStep3Page() {
         }
       } catch (e) {
         if (!cancelled) {
-          setLoadError("Failed to load checklist questions.");
+          setLoadError(t("Failed to load checklist questions."));
           setRows([]);
         }
       } finally {
@@ -473,7 +473,7 @@ export default function CreateAuditStep3Page() {
     };
     load();
     return () => { cancelled = true; };
-  }, [orgId, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl, auditPlanIdFromUrl]);
+  }, [orgId, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl, auditPlanIdFromUrl, t]);
 
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return rows;
@@ -510,22 +510,23 @@ export default function CreateAuditStep3Page() {
   }, []);
 
   const submissionCard = useMemo(() => {
-    if (!planSummary) return { startDate: "—", endDate: "—", manDays: "—", submissionDate: "—", authKey: auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : "—" };
-    const start = planSummary.plannedDate ? format(new Date(planSummary.plannedDate), "dd-MM-yyyy") : "—";
-    const end = planSummary.datePrepared ? format(new Date(planSummary.datePrepared), "dd-MM-yyyy") : "—";
-    let manDays = "—";
+    const dash = t("—");
+    if (!planSummary) return { startDate: dash, endDate: dash, manDays: dash, submissionDate: dash, authKey: auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : dash };
+    const start = planSummary.plannedDate ? format(new Date(planSummary.plannedDate), "dd-MM-yyyy") : dash;
+    const end = planSummary.datePrepared ? format(new Date(planSummary.datePrepared), "dd-MM-yyyy") : dash;
+    let manDays = dash;
     if (planSummary.plannedDate && planSummary.datePrepared) {
       const days = (new Date(planSummary.datePrepared).getTime() - new Date(planSummary.plannedDate).getTime()) / (1000 * 60 * 60 * 24);
-      manDays = `${Math.round(days * 10) / 10} Days`;
+      manDays = `${Math.round(days * 10) / 10} ${t("Days")}`;
     }
     return {
       startDate: start,
       endDate: end,
       manDays,
       submissionDate: end,
-      authKey: planSummary.auditNumber || (auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : "—"),
+      authKey: planSummary.auditNumber || (auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : dash),
     };
-  }, [planSummary, auditPlanIdFromUrl]);
+  }, [planSummary, auditPlanIdFromUrl, t]);
 
   const addRow = () => {
     const currentDisplayedId = filteredRows[currentQuestionIndex]?.id;
@@ -853,9 +854,9 @@ export default function CreateAuditStep3Page() {
       >
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Checklist Question — View / Edit</DialogTitle>
+            <DialogTitle>{t("Checklist Question — View / Edit")}</DialogTitle>
             <DialogDescription>
-              Edit status and evidence. If status is Minor/Major NC, you can also edit CA fields.
+              {t("Edit status and evidence. If status is Minor/Major NC, you can also edit CA fields.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -865,27 +866,27 @@ export default function CreateAuditStep3Page() {
             return (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Standard</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Standard")}</Label>
                   <Input value={rowDialogDraft.standard} readOnly className="border-gray-200 bg-gray-50 text-sm" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Clause</Label>
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Clause")}</Label>
                     <Input value={rowDialogDraft.clause} readOnly className="border-gray-200 bg-gray-50 text-sm" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Subclause</Label>
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Subclause")}</Label>
                     <Input value={rowDialogDraft.subclauses} readOnly className="border-gray-200 bg-gray-50 text-sm" />
                   </div>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Audit Question</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Audit Question")}</Label>
                   <Input value={rowDialogDraft.question} readOnly className="border-gray-200 bg-gray-50 text-sm" />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Status</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Status")}</Label>
                   <Select
                     value={rowDialogDraft.status}
                     onValueChange={(v) => {
@@ -907,12 +908,12 @@ export default function CreateAuditStep3Page() {
                     disabled={!canEditRowDialog}
                   >
                     <SelectTrigger className="h-9 rounded-md border-gray-200">
-                      <SelectValue placeholder="Select" />
+                      <SelectValue placeholder={t("Select")} />
                     </SelectTrigger>
                     <SelectContent>
                       {LEGEND_ITEMS.map((item) => (
                         <SelectItem key={item.key} value={item.key}>
-                          {item.label}
+                          {t(item.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -922,12 +923,12 @@ export default function CreateAuditStep3Page() {
                 {/* Minor/Major NC fields are handled in the CA flow below, not in this dialog. */}
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence Seen</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Evidence Seen")}</Label>
                   <div className={cn("overflow-hidden rounded-lg border", canEditRowDialog ? "border-gray-200" : "border-gray-200 opacity-75")}>
                     <RichTextEditor
                       value={rowDialogDraft.evidence ?? ""}
                       onChange={(v: string) => setRowDialogDraft((d) => (d ? { ...d, evidence: v } : d))}
-                      placeholder="Evidence seen..."
+                      placeholder={t("Evidence seen...")}
                       minHeight={120}
                     />
                   </div>
@@ -940,7 +941,7 @@ export default function CreateAuditStep3Page() {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setRowDialogOpen(false)}>
-              Close
+              {t("Close")}
             </Button>
             {canEditRowDialog && (
               <Button
@@ -963,7 +964,7 @@ export default function CreateAuditStep3Page() {
                   }
                 }}
               >
-                {rowDialogSaving ? "Saving…" : "Save changes"}
+                {rowDialogSaving ? t("Saving…") : t("Save changes")}
               </Button>
             )}
           </DialogFooter>
@@ -985,7 +986,7 @@ export default function CreateAuditStep3Page() {
         <div className="mx-8 my-4">
           {isLoading && (
             <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-6 py-8 text-center text-gray-600">
-              Loading checklist questions based on audit criteria...
+              {t("Loading checklist questions based on audit criteria...")}
             </div>
           )}
           {!isLoading && loadError && (
@@ -996,7 +997,9 @@ export default function CreateAuditStep3Page() {
           {!isLoading && !loadError && !criteria && (
             <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-6 py-6">
               <p className="font-medium text-amber-900">
-                No audit criteria selected. The checklist questions depend on the criteria you select in Step 2 (e.g., ISO 9001 Quality, ISO 14001 Environment).
+                {t(
+                  "No audit criteria selected. The checklist questions depend on the criteria you select in Step 2 (e.g., ISO 9001 Quality, ISO 14001 Environment)."
+                )}
               </p>
             </div>
           )}
@@ -1004,16 +1007,16 @@ export default function CreateAuditStep3Page() {
             <>
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold uppercase text-gray-900">AUDIT CHECKLIST</h2>
+                  <h2 className="text-xl font-bold uppercase text-gray-900">{t("AUDIT CHECKLIST")}</h2>
                   <p className="mt-1 text-sm text-gray-500">
-                    Criteria: {criteria}. One question at a time.
+                    {t("Criteria:")} {criteria === "Checklist" ? t("Checklist") : criteria}. {t("One question at a time.")}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <Input
-                      placeholder="Search questions..."
+                      placeholder={t("Search questions...")}
                       className="h-10 w-64 rounded-lg border-gray-300 pl-9"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -1021,26 +1024,28 @@ export default function CreateAuditStep3Page() {
                   </div>
                   <Button onClick={addRow} size="sm" className="bg-green-600 hover:bg-green-700">
                     <Plus className="mr-2 h-4 w-4" />
-                    ADD MANUAL ENTRY ROW
+                    {t("ADD MANUAL ENTRY ROW")}
                   </Button>
                 </div>
               </div>
 
               {filteredRows.length === 0 ? (
                 <div className="mx-8 my-4 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600">
-                  No questions match your search. Clear the search or add a manual entry row.
+                  {t("No questions match your search. Clear the search or add a manual entry row.")}
                 </div>
               ) : (
                 <Fragment>
                   {currentQuestionIndex >= filteredRows.length ? (
                     <div className="mx-8 my-4 rounded-lg border border-green-200 bg-green-50 p-8 text-center">
-                      <p className="text-lg font-semibold text-green-800">All questions completed</p>
-                      <p className="mt-2 text-sm text-green-700">Use &quot;Save &amp; Continue Checklist Loop&quot; below to save findings and return to the audit list.</p>
+                      <p className="text-lg font-semibold text-green-800">{t("All questions completed")}</p>
+                      <p className="mt-2 text-sm text-green-700">
+                        {t('Use "Save & Continue Checklist Loop" below to save findings and return to the audit list.')}
+                      </p>
                     </div>
                   ) : (
                     <div ref={checklistTableRef} className="mx-8 my-4 space-y-3">
                       <p className="text-sm font-medium text-gray-600">
-                        Question {currentQuestionIndex + 1} of {filteredRows.length}
+                        {t("Question")} {currentQuestionIndex + 1} {t("of")} {filteredRows.length}
                       </p>
                       {filteredRows[currentQuestionIndex]?.id?.startsWith?.("row-manual-") && (
                         <div
@@ -1048,12 +1053,12 @@ export default function CreateAuditStep3Page() {
                           className="rounded-lg border border-gray-200 bg-gray-50 p-3"
                         >
                           <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-600">
-                            Search by Clause / Subclause under {criteria}
+                            {t("Search by Clause / Subclause under")} {criteria === "Checklist" ? t("Checklist") : criteria}
                           </label>
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <Input
-                              placeholder="e.g. 4.1 or 4.1.1"
+                              placeholder={t("e.g. 4.1 or 4.1.1")}
                               className="h-9 pl-8 pr-3"
                               value={manualRowSearchQuery}
                               onChange={(e) => {
@@ -1066,7 +1071,7 @@ export default function CreateAuditStep3Page() {
                               <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
                                 {filteredManualChecklistItems.length === 0 ? (
                                   <li className="px-3 py-2 text-sm text-gray-500">
-                                    {manualRowSearchQuery.trim() ? "No matches" : "Type clause or subclause to search"}
+                                    {manualRowSearchQuery.trim() ? t("No matches") : t("Type clause or subclause to search")}
                                   </li>
                                 ) : (
                                   filteredManualChecklistItems.slice(0, 12).map((item, i) => (
@@ -1098,22 +1103,22 @@ export default function CreateAuditStep3Page() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-100">
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">STANDARD (SYSTEM)</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">CLAUSE</TableHead>
-                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">SUBCLAUSES</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                          <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">AUDIT QUESTION</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">TYPICAL EXAMPLE OF EVIDENCE</TableHead>
-                          <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">EVIDENCE SEEN</TableHead>
-                          <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">COMPLIANCE</TableHead>
-                          <TableHead className="w-[140px] font-semibold uppercase text-gray-700">ACTION</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">{t("STANDARD (SYSTEM)")}</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">{t("CLAUSE")}</TableHead>
+                          <TableHead className="whitespace-nowrap font-semibold uppercase text-gray-700">{t("SUBCLAUSES")}</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700">{t("COMPLIANCE")}</TableHead>
+                          <TableHead className="min-w-[200px] font-semibold uppercase text-gray-700">{t("AUDIT QUESTION")}</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-gray-700 leading-tight">{t("TYPICAL EXAMPLE OF EVIDENCE")}</TableHead>
+                          <TableHead className="min-w-[140px] font-semibold uppercase text-gray-700">{t("EVIDENCE SEEN")}</TableHead>
+                          <TableHead className="min-w-[120px] font-semibold uppercase text-gray-700">{t("COMPLIANCE")}</TableHead>
+                          <TableHead className="w-[140px] font-semibold uppercase text-gray-700">{t("ACTION")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredRows.slice(0, Math.max(currentQuestionIndex, progressIndex) + 1).map((row, idx) => {
                           const isCurrent = idx === currentQuestionIndex;
                           const isNC = row.status === "major_nc" || row.status === "minor_nc";
-                          const statusLabel = STATUS_CHECKLIST_LABEL[row.status] ?? "—";
+                          const statusLabel = t(STATUS_CHECKLIST_LABEL[row.status]);
                           return (
                             <TableRow
                               key={row.id}
@@ -1124,11 +1129,11 @@ export default function CreateAuditStep3Page() {
                                   <Input
                                     value={row.standard}
                                     onChange={(e) => updateRow(row.id, "standard", e.target.value)}
-                                    placeholder="e.g. ISO 9001:2015"
+                                    placeholder={t("e.g. ISO 9001:2015")}
                                     className="h-9 min-w-[100px] rounded-md border-gray-200 bg-gray-50/50 text-sm text-gray-600"
                                   />
                                 ) : (
-                                  <span className="text-sm text-gray-700">{row.standard || "—"}</span>
+                                  <span className="text-sm text-gray-700">{row.standard || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
@@ -1136,11 +1141,11 @@ export default function CreateAuditStep3Page() {
                                   <Input
                                     value={row.clause}
                                     onChange={(e) => updateRow(row.id, "clause", e.target.value)}
-                                    placeholder="e.g. 4.1"
+                                    placeholder={t("e.g. 4.1")}
                                     className="h-9 w-20 rounded-md border-gray-200 text-sm font-bold text-gray-900"
                                   />
                                 ) : (
-                                  <span className="text-sm font-medium text-gray-900">{row.clause || "—"}</span>
+                                  <span className="text-sm font-medium text-gray-900">{row.clause || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
@@ -1148,11 +1153,11 @@ export default function CreateAuditStep3Page() {
                                   <Input
                                     value={row.subclauses}
                                     onChange={(e) => updateRow(row.id, "subclauses", e.target.value)}
-                                    placeholder="e.g. 4.1.1"
+                                    placeholder={t("e.g. 4.1.1")}
                                     className="h-9 w-24 rounded-md border-gray-200 text-sm text-gray-600"
                                   />
                                 ) : (
-                                  <span className="text-sm text-gray-700">{row.subclauses || "—"}</span>
+                                  <span className="text-sm text-gray-700">{row.subclauses || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[160px]">
@@ -1160,12 +1165,12 @@ export default function CreateAuditStep3Page() {
                                   <Textarea
                                     value={row.requirement}
                                     onChange={(e) => updateRow(row.id, "requirement", e.target.value)}
-                                    placeholder="Compliance requirement"
+                                    placeholder={t("Compliance requirement")}
                                     rows={2}
                                     className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-700">{row.requirement || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-gray-700">{row.requirement || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[200px]">
@@ -1173,12 +1178,12 @@ export default function CreateAuditStep3Page() {
                                   <Textarea
                                     value={row.question}
                                     onChange={(e) => updateRow(row.id, "question", e.target.value)}
-                                    placeholder="Audit question"
+                                    placeholder={t("Audit question")}
                                     rows={2}
                                     className="min-w-[180px] resize-none rounded-md border-gray-200 text-sm font-medium text-gray-900"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-800">{row.question || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-gray-800">{row.question || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[160px]">
@@ -1186,12 +1191,12 @@ export default function CreateAuditStep3Page() {
                                   <Textarea
                                     value={row.evidenceExample}
                                     onChange={(e) => updateRow(row.id, "evidenceExample", e.target.value)}
-                                    placeholder="Typical evidence"
+                                    placeholder={t("Typical evidence")}
                                     rows={2}
                                     className="min-w-[140px] resize-none rounded-md border-gray-200 text-sm text-gray-600"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm text-gray-600">{row.evidenceExample || "—"}</span>
+                                  <span className="line-clamp-2 text-sm text-gray-600">{row.evidenceExample || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2 max-w-[140px]">
@@ -1199,23 +1204,23 @@ export default function CreateAuditStep3Page() {
                                   <Input
                                     value={row.evidence}
                                     onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
-                                    placeholder="Enter evidence details..."
+                                    placeholder={t("Enter evidence details...")}
                                     className="min-w-[120px] rounded-md border-gray-200 bg-gray-50/80 text-sm italic text-muted-foreground placeholder:italic"
                                   />
                                 ) : (
-                                  <span className="line-clamp-2 text-sm italic text-gray-600">{row.evidence || "—"}</span>
+                                  <span className="line-clamp-2 text-sm italic text-gray-600">{row.evidence || t("—")}</span>
                                 )}
                               </TableCell>
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
                                   <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
                                     <SelectTrigger className="h-9 min-w-[100px] rounded-md border-gray-200">
-                                      <SelectValue placeholder="Select" />
+                                      <SelectValue placeholder={t("Select")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {LEGEND_ITEMS.map((item) => (
                                         <SelectItem key={item.key} value={item.key}>
-                                          {item.label}
+                                          {t(item.label)}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1233,7 +1238,7 @@ export default function CreateAuditStep3Page() {
                                         className="gap-1.5 rounded-md bg-green-600 px-3 text-xs font-semibold uppercase text-white hover:bg-green-700"
                                         onClick={() => setCurrentQuestionIndex((i) => Math.min(i + 1, filteredRows.length))}
                                       >
-                                        Next
+                                        {t("Next")}
                                       </Button>
                                       {row.id.startsWith("row-manual-") && (
                                         <Button
@@ -1279,12 +1284,12 @@ export default function CreateAuditStep3Page() {
                                       }}
                                     >
                                       <ArrowRight className="h-3.5 w-3.5" />
-                                      Document Finding (CA)
+                                      {t("Document Finding (CA)")}
                                     </Button>
                                   )
                                 ) : (
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-medium text-green-700">Complete</span>
+                                    <span className="text-xs font-medium text-green-700">{t("Complete")}</span>
                                     <Button
                                       type="button"
                                       size="sm"
@@ -1300,7 +1305,7 @@ export default function CreateAuditStep3Page() {
                                       }}
                                     >
                                       <Eye className="mr-1.5 h-4 w-4" />
-                                      View / Edit
+                                      {t("View / Edit")}
                                     </Button>
                                     {row.id.startsWith("row-manual-") && (
                                       <Button
@@ -1332,7 +1337,7 @@ export default function CreateAuditStep3Page() {
         </div>
         {/* Compliance Legend */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-4 text-xl font-bold uppercase text-gray-900">COMPLIANCE LEGEND</h2>
+          <h2 className="mb-4 text-xl font-bold uppercase text-gray-900">{t("COMPLIANCE LEGEND")}</h2>
           <div className="flex flex-wrap items-center gap-4">
             {LEGEND_ITEMS.map((item) => (
               <div key={item.key} className="flex items-center gap-2">
@@ -1347,7 +1352,7 @@ export default function CreateAuditStep3Page() {
                   {item.icon === "dash" && <Minus className="h-4 w-4" />}
                   {item.badge && item.badge}
                 </span>
-                <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                <span className="text-sm font-medium text-gray-700">{t(item.label)}</span>
               </div>
             ))}
           </div>
@@ -1355,10 +1360,10 @@ export default function CreateAuditStep3Page() {
 
         {/* Compliance Details — pre-filled when user clicks Document Finding (CA); scroll target for CA flow */}
         <div ref={checklistSectionRef} className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">COMPLIANCE DETAILS</h2>
+          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">{t("COMPLIANCE DETAILS")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.1 STANDARD</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.1 STANDARD")}</Label>
               <Input
                 value={complianceDetails.standard}
                 readOnly
@@ -1366,7 +1371,7 @@ export default function CreateAuditStep3Page() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.2 CLAUSE</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.2 CLAUSE")}</Label>
               <Input
                 value={complianceDetails.clause}
                 readOnly
@@ -1374,7 +1379,7 @@ export default function CreateAuditStep3Page() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.3 SUBCLAUSES</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.3 SUBCLAUSES")}</Label>
               <Input
                 value={complianceDetails.subclauses}
                 readOnly
@@ -1383,7 +1388,7 @@ export default function CreateAuditStep3Page() {
             </div>
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.4 COMPLIANCE REQUIREMENT</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.4 COMPLIANCE REQUIREMENT")}</Label>
             <Input
               value={complianceDetails.requirement}
               readOnly
@@ -1391,7 +1396,7 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.5 AUDIT QUESTION</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.5 AUDIT QUESTION")}</Label>
             <Input
               value={complianceDetails.question}
               readOnly
@@ -1399,7 +1404,7 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.6 TYPICAL EXAMPLE OF EVIDENCE</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.6 TYPICAL EXAMPLE OF EVIDENCE")}</Label>
             <Input
               value={complianceDetails.evidenceExample}
               readOnly
@@ -1407,12 +1412,12 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">3.2.7 EVIDENCE SEEN</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("3.2.7 EVIDENCE SEEN")}</Label>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-gray-200")}>
               <RichTextEditor
                 value={complianceDetails.evidenceSeen ?? ""}
                 onChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
-                placeholder="Document detailed findings, interview notes, and physical evidence observed..."
+                placeholder={t("Document detailed findings, interview notes, and physical evidence observed...")}
                 minHeight={120}
               />
             </div>
@@ -1423,12 +1428,14 @@ export default function CreateAuditStep3Page() {
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
             <Button variant="outline" size="sm" className="gap-2 border-gray-300 font-medium uppercase">
               <Upload className="h-4 w-4" />
-              Upload Supporting Document
+              {t("Upload Supporting Document")}
             </Button>
             <div className="flex flex-1 items-start gap-3 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3">
               <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
               <p className="text-sm font-medium text-red-800">
-                Warning: Submission of false evidence or intentional omission of findings is a breach of ISO 19011:2026 professional code of conduct and system integrity.
+                {t(
+                  "Warning: Submission of false evidence or intentional omission of findings is a breach of ISO 19011:2026 professional code of conduct and system integrity."
+                )}
               </p>
             </div>
           </div>
@@ -1436,7 +1443,7 @@ export default function CreateAuditStep3Page() {
 
         {/* Risk Severity */}
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">RISK SEVERITY (CURRENT STATUS)</h2>
+          <h2 className="mb-6 text-xl font-bold uppercase text-gray-900">{t("RISK SEVERITY (CURRENT STATUS)")}</h2>
           <div className="flex flex-wrap gap-6">
             {(["high", "medium", "low"] as const).map((level) => (
               <Label
@@ -1467,20 +1474,20 @@ export default function CreateAuditStep3Page() {
                   className="sr-only"
                 />
                 <span className={cn("font-semibold uppercase text-gray-900", riskSeverity === level && "font-bold")}>
-                  {level}
+                  {level === "high" ? t("High") : level === "medium" ? t("Medium") : t("Low")}
                 </span>
               </Label>
             ))}
           </div>
           <div ref={refRiskJustification} className={cn("mt-8 space-y-2", fieldErrors.riskJustification && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-              RISK JUSTIFICATION & COMMENTS (MANDATORY)
+              {t("RISK JUSTIFICATION & COMMENTS (MANDATORY)")}
             </Label>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-gray-200")}>
               <RichTextEditor
                 value={riskJustification}
                 onChange={setRiskJustification}
-                placeholder="Explain the rationale behind the selected risk level..."
+                placeholder={t("Explain the rationale behind the selected risk level...")}
                 minHeight={100}
               />
             </div>
@@ -1493,25 +1500,31 @@ export default function CreateAuditStep3Page() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
                 <Check className="h-4 w-4" />
               </div>
-              <h3 className="text-lg font-bold uppercase text-green-300">RISK EVALUATION GUIDELINE</h3>
+              <h3 className="text-lg font-bold uppercase text-green-300">{t("RISK EVALUATION GUIDELINE")}</h3>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
-                <div className="mb-2 font-semibold uppercase text-red-300">HIGH SEVERITY</div>
+                <div className="mb-2 font-semibold uppercase text-red-300">{t("HIGH SEVERITY")}</div>
                 <p className="text-sm text-slate-200">
-                  Direct impact on product safety, regulatory compliance, or system-wide failure. Requires immediate containment.
+                  {t(
+                    "Direct impact on product safety, regulatory compliance, or system-wide failure. Requires immediate containment."
+                  )}
                 </p>
               </div>
               <div>
-                <div className="mb-2 font-semibold uppercase text-orange-300">MEDIUM SEVERITY</div>
+                <div className="mb-2 font-semibold uppercase text-orange-300">{t("MEDIUM SEVERITY")}</div>
                 <p className="text-sm text-slate-200">
-                  Partial failure of core process. May impact customer satisfaction or operational efficiency if not addressed.
+                  {t(
+                    "Partial failure of core process. May impact customer satisfaction or operational efficiency if not addressed."
+                  )}
                 </p>
               </div>
               <div>
-                <div className="mb-2 font-semibold uppercase text-blue-300">LOW SEVERITY</div>
+                <div className="mb-2 font-semibold uppercase text-blue-300">{t("LOW SEVERITY")}</div>
                 <p className="text-sm text-slate-200">
-                  Isolated administrative error or minor process deviation. Negligible impact on quality or safety.
+                  {t(
+                    "Isolated administrative error or minor process deviation. Negligible impact on quality or safety."
+                  )}
                 </p>
               </div>
             </div>
@@ -1523,11 +1536,11 @@ export default function CreateAuditStep3Page() {
           {/* Card 1: CLASSIFICATION */}
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-              CLASSIFICATION
+              {t("CLASSIFICATION")}
             </h2>
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                AUTO-DERIVED STATUS
+                {t("AUTO-DERIVED STATUS")}
               </Label>
               <div className="relative">
                 <Input
@@ -1538,32 +1551,32 @@ export default function CreateAuditStep3Page() {
                 <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               </div>
               <p className="text-xs text-gray-500">
-                SYSTEM RULE: FIELD LOCKS AFTER SUBMISSION TO LEAD AUDITOR
+                {t("SYSTEM RULE: FIELD LOCKS AFTER SUBMISSION TO LEAD AUDITOR")}
               </p>
             </div>
           </div>
           {/* Card 2: SITE / UNIT */}
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-              SITE / UNIT
+              {t("SITE / UNIT")}
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  3.5.1 SITE (SYSTEM GENERATED)
+                  {t("3.5.1 SITE (SYSTEM GENERATED)")}
                 </Label>
                 <Input
-                  value="MANUFACTURING COMPLEX - UNIT 4"
+                  value={t("MANUFACTURING COMPLEX - UNIT 4")}
                   readOnly
                   className="border-gray-200 bg-gray-100 text-sm font-medium text-gray-700"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  LOCATION DESCRIPTION
+                  {t("LOCATION DESCRIPTION")}
                 </Label>
                 <Input
-                  placeholder="e.g. Production Floor, Second Bay"
+                  placeholder={t("e.g. Production Floor, Second Bay")}
                   className="border-gray-200 text-sm"
                 />
               </div>
@@ -1572,12 +1585,12 @@ export default function CreateAuditStep3Page() {
           {/* Card 3: PROCESS / AREA */}
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-              PROCESS / AREA
+              {t("PROCESS / AREA")}
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  3.6.1 PROCESS ID (SYSTEM GENERATED)
+                  {t("3.6.1 PROCESS ID (SYSTEM GENERATED)")}
                 </Label>
                 <Input
                   value="PROC-2026-MFG-008"
@@ -1587,10 +1600,10 @@ export default function CreateAuditStep3Page() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  PROCESS NAME
+                  {t("PROCESS NAME")}
                 </Label>
                 <Input
-                  value="CORE PRODUCTION & ASSEMBLY"
+                  value={t("CORE PRODUCTION & ASSEMBLY")}
                   readOnly
                   className="border-gray-200 bg-gray-100 text-sm font-medium text-gray-700"
                 />
@@ -1600,12 +1613,12 @@ export default function CreateAuditStep3Page() {
           {/* Card 4: STANDARD REQUIREMENT */}
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-              STANDARD REQUIREMENT
+              {t("STANDARD REQUIREMENT")}
             </h2>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  AUTO-LINKED CLAUSE REFERENCE
+                  {t("AUTO-LINKED CLAUSE REFERENCE")}
                 </Label>
                 <Input
                   value="4.1"
@@ -1615,10 +1628,10 @@ export default function CreateAuditStep3Page() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  MANUAL REFERENCE / ADDENDUM
+                  {t("MANUAL REFERENCE / ADDENDUM")}
                 </Label>
                 <Input
-                  placeholder="e.g. Clause 4.1.2 - Local Addendum v2"
+                  placeholder={t("e.g. Clause 4.1.2 - Local Addendum v2")}
                   className="border-gray-200 text-sm"
                 />
               </div>
@@ -1628,7 +1641,7 @@ export default function CreateAuditStep3Page() {
         {/* Statement of Nonconformity */}
         <div ref={refStatementOfNonconformity} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.statementOfNonconformity && "border-2 border-red-500 bg-red-50/30")}>
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-            STATEMENT OF NONCONFORMITY
+            {t("STATEMENT OF NONCONFORMITY")}
           </h2>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1638,7 +1651,7 @@ export default function CreateAuditStep3Page() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 rounded border-gray-300"
-                  aria-label="Bold"
+                  aria-label={t("Bold")}
                 >
                   <Bold className="h-4 w-4" />
                 </Button>
@@ -1647,7 +1660,7 @@ export default function CreateAuditStep3Page() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 rounded border-gray-300"
-                  aria-label="Italic"
+                  aria-label={t("Italic")}
                 >
                   <Italic className="h-4 w-4" />
                 </Button>
@@ -1656,7 +1669,7 @@ export default function CreateAuditStep3Page() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 rounded border-gray-300"
-                  aria-label="Underline"
+                  aria-label={t("Underline")}
                 >
                   <Underline className="h-4 w-4" />
                 </Button>
@@ -1665,7 +1678,7 @@ export default function CreateAuditStep3Page() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 rounded border-gray-300"
-                  aria-label="Clear"
+                  aria-label={t("Clear")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -1674,20 +1687,22 @@ export default function CreateAuditStep3Page() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 rounded border-gray-300"
-                  aria-label="HTML"
+                  aria-label={t("HTML")}
                 >
                   <Code className="h-4 w-4" />
                 </Button>
               </div>
               <span className="text-xs text-gray-500">
-                PROFESSIONAL FINDINGS EDITOR (DOC 34 V10 MODE)
+                {t("PROFESSIONAL FINDINGS EDITOR (DOC 34 V10 MODE)")}
               </span>
             </div>
             <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-gray-200")}>
               <RichTextEditor
                 value={statementOfNonconformity}
                 onChange={setStatementOfNonconformity}
-                placeholder="Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
+                placeholder={t(
+                  "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
+                )}
                 minHeight={200}
               />
             </div>
@@ -1705,10 +1720,10 @@ export default function CreateAuditStep3Page() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
-                    WHAT WENT WRONG
+                    {t("WHAT WENT WRONG")}
                   </h3>
                   <p className="text-sm text-gray-700">
-                    Describe the deviation from the established requirement clearly.
+                    {t("Describe the deviation from the established requirement clearly.")}
                   </p>
                 </div>
               </div>
@@ -1718,10 +1733,10 @@ export default function CreateAuditStep3Page() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
-                    NO ROOT CAUSE
+                    {t("NO ROOT CAUSE")}
                   </h3>
                   <p className="text-sm text-gray-700">
-                    <span className="underline">Do not analyze root causes in this section.</span> This is for findings only
+                    <span className="underline">{t("Do not analyze root causes in this section.")}</span> {t("This is for findings only")}
                   </p>
                 </div>
               </div>
@@ -1731,10 +1746,10 @@ export default function CreateAuditStep3Page() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-gray-900">
-                    NO SOLUTION
+                    {t("NO SOLUTION")}
                   </h3>
                   <p className="text-sm text-gray-700">
-                    <span className="underline">Avoid proposing fixes or corrective actions in the finding statement</span>
+                    <span className="underline">{t("Avoid proposing fixes or corrective actions in the finding statement")}</span>
                   </p>
                 </div>
               </div>
@@ -1746,7 +1761,7 @@ export default function CreateAuditStep3Page() {
           {/* Objective Evidence */}
           <div className="space-y-4">
             <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-              OBJECTIVE EVIDENCE
+              {t("OBJECTIVE EVIDENCE")}
             </h2>
             <div className="space-y-4">
               {evidenceItems.map((item, index) => (
@@ -1761,10 +1776,10 @@ export default function CreateAuditStep3Page() {
                     <div className="min-w-0 flex-1 space-y-4">
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
-                          EVIDENCE DESCRIPTION
+                          {t("EVIDENCE DESCRIPTION")}
                         </Label>
                         <Input
-                          placeholder="e.g. Employee Training Matrix - Unit 4 Rev 2"
+                          placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
                           value={item.description}
                           onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
                           className="border-gray-200 text-sm"
@@ -1773,12 +1788,12 @@ export default function CreateAuditStep3Page() {
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
-                            LINKED MEDIA / UPLOAD
+                            {t("LINKED MEDIA / UPLOAD")}
                           </Label>
                           <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100">
                             <FileText className="h-4 w-4 shrink-0 text-gray-500" />
                             <span className="truncate">
-                              {item.fileName || "Select file"}
+                              {item.fileName || t("Select file")}
                             </span>
                             <input
                               type="file"
@@ -1808,7 +1823,7 @@ export default function CreateAuditStep3Page() {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-semibold uppercase tracking-wide text-gray-700">
-                            EFFECTIVENESS SELECTOR
+                            {t("EFFECTIVENESS SELECTOR")}
                           </Label>
                           <div className="flex gap-4">
                             <Label
@@ -1829,7 +1844,7 @@ export default function CreateAuditStep3Page() {
                               <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-green-500", item.effectiveness === "effective" ? "bg-green-500" : "bg-white")}>
                                 {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-white" />}
                               </span>
-                              EFFECTIVE
+                              {t("EFFECTIVE")}
                             </Label>
                             <Label
                               className={cn(
@@ -1849,7 +1864,7 @@ export default function CreateAuditStep3Page() {
                               <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-white")}>
                                 {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-white" />}
                               </span>
-                              INEFFECTIVE
+                              {t("INEFFECTIVE")}
                             </Label>
                           </div>
                         </div>
@@ -1866,23 +1881,25 @@ export default function CreateAuditStep3Page() {
               className="text-green-600 hover:bg-green-50 hover:text-green-700"
             >
               <Plus className="mr-2 h-4 w-4" />
-              <span className="font-bold">ADD ADDITIONAL EVIDENCE ITEM</span>
+              <span className="font-bold">{t("ADD ADDITIONAL EVIDENCE ITEM")}</span>
             </Button>
           </div>
         </div>
         {/* Justification for Classification */}
         <div ref={refJustificationForClassification} className={cn("rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4", fieldErrors.justificationForClassification && "border-2 border-red-500 bg-red-50/30")}>
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-900">
-            JUSTIFICATION FOR CLASSIFICATION
+            {t("JUSTIFICATION FOR CLASSIFICATION")}
           </h2>
           <p className="mb-4 text-xs text-gray-500">
-            MANDATORY EXPLANATION: WHY MA OR MI?
+            {t("MANDATORY EXPLANATION: WHY MA OR MI?")}
           </p>
           <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-gray-200")}>
             <RichTextEditor
               value={justificationForClassification}
               onChange={setJustificationForClassification}
-              placeholder="Provide a logical justification based on the severity of the deviation and its impact on the management system..."
+              placeholder={t(
+                "Provide a logical justification based on the severity of the deviation and its impact on the management system..."
+              )}
               minHeight={140}
             />
           </div>
@@ -1895,23 +1912,23 @@ export default function CreateAuditStep3Page() {
         <div className="rounded-lg border border-green-200 bg-green-50/50 p-6 shadow-sm mx-8 my-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-              OFI / POSITIVE ASPECT RECORDING
+              {t("OFI / POSITIVE ASPECT RECORDING")}
             </h2>
             <span className="rounded-full border border-green-400 px-3 py-1 text-xs font-medium text-green-700">
-              OPTIONAL DOCUMENTATION FLOW
+              {t("OPTIONAL DOCUMENTATION FLOW")}
             </span>
           </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-200 bg-gray-50">
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">OFI REF #</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">STANDARD</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SITE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">PROCESS / AREA</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">CLAUSE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SUBCLAUSES (IF ANY)</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">OFI / PA</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("OFI REF #")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("STANDARD")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("SITE")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("PROCESS / AREA")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("CLAUSE")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("SUBCLAUSES (IF ANY)")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("OFI / PA")}</TableHead>
                   <TableHead className="w-10 text-xs font-semibold uppercase text-gray-700"> </TableHead>
                 </TableRow>
               </TableHeader>
@@ -1923,7 +1940,7 @@ export default function CreateAuditStep3Page() {
                         value={row.ofiRef}
                         onChange={(e) => updateOfiRow(row.id, "ofiRef", e.target.value)}
                         className="h-8 border-gray-200 text-xs"
-                        placeholder="e.g. OFI-2026-001"
+                        placeholder={t("e.g. OFI-2026-001")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1931,7 +1948,7 @@ export default function CreateAuditStep3Page() {
                         value={row.standard}
                         onChange={(e) => updateOfiRow(row.id, "standard", e.target.value)}
                         className="h-8 border-gray-200 text-xs"
-                        placeholder="ISO 9001:2015"
+                        placeholder={t("ISO 9001:2015")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1939,7 +1956,7 @@ export default function CreateAuditStep3Page() {
                         value={row.site}
                         onChange={(e) => updateOfiRow(row.id, "site", e.target.value)}
                         className="h-8 border-gray-200 text-xs"
-                        placeholder="SITE A"
+                        placeholder={t("SITE A")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1947,7 +1964,7 @@ export default function CreateAuditStep3Page() {
                         value={row.processArea}
                         onChange={(e) => updateOfiRow(row.id, "processArea", e.target.value)}
                         className="h-8 border-gray-200 text-xs"
-                        placeholder="PRODUCTION"
+                        placeholder={t("PRODUCTION")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1955,7 +1972,7 @@ export default function CreateAuditStep3Page() {
                         value={row.clause}
                         onChange={(e) => updateOfiRow(row.id, "clause", e.target.value)}
                         className="h-8 border-gray-200 text-xs font-bold"
-                        placeholder="7.1.3"
+                        placeholder={t("7.1.3")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1963,7 +1980,7 @@ export default function CreateAuditStep3Page() {
                         value={row.subclauses}
                         onChange={(e) => updateOfiRow(row.id, "subclauses", e.target.value)}
                         className="h-8 border-gray-200 text-xs"
-                        placeholder="N/A"
+                        placeholder={t("N/A")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -1980,7 +1997,7 @@ export default function CreateAuditStep3Page() {
                               : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                           )}
                         >
-                          OFI
+                          {t("OFI")}
                         </Button>
                         <Button
                           type="button"
@@ -1994,7 +2011,7 @@ export default function CreateAuditStep3Page() {
                               : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                           )}
                         >
-                          PA
+                          {t("PA")}
                         </Button>
                       </div>
                     </TableCell>
@@ -2005,7 +2022,7 @@ export default function CreateAuditStep3Page() {
                         size="icon"
                         className="h-8 w-8 text-gray-500 hover:text-red-600"
                         onClick={() => removeOfiRow(row.id)}
-                        aria-label="Remove row"
+                        aria-label={t("Remove row")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -2022,37 +2039,37 @@ export default function CreateAuditStep3Page() {
             className="mt-4 border-green-400 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
           >
             <Plus className="mr-2 h-4 w-4" />
-            + ADD MORE OFIS / POSITIVE ASPECTS
+            {t("+ ADD MORE OFIS / POSITIVE ASPECTS")}
           </Button>
         </div>
         {/* Audit Nonconformity Matrix */}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mx-8 my-4">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-900">
-            AUDIT NONCONFORMITY MATRIX
+            {t("AUDIT NONCONFORMITY MATRIX")}
           </h2>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-200 bg-gray-100">
                   <TableHead className="text-xs font-semibold uppercase text-gray-700">
-                    NONCONFORMITY REFERENCE
+                    {t("NONCONFORMITY REFERENCE")}
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">STANDARD</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">SITE</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">PROCESS / AREA</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-gray-700">CLAUSE</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("STANDARD")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("SITE")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("PROCESS / AREA")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-gray-700">{t("CLAUSE")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow className="border-gray-200 bg-white">
                   <TableCell className="text-sm text-gray-700">
-                    <span className="text-xs text-gray-500">REF:</span>{" "}
-                    NC/2806/51/P3/FRA/881
+                    <span className="text-xs text-gray-500">{t("REF:")}</span>{" "}
+                    {t("NC/2806/51/P3/FRA/881")}
                   </TableCell>
-                  <TableCell className="text-sm text-gray-700">ISO 9001:2015</TableCell>
-                  <TableCell className="text-sm font-bold text-gray-900">SITE A</TableCell>
-                  <TableCell className="text-sm text-gray-700">HR</TableCell>
-                  <TableCell className="text-sm font-bold text-red-600">5.2.1</TableCell>
+                  <TableCell className="text-sm text-gray-700">{t("ISO 9001:2015")}</TableCell>
+                  <TableCell className="text-sm font-bold text-gray-900">{t("SITE A")}</TableCell>
+                  <TableCell className="text-sm text-gray-700">{t("HR")}</TableCell>
+                  <TableCell className="text-sm font-bold text-red-600">{t("5.2.1")}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -2061,19 +2078,21 @@ export default function CreateAuditStep3Page() {
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
             <div className="min-w-0 space-y-1 text-sm">
               <p className="font-bold text-gray-900">
-                SYSTEM AUTOMATION RULE (MATRIX LOGIC)
+                {t("SYSTEM AUTOMATION RULE (MATRIX LOGIC)")}
               </p>
               <p className="text-gray-700">
-                Nonconformity references follow the global standard{" "}
-                <span className="underline text-blue-600">Module</span>/
-                <span className="underline text-blue-600">Year</span>/
-                <span className="underline text-blue-600">Site</span>/
-                <span className="underline text-blue-600">Process</span>/
-                <span className="underline text-blue-600">AuditType</span>/
-                <span className="underline text-blue-600">NCE</span>
+                {t("Nonconformity references follow the global standard")}{" "}
+                <span className="underline text-blue-600">{t("Module")}</span>/
+                <span className="underline text-blue-600">{t("Year")}</span>/
+                <span className="underline text-blue-600">{t("Site")}</span>/
+                <span className="underline text-blue-600">{t("Process")}</span>/
+                <span className="underline text-blue-600">{t("AuditType")}</span>/
+                <span className="underline text-blue-600">{t("NCE")}</span>
               </p>
               <p className="text-gray-600">
-                All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (m) NCs require CA submission within 60 days.
+                {t(
+                  "All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (m) NCs require CA submission within 60 days."
+                )}
               </p>
             </div>
           </div>
@@ -2092,11 +2111,11 @@ export default function CreateAuditStep3Page() {
               const isCaOpenForThisSave = isCurrentMinorOrMajorNc && isCaOpenForCurrentRow;
               if (isCaOpenForThisSave) {
                 const errors: Partial<Record<CaValidationField, string>> = {};
-                if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = "Statement of Nonconformity is required.";
-                if (stripHtml(riskJustification) === "") errors.riskJustification = "Risk Justification & Comments is required.";
-                if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = "Justification for Classification is required.";
+                if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = t("Statement of Nonconformity is required.");
+                if (stripHtml(riskJustification) === "") errors.riskJustification = t("Risk Justification & Comments is required.");
+                if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = t("Justification for Classification is required.");
                 const evidenceFilled = stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "";
-                if (!evidenceFilled) errors.evidenceSeen = "Evidence Seen (or Evidence in the checklist row) is required.";
+                if (!evidenceFilled) errors.evidenceSeen = t("Evidence Seen (or Evidence in the checklist row) is required.");
                 if (Object.keys(errors).length > 0) {
                   setFieldErrors(errors);
                   const firstField = firstErrorFieldOrder.find((f) => errors[f]);
@@ -2168,7 +2187,7 @@ export default function CreateAuditStep3Page() {
             }}
           >
             <Paperclip className="mr-2 h-5 w-5" />
-            {savingFindings ? "Saving…" : "SAVE & CONTINUE CHECKLIST LOOP"}
+            {savingFindings ? t("Saving…") : t("SAVE & CONTINUE CHECKLIST LOOP")}
           </Button>
           </div>
         )}
@@ -2179,25 +2198,25 @@ export default function CreateAuditStep3Page() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-gray-400">
                 <UserCheck className="h-4 w-4" />
-                <span className="text-xs font-semibold uppercase tracking-wide">Auditor Profile</span>
+                <span className="text-xs font-semibold uppercase tracking-wide">{t("Auditor Profile")}</span>
               </div>
-              <p className="text-xl font-bold text-white">{leadAuditorDisplay.split(" | ")[0] || "—"}</p>
+              <p className="text-xl font-bold text-white">{leadAuditorDisplay.split(" | ")[0] || t("—")}</p>
               <p className="text-sm text-gray-400">{leadAuditorDisplay}</p>
             </div>
             {/* Audit Timeline */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-gray-400">
                 <Clock className="h-4 w-4" />
-                <span className="text-xs font-semibold uppercase tracking-wide">Audit Timeline</span>
+                <span className="text-xs font-semibold uppercase tracking-wide">{t("Audit Timeline")}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                <span className="text-gray-500">START DATE</span>
+                <span className="text-gray-500">{t("START DATE")}</span>
                 <span className="text-white">{submissionCard.startDate}</span>
-                <span className="text-gray-500">END DATE</span>
+                <span className="text-gray-500">{t("END DATE")}</span>
                 <span className="text-white">{submissionCard.endDate}</span>
-                <span className="text-gray-500">TOTAL MAN-DAYS</span>
+                <span className="text-gray-500">{t("TOTAL MAN-DAYS")}</span>
                 <span className="text-white">{submissionCard.manDays}</span>
-                <span className="text-gray-500">SUBMISSION DATE</span>
+                <span className="text-gray-500">{t("SUBMISSION DATE")}</span>
                 <span className="text-white">{submissionCard.submissionDate}</span>
               </div>
             </div>
@@ -2207,7 +2226,7 @@ export default function CreateAuditStep3Page() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-700">
                   <ShieldCheck className="h-7 w-7 text-red-500" />
                 </div>
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Authentication Key</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t("Authentication Key")}</span>
                 <span className="text-sm font-medium text-gray-300">{submissionCard.authKey}</span>
               </div>
             </div>
@@ -2216,7 +2235,9 @@ export default function CreateAuditStep3Page() {
           <div className="mt-6 flex gap-3 rounded-lg border border-red-300 bg-red-950/50 p-4">
             <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" aria-hidden />
             <p className="text-sm font-medium text-red-100">
-              FINAL SUBMISSION NOTICE: SUBMITTING THIS FORM TO THE AUDITEE WILL LOCK STEP 3 PERMANENTLY. NO FURTHER MODIFICATIONS TO FINDINGS OR EVIDENCE CAN BE MADE AFTER THIS ACTION.
+              {t(
+                "FINAL SUBMISSION NOTICE: SUBMITTING THIS FORM TO THE AUDITEE WILL LOCK STEP 3 PERMANENTLY. NO FURTHER MODIFICATIONS TO FINDINGS OR EVIDENCE CAN BE MADE AFTER THIS ACTION."
+              )}
             </p>
           </div>
           {/* Submit to Auditee — sets status findings_submitted_to_auditee; auditor can do nothing after */}
@@ -2266,7 +2287,7 @@ export default function CreateAuditStep3Page() {
               }}
             >
               <Save className="mr-2 h-5 w-5" />
-              {savingFindings ? "Saving…" : "Save"}
+              {savingFindings ? t("Saving…") : t("Save")}
             </Button>
             <Button
               type="button"
@@ -2308,7 +2329,7 @@ export default function CreateAuditStep3Page() {
               }}
             >
               <Send className="mr-2 h-5 w-5" />
-              {submittingToAuditee ? "Submitting…" : "SUBMIT TO AUDITEE"}
+              {submittingToAuditee ? t("Submitting…") : t("SUBMIT TO AUDITEE")}
             </Button>
           </div>
         </div>

@@ -20,6 +20,13 @@ import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
+type PersistedStep5Data = {
+  verificationOutcome?: string;
+  auditorComments?: string;
+  evidenceFiles?: { name: string; key: string }[];
+  verificationStartedAt?: string;
+};
+
 export default function CreateAuditStep5Page() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -41,7 +48,8 @@ export default function CreateAuditStep5Page() {
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
-  const [leadAuditorDisplay, setLeadAuditorDisplay] = useState("—");
+  const [leadAuditorName, setLeadAuditorName] = useState("—");
+  const [leadAuditorIsLead, setLeadAuditorIsLead] = useState(false);
   const [verificationStartedAt, setVerificationStartedAt] = useState(() => format(new Date(), "dd-MMM-yyyy HH:mm"));
 
   const [verificationOutcome, setVerificationOutcome] = useState<
@@ -72,7 +80,7 @@ export default function CreateAuditStep5Page() {
         if (!cancelled) {
           setCurrentUserRole(plan.currentUserRole ?? null);
           setPlanStatus(plan.status ?? null);
-          const step5 = (plan as { step5Data?: any }).step5Data;
+          const step5 = (plan as { step5Data?: PersistedStep5Data }).step5Data;
           if (step5 && typeof step5 === "object") {
             if (step5.verificationOutcome === "effective" || step5.verificationOutcome === "ineffective") {
               setVerificationOutcome(step5.verificationOutcome);
@@ -95,7 +103,13 @@ export default function CreateAuditStep5Page() {
         const membersRes = await apiClient.getMembers(orgId);
         if (!cancelled && membersRes.teamMembers?.length && plan.leadAuditorUserId) {
           const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
-          setLeadAuditorDisplay(lead ? `${lead.name || lead.email || "—"} (Lead Auditor)` : "—");
+          if (lead) {
+            setLeadAuditorName(lead.name || lead.email || "—");
+            setLeadAuditorIsLead(true);
+          } else {
+            setLeadAuditorName("—");
+            setLeadAuditorIsLead(false);
+          }
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -143,15 +157,15 @@ export default function CreateAuditStep5Page() {
       });
       if (verificationOutcome === "ineffective") {
         await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
-        toast.success("Returned to Auditee for revision.");
+        toast.success(t("Returned to Auditee for revision."));
       } else {
         await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
-        toast.success("Saved. Audit moved to Step 6 for Lead Auditor.");
+        toast.success(t("Saved. Audit moved to Step 6 for Lead Auditor."));
       }
       router.push(`/dashboard/${orgId}/audit`);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to save.");
+      toast.error(t("Failed to save."));
     } finally {
       setSaving(false);
     }
@@ -165,14 +179,24 @@ export default function CreateAuditStep5Page() {
     return locked;
   }, [planStatus, currentUserRole]);
 
-  const auditTrailText = `Verification Started\n${leadAuditorDisplay} • ${verificationStartedAt}\n\nAwaiting Final Verification\n---`;
+  const leadAuditorDisplay = useMemo(
+    () =>
+      leadAuditorIsLead ? `${leadAuditorName} ${t("(Lead Auditor)")}` : leadAuditorName,
+    [leadAuditorIsLead, leadAuditorName, t]
+  );
+
+  const auditTrailText = useMemo(
+    () =>
+      `${t("Verification Started")}\n${leadAuditorDisplay} • ${verificationStartedAt}\n\n${t("Awaiting Final Verification")}\n${t("---")}`,
+    [t, leadAuditorDisplay, verificationStartedAt]
+  );
 
   const handleCopyAuditTrail = async () => {
     try {
       await navigator.clipboard.writeText(auditTrailText);
-      toast.success("Audit trail copied to clipboard");
+      toast.success(t("Audit trail copied to clipboard"));
     } catch {
-      toast.error("Failed to copy");
+      toast.error(t("Failed to copy"));
     }
   };
 
@@ -204,7 +228,7 @@ export default function CreateAuditStep5Page() {
         {/* Verification Outcome */}
         <div className="mt-8 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wide text-foreground">
-            VERIFICATION OUTCOME
+            {t("VERIFICATION OUTCOME")}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Button
@@ -225,7 +249,7 @@ export default function CreateAuditStep5Page() {
                 )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
-                EFFECTIVE
+                {t("EFFECTIVE")}
               </span>
             </Button>
             <Button
@@ -246,7 +270,7 @@ export default function CreateAuditStep5Page() {
                 )}
               />
               <span className="text-sm font-bold uppercase tracking-wide">
-                INEFFECTIVE
+                {t("INEFFECTIVE")}
               </span>
             </Button>
           </div>
@@ -256,16 +280,16 @@ export default function CreateAuditStep5Page() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wide text-green-800">
-                SYSTEM LOGIC
+                {t("SYSTEM LOGIC")}
               </p>
               <p className="mt-1 italic leading-relaxed text-green-900/90">
-                Step 4 (Corrective Action) Marking as{" "}
+                {t("Step 4 (Corrective Action) Marking as")}{" "}
                 <span className="font-bold not-italic text-green-700">
-                  Ineffective
+                  {t("Ineffective")}
                 </span>{" "}
-                will automatically route the workflow back to and flag the
-                Auditee for a revised root cause analysis and corrective
-                action.
+                {t(
+                  "will automatically route the workflow back to and flag the Auditee for a revised root cause analysis and corrective action."
+                )}
               </p>
             </div>
           </div>
@@ -274,10 +298,12 @@ export default function CreateAuditStep5Page() {
         {/* Auditor's Verification Comments */}
         <div className="mt-8 space-y-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-            AUDITOR&apos;S VERIFICATION COMMENTS
+            {t("AUDITOR'S VERIFICATION COMMENTS")}
           </h2>
           <Textarea
-            placeholder="Detail the audit evidence used for verification (e.g., site visit on 04-Feb, review of..."
+            placeholder={t(
+              "Detail the audit evidence used for verification (e.g., site visit on 04-Feb, review of..."
+            )}
             className="min-h-28 rounded-lg border-border bg-background"
             rows={4}
             value={auditorComments}
@@ -289,15 +315,15 @@ export default function CreateAuditStep5Page() {
         <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-8">
           <div className="min-w-0 flex-1 space-y-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              REVISED RISK SEVERITY
+              {t("REVISED RISK SEVERITY")}
             </h2>
             <div className="rounded-lg border border-border bg-muted px-4 py-3 text-base text-foreground">
-              Low (Level 2)
+              {t("Low (Level 2)")}
             </div>
           </div>
           <div className="min-w-0 flex-1 space-y-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              ATTACH EVIDENCE
+              {t("ATTACH EVIDENCE")}
             </h2>
             <input
               ref={fileInputRef}
@@ -310,14 +336,15 @@ export default function CreateAuditStep5Page() {
               type="button"
               variant="outline"
               className="w-full gap-2 border-border bg-card py-6 text-foreground hover:bg-muted/40 sm:w-auto"
+              disabled={uploadingEvidence}
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip className="h-4 w-4 text-muted-foreground" />
-              ATTACH EVIDENCE
+              {uploadingEvidence ? t("Uploading…") : t("ATTACH EVIDENCE")}
             </Button>
             {evidenceFiles.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                {evidenceFiles.length} file(s) selected
+                {evidenceFiles.length} {t("file(s) selected")}
               </p>
             )}
           </div>
@@ -327,7 +354,7 @@ export default function CreateAuditStep5Page() {
         <div className="mt-8 space-y-4 border border-border rounded-lg p-4">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              VERIFICATION AUDIT TRAIL
+              {t("VERIFICATION AUDIT TRAIL")}
             </h2>
             <Button
               type="button"
@@ -335,8 +362,8 @@ export default function CreateAuditStep5Page() {
               size="icon"
               onClick={handleCopyAuditTrail}
               className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-              title="Copy audit trail"
-              aria-label="Copy audit trail"
+              title={t("Copy audit trail")}
+              aria-label={t("Copy audit trail")}
             >
               <ClipboardCheck className="h-5 w-5" />
             </Button>
@@ -345,18 +372,18 @@ export default function CreateAuditStep5Page() {
             {/* First entry: solid green vertical bar alongside */}
             <div className="border-l-4 border-green-500 pl-4 pb-1">
               <p className="font-semibold text-foreground">
-                Verification Started
+                {t("Verification Started")}
               </p>
               <p className="text-sm text-muted-foreground">
-                {isLoading ? "…" : `${leadAuditorDisplay} • ${verificationStartedAt}`}
+                {isLoading ? t("…") : `${leadAuditorDisplay} • ${verificationStartedAt}`}
               </p>
             </div>
             {/* Second entry: dashed light gray vertical bar, pending */}
             <div className="mt-3 border-l-4 border-dashed border-border pl-4">
               <p className="font-medium text-muted-foreground">
-                Awaiting Final Verification
+                {t("Awaiting Final Verification")}
               </p>
-              <p className="text-sm text-muted-foreground">---</p>
+              <p className="text-sm text-muted-foreground">{t("---")}</p>
             </div>
           </div>
         </div>
@@ -372,7 +399,7 @@ export default function CreateAuditStep5Page() {
             disabled={saving || !auditPlanId || !canEditStep5}
             onClick={handleSaveStep5}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("Saving…") : t("Save")}
           </Button>
           <Button
             className="bg-green-600 text-white hover:bg-green-700"
@@ -391,26 +418,30 @@ export default function CreateAuditStep5Page() {
                 });
                 if (verificationOutcome === "ineffective") {
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
-                  toast.success("Returned to Auditee for revision.");
+                  toast.success(t("Returned to Auditee for revision."));
                   router.push(`/dashboard/${orgId}/audit`);
                 } else {
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
-                  toast.success("Submitted to Lead Auditor.");
+                  toast.success(t("Submitted to Lead Auditor."));
                   router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
                 }
               } catch (e) {
                 console.error(e);
-                toast.error(verificationOutcome === "ineffective" ? "Failed to return to Auditee." : "Failed to submit.");
+                toast.error(
+                  verificationOutcome === "ineffective"
+                    ? t("Failed to return to Auditee.")
+                    : t("Failed to submit.")
+                );
               } finally {
                 setProceedingToStep6(false);
               }
             }}
           >
             {proceedingToStep6
-              ? (verificationOutcome === "ineffective" ? "Returning…" : "Submitting…")
+              ? (verificationOutcome === "ineffective" ? t("Returning…") : t("Submitting…"))
               : verificationOutcome === "ineffective"
-                ? "Return to Auditee"
-                : "Submit to Lead Auditor"}
+                ? t("Return to Auditee")
+                : t("Submit to Lead Auditor")}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTranslate } from "@/components/providers/translation-provider";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
   canPerformSupportLeadershipCapture,
@@ -96,20 +97,24 @@ function pickLatestEvidenceByTemplate(rows: EvidenceApiRow[]): Map<string, Evide
   return m;
 }
 
-function workflowStatusLabel(ws: string | undefined): { label: string; className: string } {
+function workflowStatusLabel(
+  ws: string | undefined,
+  t: (text: string) => string
+): { label: string; className: string } {
   const s = String(ws ?? "").trim();
   if (!s)
-    return { label: "—", className: "bg-slate-50 text-slate-600 ring-slate-200/80" };
+    return { label: t("—"), className: "bg-slate-50 text-slate-600 ring-slate-200/80" };
   if (s === "draft")
-    return { label: "Capture", className: "bg-amber-50 text-amber-900 ring-amber-200/80" };
+    return { label: t("Capture"), className: "bg-amber-50 text-amber-900 ring-amber-200/80" };
   if (s === "capture_submitted")
-    return { label: "Verify", className: "bg-sky-50 text-sky-900 ring-sky-200/80" };
+    return { label: t("Verify"), className: "bg-sky-50 text-sky-900 ring-sky-200/80" };
   if (s === "completed")
-    return { label: "Active", className: "bg-emerald-50 text-emerald-800 ring-emerald-200/80" };
+    return { label: t("Active"), className: "bg-emerald-50 text-emerald-800 ring-emerald-200/80" };
   return { label: s, className: "bg-slate-50 text-slate-700 ring-slate-200/80" };
 }
 
 export default function DocumentaryEvidenceTemplatesContent() {
+  const { t } = useTranslate();
   const params = useParams();
   const orgId = (params?.orgId as string) || "";
   const documentsHref = orgId ? getDashboardPath(orgId, "documents") : "/";
@@ -252,10 +257,12 @@ export default function DocumentaryEvidenceTemplatesContent() {
   }, [search, templates]);
 
   const emptyMessage = isLoading
-    ? "Loading templates…"
+    ? t("Loading templates…")
     : templates.length === 0
-      ? "No F-type (Form) documents found in the active Master Document List. Create an F document from Documents, then it will appear here."
-      : "No templates match your search.";
+      ? t(
+          "No F-type (Form) documents found in the active Master Document List. Create an F document from Documents, then it will appear here."
+        )
+      : t("No templates match your search.");
 
   return (
     <div className="space-y-6">
@@ -266,23 +273,24 @@ export default function DocumentaryEvidenceTemplatesContent() {
               href={documentsHref}
               className="text-foreground hover:text-[#6366F1] hover:underline"
             >
-              Documents
+              {t("Documents")}
             </Link>
           </li>
           <li aria-hidden className="text-muted-foreground">
             /
           </li>
-          <li className="font-medium text-foreground">Documentary Evidence Records</li>
+          <li className="font-medium text-foreground">{t("Documentary Evidence Records")}</li>
         </ol>
       </nav>
 
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-[#0A0A0A]">
-          Documentary Evidence Record Templates
+          {t("Documentary Evidence Record Templates")}
         </h1>
         <p className="text-sm text-muted-foreground max-w-3xl">
-          Select an approved F-type template from the Master Document List to begin capturing a new evidence record.
-          Status reflects the latest evidence workflow for that template (Capture → Verify → Active).
+          {t(
+            "Select an approved F-type template from the Master Document List to begin capturing a new evidence record. Status reflects the latest evidence workflow for that template (Capture → Verify → Active)."
+          )}
         </p>
       </div>
 
@@ -290,19 +298,22 @@ export default function DocumentaryEvidenceTemplatesContent() {
         className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
         role="note"
       >
-        <p className="font-semibold text-[#1E40AF]">How it works</p>
+        <p className="font-semibold text-[#1E40AF]">{t("How it works")}</p>
         <p className="mt-2 leading-relaxed">
-          These are approved <span className="font-medium">F-type (Retained Record)</span> forms from your master list.
-          <span className="font-medium"> Support Leadership</span> runs capture; the{" "}
-          <span className="font-medium">designated Top/Operational verifier</span> completes Verify &amp; Archive. When
-          verification finishes, status becomes <span className="font-medium">Active</span>. New templates are added via{" "}
+          {t("These are approved")}{" "}
+          <span className="font-medium">{t("F-type (Retained Record)")}</span> {t("forms from your master list.")}{" "}
+          <span className="font-medium">{t("Support Leadership")}</span> {t("runs capture; the")}{" "}
+          <span className="font-medium">{t("designated Top/Operational verifier")}</span>{" "}
+          {t("completes Verify & Archive. When verification finishes, status becomes")}{" "}
+          <span className="font-medium">{t("Active")}</span>
+          {t(". New templates are added via")}{" "}
           <Link
             href={createHref}
             className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
           >
-            Create Document
+            {t("Create Document")}
           </Link>
-          .
+          {t(".")}
         </p>
       </div>
 
@@ -310,9 +321,11 @@ export default function DocumentaryEvidenceTemplatesContent() {
         <CardContent className="space-y-4 pt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold text-[#0A0A0A]">
-              Available F-Record Templates
+              {t("Available F-Record Templates")}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({isLoading ? "…" : filtered.length} active F-type)
+                (
+                {isLoading ? t("…") : `${filtered.length} ${t("active F-type")}`}
+                )
               </span>
             </h2>
             <div className="relative w-full sm:w-[280px]">
@@ -323,7 +336,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search templates..."
+                placeholder={t("Search templates...")}
                 disabled={isLoading || templates.length === 0}
                 className="h-10 pl-9 bg-[#F9FAFB] border-[#E5E7EB]"
               />
@@ -335,34 +348,34 @@ export default function DocumentaryEvidenceTemplatesContent() {
               <TableHeader>
                 <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Reference number
+                    {t("Reference number")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Form title
+                    {t("Form title")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Site
+                    {t("Site")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Process
+                    {t("Process")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Standard
+                    {t("Standard")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Clause
+                    {t("Clause")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Subclause
+                    {t("Subclause")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Version
+                    {t("Version")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Evidence status
+                    {t("Evidence status")}
                   </TableHead>
                   <TableHead className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-right min-w-[200px]">
-                    Actions
+                    {t("Actions")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -383,7 +396,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                   const evId = String(latest?.id ?? "").trim();
                   const designatedId = String(latest?.designated_verifier_user_id ?? "").trim();
                   const isDesignatedVerifier = Boolean(userId && designatedId && userId === designatedId);
-                  const st = workflowStatusLabel(ws);
+                  const st = workflowStatusLabel(ws, t);
 
                   const startCaptureUrl = `${captureHref}?template=${encodeURIComponent(row.referenceNumber)}&recordId=${encodeURIComponent(row.recordId)}`;
                   const continueCaptureUrl = `${captureHref}?template=${encodeURIComponent(row.referenceNumber)}&recordId=${encodeURIComponent(row.recordId)}&evidenceRecordId=${encodeURIComponent(evId)}`;
@@ -418,7 +431,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                       </TableCell>
                       <TableCell>
                         {!meLoaded || (canSeeWorkflow && evidenceLoading) ? (
-                          <span className="text-xs text-muted-foreground">…</span>
+                          <span className="text-xs text-muted-foreground">{t("…")}</span>
                         ) : canSeeWorkflow ? (
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${st.className}`}
@@ -429,19 +442,19 @@ export default function DocumentaryEvidenceTemplatesContent() {
                             {st.label}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">{t("—")}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end gap-1.5">
                           {!meLoaded ? (
-                            <span className="text-xs text-muted-foreground">Checking access…</span>
+                            <span className="text-xs text-muted-foreground">{t("Checking access…")}</span>
                           ) : !canSeeWorkflow ? (
                             <span className="text-[10px] text-muted-foreground max-w-[160px] text-right leading-tight">
-                              Leadership access required for workflow actions
+                              {t("Leadership access required for workflow actions")}
                             </span>
                           ) : evidenceLoading ? (
-                            <span className="text-xs text-muted-foreground">Loading actions…</span>
+                            <span className="text-xs text-muted-foreground">{t("Loading actions…")}</span>
                           ) : (
                             <>
                               {/* No evidence yet — Support starts capture */}
@@ -454,7 +467,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                 >
                                   <Link href={startCaptureUrl}>
                                     <PlayCircle className="size-4 shrink-0" />
-                                    Start capture
+                                    {t("Start capture")}
                                   </Link>
                                 </Button>
                               ) : null}
@@ -464,7 +477,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                 <Button type="button" size="sm" className="gap-2 bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
                                   <Link href={continueCaptureUrl}>
                                     <Pencil className="size-4 shrink-0" />
-                                    Edit capture
+                                    {t("Edit capture")}
                                   </Link>
                                 </Button>
                               ) : null}
@@ -476,7 +489,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button type="button" size="sm" variant="outline" className="gap-2" asChild>
                                       <Link href={viewCaptureUrl}>
                                         <Eye className="size-4 shrink-0" />
-                                        View capture
+                                        {t("View capture")}
                                       </Link>
                                     </Button>
                                   ) : null}
@@ -489,7 +502,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     >
                                       <Link href={verifyUrl}>
                                         <ShieldCheck className="size-4 shrink-0" />
-                                        Verify &amp; archive
+                                        {t("Verify & archive")}
                                       </Link>
                                     </Button>
                                   ) : null}
@@ -503,7 +516,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button type="button" size="sm" variant="outline" className="gap-2" asChild>
                                       <Link href={verifyUrl}>
                                         <Archive className="size-4 shrink-0" />
-                                        View record
+                                        {t("View record")}
                                       </Link>
                                     </Button>
                                   )}
@@ -516,7 +529,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     >
                                       <Link href={startCaptureUrl}>
                                         <PlayCircle className="size-4 shrink-0" />
-                                        Start new capture
+                                        {t("Start new capture")}
                                       </Link>
                                     </Button>
                                   ) : null}
@@ -540,9 +553,11 @@ export default function DocumentaryEvidenceTemplatesContent() {
         role="note"
       >
         <p className="leading-relaxed">
-          Captured evidence aligns with <span className="font-semibold">ISO 9001:2015 Clause 7.5.3</span> (Control of
-          documented information). Completed records show <span className="font-semibold">Active</span> after the
-          designated verifier finishes Verify &amp; Archive.
+          {t("Captured evidence aligns with")}{" "}
+          <span className="font-semibold">{t("ISO 9001:2015 Clause 7.5.3")}</span>{" "}
+          {t("(Control of documented information). Completed records show")}{" "}
+          <span className="font-semibold">{t("Active")}</span>{" "}
+          {t("after the designated verifier finishes Verify & Archive.")}
         </p>
       </div>
 
@@ -550,7 +565,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
         <Button variant="outline" asChild>
           <Link href={documentsHref}>
             <FileText className="size-4 mr-2" />
-            Back to document tables
+            {t("Back to document tables")}
           </Link>
         </Button>
       </div>
