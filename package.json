@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "tenant:get": "node scripts/get-tenant.js",
-    "tenant:migrate-pending": "node scripts/run-pending-tenant-migrations.js"
+    "tenant:migrate-pending": "node scripts/run-pending-tenant-migrations.js",
+    "tenant:migrate-all": "node scripts/run-pending-tenant-migrations.js --all",
+    "db:migrate-deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.952.0",
@@ -74,7 +76,9 @@
     "next-auth": "^4.24.13",
     "next-themes": "^0.4.6",
     "nodemailer": "^7.0.11",
+    "otplib": "^13.4.0",
     "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
     "radix-ui": "^1.4.3",
     "react": "19.2.0",
     "react-day-picker": "^9.12.0",
@@ -96,6 +100,7 @@
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.4",
     "@types/pg": "^8.15.6",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",

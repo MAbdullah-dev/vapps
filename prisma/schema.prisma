@@ -18,6 +18,10 @@ model User {
   blockedAt                  DateTime?
   blockReason                String?
   lastActive                 DateTime?                    // Track when user was last active
+  twoFactorEnabled           Boolean                      @default(false)
+  twoFactorSecret            String?
+  /** Hashed recovery codes: [{ hash, usedAt }] */
+  twoFactorRecoveryCodes     Json?
   phone                      String?
   location                   String?
   bio                        String?

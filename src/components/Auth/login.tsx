@@ -38,6 +38,8 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY);
 
   const {
@@ -62,6 +64,9 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
 
       await apiClient.login({
         ...data,
+        ...(requiresTwoFactor && twoFactorCode.trim()
+          ? { twoFactorCode: twoFactorCode.trim() }
+          : {}),
         ...(turnstileEnabled && turnstileToken
           ? { turnstileToken }
           : {}),
@@ -81,6 +86,16 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : t("Login failed");
+      if (message === "TWO_FACTOR_REQUIRED") {
+        setRequiresTwoFactor(true);
+        if (turnstileEnabled) {
+          setTurnstileToken(null);
+          setTurnstileKey((k) => k + 1);
+        }
+        toast.info(t("Enter your authenticator code to continue"));
+        return;
+      }
+
       toast.error(message);
       if (turnstileEnabled) {
         setTurnstileToken(null);
@@ -164,6 +179,29 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
           )}
         </div>
 
+        {requiresTwoFactor && (
+          <div className="mb-4">
+            <Label className="text-sm mb-2">
+              {t("Verification code")}
+            </Label>
+            <Input
+              autoComplete="one-time-code"
+              placeholder="123456 or XXXX-XXXX"
+              value={twoFactorCode}
+              onChange={(event) =>
+                setTwoFactorCode(
+                  event.target.value.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 9)
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t(
+                "Enter your 6-digit authenticator code, or a one-time recovery code."
+              )}
+            </p>
+          </div>
+        )}
+
         {/* Remember + Forgot */}
         <div className="flex justify-between items-center mb-6">
           <label className="flex items-center gap-2 text-sm">
@@ -194,7 +232,11 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
           className="w-full"
           disabled={loading || (turnstileEnabled && !turnstileToken)}
         >
-          {loading ? t("Logging in...") : t("Login")}
+          {loading
+            ? t("Logging in...")
+            : requiresTwoFactor
+              ? t("Verify and login")
+              : t("Login")}
         </Button>
       </form>
 

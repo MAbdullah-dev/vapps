@@ -9,6 +9,15 @@ import Apple from "next-auth/providers/apple";
 import Atlassian from "next-auth/providers/atlassian";
 import bcrypt from "bcryptjs";
 import { verifyTurnstileResponse } from "./turnstile";
+import {
+  decryptTwoFactorSecret,
+  verifyTwoFactorToken,
+} from "./two-factor";
+import {
+  looksLikeRecoveryCode,
+  parseStoredRecoveryCodes,
+  verifyAndConsumeRecoveryCode,
+} from "./two-factor-recovery";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -45,6 +54,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         turnstileToken: { label: "Turnstile token", type: "text" },
+        twoFactorCode: { label: "Two-factor code", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) {
@@ -76,6 +86,41 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
           throw new Error("Invalid email or password");
+        }
+
+        if (user.twoFactorEnabled) {
+          const twoFactorCode =
+            typeof credentials.twoFactorCode === "string"
+              ? credentials.twoFactorCode
+              : "";
+
+          if (!twoFactorCode) {
+            throw new Error("TWO_FACTOR_REQUIRED");
+          }
+
+          if (!user.twoFactorSecret) {
+            throw new Error("Two-step verification is not configured correctly");
+          }
+
+          if (looksLikeRecoveryCode(twoFactorCode)) {
+            const stored = parseStoredRecoveryCodes(user.twoFactorRecoveryCodes);
+            const { valid, updated } = await verifyAndConsumeRecoveryCode(
+              twoFactorCode,
+              stored
+            );
+            if (!valid) {
+              throw new Error("Invalid recovery code");
+            }
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { twoFactorRecoveryCodes: updated },
+            });
+          } else {
+            const twoFactorSecret = decryptTwoFactorSecret(user.twoFactorSecret);
+            if (!verifyTwoFactorToken(twoFactorCode, twoFactorSecret)) {
+              throw new Error("Invalid authenticator code");
+            }
+          }
         }
 
         // Update lastActive on successful login (ignore if column not yet migrated)

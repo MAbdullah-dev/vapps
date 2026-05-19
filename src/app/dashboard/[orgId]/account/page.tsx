@@ -2,14 +2,38 @@
 
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Camera, Mail, Phone, MapPin, Calendar as CalendarIcon, Building2, Loader2 } from "lucide-react";
+import {
+  Building2,
+  Calendar as CalendarIcon,
+  Camera,
+  Copy,
+  Download,
+  KeyRound,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  ShieldOff,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
+import { downloadRecoveryCodesPdfClient } from "@/lib/two-factor-recovery-pdf";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,6 +53,17 @@ type Profile = {
   reportsTo: string | null;
   joinDate: string | null;
   createdAt: string;
+};
+
+type TwoFactorSetup = {
+  secret: string;
+  qrCodeDataUrl: string;
+};
+
+const emptyPasswordForm = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
 const emptyProfile: Profile = {
@@ -77,6 +112,20 @@ export default function AccountPage() {
   const [form, setForm] = useState(profileToForm(emptyProfile));
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarTimestamp, setAvatarTimestamp] = useState(0);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(true);
+  const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetup | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorDisableCode, setTwoFactorDisableCode] = useState("");
+  const [unusedRecoveryCodes, setUnusedRecoveryCodes] = useState(0);
+  const [recoveryCodesDialogOpen, setRecoveryCodesDialogOpen] = useState(false);
+  const [displayedRecoveryCodes, setDisplayedRecoveryCodes] = useState<string[]>([]);
+  const [regenerateCode, setRegenerateCode] = useState("");
+  const [hasPassword, setHasPassword] = useState(false);
+  const [passwordStatusLoading, setPasswordStatusLoading] = useState(true);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
   const [orgMembership, setOrgMembership] = useState<{
     leadershipTier: string;
     systemRole: string;
@@ -105,9 +154,54 @@ export default function AccountPage() {
     }
   }, []);
 
+  const fetchTwoFactorStatus = useCallback(async () => {
+    try {
+      setTwoFactorLoading(true);
+      const data = await apiClient.getTwoFactorStatus();
+      setTwoFactorEnabled(data.enabled);
+      setUnusedRecoveryCodes(data.unusedRecoveryCodes ?? 0);
+      if (data.enabled) {
+        setTwoFactorSetup(null);
+        setTwoFactorCode("");
+      } else if (data.pendingSetup) {
+        const pending = await apiClient.getPendingTwoFactorSetup();
+        if (pending.pending && pending.secret && pending.qrCodeDataUrl) {
+          setTwoFactorSetup({
+            secret: pending.secret,
+            qrCodeDataUrl: pending.qrCodeDataUrl,
+          });
+        }
+      }
+    } catch {
+      toast.error("Failed to load two-step verification status");
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  }, []);
+
+  const fetchPasswordStatus = useCallback(async () => {
+    try {
+      setPasswordStatusLoading(true);
+      const data = await apiClient.getPasswordStatus();
+      setHasPassword(data.hasPassword);
+    } catch {
+      toast.error("Failed to load password status");
+    } finally {
+      setPasswordStatusLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (status === "authenticated") fetchProfile(true);
   }, [status, fetchProfile]);
+
+  useEffect(() => {
+    if (status === "authenticated") fetchTwoFactorStatus();
+  }, [status, fetchTwoFactorStatus]);
+
+  useEffect(() => {
+    if (status === "authenticated") fetchPasswordStatus();
+  }, [status, fetchPasswordStatus]);
 
   useEffect(() => {
     if (!orgId || status !== "authenticated") return;
@@ -154,6 +248,133 @@ export default function AccountPage() {
       toast.error(err instanceof Error ? err.message : "Failed to upload picture");
     } finally {
       setAvatarUploading(false);
+    }
+  };
+
+  const handleStartTwoFactorSetup = async () => {
+    try {
+      setTwoFactorSaving(true);
+      const setup = await apiClient.startTwoFactorSetup();
+      setTwoFactorSetup({
+        secret: setup.secret,
+        qrCodeDataUrl: setup.qrCodeDataUrl,
+      });
+      setTwoFactorCode("");
+      toast.success("Scan the QR code with your authenticator app");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start 2FA setup");
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleEnableTwoFactor = async () => {
+    try {
+      setTwoFactorSaving(true);
+      const result = await apiClient.enableTwoFactor(twoFactorCode);
+      setTwoFactorEnabled(true);
+      setTwoFactorSetup(null);
+      setTwoFactorCode("");
+      setUnusedRecoveryCodes(result.recoveryCodes.length);
+      if (result.recoveryCodes.length > 0) {
+        setDisplayedRecoveryCodes(result.recoveryCodes);
+        setRecoveryCodesDialogOpen(true);
+      }
+      toast.success(
+        result.emailSent
+          ? "Two-step verification enabled. Recovery codes emailed as PDF."
+          : "Two-step verification enabled"
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to enable 2FA");
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleCopyRecoveryCodes = async () => {
+    if (displayedRecoveryCodes.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(displayedRecoveryCodes.join("\n"));
+      toast.success("Recovery codes copied");
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
+  };
+
+  const handleDownloadRecoveryCodes = () => {
+    const email = profile.email ?? "";
+    if (!email || displayedRecoveryCodes.length === 0) return;
+    downloadRecoveryCodesPdfClient({
+      email,
+      recoveryCodes: displayedRecoveryCodes,
+    });
+  };
+
+  const handleRegenerateRecoveryCodes = async () => {
+    try {
+      setTwoFactorSaving(true);
+      const result = await apiClient.regenerateTwoFactorRecoveryCodes(regenerateCode);
+      setRegenerateCode("");
+      setUnusedRecoveryCodes(result.recoveryCodes.length);
+      setDisplayedRecoveryCodes(result.recoveryCodes);
+      setRecoveryCodesDialogOpen(true);
+      toast.success(
+        result.emailSent
+          ? "New recovery codes generated and emailed as PDF."
+          : "New recovery codes generated"
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to regenerate recovery codes"
+      );
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    try {
+      setTwoFactorSaving(true);
+      await apiClient.disableTwoFactor(twoFactorDisableCode);
+      setTwoFactorEnabled(false);
+      setTwoFactorDisableCode("");
+      setUnusedRecoveryCodes(0);
+      setDisplayedRecoveryCodes([]);
+      toast.success("Two-step verification disabled");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to disable 2FA");
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (passwordForm.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("New password and confirmation do not match");
+      return;
+    }
+
+    try {
+      setPasswordSaving(true);
+      const result = await apiClient.updatePassword({
+        ...(hasPassword
+          ? { currentPassword: passwordForm.currentPassword }
+          : {}),
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
+      setHasPassword(result.hasPassword);
+      setPasswordForm(emptyPasswordForm);
+      toast.success(result.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update password");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -291,6 +512,293 @@ export default function AccountPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Security */}
+          <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
+            <CardHeader>
+              <CardTitle className="text-[#0A0A0A] flex items-center gap-2">
+                {twoFactorEnabled ? (
+                  <ShieldCheck className="h-5 w-5 text-green-600" />
+                ) : (
+                  <ShieldOff className="h-5 w-5 text-[#6A7282]" />
+                )}
+                Two-Step Verification
+              </CardTitle>
+              <CardDescription>
+                Protect your account with a 6-digit code from Google Authenticator,
+                Microsoft Authenticator, Authy, or another TOTP app.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {twoFactorLoading ? (
+                <div className="flex items-center gap-2 text-sm text-[#6A7282]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading security status...
+                </div>
+              ) : twoFactorEnabled ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                    Two-step verification is enabled for your account.
+                    {unusedRecoveryCodes > 0 && (
+                      <span className="block mt-1">
+                        {unusedRecoveryCodes} unused recovery code
+                        {unusedRecoveryCodes === 1 ? "" : "s"} remaining.
+                      </span>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-3">
+                    <div className="text-sm font-medium text-[#0A0A0A]">
+                      Regenerate recovery codes
+                    </div>
+                    <p className="text-sm text-[#6A7282]">
+                      This invalidates all previous recovery codes and emails you a new PDF.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <Input
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="Authenticator code"
+                        value={regenerateCode}
+                        onChange={(event) =>
+                          setRegenerateCode(
+                            event.target.value.replace(/\D/g, "").slice(0, 6)
+                          )
+                        }
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={handleRegenerateRecoveryCodes}
+                        disabled={twoFactorSaving || regenerateCode.length !== 6}
+                      >
+                        {twoFactorSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Regenerate"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="Enter 6-digit code to disable"
+                      value={twoFactorDisableCode}
+                      onChange={(event) =>
+                        setTwoFactorDisableCode(
+                          event.target.value.replace(/\D/g, "").slice(0, 6)
+                        )
+                      }
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleDisableTwoFactor}
+                      disabled={twoFactorSaving || twoFactorDisableCode.length !== 6}
+                    >
+                      {twoFactorSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Disable"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : twoFactorSetup ? (
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+                    <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
+                      <Image
+                        src={twoFactorSetup.qrCodeDataUrl}
+                        alt="Authenticator app QR code"
+                        width={240}
+                        height={240}
+                        unoptimized
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-sm font-medium text-[#0A0A0A]">
+                          1. Scan this QR code
+                        </div>
+                        <p className="text-sm text-[#6A7282]">
+                          Open your authenticator app, add a new account, and scan
+                          the QR code. This QR stays the same until you finish setup
+                          or disable two-step verification.
+                        </p>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#0A0A0A]">
+                          Manual setup key
+                        </div>
+                        <code className="mt-1 block break-all rounded bg-[#F3F3F5] px-3 py-2 text-xs text-[#374151]">
+                          {twoFactorSetup.secret}
+                        </code>
+                      </div>
+                      <div>
+                        <Label className="text-[#374151] text-sm">
+                          2. Enter the 6-digit code
+                        </Label>
+                        <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <Input
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="123456"
+                            value={twoFactorCode}
+                            onChange={(event) =>
+                              setTwoFactorCode(
+                                event.target.value.replace(/\D/g, "").slice(0, 6)
+                              )
+                            }
+                          />
+                          <Button
+                            className="bg-[#0A0A0A] text-white hover:bg-[#333]"
+                            onClick={handleEnableTwoFactor}
+                            disabled={twoFactorSaving || twoFactorCode.length !== 6}
+                          >
+                            {twoFactorSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Verify & Enable"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-[#6A7282]">
+                    Two-step verification is not enabled yet. After setup, login
+                    will require your password plus a 6-digit authenticator code.
+                  </div>
+                  <Button
+                    className="bg-[#0A0A0A] text-white hover:bg-[#333] shrink-0"
+                    onClick={handleStartTwoFactorSetup}
+                    disabled={twoFactorSaving}
+                  >
+                    {twoFactorSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <KeyRound className="h-4 w-4 mr-2" />
+                        Enable Authenticator
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Password */}
+          <Card className="border border-[#0000001A] shadow-sm rounded-xl overflow-hidden">
+            <CardHeader>
+              <CardTitle className="text-[#0A0A0A] flex items-center gap-2">
+                <LockKeyhole className="h-5 w-5 text-[#6A7282]" />
+                Password
+              </CardTitle>
+              <CardDescription>
+                {hasPassword
+                  ? "Change the password used for email login."
+                  : "Set a password so you can also sign in with email and password."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {passwordStatusLoading ? (
+                <div className="flex items-center gap-2 text-sm text-[#6A7282]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading password status...
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-[#6A7282]">
+                    {hasPassword
+                      ? "Your account has a password. Use your current password to change it."
+                      : "Your account does not have a password yet. This is common for SSO accounts."}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {hasPassword && (
+                      <div className="space-y-2">
+                        <Label className="text-[#374151] text-sm">
+                          Current Password
+                        </Label>
+                        <Input
+                          type="password"
+                          autoComplete="current-password"
+                          value={passwordForm.currentPassword}
+                          onChange={(event) =>
+                            setPasswordForm((form) => ({
+                              ...form,
+                              currentPassword: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label className="text-[#374151] text-sm">
+                        New Password
+                      </Label>
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        value={passwordForm.newPassword}
+                        onChange={(event) =>
+                          setPasswordForm((form) => ({
+                            ...form,
+                            newPassword: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[#374151] text-sm">
+                        Confirm New Password
+                      </Label>
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        value={passwordForm.confirmPassword}
+                        onChange={(event) =>
+                          setPasswordForm((form) => ({
+                            ...form,
+                            confirmPassword: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-[#6A7282]">
+                      Password must be at least 8 characters. Use a unique
+                      password that you do not use on other websites.
+                    </p>
+                    <Button
+                      className="bg-[#0A0A0A] text-white hover:bg-[#333] shrink-0"
+                      onClick={handleUpdatePassword}
+                      disabled={
+                        passwordSaving ||
+                        (hasPassword && !passwordForm.currentPassword) ||
+                        passwordForm.newPassword.length < 8 ||
+                        passwordForm.newPassword !== passwordForm.confirmPassword
+                      }
+                    >
+                      {passwordSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : hasPassword ? (
+                        "Change Password"
+                      ) : (
+                        "Set Password"
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -462,6 +970,42 @@ export default function AccountPage() {
             </CardContent>
           </Card>
       </div>
+
+      <Dialog
+        open={recoveryCodesDialogOpen}
+        onOpenChange={setRecoveryCodesDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save your recovery codes</DialogTitle>
+            <DialogDescription>
+              These codes are shown only once. Store them securely. Each code works
+              one time if you lose your authenticator app. A copy was also emailed
+              as a PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border bg-muted/40 p-4 space-y-2 max-h-48 overflow-y-auto">
+            {displayedRecoveryCodes.map((code) => (
+              <code
+                key={code}
+                className="block font-mono text-sm tracking-wide text-foreground"
+              >
+                {code}
+              </code>
+            ))}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={handleCopyRecoveryCodes}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
+            <Button type="button" onClick={handleDownloadRecoveryCodes}>
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

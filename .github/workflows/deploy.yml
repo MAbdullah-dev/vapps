@@ -4,14 +4,22 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
 
+# Queue deploys instead of cancelling mid-flight. Cancelling a running deploy
+# between `prisma migrate deploy` and `pm2 reload` can leave the app pointed at
+# a half-migrated schema.
 concurrency:
   group: deploy-ec2-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    name: Deploy to production (EC2)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
 
     steps:
       - name: SSH deploy
@@ -21,18 +29,103 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 30m
+          envs: GITHUB_SHA,GITHUB_REF_NAME,GITHUB_RUN_ID
           script: |
-            set -e
-            cd /home/ec2-user/vapps
+            set -Eeuo pipefail
 
-            # 🔥 always clean state (IMPORTANT)
-            git fetch origin
+            APP_DIR="/home/ec2-user/vapps"
+            PM2_APP_NAME="${PM2_APP_NAME:-vapps}"
+            DEPLOY_LOG="$APP_DIR/.deploy/last-deploy.log"
+            HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
+            TENANT_CONCURRENCY="${TENANT_CONCURRENCY:-2}"
+
+            mkdir -p "$APP_DIR/.deploy"
+
+            ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+            log() { printf "%s %s\n" "$(ts)" "$*" | tee -a "$DEPLOY_LOG"; }
+
+            on_error() {
+              local ec=$?
+              log "DEPLOY FAILED with exit code $ec at line $1"
+              log "  app dir:    $APP_DIR"
+              log "  commit:     ${GITHUB_SHA:-unknown}"
+              log "  ref:        ${GITHUB_REF_NAME:-unknown}"
+              log "  github run: ${GITHUB_RUN_ID:-unknown}"
+              exit "$ec"
+            }
+            trap 'on_error $LINENO' ERR
+
+            cd "$APP_DIR"
+
+            log "=== Deploy start ==="
+            log "commit=${GITHUB_SHA:-unknown} ref=${GITHUB_REF_NAME:-unknown} run=${GITHUB_RUN_ID:-unknown}"
+            log "node=$(node -v 2>/dev/null || echo missing)  npm=$(npm -v 2>/dev/null || echo missing)  pm2=$(pm2 -v 2>/dev/null || echo missing)"
+
+            # Disk sanity check (require at least 1 GiB free on the deploy partition)
+            FREE_MB=$(df -Pm "$APP_DIR" | awk 'NR==2 {print $4}')
+            log "free disk: ${FREE_MB} MiB on $APP_DIR"
+            if [ "${FREE_MB:-0}" -lt 1024 ]; then
+              log "ERROR: less than 1 GiB free on $APP_DIR; aborting before deploy"
+              exit 1
+            fi
+
+            # 1) Sync source: clean working tree, fast-forward to origin/main
+            log "--- step: git sync ---"
+            git fetch --prune origin
             git reset --hard origin/main
+            git clean -fdx --exclude=.deploy --exclude=node_modules
 
-            npm ci
-            npx prisma generate
-            npx prisma migrate deploy
-            npm run build
+            # 2) Install deps (production-grade flags: deterministic, no audit/fund noise)
+            log "--- step: npm ci ---"
+            npm ci --no-audit --no-fund --prefer-offline
 
-            # 🔥 zero downtime restart
-            pm2 reload ecosystem.config.js
+            # 3) Prisma client must be generated before any script that imports @prisma/client
+            log "--- step: prisma generate ---"
+            npx --no-install prisma generate
+
+            # 4) Apply master DB migrations (DATABASE_URL).
+            #    If this fails we stop before touching tenants or reloading the app.
+            log "--- step: master DB migrate ---"
+            npx --no-install prisma migrate deploy
+
+            # 5) Apply pending per-tenant SQL migrations to every active tenant DB.
+            #    Tracked per-tenant in `tenant_schema_migrations`, so this is idempotent
+            #    and only applies what hasn't been applied yet. Concurrency is bounded
+            #    to avoid hammering RDS during deploys.
+            log "--- step: tenant DB migrate (--all, concurrency=$TENANT_CONCURRENCY) ---"
+            npm run tenant:migrate-all -- --concurrency "$TENANT_CONCURRENCY"
+
+            # 6) Build with production env (Next caches in .next; build before reload)
+            log "--- step: build ---"
+            NODE_ENV=production npm run build
+
+            # 7) Zero-downtime reload of PM2 cluster
+            log "--- step: pm2 reload ---"
+            if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
+              pm2 reload ecosystem.config.js --update-env
+            else
+              log "PM2 app '$PM2_APP_NAME' not found; starting fresh from ecosystem.config.js"
+              pm2 start ecosystem.config.js --update-env
+            fi
+            pm2 save
+
+            # 8) Post-deploy health check (best-effort; do not fail the deploy if the
+            #    health endpoint is not configured, but log clearly so we notice).
+            log "--- step: health check ---"
+            HEALTH_OK=0
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 "$HEALTH_URL" || echo "000")
+              if [ "$CODE" = "200" ]; then
+                HEALTH_OK=1
+                log "health check OK on attempt $i (HTTP $CODE)"
+                break
+              fi
+              log "health check attempt $i: HTTP $CODE (retrying in 3s)"
+              sleep 3
+            done
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              log "WARNING: health check did not return 200 within retries; check pm2 logs"
+              pm2 status || true
+            fi
+
+            log "=== Deploy success: ${GITHUB_SHA:-unknown} ==="

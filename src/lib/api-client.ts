@@ -226,6 +226,7 @@ class ApiClient {
     email: string;
     password: string;
     turnstileToken?: string;
+    twoFactorCode?: string;
   }) {
     const { signIn } = await import("next-auth/react");
 
@@ -239,6 +240,67 @@ class ApiClient {
     }
 
     return result;
+  }
+
+  getTwoFactorStatus() {
+    return this.get<{
+      enabled: boolean;
+      pendingSetup: boolean;
+      unusedRecoveryCodes: number;
+    }>("/auth/2fa/status");
+  }
+
+  getPendingTwoFactorSetup() {
+    return this.get<{
+      pending: boolean;
+      secret?: string;
+      otpauthUrl?: string;
+      qrCodeDataUrl?: string;
+      resumed?: boolean;
+    }>("/auth/2fa/setup");
+  }
+
+  startTwoFactorSetup() {
+    return this.post<{
+      secret: string;
+      otpauthUrl: string;
+      qrCodeDataUrl: string;
+      resumed?: boolean;
+    }>("/auth/2fa/setup");
+  }
+
+  enableTwoFactor(code: string) {
+    return this.post<{
+      enabled: boolean;
+      recoveryCodes: string[];
+      emailSent?: boolean;
+    }>("/auth/2fa/enable", { code });
+  }
+
+  disableTwoFactor(code: string) {
+    return this.post<{ enabled: boolean }>("/auth/2fa/disable", { code });
+  }
+
+  regenerateTwoFactorRecoveryCodes(code: string) {
+    return this.post<{
+      recoveryCodes: string[];
+      emailSent?: boolean;
+    }>("/auth/2fa/recovery-codes/regenerate", { code });
+  }
+
+  getPasswordStatus() {
+    return this.get<{ hasPassword: boolean }>("/auth/password");
+  }
+
+  updatePassword(data: {
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) {
+    return this.post<{ hasPassword: boolean; message: string }>(
+      "/auth/password",
+      data
+    );
   }
 
   // ========== Organization Methods ==========

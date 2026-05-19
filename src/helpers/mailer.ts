@@ -132,6 +132,41 @@ export async function sendPasswordResetEmail({
   });
 }
 
+export async function sendTwoFactorEnabledEmail({
+  email,
+  name,
+  recoveryCodesPdf,
+}: {
+  email: string;
+  name?: string | null;
+  recoveryCodesPdf: Buffer;
+}) {
+  const fromEmail = process.env.SMTP_FROM || "noreply@vie.com";
+  const displayName = name?.trim() || "there";
+
+  await transporter.sendMail({
+    from: `"Vie" <${fromEmail}>`,
+    to: email,
+    subject: "Two-step verification enabled on your account",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0A0A0A;">Two-step verification is now enabled</h2>
+        <p>Hi ${displayName},</p>
+        <p>Authenticator-based two-step verification was successfully enabled on your Vie account.</p>
+        <p><strong>Your recovery codes are attached as a PDF.</strong> Store them in a safe place. Each code works only once if you lose access to your authenticator app.</p>
+        <p style="color: #999; font-size: 12px; margin-top: 30px;">If you did not enable this, contact your administrator immediately and reset your password.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: "vie-recovery-codes.pdf",
+        content: recoveryCodesPdf,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
 export async function sendInvitationEmail({
   email,
   token,
