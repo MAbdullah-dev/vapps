@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { requireOrgSettingsAccess } from "@/lib/require-org-settings-access";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
 import type { PoolClient } from "pg";
@@ -38,6 +39,9 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);
@@ -92,6 +96,9 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);

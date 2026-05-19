@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { requireOrgSettingsAccess } from "@/lib/require-org-settings-access";
 import { getTenantPool } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import { z } from "zod";
@@ -33,15 +34,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tenant } = ctx;
-
-    // Only owners can update roles
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can update roles" },
-        { status: 403 }
-      );
-    }
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Validate request body
     const validationResult = updateRoleSchema.safeParse(body);
@@ -199,15 +193,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tenant } = ctx;
-
-    // Only owners can delete roles
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can delete roles" },
-        { status: 403 }
-      );
-    }
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     try {
       const pool = await getTenantPool(orgId);

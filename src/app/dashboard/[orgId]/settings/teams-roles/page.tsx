@@ -190,7 +190,7 @@ export default function TeamsRolesPage() {
           <div className="mb-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Link href={getDashboardPath(orgId, "settings")} className="hover:text-foreground">Settings</Link>
             <span>/</span>
-            <span>Sites & Departments</span>
+            <span>Sites & Processes</span>
           </div>
           <h1 className="text-2xl font-semibold text-foreground">Teams & Roles</h1>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, Bell, Check, Globe, User, X } from "lucide-react";
+import { Search, Bell, Check, Globe, X } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -13,6 +14,8 @@ import { apiClient } from "@/lib/api-client";
 import { getDashboardPath } from "@/lib/subdomain";
 import ThemeToggle from "@/components/common/ThemeToggle";
 import { documentActivityVerb } from "@/lib/document-activity-labels";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resolveProfileImageSrc } from "@/lib/profile-image";
 
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
@@ -89,6 +92,16 @@ function formatNotificationMessage(a: NotificationActivity): string {
     }
 }
 
+function profileInitials(label: string): string {
+    const t = label.trim();
+    if (!t) return "?";
+    const parts = t.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2 && parts[0][0] && parts[parts.length - 1][0]) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return t.slice(0, 2).toUpperCase();
+}
+
 function formatRelativeTime(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -131,6 +144,9 @@ function getNotificationHref(slug: string | undefined, a: NotificationActivity):
 
 export default function Topbar() {
     const { orgId, slug: orgSlug } = useOrg();
+    const { data: session } = useSession();
+    const userName = session?.user?.name ?? session?.user?.email ?? "User";
+    const avatarSrc = resolveProfileImageSrc(session?.user?.image);
     const [selectedLang, setSelectedLang] = useState("English");
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
     const [dismissing, setDismissing] = useState(false);
@@ -351,10 +367,15 @@ export default function Topbar() {
                     <DropdownMenuTrigger asChild>
                         <Button
                             variant="ghost"
-                            size="icon"
-                            className="w-8 h-8 flex items-center justify-center"
+                            className="h-9 gap-2 px-2 hover:bg-accent max-w-[180px]"
                         >
-                            <User className="h-4 w-4" />
+                            <Avatar className="h-7 w-7 shrink-0">
+                                <AvatarImage src={avatarSrc ?? undefined} alt={userName} />
+                                <AvatarFallback className="bg-muted text-xs text-muted-foreground">
+                                    {profileInitials(userName)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate text-sm font-medium">{userName}</span>
                         </Button>
                     </DropdownMenuTrigger>
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrg } from "@/components/providers/org-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +26,17 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Building2, Users, ChevronRight, Edit, Trash2, Plus, FolderKanban } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getSelectedSiteFromStorage,
+  setSelectedSiteInStorage,
+} from "@/lib/selected-site";
 
 type Site = {
   id: string;
@@ -40,8 +53,9 @@ type Site = {
 };
 
 export default function SitesDepartmentsPage() {
-  const params = useParams();
-  const orgId = params?.orgId as string;
+  const { orgId, slug: orgSlug } = useOrg();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [isLoading, setIsLoading] = useState(true);
   const [sites, setSites] = useState<Site[]>([]);
@@ -51,6 +65,10 @@ export default function SitesDepartmentsPage() {
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [expandedSites, setExpandedSites] = useState<string[]>([]);
   const [canManageSites, setCanManageSites] = useState(false);
+  const [isOrgOwner, setIsOrgOwner] = useState(false);
+  const [confirmedSiteId, setConfirmedSiteId] = useState<string>("");
+  const [pendingSiteId, setPendingSiteId] = useState<string>("");
+  const [isSwitchingSite, setIsSwitchingSite] = useState(false);
 
   // Form state for add/edit
   const [formData, setFormData] = useState({
@@ -77,11 +95,68 @@ export default function SitesDepartmentsPage() {
   }, [orgId]);
 
   useEffect(() => {
-    if (orgId && typeof orgId === 'string' && orgId !== 'undefined') {
+    if (orgId && typeof orgId === "string" && orgId !== "undefined") {
       fetchSites();
       fetchPermissions();
+      apiClient
+        .getMyOrgMembership(orgId)
+        .then((m) => setIsOrgOwner(m.isOwner ?? false))
+        .catch(() => setIsOrgOwner(false));
     }
   }, [orgId, fetchSites]);
+
+  useEffect(() => {
+    if (!orgId || sites.length === 0) return;
+    const stored = getSelectedSiteFromStorage(orgId, orgSlug);
+    const initial =
+      stored?.id && sites.some((s) => s.id === stored.id)
+        ? stored.id
+        : sites[0].id;
+    setConfirmedSiteId(initial);
+    setPendingSiteId(initial);
+  }, [orgId, sites]);
+
+  useEffect(() => {
+    const onSiteChanged = (event: Event) => {
+      const { orgId: changedOrgId, siteId } = (
+        event as CustomEvent<{ orgId: string; siteId: string }>
+      ).detail;
+      if (changedOrgId !== orgId) return;
+      setConfirmedSiteId(siteId);
+      setPendingSiteId(siteId);
+    };
+    window.addEventListener("siteChanged", onSiteChanged);
+    return () => window.removeEventListener("siteChanged", onSiteChanged);
+  }, [orgId]);
+
+  const handleConfirmSiteSwitch = async () => {
+    const site = sites.find((s) => s.id === pendingSiteId);
+    if (!site || pendingSiteId === confirmedSiteId) return;
+
+    setIsSwitchingSite(true);
+    try {
+      setSelectedSiteInStorage(
+        orgId,
+        {
+          id: site.id,
+          name: site.name,
+          code: site.code,
+          location: site.location,
+          processes: site.processes,
+        },
+        orgSlug
+      );
+      setConfirmedSiteId(site.id);
+      await queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
+      router.refresh();
+      toast.success(`Switched to ${site.name}`);
+    } catch (error) {
+      console.error("Failed to switch site:", error);
+      toast.error("Failed to switch site");
+    } finally {
+      setIsSwitchingSite(false);
+    }
+  };
 
   const fetchPermissions = useCallback(async () => {
     if (!orgId) return;
@@ -216,9 +291,9 @@ export default function SitesDepartmentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="mb-1 text-sm text-muted-foreground">
-            Settings &gt; Sites & Departments
+            Settings &gt; Sites & Processes
           </div>
-          <h1 className="text-2xl font-semibold text-foreground">Sites & Departments</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Sites & Processes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your locations and organizational structure.
           </p>
@@ -237,6 +312,57 @@ export default function SitesDepartmentsPage() {
           )}
         </div>
       </div>
+
+      {isOrgOwner && sites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Active workspace site</CardTitle>
+            <CardDescription>
+              Choose which site the dashboard sidebar and modules use. Only the organization
+              owner can switch sites.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="max-w-lg space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="active-site">Site</Label>
+              <Select
+                value={pendingSiteId || undefined}
+                onValueChange={setPendingSiteId}
+                disabled={isSwitchingSite}
+              >
+                <SelectTrigger id="active-site">
+                  <SelectValue placeholder="Select a site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name} — {site.location} ({site.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {confirmedSiteId && (
+                <p className="text-xs text-muted-foreground">
+                  Current:{" "}
+                  {sites.find((s) => s.id === confirmedSiteId)?.name ?? "—"}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="default"
+              onClick={handleConfirmSiteSwitch}
+              disabled={
+                isSwitchingSite ||
+                !pendingSiteId ||
+                pendingSiteId === confirmedSiteId
+              }
+            >
+              {isSwitchingSite ? "Switching…" : "Confirm"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">

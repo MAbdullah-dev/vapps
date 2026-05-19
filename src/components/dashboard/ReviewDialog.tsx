@@ -12,10 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Upload, X, Paperclip } from "lucide-react";
+import { Plus, Upload, X, Paperclip, Calendar as CalendarIcon } from "lucide-react";
+import { format, isValid, parseISO } from "date-fns";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const generateId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -600,7 +608,7 @@ export default function ReviewDialog({
         }
       }}
     >
-      <DialogContent className="max-w-4xl! max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl! max-h-[90vh] overflow-y-auto text-foreground">
         <DialogHeader>
           <DialogTitle>Containment / Immediate Correction</DialogTitle>
           <DialogDescription>
@@ -621,8 +629,8 @@ export default function ReviewDialog({
             {/* Containment Section */}
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              Containment / Immediate Correction <span className="text-red-500">*</span>
+            <label className="mb-2 block text-sm font-medium text-foreground">
+              Containment / Immediate Correction <span className="text-destructive">*</span>
             </label>
             <Textarea
               placeholder="Describe the immediate corrective action taken to control the issue and prevent further impact..."
@@ -650,7 +658,7 @@ export default function ReviewDialog({
 
           <div
             onClick={() => fileInputRef1.current?.click()}
-            className="cursor-pointer border border-dashed rounded-lg p-6 text-center hover:bg-muted"
+            className="cursor-pointer rounded-lg border border-dashed border-border p-6 text-center hover:bg-muted/50"
           >
             <Upload className="mx-auto h-5 w-5 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Drag & drop or browse</p>
@@ -661,9 +669,9 @@ export default function ReviewDialog({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
               {existingContainmentFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
-                <div key={`existing-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                <div key={`existing-${index}`} className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                    <p className="truncate text-sm font-medium text-foreground">{fileMeta.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                     </p>
@@ -706,7 +714,7 @@ export default function ReviewDialog({
 
         {/* Root Cause */}
         <div className="space-y-4 pt-6">
-          <h3 className="font-semibold">Root Cause of Problem (Optional)</h3>
+          <h3 className="font-semibold text-foreground">Root Cause of Problem (Optional)</h3>
           <Textarea
             placeholder="Explain the root cause of the issue..."
             value={rootCauseText}
@@ -725,7 +733,7 @@ export default function ReviewDialog({
 
           <div
             onClick={() => fileInputRef2.current?.click()}
-            className="cursor-pointer border border-dashed rounded-lg p-6 text-center hover:bg-muted"
+            className="cursor-pointer rounded-lg border border-dashed border-border p-6 text-center hover:bg-muted/50"
           >
             <Upload className="mx-auto h-5 w-5 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Drag & drop or browse</p>
@@ -736,9 +744,9 @@ export default function ReviewDialog({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
               {existingRootCauseFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
-                <div key={`existing-root-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                <div key={`existing-root-${index}`} className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                    <p className="truncate text-sm font-medium text-foreground">{fileMeta.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                     </p>
@@ -781,10 +789,10 @@ export default function ReviewDialog({
 
         {/* Action Plan */}
         <div className="space-y-4 pt-6">
-          <h3 className="font-semibold">Action Plan</h3>
+          <h3 className="font-semibold text-foreground">Action Plan</h3>
 
           {actionPlans.map((row) => (
-            <div key={row.id} className="border rounded-lg p-4 space-y-3">
+            <div key={row.id} className="space-y-3 rounded-lg border border-border p-4">
               <div className="grid grid-cols-6 gap-3">
                 <Input
                   placeholder="Action"
@@ -796,19 +804,19 @@ export default function ReviewDialog({
                   value={row.responsible}
                   onChange={(e) => updateActionPlan(row.id, "responsible", e.target.value)}
                 />
-                <Input
-                  type="date"
+                <ActionPlanDatePicker
                   value={row.plannedDate}
-                  onChange={(e) => updateActionPlan(row.id, "plannedDate", e.target.value)}
+                  onChange={(v) => updateActionPlan(row.id, "plannedDate", v)}
+                  placeholder="Planned date"
                 />
-                <Input
-                  type="date"
+                <ActionPlanDatePicker
                   value={row.actualDate}
-                  onChange={(e) => updateActionPlan(row.id, "actualDate", e.target.value)}
+                  onChange={(v) => updateActionPlan(row.id, "actualDate", v)}
+                  placeholder="Actual date"
                 />
 
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Paperclip className="h-4 w-4" /> Upload
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  <Paperclip className="h-4 w-4 shrink-0" /> Upload
                   <input
                     type="file"
                     multiple
@@ -831,9 +839,9 @@ export default function ReviewDialog({
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">Previously uploaded files:</p>
                   {row.existingFiles.map((fileMeta: ExistingFileMetadata, index: number) => (
-                    <div key={`existing-action-${row.id}-${index}`} className="flex items-center justify-between border rounded-md px-3 py-2 bg-muted/50 hover:bg-muted/70 transition-colors">
+                    <div key={`existing-action-${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{fileMeta.name}</p>
+                        <p className="truncate text-sm font-medium text-foreground">{fileMeta.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {(fileMeta.size / 1024).toFixed(1)} KB {fileMeta.type && `• ${fileMeta.type.split('/')[1]?.toUpperCase() || fileMeta.type}`}
                         </p>
@@ -888,12 +896,12 @@ export default function ReviewDialog({
           <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingReview || uploadingFiles}>
             {uploadingFiles ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-primary-foreground"></div>
                 Uploading files...
               </>
             ) : isSubmitting ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-primary-foreground"></div>
                 Submitting...
               </>
             ) : (
@@ -908,6 +916,52 @@ export default function ReviewDialog({
   );
 }
 
+function parseStoredDate(value: string): Date | undefined {
+  if (!value?.trim()) return undefined;
+  const parsed = parseISO(value.includes("T") ? value : `${value}T00:00:00`);
+  return isValid(parsed) ? parsed : undefined;
+}
+
+function ActionPlanDatePicker({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  const selected = parseStoredDate(value);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            "h-9 w-full justify-start px-2 text-left font-normal",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+          <span className="truncate text-xs">
+            {selected ? format(selected, "MMM d, yyyy") : placeholder}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(date) => onChange(date ? format(date, "yyyy-MM-dd") : "")}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function FileItem({
   file,
   onRemove,
@@ -916,9 +970,9 @@ function FileItem({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between border rounded-md px-3 py-2">
+    <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
       <div>
-        <p className="text-sm">{file.name}</p>
+        <p className="text-sm text-foreground">{file.name}</p>
         <p className="text-xs text-muted-foreground">
           {(file.size / 1024).toFixed(1)} KB
         </p>

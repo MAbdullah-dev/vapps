@@ -47,10 +47,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Search, Filter, Edit, Trash2, Mail, Info, UserPlus, ChevronRight } from "lucide-react";
+import { Search, Filter, Edit, Trash2, MailX, Info, UserPlus, ChevronRight } from "lucide-react";
 import CreateUserDialog from "@/components/dashboard/CreateUserDialog";
 import EditUserDialog from "@/components/dashboard/EditUserDialog";
 import DeleteUserDialog from "@/components/dashboard/DeleteUserDialog";
+import RevokeInvitationDialog from "@/components/dashboard/RevokeInvitationDialog";
 
 // Leadership to System Role mapping (single source of truth)
 const leadershipToRoleMap = {
@@ -100,6 +101,7 @@ export default function TeamsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [deletingUser, setDeletingUser] = useState<TeamMember | null>(null);
+  const [revokingInvite, setRevokingInvite] = useState<TeamMember | null>(null);
   const [canManageTeams, setCanManageTeams] = useState(false);
   const [currentUserSystemRole, setCurrentUserSystemRole] = useState<SystemRole>("Member");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -498,13 +500,15 @@ export default function TeamsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{member.lastActive}</TableCell>
                     <TableCell>
-                      {((!member.isOwner && canManageTeams) || (member.isOwner && member.id === currentUserId)) && (
-                        <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
+                        {member.status === "Active" &&
+                          ((!member.isOwner && canManageTeams) ||
+                            (member.isOwner && member.id === currentUserId)) && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8"
                                 onClick={() => setEditingUser(member)}
                               >
@@ -512,15 +516,32 @@ export default function TeamsPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{member.isOwner ? "Edit your site, process, and additional roles (e.g. Auditor)" : "Edit user details and leadership tier (role updates automatically)"}</p>
+                              <p>
+                                {member.isOwner
+                                  ? "Edit your site, process, and additional roles (e.g. Auditor)"
+                                  : "Edit user details and leadership tier (role updates automatically)"}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
-                          {!member.isOwner && member.status === "Invited" && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Mail className="h-4 w-4" />
-                            </Button>
+                        )}
+                          {member.status === "Invited" && canManageTeams && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-amber-600 hover:text-amber-800"
+                                  onClick={() => setRevokingInvite(member)}
+                                >
+                                  <MailX className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Revoke email invitation</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
-                          {!member.isOwner && canManageTeams && (
+                          {member.status === "Active" && !member.isOwner && canManageTeams && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -537,8 +558,7 @@ export default function TeamsPage() {
                               </TooltipContent>
                             </Tooltip>
                           )}
-                        </div>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -592,6 +612,22 @@ export default function TeamsPage() {
           userEmail={deletingUser.email}
           onUserDeleted={() => {
             setDeletingUser(null);
+            fetchMembers();
+          }}
+        />
+      )}
+
+      {/* Revoke Invitation Dialog */}
+      {revokingInvite && (
+        <RevokeInvitationDialog
+          open={!!revokingInvite}
+          onOpenChange={(open) => !open && setRevokingInvite(null)}
+          orgId={orgId}
+          invitationId={revokingInvite.id}
+          userName={revokingInvite.name}
+          userEmail={revokingInvite.email}
+          onInvitationRevoked={() => {
+            setRevokingInvite(null);
             fetchMembers();
           }}
         />

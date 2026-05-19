@@ -8,37 +8,28 @@ import {
   ChevronRight,
   FolderKanban,
   House,
-  Plus,
   ClipboardList,
-  Users,
   FileText,
   Bug,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { Building2 } from 'lucide-react';
+import { Building2 } from "lucide-react";
 import BrandLogo from "@/components/common/BrandLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import { apiClient } from "@/lib/api-client";
+import {
+  getSelectedSiteFromStorage,
+  setSelectedSiteInStorage,
+  type SiteChangedDetail,
+} from "@/lib/selected-site";
 import { getDashboardPath } from "@/lib/subdomain";
 import { organizationInfoQueryKey } from "@/lib/organization-info-query";
+import { canAccessOrgSettings } from "@/lib/settings-access";
 
 interface Site {
   id: string;
@@ -52,12 +43,9 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [processOpen, setProcessOpen] = useState(true);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-  const [isCreatingSite, setIsCreatingSite] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: sitesData, isLoading, refetch: fetchSites } = useQuery({
+  const { data: sitesData, isLoading } = useQuery({
     queryKey: ["sites", orgId],
     queryFn: () => apiClient.getSites(orgId),
     staleTime: 2 * 60 * 1000,
@@ -71,7 +59,18 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     enabled: !!orgId,
   });
 
-  const sites = sitesData?.sites ?? [];
+  const { data: orgMembership } = useQuery({
+    queryKey: ["orgMembership", orgId],
+    queryFn: () => apiClient.getMyOrgMembership(orgId),
+    staleTime: 2 * 60 * 1000,
+    enabled: !!orgId,
+  });
+
+  const showSettingsLink = canAccessOrgSettings(
+    orgMembership?.leadershipTier,
+    orgMembership?.isOwner
+  );
+
   const organization = sitesData?.organization ?? null;
   const orgInfo = orgInfoResponse?.organizationInfo as
     | { name?: string; logo?: string | null }
@@ -84,72 +83,84 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   const footerOrgName =
     orgInfo?.name?.trim() || organization?.name || "Organization";
   const footerInitials = footerOrgName.slice(0, 2).toUpperCase() || "—";
-  const userRole = sitesData?.userRole ?? "member";
+  const isOrgOwner = orgMembership?.isOwner ?? false;
 
-  // On subdomain use short paths (/processes); otherwise /dashboard/slug/processes
   const link = (path: string) => getDashboardPath(slug, path);
 
   const pathNoQuery = pathname.split("?")[0];
-  /** Org-level `/issues` module — supports nested tabs under `/issues/*`. */
-  const isStandaloneIssuesActive = /\/issues(?:\/|$)/.test(pathNoQuery) && !/\/processes\/[^/]+\/issues$/.test(pathNoQuery);
+  const isStandaloneIssuesActive =
+    /\/issues(?:\/|$)/.test(pathNoQuery) &&
+    !/\/processes\/[^/]+\/issues$/.test(pathNoQuery);
 
-  // Documents and Issues are standalone modules (like `audit`); Issues still loads data per selected process.
   const documentsPath = "documents";
   const issuesPath = "issues";
 
-  // Sync selectedSite from query data (preserve localStorage or use first site)
   useEffect(() => {
     if (!sitesData?.sites?.length) return;
-    const data = sitesData;
-    let siteIdToPreserve: string | null = null;
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem(`selectedSite_${orgId}`);
-      if (stored) {
-        try {
-          siteIdToPreserve = (JSON.parse(stored) as Site).id;
-        } catch {
-          // ignore
-        }
+    const availableSites = sitesData.sites as Site[];
+
+    if (isOrgOwner) {
+      const stored = getSelectedSiteFromStorage(orgId, slug);
+      const preserved = stored?.id
+        ? availableSites.find((s) => s.id === stored.id)
+        : null;
+      const active = preserved ?? availableSites[0];
+      setSelectedSite(active);
+      if (!stored?.id || stored.id !== active.id) {
+        setSelectedSiteInStorage(orgId, active, slug);
       }
+      return;
     }
-    if (siteIdToPreserve) {
-      const preserved = data.sites.find((s: Site) => s.id === siteIdToPreserve);
-      if (preserved) {
-        setSelectedSite(preserved);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(preserved));
-        }
+
+    const assigned = availableSites[0];
+    setSelectedSite(assigned);
+    setSelectedSiteInStorage(orgId, assigned, slug);
+  }, [orgId, sitesData, isOrgOwner]);
+
+  useEffect(() => {
+    const onSiteChanged = (event: Event) => {
+      const detail = (event as CustomEvent<SiteChangedDetail>).detail;
+      if (detail.orgId !== orgId) return;
+
+      const fromList = (sitesData?.sites as Site[] | undefined)?.find(
+        (s) => s.id === detail.siteId
+      );
+      if (fromList) {
+        setSelectedSite(fromList);
         return;
       }
-    }
-    const first = data.sites[0];
-    setSelectedSite(first);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(first));
-      window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: first.id, orgId } }));
-    }
+
+      const fromEvent = detail.site;
+      if (fromEvent?.id === detail.siteId) {
+        setSelectedSite({
+          id: fromEvent.id,
+          name: fromEvent.name ?? "",
+          code: fromEvent.code ?? "",
+          location: fromEvent.location ?? "",
+          processes: fromEvent.processes ?? [],
+        });
+        return;
+      }
+
+      const stored = getSelectedSiteFromStorage(orgId, slug);
+      if (stored?.id === detail.siteId) {
+        setSelectedSite({
+          id: stored.id,
+          name: stored.name ?? "",
+          code: stored.code ?? "",
+          location: stored.location ?? "",
+          processes: stored.processes ?? [],
+        });
+      }
+    };
+    window.addEventListener("siteChanged", onSiteChanged);
+    return () => window.removeEventListener("siteChanged", onSiteChanged);
   }, [orgId, sitesData]);
 
-  // Listen for process creation events to refresh the sidebar
   useEffect(() => {
     const handleProcessCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail.orgId === orgId) {
-        const siteIdToPreserve = customEvent.detail.siteId;
-        if (siteIdToPreserve && typeof window !== "undefined") {
-          const storedSite = localStorage.getItem(`selectedSite_${orgId}`);
-          if (storedSite) {
-            try {
-              const parsedSite = JSON.parse(storedSite);
-              if (parsedSite.id !== siteIdToPreserve) {
-                const siteToStore = { ...parsedSite, id: siteIdToPreserve };
-                localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(siteToStore));
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
         queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
       }
     };
@@ -169,215 +180,66 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     };
   }, [orgId, queryClient]);
 
-  const handleSiteChange = (site: Site) => {
-    setSelectedSite(site);
-    setDropdownOpen(false);
-    // Store selected site in localStorage so other components can access it
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(site));
-      // Dispatch custom event to notify other components
-      window.dispatchEvent(new CustomEvent('siteChanged', { detail: { siteId: site.id, orgId } }));
-    }
-  };
-
-  const handleCreateSite = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsCreatingSite(true);
-
-    // Store form reference before async operations
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const siteName = (formData.get("siteName") as string)?.trim();
-    const location = (formData.get("location") as string)?.trim();
-
-    // Validate required fields
-    if (!siteName || siteName.length === 0) {
-      alert("Site name is required");
-      setIsCreatingSite(false);
-      return;
-    }
-
-    if (!location || location.length === 0) {
-      alert("Location is required");
-      setIsCreatingSite(false);
-      return;
-    }
-
-    try {
-      const data = await apiClient.createSite(orgId, {
-        siteName,
-        location,
-      });
-
-      const newSite: Site = {
-        id: data.site.id,
-        name: data.site.name,
-        code: data.site.code,
-        location: data.site.location,
-        processes: data.site.processes || [],
-      };
-
-      setSelectedSite(newSite);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`selectedSite_${orgId}`, JSON.stringify(newSite));
-        window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: newSite.id, orgId } }));
-      }
-
-      if (form) form.reset();
-      setDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["sites", orgId] });
-    } catch (error: any) {
-      console.error("Error creating site:", error);
-      const errorMessage = error.response?.data?.error || error.message || "Failed to create site";
-      alert(errorMessage);
-    } finally {
-      setIsCreatingSite(false);
-    }
-  };
-
   return (
     <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-[90vh] border-r border-border">
-
       <div className="border-b pb-3 p-5">
         <BrandLogo className="mb-3" alt="Vie" width={95} height={40} />
 
-        <div className="relative">
-          {isLoading ? (
-            <div className="flex gap-2 items-center p-3 border border-border rounded-[12px]">
-              <Building2 size={18} />
-              <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-muted-foreground">Loading...</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex gap-2 items-center p-3 border border-border rounded-[12px] cursor-pointer hover:bg-muted/60"
-              >
-                <Building2 size={18} />
-                <div className="flex flex-col gap-1.5">
-                  <h3 className="text-xs text-foreground">{selectedSite?.location || organization?.name || "No site selected"}</h3>
-                  <p className="text-xs text-muted-foreground">{selectedSite?.name || organization?.name || ""}</p>
-             
-                </div>
-                <ChevronDown size={18} className="ml-auto" />
-              </div>
-
-              {dropdownOpen && (
-                <div className="absolute left-0 mt-2 w-full bg-popover border border-border rounded-[12px] shadow-lg z-10 max-h-96 overflow-y-auto">
-                  <div className="py-2">
-                    {sites.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-muted-foreground text-center">
-                        No sites available
-                      </div>
-                    ) : (
-                      sites.map((site) => (
-                        <div
-                          key={site.id}
-                          onClick={() => handleSiteChange(site)}
-                          className={`px-3 py-2 cursor-pointer hover:bg-muted ${selectedSite?.id === site.id ? "bg-muted/70" : ""
-                            }`}
-                        >
-                          <h3 className="text-xs font-medium text-foreground">{site.location}</h3>
-                          <p className="text-xs text-muted-foreground">{site.name} ({site.code})</p>
-                     
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {userRole === "owner" && (
-                    <div className="add-btn border-t">
-                      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button
-                            type="button"
-                            className="bg-muted text-foreground text-xs p-3 w-full rounded-none rounded-b-[12px] justify-start"
-                          >
-                            <Plus size={18} />
-                            Add New Site
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <form onSubmit={handleCreateSite}>
-                            <DialogHeader>
-                              <DialogTitle>Add New Site</DialogTitle>
-                              <DialogDescription>
-                                Create a new site within your organization.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                              <div className="grid gap-3">
-                                <Label htmlFor="site-name">Site Name *</Label>
-                                <Input
-                                  id="site-name"
-                                  name="siteName"
-                                  placeholder="e.g., Dubai Office"
-                                  required
-                                  disabled={isCreatingSite}
-                                />
-                              </div>
-                              <div className="grid gap-3">
-                                <Label htmlFor="location">Location *</Label>
-                                <Input
-                                  id="location"
-                                  name="location"
-                                  placeholder="e.g., Dubai, UAE"
-                                  required
-                                  disabled={isCreatingSite}
-                                />
-                              </div>
-                              <div className="grid gap-3">
-                                <p className="text-xs text-muted-foreground">
-                                  Site code will be auto-generated (S001, S002, etc.)
-                                </p>
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <DialogClose asChild>
-                                <Button type="button" variant="outline" disabled={isCreatingSite}>
-                                  Cancel
-                                </Button>
-                              </DialogClose>
-                              <Button type="submit" disabled={isCreatingSite}>
-                                {isCreatingSite ? "Creating..." : "Create Site"}
-                              </Button>
-                            </DialogFooter>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+        <div
+          className="flex gap-2 items-center p-3 border border-border rounded-[12px]"
+          aria-label="Your site"
+        >
+          <Building2 size={18} className="shrink-0" />
+          <div className="flex flex-col gap-1.5 min-w-0">
+            {isLoading ? (
+              <p className="text-xs text-muted-foreground">Loading site…</p>
+            ) : (
+              <>
+                <h3 className="text-xs text-foreground truncate">
+                  {selectedSite?.location || organization?.name || "No site assigned"}
+                </h3>
+                <p className="text-xs text-muted-foreground truncate">
+                  {selectedSite
+                    ? `${selectedSite.name}${selectedSite.code ? ` (${selectedSite.code})` : ""}`
+                    : "Contact your administrator"}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       <nav className="flex-1 p-5 space-y-1">
-        <Link href={link("")} className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b border-border pb-5 mb-2 ${pathname === "/" || pathname.includes(`/${slug}`) ? "text-foreground font-medium" : "text-muted-foreground"}`} >
+        <Link
+          href={link("")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm transition border-b border-border pb-5 mb-2 ${
+            pathname === "/" || pathname.includes(`/${slug}`)
+              ? "text-foreground font-medium"
+              : "text-muted-foreground"
+          }`}
+        >
           <House size={18} />
           Dashboard
         </Link>
 
         <div
-          className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition
-    ${pathname.includes("/processes") ? "bg-muted" : "hover:bg-muted/60"}
-  `}
+          className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
+            pathname.includes("/processes") ? "bg-muted" : "hover:bg-muted/60"
+          }`}
         >
           <Link
             href={link("processes")}
-            className={`flex items-center gap-3
-      ${pathname.includes("/processes") ? "font-medium text-primary" : "text-muted-foreground"}
-    `}
+            className={`flex items-center gap-3 ${
+              pathname.includes("/processes")
+                ? "font-medium text-primary"
+                : "text-muted-foreground"
+            }`}
           >
             <FolderKanban size={18} />
             Processes
           </Link>
 
-          <button onClick={() => setProcessOpen((prev) => !prev)}>
+          <button type="button" onClick={() => setProcessOpen((prev) => !prev)}>
             {processOpen ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
@@ -390,20 +252,17 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
           <CollapsibleContent className="pt-1 pl-2 space-y-1">
             {selectedSite && selectedSite.processes.length > 0 ? (
               selectedSite.processes.map((process) => {
-                // Create a URL-friendly slug from process name
-                const processSlug = process.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
                 const processHref = `processes/${process.id}`;
 
                 return (
                   <Link
                     key={process.id}
                     href={link(processHref)}
-                    className={`block px-3 py-2 text-sm rounded-lg transition
-                      ${pathname.includes(processHref)
+                    className={`block px-3 py-2 text-sm rounded-lg transition ${
+                      pathname.includes(processHref)
                         ? "bg-muted font-medium text-foreground"
                         : "text-muted-foreground hover:bg-muted/60"
-                      }
-                    `}
+                    }`}
                   >
                     {process.name}
                   </Link>
@@ -411,89 +270,71 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               })
             ) : (
               <div className="px-3 py-2 text-sm text-muted-foreground">
-                {selectedSite ? "No processes available" : "Select a site to view processes"}
+                {selectedSite ? "No processes available" : "No site assigned"}
               </div>
             )}
           </CollapsibleContent>
         </Collapsible>
-        <div className="">
-          <Link
-            href={link("audit")}
-            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
-              ${pathname.includes("/audit")
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted/60"
-              }
-            `}
-          >
-            <ClipboardList size={18} />
-            Audit
-          </Link>
-        </div>
-        {/* Teams tab removed (replaced with Documents). */}
-        {/* <div className="">
-          <Link
-            href={link("settings/teams")}
-            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
-              ${pathname.includes("/settings/teams")
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted/60"
-              }
-            `}
-          >
-            <Users size={18} />
-            Teams
-          </Link>
-        </div> */}
 
-        {/* Documents tab (process-scoped). */}
-        {documentsPath ? (
-          <div className="">
-            <Link
-              href={link(documentsPath)}
-              className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
-                ${pathname.includes("/documents")
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60"
-                }
-              `}
-            >
-              <FileText size={18} />
-              Documents
-            </Link>
-          </div>
-        ) : null}
-
-        <div className="">
+        <div>
           <Link
             href={link(issuesPath)}
-            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition
-              ${isStandaloneIssuesActive
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition ${
+              isStandaloneIssuesActive
                 ? "bg-muted font-medium text-foreground"
                 : "text-muted-foreground hover:bg-muted/60"
-              }
-            `}
+            }`}
           >
             <Bug size={18} />
             Issues
           </Link>
         </div>
-      </nav>
-      <div className="footer p-5">
-        <Link
-          href={link("settings")}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-3
-          ${pathname.includes("settings")
-              ? "bg-muted font-medium text-foreground"
-              : "text-muted-foreground hover:bg-muted/60"
+
+        <div>
+          <Link
+            href={link(documentsPath)}
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition ${
+              pathname.includes("/documents")
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
             }`}
-        >
-          <Settings size={18} />
-          Settings
-        </Link>
+          >
+            <FileText size={18} />
+            Documents
+          </Link>
+        </div>
+
+        <div>
+          <Link
+            href={link("audit")}
+            className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition ${
+              pathname.includes("/audit")
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            <ClipboardList size={18} />
+            Audit
+          </Link>
+        </div>
+      </nav>
+
+      <div className="footer p-5">
+        {showSettingsLink ? (
+          <Link
+            href={link("settings")}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition mb-3 ${
+              pathname.includes("settings")
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/60"
+            }`}
+          >
+            <Settings size={18} />
+            Settings
+          </Link>
+        ) : null}
 
         <div className="flex py-3 items-center gap-0 min-w-0">
-
           <Avatar className="mr-2 h-9 w-9 shrink-0">
             {orgLogo ? (
               <AvatarImage src={orgLogo} alt="" className="object-cover" />
@@ -504,10 +345,14 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
           </Avatar>
           <div className="description min-w-0 flex-1">
             <h3 className="text-sm text-foreground truncate">{footerOrgName}</h3>
-       
             <p className="text-xs">Free</p>
           </div>
-          <Link href="/upgrade" className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto shrink-0">Upgrade</Link>
+          <Link
+            href="/upgrade"
+            className="text-xs text-primary border border-primary/35 rounded-full bg-primary/10 p-2.5 ml-auto shrink-0"
+          >
+            Upgrade
+          </Link>
         </div>
       </div>
     </aside>

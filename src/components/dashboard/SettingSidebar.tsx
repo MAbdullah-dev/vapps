@@ -1,8 +1,10 @@
 "use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, usePathname } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
+import { canAccessOrgSettings } from "@/lib/settings-access";
 import {
   Home,
   MapPin,
@@ -24,10 +26,33 @@ const SettingSidebar = () => {
   const params = useParams();
   const pathname = usePathname();
   const slug = params?.orgId as string; // orgId param is slug when on subdomain
+  const [canAccess, setCanAccess] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!slug || slug === "undefined") return;
+    let cancelled = false;
+    apiClient
+      .getMyOrgMembership(slug)
+      .then((data) => {
+        if (!cancelled) {
+          setCanAccess(canAccessOrgSettings(data.leadershipTier, data.isOwner));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCanAccess(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (canAccess === false) {
+    return null;
+  }
 
   const menuItems = [
     { title: 'Organization Profile', subtitle: 'Company details and branding', icon: Home, path: 'settings/organization-profile' },
-    { title: 'Sites & Departments', subtitle: 'Locations and structure', icon: MapPin, path: 'settings/sites-departments' },
+    { title: 'Sites & Processes', subtitle: 'Locations and structure', icon: MapPin, path: 'settings/sites-departments' },
     { title: 'Roles', subtitle: 'Leadership role definitions', icon: UserCog, path: 'settings/roles' },
     { title: 'Teams', subtitle: 'Organization users', icon: Users, path: 'settings/teams' },
     { title: 'Financial Setup', subtitle: 'Currency, tax, and accounts', icon: Wallet, path: 'settings/financial-setup' },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { requireOrgSettingsAccess } from "@/lib/require-org-settings-access";
 import { queryTenant, getTenantPool } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys } from "@/lib/cache";
 import crypto from "crypto";
@@ -38,6 +39,9 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Check cache first (60s TTL)
     const cacheKey = cacheKeys.orgRoles(orgId);
@@ -106,15 +110,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tenant } = ctx;
-
-    // Only owners can create roles
-    if (tenant.userRole !== "owner") {
-      return NextResponse.json(
-        { error: "Only organization owners can create roles" },
-        { status: 403 }
-      );
-    }
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Validate request body
     const validationResult = createRoleSchema.safeParse(body);

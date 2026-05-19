@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { requireOrgSettingsAccess } from "@/lib/require-org-settings-access";
 import { prisma } from "@/lib/prisma";
 import {
   storedToPermissionRows,
@@ -26,6 +27,10 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
+
     const resolvedOrgId = ctx.tenant.orgId;
 
     const org = await prisma.organization.findUnique({
@@ -72,22 +77,11 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
+
     const resolvedOrgId = ctx.tenant.orgId;
-
-    const org = await prisma.organization.findUnique({
-      where: { id: resolvedOrgId },
-      select: { ownerId: true },
-    });
-    if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-    }
-
-    if (org.ownerId !== ctx.user.id) {
-      return NextResponse.json(
-        { error: "Only the organization owner can change role permissions." },
-        { status: 403 }
-      );
-    }
 
     let body: { permissions?: PermissionRow[] };
     try {

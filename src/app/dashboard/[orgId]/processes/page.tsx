@@ -78,6 +78,7 @@ export default function ProcessesListPage() {
   const [isCreatingProcess, setIsCreatingProcess] = useState(false);
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
   const [canManageProcesses, setCanManageProcesses] = useState(false);
+  const [isOrgOwner, setIsOrgOwner] = useState(false);
   const [deletingProcess, setDeletingProcess] = useState<Process | null>(null);
   const [isDeletingProcess, setIsDeletingProcess] = useState(false);
 
@@ -99,20 +100,27 @@ export default function ProcessesListPage() {
 
   useEffect(() => {
     if (!orgId) return;
-    const fetchPermissions = async () => {
+    const fetchAccess = async () => {
       try {
-        const res = await apiClient.get<{
-          currentUserPermissions: {
-            manage_processes: boolean;
-          };
-        }>(`/organization/${orgId}/permissions`);
-        setCanManageProcesses(res.currentUserPermissions?.manage_processes ?? false);
+        const [permissionsRes, membership] = await Promise.all([
+          apiClient.get<{
+            currentUserPermissions: {
+              manage_processes: boolean;
+            };
+          }>(`/organization/${orgId}/permissions`).catch(() => null),
+          apiClient.getMyOrgMembership(orgId),
+        ]);
+        setCanManageProcesses(
+          permissionsRes?.currentUserPermissions?.manage_processes ?? false
+        );
+        setIsOrgOwner(membership.isOwner ?? false);
       } catch (e: unknown) {
-        console.error("Failed to fetch permissions:", e);
+        console.error("Failed to fetch process access:", e);
         setCanManageProcesses(false);
+        setIsOrgOwner(false);
       }
     };
-    fetchPermissions();
+    fetchAccess();
   }, [orgId]);
 
   useEffect(() => {
@@ -455,7 +463,7 @@ export default function ProcessesListPage() {
                       <DropdownMenuItem onClick={() => openProcessWorkspace(process.id)}>
                         Open workspace
                       </DropdownMenuItem>
-                      {canManageProcesses && (
+                      {isOrgOwner && (
                         <>
                           <DropdownMenuItem onClick={() => handleEditProcess(process)}>Edit</DropdownMenuItem>
                           <DropdownMenuItem
