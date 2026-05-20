@@ -11,6 +11,8 @@ import { Clock, CheckCircle2, Circle, PlayCircle, FileText, GitBranch, ChevronLe
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
+import { getComplianceKpiForIssue } from "@/lib/compliance-kpi";
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
 
 type Activity = {
   id?: string | null;
@@ -31,6 +33,13 @@ type IssueStats = {
   completed: number;
   total: number;
   completionPercentage: number;
+};
+
+type KpiStats = {
+  consistentPercent: number;
+  inconsistentCount: number;
+  pendingCount: number;
+  avgKpiScore: string | null;
 };
 
 type ProcessUser = {
@@ -113,6 +122,12 @@ export default function IssuesOrgSummaryPage() {
     total: 0,
     completionPercentage: 0,
   });
+  const [kpiStats, setKpiStats] = useState<KpiStats>({
+    consistentPercent: 0,
+    inconsistentCount: 0,
+    pendingCount: 0,
+    avgKpiScore: null,
+  });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [teamMembers, setTeamMembers] = useState<ProcessUser[]>([]);
   const [activityPage, setActivityPage] = useState(1);
@@ -143,6 +158,12 @@ export default function IssuesOrgSummaryPage() {
         total: 0,
         completionPercentage: 0,
       });
+      setKpiStats({
+        consistentPercent: 0,
+        inconsistentCount: 0,
+        pendingCount: 0,
+        avgKpiScore: null,
+      });
       setActivities([]);
       setTeamMembers([]);
       setActivityPage(1);
@@ -167,6 +188,51 @@ export default function IssuesOrgSummaryPage() {
       const completionPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
       setStats({ toDo, inProgress, completed, total, completionPercentage });
+
+      const kpiResults = allIssues.map(
+        (i: {
+          status: string;
+          createdAt?: string;
+          deadline?: string | null;
+          kpiScore?: number | null;
+          closeOutDate?: string | null;
+          verificationDate?: string | null;
+        }) =>
+          getComplianceKpiForIssue({
+            status: i.status,
+            createdAt: i.createdAt,
+            deadline: i.deadline,
+            kpiScore: i.kpiScore,
+            closeOutDate: i.closeOutDate,
+            verificationDate: i.verificationDate,
+          })
+      );
+      const consistentCount = kpiResults.filter((k) => k.kpiLabel === "Consistent").length;
+      const inconsistentCount = kpiResults.filter((k) => k.kpiLabel === "Inconsistent").length;
+      const pendingCount = kpiResults.filter((k) => k.kpiLabel === "Pending").length;
+      const kpiScores = allIssues
+        .map((i: { kpiScore?: number | null }) => i.kpiScore)
+        .filter((s): s is number => s != null && s > 0);
+      const avgKpiScore =
+        kpiScores.length > 0
+          ? (kpiScores.reduce((a: number, b: number) => a + b, 0) / kpiScores.length).toFixed(1)
+          : kpiResults.length > 0
+            ? (
+                kpiResults.reduce(
+                  (sum, k) =>
+                    sum + (k.kpiLabel === "Consistent" ? 3 : k.kpiLabel === "Pending" ? 2 : 1),
+                  0
+                ) / kpiResults.length
+              ).toFixed(1)
+            : null;
+
+      setKpiStats({
+        consistentPercent: total > 0 ? Math.round((consistentCount / total) * 100) : 0,
+        inconsistentCount,
+        pendingCount,
+        avgKpiScore,
+      });
+
       setActivities((activityRes.activities || []) as Activity[]);
       setTeamMembers(
         (usersRes.teamMembers || []).map((m) => ({
@@ -236,9 +302,13 @@ export default function IssuesOrgSummaryPage() {
         value: <span className="text-foreground tabular-nums">{stats.toDo + stats.inProgress}</span>,
       },
       { label: "Completion", value: <span className="text-foreground tabular-nums">{stats.completionPercentage}%</span> },
+      { label: "KPI consistent", value: <span className="text-foreground tabular-nums">{kpiStats.consistentPercent}%</span> },
+      { label: "KPI pending", value: <span className="text-foreground tabular-nums">{kpiStats.pendingCount}</span> },
+      { label: "KPI inconsistent", value: <span className="text-foreground tabular-nums">{kpiStats.inconsistentCount}</span> },
+      { label: "Avg KPI score", value: <span className="text-foreground tabular-nums">{kpiStats.avgKpiScore ?? "—"}</span> },
       { label: "Sync status", value: <Badge variant="outline">Synced</Badge> },
     ],
-    [stats]
+    [stats, kpiStats]
   );
 
   const paginatedActivities = useMemo(() => {
@@ -440,6 +510,32 @@ export default function IssuesOrgSummaryPage() {
           </div>
         ))}
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { title: "KPI Consistent", value: `${kpiStats.consistentPercent}%`, progress: kpiStats.consistentPercent, color: "#22B323" },
+          { title: "KPI Pending", value: kpiStats.pendingCount.toString(), progress: stats.total > 0 ? (kpiStats.pendingCount / stats.total) * 100 : 0, color: "#F59E0B" },
+          { title: "KPI Inconsistent", value: kpiStats.inconsistentCount.toString(), progress: stats.total > 0 ? (kpiStats.inconsistentCount / stats.total) * 100 : 0, color: "#DC2626" },
+        ].map((card, idx) => (
+          <div
+            key={idx}
+            className="card border border-border rounded-lg p-4 flex flex-col justify-between bg-card"
+          >
+            <p className="text-muted-foreground text-sm">{card.title}</p>
+            <div className="mt-2">
+              <span className="text-base font-semibold">{card.value}</span>
+              <Progress
+                value={card.progress}
+                color={card.color}
+                trackColor="hsl(var(--muted))"
+                className="mt-2"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <KpiStatusLogicCard />
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 flex flex-col gap-4">

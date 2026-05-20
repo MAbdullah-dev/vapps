@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { ArrowUp, ChartNoAxesCombined, CircleAlert, CircleCheckBig, TrendingUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -25,6 +25,11 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { documentActivityVerb } from "@/lib/document-activity-labels";
+import {
+    DEFAULT_DASHBOARD_WIDGETS,
+    normalizeDashboardWidgets,
+    type DashboardWidgetsConfig,
+} from "@/lib/dashboard-widgets";
 
 const chartConfig = {
     created: { label: "Issues created", color: "var(--chart-1)" },
@@ -150,6 +155,31 @@ export default function OrgDashboardPage() {
     const [lineChartData, setLineChartData] = useState<Array<{ month: string; created: number; completed: number }>>([]);
     const [pieChartData, setPieChartData] = useState<Array<{ status: string; count: number; fill: string }>>([]);
     const [chartsLoading, setChartsLoading] = useState(true);
+    const [widgets, setWidgets] = useState<DashboardWidgetsConfig>(DEFAULT_DASHBOARD_WIDGETS);
+    const [widgetsLoading, setWidgetsLoading] = useState(true);
+
+    const loadWidgets = useCallback(() => {
+        if (!orgId) return;
+        setWidgetsLoading(true);
+        apiClient
+            .getDashboardWidgets(orgId)
+            .then((res) => setWidgets(normalizeDashboardWidgets(res.widgets)))
+            .catch(() => setWidgets(DEFAULT_DASHBOARD_WIDGETS))
+            .finally(() => setWidgetsLoading(false));
+    }, [orgId]);
+
+    useEffect(() => {
+        loadWidgets();
+    }, [loadWidgets]);
+
+    useEffect(() => {
+        const onWidgetsUpdated = (event: Event) => {
+            const detail = (event as CustomEvent).detail as { orgId?: string };
+            if (detail?.orgId === orgId) loadWidgets();
+        };
+        window.addEventListener("dashboardWidgetsUpdated", onWidgetsUpdated);
+        return () => window.removeEventListener("dashboardWidgetsUpdated", onWidgetsUpdated);
+    }, [orgId, loadWidgets]);
 
     useEffect(() => {
         if (!orgId) return;
@@ -220,11 +250,48 @@ export default function OrgDashboardPage() {
             .finally(() => setChartsLoading(false));
     }, [orgId]);
 
+    const showStatCards =
+        widgets.projectProgress ||
+        widgets.overdueTasks ||
+        widgets.auditTrend ||
+        widgets.complianceScore;
+
+    const statCardCount = [
+        widgets.projectProgress,
+        widgets.overdueTasks,
+        widgets.auditTrend,
+        widgets.complianceScore,
+    ].filter(Boolean).length;
+
+    const statGridClass =
+        statCardCount <= 1
+            ? "grid-cols-1"
+            : statCardCount === 2
+              ? "grid-cols-1 sm:grid-cols-2"
+              : statCardCount === 3
+                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+
+    if (!widgetsLoading && !showStatCards && !widgets.tasksCompleted && !widgets.issueDistribution && !widgets.recentActivity && !widgets.auditTrend) {
+        return (
+            <div className="rounded-xl border border-border bg-muted/30 p-8 text-center text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">No dashboard widgets selected</p>
+                <p className="text-sm">
+                    Enable widgets under{" "}
+                    <Link href={`/dashboard/${orgId}/settings/kpi-reports`} className="text-primary underline">
+                        Settings → KPI & Reports
+                    </Link>
+                    .
+                </p>
+            </div>
+        );
+    }
+
     return (
         <>
-            {/* Top Cards */}
-            <div className="dashboard-progress-cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {/* Card 1 - Active Projects */}
+            {showStatCards ? (
+            <div className={`dashboard-progress-cards grid ${statGridClass} gap-4 mb-6`}>
+                {widgets.projectProgress ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">Active Projects</p>
@@ -235,8 +302,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">Across organization</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 2 - Open Issues */}
+                {widgets.overdueTasks ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">Open Issues</p>
@@ -247,8 +315,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">To do + In progress</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 3 - Upcoming Audits */}
+                {widgets.auditTrend ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">Upcoming Audits</p>
@@ -259,8 +328,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">In progress (pending)</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 4 - Compliance Score */}
+                {widgets.complianceScore ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">Compliance Score</p>
@@ -271,12 +341,13 @@ export default function OrgDashboardPage() {
                         <Progress value={statsLoading ? 0 : (stats?.complianceScore ?? 0)} className="h-2" />
                     </div>
                 </div>
+                ) : null}
             </div>
-       
+            ) : null}
 
-            {/* Charts Grid */}
+            {(widgets.tasksCompleted || widgets.issueDistribution) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Line Chart - Issues created vs completed (last 6 months) */}
+                {widgets.tasksCompleted ? (
                 <Card>
                     <CardHeader>
                         <CardTitle>Issues created vs completed</CardTitle>
@@ -331,8 +402,9 @@ export default function OrgDashboardPage() {
                         </div>
                     </CardFooter>
                 </Card>
+                ) : null}
 
-                {/* Pie Chart - Issues by status */}
+                {widgets.issueDistribution ? (
                 <Card>
                     <CardHeader className="items-center pb-0">
                         <CardTitle>Issues by status</CardTitle>
@@ -371,9 +443,17 @@ export default function OrgDashboardPage() {
                         </div>
                     </CardFooter>
                 </Card>
+                ) : null}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                {/* Recent Activity Card */}
+            ) : null}
+
+            {(widgets.recentActivity || widgets.auditTrend) && (
+            <div
+                className={`grid grid-cols-1 gap-4 mt-6 ${
+                    widgets.recentActivity && widgets.auditTrend ? "sm:grid-cols-2" : ""
+                }`}
+            >
+                {widgets.recentActivity && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Recent Activity</CardTitle>
@@ -437,8 +517,9 @@ export default function OrgDashboardPage() {
                         ) : null}
                     </CardContent>
                 </Card>
+                )}
 
-                {/* Upcoming Audits Card */}
+                {widgets.auditTrend && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Upcoming Audits</CardTitle>
@@ -504,8 +585,10 @@ export default function OrgDashboardPage() {
                         )}
                     </CardContent>
                 </Card>
+                )}
             </div>
-       
+            )}
+
             <div className="mt-5 p-5 rounded-lg bg-background border border-border flex sm:flex-row flex-col sm:items-center justify-between">
                 <div className="description mb-3.5 sm:mb-0">
                     <h3 className="font-semibold text-sm mb-1 text-foreground">Need Help? Ask Vie AI</h3>

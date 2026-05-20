@@ -37,6 +37,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import AuditHistoryDialog, { AuditHistoryEntry } from "./AuditHistoryDialog";
+import {
+  getAuditStatusByDays,
+  getAuditStatusColor,
+  getAuditComplianceKpi,
+  getDaysBetween,
+} from "@/lib/compliance-kpi";
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
+import { cn } from "@/lib/utils";
 
 const NEXT_STEP_LABELS: Record<number, string> = {
   3: "Complete Findings (Step 3)",
@@ -69,8 +77,14 @@ type Audit = {
   actualDate: string;
   dueDate: string;
   kpiScore: string | null;
+  /** Time-based compliance KPI label */
+  kpiLabel: "Consistent" | "Pending" | "Inconsistent";
+  kpiColorClass: string;
+  complianceStatus: "Success" | "Pending" | "Fail" | "In-Progress";
   auditStatus: string;
   criteria?: string;
+  createdAt?: string | null;
+  closedAt?: string | null;
 };
 
 function TableHeader({ title, sub }: { title: string; sub?: string }) {
@@ -91,48 +105,6 @@ const getRiskLevelColor = (riskLevel: string) => {
   if (riskLevel === "High") return "bg-red-500 text-white";
   if (riskLevel === "Medium") return "bg-yellow-100 text-yellow-800";
   return "bg-blue-100 text-blue-800";
-};
-
-/** Audit status labels with day thresholds: Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days */
-const AUDIT_STATUS_SUCCESS = "Success ≤ 30 days";
-const AUDIT_STATUS_IN_PROGRESS = "In-Progress < 30 days";
-const AUDIT_STATUS_PENDING = "Pending > 30 days";
-const AUDIT_STATUS_FAIL = "Fail > 40 days";
-
-function getAuditStatusByDays(
-  planStatus: string,
-  plannedDate: string | null,
-  datePrepared: string | null,
-  createdAt: string | null
-): string {
-  const refDate = plannedDate || datePrepared || createdAt;
-  const refTime = refDate ? new Date(refDate).getTime() : Date.now();
-  const days = Math.floor((Date.now() - refTime) / (24 * 60 * 60 * 1000));
-
-  if (planStatus === "closed") return AUDIT_STATUS_SUCCESS;
-  const inProgress = [
-    "plan_submitted_to_auditee",
-    "findings_submitted_to_auditee",
-    "ca_submitted_to_auditor",
-    "pending_closure",
-    "verification_ineffective",
-  ].includes(planStatus);
-  if (inProgress || planStatus === "draft") {
-    if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
-    if (days <= 40) return AUDIT_STATUS_PENDING;
-    return AUDIT_STATUS_FAIL;
-  }
-  if (days < 30) return AUDIT_STATUS_IN_PROGRESS;
-  if (days <= 40) return AUDIT_STATUS_PENDING;
-  return AUDIT_STATUS_FAIL;
-}
-
-const getStatusColor = (status: string) => {
-  if (status === AUDIT_STATUS_SUCCESS) return "bg-primary/15 text-primary dark:bg-primary/25";
-  if (status === AUDIT_STATUS_IN_PROGRESS) return "bg-yellow-100 text-yellow-800";
-  if (status === AUDIT_STATUS_PENDING) return "bg-gray-100 text-gray-800";
-  if (status === AUDIT_STATUS_FAIL) return "bg-red-100 text-red-700";
-  return "";
 };
 
 /** Steps 1,2,6 = lead; 3,5 = auditor; 4 = auditee. Edit only for own tab; no edit after closed. */
@@ -247,16 +219,27 @@ function getColumns(
     cell: ({ row }) => <span className="text-muted-foreground">{row.original.dueDate}</span>,
   },
   {
-    accessorKey: "kpiScore",
-    header: () => <TableHeader title="KPI (Score)" />,
+    accessorKey: "kpiLabel",
+    header: () => (
+      <TableHeader title="KPI" sub="≤30d Green · >30d Yellow · >40d Red" />
+    ),
     cell: ({ row }) => {
-      const score = row.original.kpiScore;
-      if (!score) return <span className="text-muted-foreground">—</span>;
-      if (score === "Consistent" || score.toLowerCase() === "consistent")
-        return <span className="font-medium text-primary">Consistent</span>;
-      if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
-        return <span className="font-medium text-red-600">Inconsistent</span>;
-      return <span className="text-muted-foreground">{score}</span>;
+      const audit = row.original;
+      const programNote =
+        audit.kpiScore &&
+        !["consistent", "inconsistent", "pending"].includes(audit.kpiScore.toLowerCase())
+          ? audit.kpiScore
+          : null;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className={cn("text-sm font-semibold", audit.kpiColorClass)}>
+            {audit.kpiLabel}
+          </span>
+          {programNote ? (
+            <span className="text-xs text-muted-foreground">Program: {programNote}</span>
+          ) : null}
+        </div>
+      );
     },
   },
   {
@@ -268,12 +251,12 @@ function getColumns(
       />
     ),
     cell: ({ row }) => {
-      const status = row.original.auditStatus;
-      const badgeClass = getStatusColor(status);
-      if (!badgeClass) return <span className="text-muted-foreground">{status}</span>;
+      const audit = row.original;
+      const badgeClass = getAuditStatusColor(audit.auditStatus);
+      if (!badgeClass) return <span className="text-muted-foreground">{audit.auditStatus}</span>;
       return (
         <span className={`${badgeClass} py-1 px-2 rounded-full text-xs font-medium`}>
-          {status}
+          {audit.auditStatus}
         </span>
       );
     },
@@ -387,6 +370,12 @@ function mapPlansToAudits(list: any[]): Audit[] {
         : "—";
     const kpiScore =
       p.kpiScore != null && String(p.kpiScore).trim() !== "" ? String(p.kpiScore).trim() : null;
+    const compliance = getAuditComplianceKpi(
+      p.status,
+      p.plannedDate ?? null,
+      p.datePrepared ?? null,
+      p.createdAt ?? null
+    );
     return {
       id: p.auditNumber || p.id,
       auditProgramRef,
@@ -410,8 +399,16 @@ function mapPlansToAudits(list: any[]): Audit[] {
       actualDate: p.findingsSubmittedAt ? formatDate(p.findingsSubmittedAt) : "—",
       dueDate,
       kpiScore,
+      kpiLabel: compliance.kpiLabel,
+      kpiColorClass: compliance.kpiColorClass,
+      complianceStatus: compliance.statusLabel,
       auditStatus: getAuditStatusByDays(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
       criteria: p.criteria,
+      createdAt: p.createdAt ?? null,
+      closedAt:
+        p.status === "closed"
+          ? p.findingsSubmittedAt ?? p.planSubmittedAt ?? p.createdAt ?? null
+          : null,
     };
   });
 }
@@ -553,6 +550,30 @@ export default function AuditsContent() {
     [plansData?.plans]
   );
 
+  const auditStats = useMemo(() => {
+    const total = audits.length;
+    const closed = audits.filter((a) => a.planStatus === "closed");
+    const successRate =
+      total > 0 ? Math.round((closed.length / total) * 100) : 0;
+    const backlogs = audits.filter(
+      (a) =>
+        a.planStatus !== "closed" &&
+        (a.kpiLabel === "Pending" || a.kpiLabel === "Inconsistent")
+    ).length;
+    const closureDays = closed
+      .map((a) => {
+        if (!a.createdAt) return null;
+        const end = a.closedAt ?? new Date().toISOString();
+        return getDaysBetween(a.createdAt, end);
+      })
+      .filter((d): d is number => d != null && d >= 0);
+    const avgClosure =
+      closureDays.length > 0
+        ? Math.round(closureDays.reduce((s, d) => s + d, 0) / closureDays.length)
+        : 0;
+    return { total, successRate, backlogs, avgClosure };
+  }, [audits]);
+
   const handleViewHistory = useCallback(
     async (audit: Audit) => {
       if (!slug || !audit.auditPlanId) return;
@@ -662,32 +683,38 @@ export default function AuditsContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">Total Audits</p>
-          <p className="text-2xl font-bold text-foreground">6</p>
+          <p className="text-2xl font-bold text-foreground">{auditStats.total}</p>
           <p className="text-xs text-muted-foreground mt-1">All time</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">Success Rate</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-foreground">50%</p>
-            <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
-              Good
-            </span>
+            <p className="text-2xl font-bold text-foreground">{auditStats.successRate}%</p>
+            {auditStats.successRate >= 50 ? (
+              <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
+                Good
+              </span>
+            ) : null}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Clean audits</p>
+          <p className="text-xs text-muted-foreground mt-1">Closed audits</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">Backlogs</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-foreground">2</p>
-            <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
-              Attention
-            </span>
+            <p className="text-2xl font-bold text-foreground">{auditStats.backlogs}</p>
+            {auditStats.backlogs > 0 ? (
+              <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
+                Attention
+              </span>
+            ) : null}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Pending audits</p>
+          <p className="text-xs text-muted-foreground mt-1">Pending / overdue KPI</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">Avg Closure Time</p>
-          <p className="text-2xl font-bold text-foreground">12 days</p>
+          <p className="text-2xl font-bold text-foreground">
+            {auditStats.avgClosure > 0 ? `${auditStats.avgClosure} days` : "—"}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">Average completion</p>
         </div>
       </div>
@@ -783,6 +810,8 @@ export default function AuditsContent() {
           </div>
         </CardContent>
       </Card>
+
+      <KpiStatusLogicCard className="mt-6" />
 
       {/* Audit History Dialog */}
       <AuditHistoryDialog

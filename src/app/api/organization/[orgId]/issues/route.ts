@@ -5,7 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
 import type { PoolClient } from "pg";
-import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
+import {
+  ensureIssueCommentsColumn,
+  getIssueVerificationsJoin,
+  mapIssueRowWithVerification,
+} from "@/lib/tenant-issues-schema";
 
 const ISSUE_SCHEMA_ENSURE_TTL_MS = 10 * 60 * 1000;
 const issuesSchemaEnsuredAt = new Map<string, number>();
@@ -135,6 +139,9 @@ export async function GET(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
+      const { join: verificationJoin, select: verificationSelect } =
+        await getIssueVerificationsJoin(client);
+
       let query = `
         SELECT
           i.id,
@@ -154,8 +161,8 @@ export async function GET(
           i."order",
           i."createdAt",
           i."updatedAt",
-          i."deadline"
-        FROM issues i
+          i."deadline"${verificationSelect}
+        FROM issues i${verificationJoin}
         WHERE 1=1
       `;
       const args: any[] = [];
@@ -203,10 +210,7 @@ export async function GET(
 
       client.release();
 
-      const issues = result.rows.map((r: Record<string, unknown>) => ({
-        ...r,
-        issuer: r.issuer != null ? String(r.issuer) : null,
-      }));
+      const issues = result.rows.map(mapIssueRowWithVerification);
       return NextResponse.json({ issues });
     } catch (dbError: any) {
       try {

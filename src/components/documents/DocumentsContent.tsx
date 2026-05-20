@@ -47,6 +47,8 @@ import {
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getComplianceKpiFromDays, getDaysSince } from "@/lib/compliance-kpi";
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
 
 export type MasterDocumentRow = {
   id: string;
@@ -1427,9 +1429,8 @@ export default function DocumentsContent() {
         const verifyDate = va.completedAt
           ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
           : "—";
-        const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
-        const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
-        const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
+        const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
+        const { kpiLabel, statusLabel } = getComplianceKpiFromDays(daysSinceCapture);
         return [
           ref || "-",
           title,
@@ -1937,11 +1938,9 @@ export default function DocumentsContent() {
                       const verifyDate = va.completedAt
                         ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
                         : "—";
-                      const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
-                      const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
-                      const kpiColor = daysSinceCapture > 40 ? "text-red-600" : daysSinceCapture > 30 ? "text-amber-600" : "text-[#22B323]";
-                      const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
-                      const statusBg = daysSinceCapture > 40 ? "bg-red-500" : daysSinceCapture > 30 ? "bg-amber-500" : "bg-[#22B323]";
+                      const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
+                      const { kpiLabel, statusLabel, kpiColorClass: kpiColor, statusBadgeClass: statusBg } =
+                        getComplianceKpiFromDays(daysSinceCapture);
 
                       return (
                         <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
@@ -2179,31 +2178,7 @@ export default function DocumentsContent() {
         </CardContent>
       </Card>
 
-      {selectedTable === "Records Disposal Log" ? (
-        <Card>
-          <CardContent className="space-y-3 py-4">
-            <h2 className="text-base font-semibold text-foreground">KPI Status Logic</h2>
-            <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-emerald-500" aria-hidden />
-                <span>Success ≤30 days → Green (Consistent)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-amber-400" aria-hidden />
-                <span>In-Progress {'<'}30 days → Yellow</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-red-500" aria-hidden />
-                <span>Pending {'>'}30 days → Red</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-full bg-red-600" aria-hidden />
-                <span>Fail {'>'}40 days → Red (Inconsistent)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      {selectedTable === "Records Disposal Log" ? <KpiStatusLogicCard /> : null}
 
       {/* Document Classification */}
       <Card>

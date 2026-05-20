@@ -67,6 +67,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useOrgOptional } from "@/components/providers/org-provider"
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site"
+import {
+  calculateIssueKpiScore,
+  getComplianceKpiForIssue,
+  getDaysBetween,
+} from "@/lib/compliance-kpi"
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard"
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -78,14 +84,77 @@ interface Issue {
     tags?: string[]
     source?: string
     assignee?: string
+    issuer?: string | null
     priority?: string
     createdAt?: string
     updatedAt?: string
     processId?: string | null
+    deadline?: string | null
+    kpiScore?: number | null
+    closeOutDate?: string | null
+    verificationDate?: string | null
+    verificationStatus?: string | null
     // For display
     tag?: string
     tagVariant?: BadgeVariant
     kpi?: number
+    kpiLabel?: string
+    kpiColorClass?: string
+    complianceStatus?: string
+    statusBadgeClass?: string
+    planDate?: string
+    dueDate?: string
+    actualDate?: string
+    assigned?: string
+    due?: string
+    completed?: string
+}
+
+function formatIssueDate(d: string | null | undefined): string {
+    if (!d) return "—"
+    try {
+        return format(new Date(d), "dd/MM/yyyy")
+    } catch {
+        return "—"
+    }
+}
+
+function enrichIssue(issue: Issue, getTagVariant: (tagName: string) => BadgeVariant): Issue {
+    const compliance = getComplianceKpiForIssue({
+        status: issue.status,
+        createdAt: issue.createdAt,
+        deadline: issue.deadline,
+        kpiScore: issue.kpiScore,
+        closeOutDate: issue.closeOutDate,
+        verificationDate: issue.verificationDate,
+    })
+    const kpiNumeric =
+        issue.kpiScore != null && issue.kpiScore > 0
+            ? issue.kpiScore
+            : compliance.kpiLabel === "Consistent"
+              ? 3
+              : compliance.kpiLabel === "Pending"
+                ? 2
+                : 1
+    return {
+        ...issue,
+        tag: issue.tags?.[0] || "Unknown",
+        tagVariant: getTagVariant(issue.tags?.[0] || ""),
+        kpi: kpiNumeric,
+        kpiLabel: compliance.kpiLabel,
+        kpiColorClass: compliance.kpiColorClass,
+        complianceStatus: compliance.statusLabel,
+        statusBadgeClass: compliance.statusBadgeClass,
+        planDate: formatIssueDate(issue.createdAt),
+        dueDate: formatIssueDate(issue.deadline),
+        actualDate: formatIssueDate(issue.closeOutDate || issue.verificationDate),
+        assigned: formatIssueDate(issue.createdAt),
+        due: formatIssueDate(issue.deadline),
+        completed:
+            issue.status === "done"
+                ? formatIssueDate(issue.closeOutDate || issue.verificationDate)
+                : "—",
+    }
 }
 
 interface IssueReview {
@@ -354,13 +423,19 @@ export default function IssuesDashboard({
                 filesCount: uploadedFiles.length,
             })
 
+            const kpiScore = calculateIssueKpiScore(
+                selectedIssue.createdAt,
+                selectedIssue.deadline,
+                closeOutDate.toISOString()
+            )
+
             const response = await apiClient.verifyIssue(orgId, pid, selectedIssue.id, {
                 verificationStatus: "effective",
                 closureComments,
                 verificationFiles: uploadedFiles,
                 closeOutDate: closeOutDate.toISOString(),
                 verificationDate: verificationDate.toISOString(),
-                kpiScore: 3, // Default KPI, can be calculated later
+                kpiScore,
             })
 
             console.log("[VerificationIssues] Verification submitted successfully:", response)
@@ -527,12 +602,30 @@ export default function IssuesDashboard({
         return "secondary"
     }
 
+    const avgKpiScore = useMemo(() => {
+        const scores = allIssues
+            .map((i) => enrichIssue(i, getTagVariant).kpi)
+            .filter((k): k is number => k != null && k > 0)
+        if (scores.length === 0) return null
+        return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
+    }, [allIssues])
+
+    const avgResolutionDays = useMemo(() => {
+        const closed = allIssues.filter((i) => i.status === "done" && i.createdAt)
+        const days = closed
+            .map((i) =>
+                getDaysBetween(
+                    i.createdAt,
+                    i.closeOutDate || i.verificationDate || i.updatedAt
+                )
+            )
+            .filter((d) => d > 0)
+        if (days.length === 0) return null
+        return Math.round(days.reduce((a, b) => a + b, 0) / days.length)
+    }, [allIssues])
+
     const filteredAll = useMemo(() => {
-        let data = allIssues.map(issue => ({
-            ...issue,
-            tag: issue.tags?.[0] || "Unknown",
-            tagVariant: getTagVariant(issue.tags?.[0] || ""),
-        }))
+        let data = allIssues.map((issue) => enrichIssue(issue, getTagVariant))
 
         if (search)
             data = data.filter(
@@ -551,11 +644,7 @@ export default function IssuesDashboard({
     }, [allIssues, search, tag, status, sortKey, sortDir])
 
     const filteredPending = useMemo(() => {
-        let data = pendingIssues.map(issue => ({
-            ...issue,
-            tag: issue.tags?.[0] || "Unknown",
-            tagVariant: getTagVariant(issue.tags?.[0] || ""),
-        }))
+        let data = pendingIssues.map((issue) => enrichIssue(issue, getTagVariant))
 
         if (search)
             data = data.filter(
@@ -764,7 +853,7 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Avg. KPI Score</p>
-                                        <p className="text-2xl font-bold mt-2">2.3</p>
+                                        <p className="text-2xl font-bold mt-2">{avgKpiScore ?? "—"}</p>
                                     </div>
                                     <AlertCircle className="h-8 w-8 text-chart-4" />
                                 </div>
@@ -789,7 +878,8 @@ export default function IssuesDashboard({
                                             <SortHeader field="actualDate">Actual Date</SortHeader>
                                             <SortHeader field="dueDate">Due Date</SortHeader>
                                             <SortHeader field="status">Status</SortHeader>
-                                            <SortHeader field="kpi">KPI</SortHeader>
+                                            <SortHeader field="kpiLabel">KPI</SortHeader>
+                                            <SortHeader field="complianceStatus">Compliance</SortHeader>
                                             <TableHead>JIRA</TableHead>
                                             <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
@@ -798,7 +888,7 @@ export default function IssuesDashboard({
                                     <TableBody>
                                         {paginatedAll.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={13} className="text-center py-12 text-muted-foreground">
+                                                <TableCell colSpan={14} className="text-center py-12 text-muted-foreground">
                                                     No issues found
                                                 </TableCell>
                                             </TableRow>
@@ -811,17 +901,31 @@ export default function IssuesDashboard({
                                                         <Badge variant={issue.tagVariant}>{issue.tag}</Badge>
                                                     </TableCell>
                                                     <TableCell>{issue.source || "—"}</TableCell>
-                                                    <TableCell>—</TableCell> {/* Issuer not in DB */}
+                                                    <TableCell>{issue.issuer || "—"}</TableCell>
                                                     <TableCell>{issue.assignee || "—"}</TableCell>
-                                                    <TableCell>—</TableCell> {/* Plan date not in DB */}
-                                                    <TableCell>—</TableCell> {/* Actual date not in DB */}
-                                                    <TableCell>—</TableCell> {/* Due date not in DB */}
+                                                    <TableCell>{issue.planDate}</TableCell>
+                                                    <TableCell>{issue.actualDate}</TableCell>
+                                                    <TableCell>{issue.dueDate}</TableCell>
                                                     <TableCell>
                                                         <Badge variant={issue.status === "done" ? "default" : issue.status === "in-review" ? "secondary" : "destructive"}>
                                                             {issue.status}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell>{issue.kpi || 0}</TableCell>
+                                                    <TableCell>
+                                                        <span className={cn("text-sm font-semibold", issue.kpiColorClass)}>
+                                                            {issue.kpiLabel}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span
+                                                            className={cn(
+                                                                "inline-block rounded-md px-3 py-1 text-xs font-semibold text-white",
+                                                                issue.statusBadgeClass
+                                                            )}
+                                                        >
+                                                            {issue.complianceStatus}
+                                                        </span>
+                                                    </TableCell>
 
                                                     <TableCell>
                                                         — {/* JIRA link not in DB */}
@@ -842,6 +946,8 @@ export default function IssuesDashboard({
                             <Pagination page={pageAll} total={filteredAll.length} setPage={setPageAll} />
                         </CardContent>
                     </Card>
+
+                    <KpiStatusLogicCard />
                 </TabsContent>
 
                 {/* ---------------- VERIFICATION TAB ---------------- */}
@@ -893,7 +999,9 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Avg. Resolution Time</p>
-                                        <p className="text-2xl font-bold mt-2">22 days</p>
+                                        <p className="text-2xl font-bold mt-2">
+                                            {avgResolutionDays != null ? `${avgResolutionDays} days` : "—"}
+                                        </p>
                                     </div>
                                     <CheckCircle2 className="h-8 w-8 text-primary" />
                                 </div>
@@ -905,7 +1013,7 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Expected KPI</p>
-                                        <p className="text-2xl font-bold mt-2">2.7</p>
+                                        <p className="text-2xl font-bold mt-2">{avgKpiScore ?? "—"}</p>
                                     </div>
                                     <FileText className="h-8 w-8 text-chart-2" />
                                 </div>
@@ -956,14 +1064,9 @@ export default function IssuesDashboard({
                                                     <TableCell>{issue.completed}</TableCell>
 
                                                     <TableCell className="text-center">
-                                                        <div
-                                                            className={`inline-flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${(issue.kpi || 0) > 0
-                                                                ? "bg-primary/15 text-primary dark:bg-primary/25"
-                                                                : "bg-destructive/15 text-destructive dark:bg-destructive/25"
-                                                                }`}
-                                                        >
-                                                            {issue.kpi || 0}
-                                                        </div>
+                                                        <span className={cn("text-sm font-semibold", issue.kpiColorClass)}>
+                                                            {issue.kpiLabel}
+                                                        </span>
                                                     </TableCell>
 
                                                     <TableCell>

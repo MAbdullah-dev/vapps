@@ -396,6 +396,31 @@ class ApiClient {
     }>(`/organization/${orgId}/dashboard-charts`);
   }
 
+  /** Dashboard widget visibility preferences (tenant settings). */
+  getDashboardWidgets(orgId: string) {
+    return this.get<{
+      widgets: import("@/lib/dashboard-widgets").DashboardWidgetsConfig;
+      updatedAt: string | null;
+    }>(`/organization/${orgId}/dashboard-widgets`);
+  }
+
+  updateDashboardWidgets(
+    orgId: string,
+    widgets: Partial<import("@/lib/dashboard-widgets").DashboardWidgetsConfig>
+  ) {
+    return this.patch<{
+      widgets: import("@/lib/dashboard-widgets").DashboardWidgetsConfig;
+      updatedAt: string | null;
+    }>(`/organization/${orgId}/dashboard-widgets`, { widgets });
+  }
+
+  /** Live organization KPI metrics for settings / reports. */
+  getOrgKpiMetrics(orgId: string) {
+    return this.get<import("@/lib/org-kpi-metrics").OrgKpiMetricsPayload>(
+      `/organization/${orgId}/kpi-metrics`
+    );
+  }
+
   /** Create audit plan (Step 2 Submit to Auditee). */
   createAuditPlan(orgId: string, data: {
     auditProgramId: string;

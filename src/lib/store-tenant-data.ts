@@ -205,18 +205,19 @@ export async function storeTenantData(
         `INSERT INTO "dashboard_widgets" (
           "id", "tasksCompleted", "complianceScore", "workloadByUser",
           "overdueTasks", "issueDistribution", "auditTrend",
-          "projectProgress", "documentVersion", "reportFrequency", "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+          "projectProgress", "documentVersion", "recentActivity", "reportFrequency", "createdAt", "updatedAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())`,
         [
           crypto.randomUUID(),
-          step8?.widgets?.tasksCompleted || false,
-          step8?.widgets?.complianceScore || false,
-          step8?.widgets?.workloadByUser || false,
-          step8?.widgets?.overdueTasks || false,
-          step8?.widgets?.issueDistribution || false,
-          step8?.widgets?.auditTrend || false,
-          step8?.widgets?.projectProgress || false,
-          step8?.widgets?.documentVersion || false,
+          step8?.widgets?.tasksCompleted ?? true,
+          step8?.widgets?.complianceScore ?? true,
+          step8?.widgets?.workloadByUser ?? false,
+          step8?.widgets?.overdueTasks ?? true,
+          step8?.widgets?.issueDistribution ?? true,
+          step8?.widgets?.auditTrend ?? true,
+          step8?.widgets?.projectProgress ?? true,
+          step8?.widgets?.documentVersion ?? false,
+          true,
           step8?.reportFrequency || null,
         ]
       );

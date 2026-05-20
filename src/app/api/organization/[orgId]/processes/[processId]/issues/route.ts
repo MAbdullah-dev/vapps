@@ -5,6 +5,10 @@ import { logActivity } from "@/lib/activity-logger";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
 import crypto from "crypto";
+import {
+  getIssueVerificationsJoin,
+  mapIssueRowWithVerification,
+} from "@/lib/tenant-issues-schema";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/issues
@@ -101,6 +105,9 @@ export async function GET(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
+      const { join: verificationJoin, select: verificationSelect } =
+        await getIssueVerificationsJoin(client);
+
       // Get issues, optionally filtered by sprintId
       // Rule: Backlog issues = status="to-do" AND sprintId IS NULL
       let issuesQuery = `
@@ -122,8 +129,8 @@ export async function GET(
           i."order",
           i."createdAt",
           i."updatedAt",
-          i."deadline"
-        FROM issues i
+          i."deadline"${verificationSelect}
+        FROM issues i${verificationJoin}
         WHERE i."processId" = $1
       `;
 
@@ -187,11 +194,7 @@ export async function GET(
 
       client.release();
 
-      // Normalize issuer to string so client comparison with session user id is reliable
-      const issues = issuesResult.rows.map((r: Record<string, unknown>) => ({
-        ...r,
-        issuer: r.issuer != null ? String(r.issuer) : null,
-      }));
+      const issues = issuesResult.rows.map(mapIssueRowWithVerification);
 
       return NextResponse.json({
         issues,
