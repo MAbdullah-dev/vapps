@@ -29,7 +29,6 @@ import type {
 } from "@/components/documents/types";
 import {
   Calendar as CalendarIcon,
-  CircleAlert,
   Lock,
   Paperclip,
   RefreshCw,
@@ -40,6 +39,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn, documentActorMatches } from "@/lib/utils";
+import { docAlertInfo, docSelectionActive, docSelectionIdle } from "@/lib/document-ui-classes";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 function managementStandardLabel(value: string): string {
@@ -128,8 +128,6 @@ type CreateDocumentStepProps = {
   organizationName: string;
   organizationIdentification: string;
   industryType: string;
-  otherIndustry: string;
-  setOtherIndustry: (value: string) => void;
   siteId: string;
   location: string;
   processId: string;
@@ -157,6 +155,10 @@ type CreateDocumentStepProps = {
   isLoadingContext: boolean;
   isLoadingSites: boolean;
   isLoadingProcesses: boolean;
+  /** When true, site is fixed from the logged-in user's single site assignment. */
+  siteSelectionLocked?: boolean;
+  /** When true, process is fixed from the user's single process at that site. */
+  processSelectionLocked?: boolean;
   canProceed: boolean;
   isViewMode?: boolean;
   initialWizard?: Partial<DocumentWizardSnapshot>;
@@ -186,8 +188,6 @@ export default function CreateDocumentStep({
   organizationName,
   organizationIdentification,
   industryType,
-  otherIndustry,
-  setOtherIndustry,
   siteId,
   location,
   processId,
@@ -215,6 +215,8 @@ export default function CreateDocumentStep({
   isLoadingContext,
   isLoadingSites,
   isLoadingProcesses,
+  siteSelectionLocked = false,
+  processSelectionLocked = false,
   canProceed,
   isViewMode = false,
   initialWizard,
@@ -801,15 +803,6 @@ export default function CreateDocumentStep({
                     className="bg-muted text-muted-foreground"
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="other-industry">Other Industry (if applicable)</Label>
-                  <Input
-                    id="other-industry"
-                    value={otherIndustry}
-                    onChange={(e) => setOtherIndustry(e.target.value)}
-                    placeholder="Specify if other..."
-                  />
-                </div>
               </div>
             </div>
 
@@ -819,10 +812,29 @@ export default function CreateDocumentStep({
               <h5 className="text-lg font-semibold text-foreground">Site Information</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="doc-site">Site / Unit *</Label>
-                  <Select value={site} onValueChange={setSite} disabled={isLoadingContext || isLoadingSites}>
+                  <Label htmlFor="doc-site">
+                    Site / Unit *{" "}
+                    {siteSelectionLocked ? (
+                      <span className="text-xs font-normal text-muted-foreground">(from your profile)</span>
+                    ) : null}
+                  </Label>
+                  <Select
+                    value={site}
+                    onValueChange={setSite}
+                    disabled={
+                      isViewMode || siteSelectionLocked || isLoadingContext || isLoadingSites
+                    }
+                  >
                     <SelectTrigger id="doc-site" className="w-full">
-                      <SelectValue placeholder={isLoadingSites ? "Loading sites..." : "Select site"} />
+                      <SelectValue
+                        placeholder={
+                          isLoadingSites
+                            ? "Loading sites..."
+                            : siteSelectionLocked
+                              ? "Assigned site"
+                              : "Select site"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {sites.map((siteOption) => (
@@ -861,20 +873,32 @@ export default function CreateDocumentStep({
               <h5 className="text-lg font-semibold text-foreground">Process Area</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="doc-process">Process / Area *</Label>
+                  <Label htmlFor="doc-process">
+                    Process / Area *{" "}
+                    {processSelectionLocked ? (
+                      <span className="text-xs font-normal text-muted-foreground">(from your profile)</span>
+                    ) : null}
+                  </Label>
                   <Select
                     value={processId}
                     onValueChange={setProcessName}
-                    disabled={!site || isLoadingProcesses}
+                    disabled={
+                      isViewMode ||
+                      processSelectionLocked ||
+                      !site ||
+                      isLoadingProcesses
+                    }
                   >
                     <SelectTrigger id="doc-process" className="w-full">
                       <SelectValue
                         placeholder={
-                          !site
-                            ? "Select site first"
-                            : isLoadingProcesses
-                              ? "Loading processes..."
-                              : "Select process"
+                          processSelectionLocked
+                            ? "Assigned process"
+                            : !site
+                              ? "Select site first"
+                              : isLoadingProcesses
+                                ? "Loading processes..."
+                                : "Select process"
                         }
                       />
                     </SelectTrigger>
@@ -1034,7 +1058,7 @@ export default function CreateDocumentStep({
               htmlFor="priority-high"
               className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer font-normal ${
                 priorityLevel === "high"
-                  ? "border-[#22B323] bg-[#EAF6EC]"
+                  ? docSelectionActive
                   : "border-border"
               }`}
             >
@@ -1051,7 +1075,7 @@ export default function CreateDocumentStep({
               htmlFor="priority-low"
               className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer font-normal ${
                 priorityLevel === "low"
-                  ? "border-[#22B323] bg-[#EAF6EC]"
+                  ? docSelectionActive
                   : "border-border"
               }`}
             >
@@ -1094,18 +1118,18 @@ export default function CreateDocumentStep({
                     }
                   }}
                   className={`rounded-lg border p-4 text-center transition-colors ${isActive
-                      ? "border-[#22B323] bg-[#EAF6EC]"
+                      ? docSelectionActive
                       : "border-border bg-background hover:bg-muted"
                     }`}
                 >
                   <p
-                    className={`font-semibold ${isActive ? "text-[#22B323]" : "text-muted-foreground"
+                    className={`font-semibold ${isActive ? "text-primary" : "text-muted-foreground"
                       }`}
                   >
                     {item.title}
                   </p>
                   <p
-                    className={`text-sm mt-1 ${isActive ? "text-[#22B323]" : "text-muted-foreground"
+                    className={`text-sm mt-1 ${isActive ? "text-primary" : "text-muted-foreground"
                       }`}
                   >
                     {item.subtitle}
@@ -1140,7 +1164,7 @@ export default function CreateDocumentStep({
                     type="button"
                     onClick={() => setActionType(item.value)}
                     className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
-                        ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
+                        ? cn(docSelectionActive, "font-medium")
                         : "border-border bg-background text-muted-foreground hover:bg-muted"
                       }`}
                   >
@@ -1192,7 +1216,7 @@ export default function CreateDocumentStep({
                         }
                       }}
                       className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
-                          ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
+                          ? cn(docSelectionActive, "font-medium")
                           : "border-border bg-background text-muted-foreground hover:bg-muted"
                         }`}
                     >
@@ -1252,7 +1276,7 @@ export default function CreateDocumentStep({
                       onClick={() => toggleReason(reason)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                         isOn
-                          ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
+                          ? cn(docSelectionActive, "font-medium")
                           : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                       }`}
                     >
@@ -1286,14 +1310,14 @@ export default function CreateDocumentStep({
       {isReviseTransfer ? (
         <Card className="py-4">
           <CardContent className="space-y-4">
-            <div className="rounded-md border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+            <div className={cn(docAlertInfo, "p-4")}>
               <div className="flex gap-3">
-                <RefreshCw className="shrink-0 text-[#2563EB] mt-0.5" size={20} />
+                <RefreshCw className="shrink-0 text-primary mt-0.5" size={20} />
                 <div>
-                  <p className="text-sm font-semibold text-[#1E40AF]">
+                  <p className="text-sm font-semibold text-foreground">
                     1.10 Transfer the Document (Manual)
                   </p>
-                  <p className="text-xs text-[#1D4ED8] mt-1 leading-relaxed">
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     Transfers must preserve document history, linked approvals, and audit trail. Use this
                     section to record the source document, target site and process, and any standard or
                     type change so compliance and traceability remain intact across the transfer.
@@ -1303,7 +1327,7 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-[#22B323]">1.10. Transfer the Document (Manual)</h4>
+              <h4 className="text-xl font-semibold text-primary">1.10. Transfer the Document (Manual)</h4>
               <p className="text-sm text-muted-foreground">
                 Move document to a new site, process, standard, or type with originator approval.
               </p>
@@ -1355,7 +1379,7 @@ export default function CreateDocumentStep({
                           }}
                           className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                             on
-                              ? "border-[#22B323] bg-[#22B323] text-white"
+                              ? "border-primary bg-primary text-primary-foreground"
                               : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                           }`}
                         >
@@ -1397,7 +1421,7 @@ export default function CreateDocumentStep({
                             }}
                             className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                               on
-                                ? "border-[#22B323] bg-[#22B323] text-white"
+                                ? "border-primary bg-primary text-primary-foreground"
                                 : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                             }`}
                           >
@@ -1474,7 +1498,7 @@ export default function CreateDocumentStep({
                           }}
                           className={`min-w-11 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
                             on
-                              ? "border-[#22B323] bg-[#22B323] text-white"
+                              ? "border-primary bg-primary text-primary-foreground"
                               : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                           }`}
                         >
@@ -1506,7 +1530,7 @@ export default function CreateDocumentStep({
                   onClick={() => setOriginatorConsent("accepted")}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "accepted"
-                      ? "border-[#22B323] bg-[#22B323] text-white"
+                      ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
                 >
@@ -1517,7 +1541,7 @@ export default function CreateDocumentStep({
                   onClick={() => setOriginatorConsent("declined")}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "declined"
-                      ? "border-[#EF4444] bg-[#EF4444] text-white"
+                      ? "border-destructive bg-destructive text-destructive-foreground"
                       : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
                 >
@@ -1653,7 +1677,7 @@ export default function CreateDocumentStep({
                     setPinError("");
                   }}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "unlocked"
-                      ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
+                      ? docSelectionActive
                       : "border-border bg-background text-muted-foreground"
                     }`}
                 >
@@ -1663,7 +1687,7 @@ export default function CreateDocumentStep({
                   type="button"
                   onClick={handleLockSelection}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "locked"
-                      ? "border-[#22B323] bg-[#EAF6EC] text-[#22B323]"
+                      ? docSelectionActive
                       : "border-border bg-background text-muted-foreground"
                     }`}
                 >
@@ -1721,7 +1745,7 @@ export default function CreateDocumentStep({
                 placeholder="Re-enter PIN"
               />
             </div>
-            {pinError ? <p className="text-xs text-[#DC2626]">{pinError}</p> : null}
+            {pinError ? <p className="text-xs text-destructive">{pinError}</p> : null}
           </div>
           <DialogFooter>
             <Button
@@ -1734,7 +1758,7 @@ export default function CreateDocumentStep({
             >
               Cancel
             </Button>
-            <Button type="button" className="bg-[#22B323] hover:bg-[#1a9825]" onClick={saveFilePin}>
+            <Button type="button" variant="default" onClick={saveFilePin}>
               {restriction === "locked" && !!filePin ? "Update PIN" : "Save PIN"}
             </Button>
           </DialogFooter>
@@ -1835,34 +1859,34 @@ export default function CreateDocumentStep({
               <Label
                 htmlFor="risk-level-high"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "high" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
+                  riskLevel === "high" ? docSelectionActive : docSelectionIdle
                 }`}
               >
                 <RadioGroupItem value="high" id="risk-level-high" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#EF4444]">High</span> Significant impact on operations or compliance
+                  <span className="font-semibold text-destructive">High</span> Significant impact on operations or compliance
                 </span>
               </Label>
               <Label
                 htmlFor="risk-level-medium"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "medium" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
+                  riskLevel === "medium" ? docSelectionActive : docSelectionIdle
                 }`}
               >
                 <RadioGroupItem value="medium" id="risk-level-medium" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#F59E0B]">Medium</span> Moderate impact with manageable risks
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">Medium</span> Moderate impact with manageable risks
                 </span>
               </Label>
               <Label
                 htmlFor="risk-level-low"
                 className={`flex items-center gap-2 rounded-lg border p-3 cursor-pointer font-normal ${
-                  riskLevel === "low" ? "border-[#22B323] bg-[#EAF6EC]" : "border-border"
+                  riskLevel === "low" ? docSelectionActive : docSelectionIdle
                 }`}
               >
                 <RadioGroupItem value="low" id="risk-level-low" />
                 <span className="text-sm">
-                  <span className="font-semibold text-[#22B323]">Low</span> Minimal impact on operations
+                  <span className="font-semibold text-primary">Low</span> Minimal impact on operations
                 </span>
               </Label>
             </RadioGroup>
@@ -1956,7 +1980,7 @@ export default function CreateDocumentStep({
                 htmlFor="external-doc-upload"
                 className="absolute bottom-4 right-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 text-xs font-bold tracking-wide text-foreground shadow-sm transition-colors hover:bg-muted"
               >
-                <Paperclip className="text-[#22B323]" size={16} aria-hidden />
+                <Paperclip className="text-primary" size={16} aria-hidden />
                 UPLOAD FILE
               </label>
             </div>
@@ -2116,7 +2140,8 @@ export default function CreateDocumentStep({
             </Button>
             <Button
               type="button"
-              className="bg-[#22B323] hover:bg-[#1a9825] gap-2 disabled:bg-[#A7D9A8] disabled:cursor-not-allowed"
+              variant="default"
+              className="gap-2"
               onClick={handleSubmitProceedClick}
               disabled={
                 isSaving ||
@@ -2135,19 +2160,6 @@ export default function CreateDocumentStep({
               Select a site and process to proceed to review.
             </p>
           ) : null}
-
-          <div className="rounded-md border border-[#BFDBFE] bg-[#EFF6FF] p-3">
-            <div className="flex items-start gap-2">
-              <CircleAlert className="text-[#2563EB] mt-0.5" size={16} />
-              <div>
-                <p className="text-sm font-semibold text-[#1E40AF]">After Submission</p>
-                <p className="text-xs text-[#1D4ED8]">
-                  After submit, your entry is saved and you return to the document tables. Review and approval
-                  workflows can be connected here when the backend is ready.
-                </p>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

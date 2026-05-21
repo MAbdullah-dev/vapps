@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, ReactNode, useRef, useEffect } from "react"
+import { useState, useMemo, ReactNode, useRef, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -37,6 +37,8 @@ import {
     Clock,
     Eye,
     MoreVertical,
+    Pencil,
+    Trash2,
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
@@ -51,9 +53,16 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -108,6 +117,11 @@ interface Issue {
     assigned?: string
     due?: string
     completed?: string
+}
+
+function isIssueCreator(issue: Issue, userId: string | null | undefined): boolean {
+    if (!userId || issue.issuer == null || issue.issuer === "") return false
+    return String(issue.issuer) === String(userId)
 }
 
 function formatIssueDate(d: string | null | undefined): string {
@@ -208,6 +222,9 @@ export default function IssuesDashboard({
     const [issueReview, setIssueReview] = useState<IssueReview | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isLoadingReview, setIsLoadingReview] = useState(false)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
 
     // Filter/Sort state
     const [search, setSearch] = useState("")
@@ -246,8 +263,17 @@ export default function IssuesDashboard({
         fileInputRef.current?.click()
     }
 
-    // Fetch data on mount
     useEffect(() => {
+        fetch("/api/user/profile", { credentials: "include" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((profile) => {
+                const id = profile?.id != null ? String(profile.id) : null
+                setCurrentUserId(id)
+            })
+            .catch(() => setCurrentUserId(null))
+    }, [])
+
+    const fetchIssues = useCallback(async () => {
         if (!orgId) return
         if (!issuesWorkspaceForOrg && !routeProcessId) return
         if (issuesWorkspaceForOrg && !siteIdForIssues) {
@@ -258,45 +284,101 @@ export default function IssuesDashboard({
             return
         }
 
-        const fetchData = async () => {
-            try {
-                setIsLoading(true)
-                let issues: Issue[] = []
-                if (issuesWorkspaceForOrg && siteIdForIssues) {
-                    const [issuesRes, usersRes] = await Promise.all([
-                        apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues }),
-                        apiClient.getMembers(orgId),
-                    ])
-                    issues = issuesRes.issues || []
-                    setProcessUsers(
-                        (usersRes.teamMembers || []).map((m) => ({
-                            id: m.id,
-                            name: m.name || m.email || "User",
-                            email: m.email,
-                        }))
-                    )
-                } else if (routeProcessId) {
-                    const [issuesRes, usersRes] = await Promise.all([
-                        apiClient.getIssues(orgId, routeProcessId),
-                        apiClient.getProcessUsers(orgId, routeProcessId),
-                    ])
-                    issues = issuesRes.issues || []
-                    setProcessUsers(usersRes.users || [])
-                }
-
-                setAllIssues(issues)
-                const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
-                setPendingIssues(inReviewIssues)
-            } catch (error: any) {
-                console.error("Error fetching data:", error)
-                toast.error("Failed to load issues")
-            } finally {
-                setIsLoading(false)
+        try {
+            setIsLoading(true)
+            let issues: Issue[] = []
+            if (issuesWorkspaceForOrg && siteIdForIssues) {
+                const [issuesRes, usersRes] = await Promise.all([
+                    apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues }),
+                    apiClient.getMembers(orgId),
+                ])
+                issues = issuesRes.issues || []
+                setProcessUsers(
+                    (usersRes.teamMembers || []).map((m) => ({
+                        id: m.id,
+                        name: m.name || m.email || "User",
+                        email: m.email,
+                    }))
+                )
+            } else if (routeProcessId) {
+                const [issuesRes, usersRes] = await Promise.all([
+                    apiClient.getIssues(orgId, routeProcessId),
+                    apiClient.getProcessUsers(orgId, routeProcessId),
+                ])
+                issues = issuesRes.issues || []
+                setProcessUsers(usersRes.users || [])
             }
-        }
 
-        fetchData()
+            setAllIssues(issues)
+            const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
+            setPendingIssues(inReviewIssues)
+        } catch (error: any) {
+            console.error("Error fetching data:", error)
+            toast.error("Failed to load issues")
+        } finally {
+            setIsLoading(false)
+        }
     }, [orgId, routeProcessId, issuesWorkspaceForOrg, siteIdForIssues])
+
+    useEffect(() => {
+        void fetchIssues()
+    }, [fetchIssues])
+
+    useEffect(() => {
+        const onIssueChanged = (event: Event) => {
+            const detail = (event as CustomEvent<{ orgId?: string }>).detail
+            if (detail?.orgId && detail.orgId !== orgId) return
+            void fetchIssues()
+        }
+        window.addEventListener("issueUpdated", onIssueChanged)
+        return () => window.removeEventListener("issueUpdated", onIssueChanged)
+    }, [orgId, fetchIssues])
+
+    const openEditIssue = (issue: Issue) => {
+        const pid = processIdForIssue(issue)
+        if (issuesWorkspaceForOrg && !pid) {
+            toast.error("Link this issue to a process before editing.")
+            return
+        }
+        window.dispatchEvent(
+            new CustomEvent("openIssueDialog", {
+                detail: {
+                    issueId: issue.id,
+                    orgId,
+                    processId: pid,
+                },
+            })
+        )
+    }
+
+    const handleConfirmDelete = async () => {
+        if (!issueToDelete || !orgId) return
+        const pid = processIdForIssue(issueToDelete)
+        try {
+            setIsDeleting(true)
+            if (issuesWorkspaceForOrg) {
+                await apiClient.deleteOrgIssue(orgId, issueToDelete.id)
+            } else if (pid) {
+                await apiClient.deleteIssue(orgId, pid, issueToDelete.id)
+            } else {
+                toast.error("This issue must be linked to a process before it can be deleted.")
+                return
+            }
+            setIssueToDelete(null)
+            toast.success("Issue deleted")
+            await fetchIssues()
+            window.dispatchEvent(
+                new CustomEvent("issueUpdated", {
+                    detail: { orgId, processId: pid, issueId: issueToDelete.id },
+                })
+            )
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "Failed to delete issue"
+            toast.error(msg)
+        } finally {
+            setIsDeleting(false)
+        }
+    }
 
     // Fetch issue review data when opening review dialog
     const handleReviewClick = async (issue: Issue) => {
@@ -932,9 +1014,36 @@ export default function IssuesDashboard({
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
+                                                        {isIssueCreator(issue, currentUserId) ? (
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        aria-label="Issue actions"
+                                                                    >
+                                                                        <MoreVertical className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => openEditIssue(issue)}
+                                                                    >
+                                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                                        Edit
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        variant="destructive"
+                                                                        onClick={() => setIssueToDelete(issue)}
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">—</span>
+                                                        )}
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -1886,6 +1995,34 @@ export default function IssuesDashboard({
                             </div>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!issueToDelete} onOpenChange={(open) => !open && setIssueToDelete(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete issue</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete &quot;{issueToDelete?.title}&quot;? This action
+                            cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIssueToDelete(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => void handleConfirmDelete()}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? "Deleting…" : "Delete"}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 

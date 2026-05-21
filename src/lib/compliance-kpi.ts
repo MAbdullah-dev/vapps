@@ -43,8 +43,8 @@ export function getComplianceKpiFromDays(
     return {
       kpiLabel: "Consistent",
       statusLabel: "Success",
-      kpiColorClass: "text-[#22B323]",
-      statusBadgeClass: "bg-[#22B323]",
+      kpiColorClass: "text-primary",
+      statusBadgeClass: "bg-primary",
     };
   }
 
@@ -52,8 +52,8 @@ export function getComplianceKpiFromDays(
     return {
       kpiLabel: "Consistent",
       statusLabel: "In-Progress",
-      kpiColorClass: "text-[#22B323]",
-      statusBadgeClass: "bg-amber-400",
+      kpiColorClass: "text-primary",
+      statusBadgeClass: "bg-amber-600",
     };
   }
 
@@ -61,8 +61,8 @@ export function getComplianceKpiFromDays(
     return {
       kpiLabel: "Inconsistent",
       statusLabel: "Fail",
-      kpiColorClass: "text-red-600",
-      statusBadgeClass: "bg-red-500",
+      kpiColorClass: "text-destructive",
+      statusBadgeClass: "bg-destructive",
     };
   }
 
@@ -70,16 +70,16 @@ export function getComplianceKpiFromDays(
     return {
       kpiLabel: "Pending",
       statusLabel: "Pending",
-      kpiColorClass: "text-amber-600",
-      statusBadgeClass: "bg-amber-500",
+      kpiColorClass: "text-amber-600 dark:text-amber-400",
+      statusBadgeClass: "bg-amber-600",
     };
   }
 
   return {
     kpiLabel: "Consistent",
     statusLabel: "Success",
-    kpiColorClass: "text-[#22B323]",
-    statusBadgeClass: "bg-[#22B323]",
+    kpiColorClass: "text-primary",
+    statusBadgeClass: "bg-primary",
   };
 }
 

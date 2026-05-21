@@ -47,7 +47,6 @@ export type Step1FormData = {
   organizationName: string;
   organizationIdentification: string;
   industryType: string;
-  otherIndustry: string;
   site: string;
   siteId: string;
   location: string;

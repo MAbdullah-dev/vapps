@@ -13,6 +13,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { isTopOrOperationalLeadershipTier } from "@/lib/documentaryEvidenceAccess";
 import { toast } from "sonner";
+import {
+  docAckBox,
+  docBadgeActive,
+  docInfoCard,
+  docInfoCardIcon,
+  docSectionNumber,
+  docWarningBanner,
+} from "@/lib/document-ui-classes";
 
 type VerifierMember = {
   id: string;
@@ -291,10 +299,10 @@ export default function CaptureEvidenceStep({
               <p className="text-sm text-muted-foreground">Real-time operational data capture by support staff</p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className="bg-[#DCFCE7] text-[#16A34A] border border-[#BBF7D0] hover:bg-[#DCFCE7]">
+              <Badge className={docBadgeActive}>
                 REC-000124
               </Badge>
-              <Button size="sm" className="gap-1.5 bg-[#1E3A8A] hover:bg-[#1E40AF] text-white rounded-full px-4">
+              <Button size="sm" className="gap-1.5 rounded-full px-4">
                 Learn More
                 <ArrowUpRight size={14} />
               </Button>
@@ -303,14 +311,14 @@ export default function CaptureEvidenceStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-[#DBEAFE] bg-[#EFF6FF]">
+      <Card className={docInfoCard}>
         <CardContent className="py-4">
           <div className="relative flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#BFDBFE] bg-background font-semibold text-[#2563EB]">
-              <Info size={16} className="text-[#2563EB]" />
+            <div className={docInfoCardIcon}>
+              <Info size={16} className="text-primary" />
             </div>
-            <div className="text-[#1E3A8A]">
-              <p className="text-xl font-bold tracking-wide text-[#1E40AF]">ACKNOWLEDGEMENT:</p>
+            <div className="text-foreground">
+              <p className="text-xl font-bold tracking-wide text-foreground">ACKNOWLEDGEMENT:</p>
               <p className="mt-2 text-sm leading-relaxed">
                 Mid-level leadership will verify that the required compliance data has been updated in the
                 designated sections of the form to ensure proper documentation. They will confirm the
@@ -323,7 +331,7 @@ export default function CaptureEvidenceStep({
 
             {/* Large shield watermark on the right (screenshot-like) */}
             <div className="pointer-events-none absolute right-2 top-0 hidden sm:flex h-16 w-16 items-center justify-center">
-              <ShieldCheck size={72} className="text-[#93C5FD] opacity-40" />
+              <ShieldCheck size={72} className="text-primary/30 opacity-40" />
             </div>
           </div>
         </CardContent>
@@ -333,7 +341,7 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">1.</span> Designated verifier
+              <span className={docSectionNumber}>1.</span> Designated verifier
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               Choose who will verify this record (Top Leadership and Operational Leadership members).
@@ -376,7 +384,7 @@ export default function CaptureEvidenceStep({
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-foreground"> <span className="text-[#22B323]">2.</span> Record Metadata</h4>
+            <h4 className="text-base font-semibold text-foreground"> <span className={docSectionNumber}>2.</span> Record Metadata</h4>
             <p className="mt-1 text-sm text-muted-foreground">Auto-generated and basic organizational data</p>
           </div>
 
@@ -516,7 +524,7 @@ export default function CaptureEvidenceStep({
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-foreground"> <span className="text-[#22B323]">3.</span> Operational Metadata</h4>
+            <h4 className="text-base font-semibold text-foreground"> <span className={docSectionNumber}>3.</span> Operational Metadata</h4>
             <p className="mt-1 text-sm text-muted-foreground">Shift, batch/lot, and technician details</p>
           </div>
 
@@ -553,7 +561,7 @@ export default function CaptureEvidenceStep({
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-foreground"> <span className="text-[#22B323]">4.</span> Captured Data</h4>
+            <h4 className="text-base font-semibold text-foreground"> <span className={docSectionNumber}>4.</span> Captured Data</h4>
             <p className="mt-1 text-sm text-muted-foreground">Documentary Evidence</p>
           </div>
 
@@ -572,7 +580,7 @@ export default function CaptureEvidenceStep({
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-foreground"> <span className="text-[#22B323]">5.</span> Additional Notes</h4>
+            <h4 className="text-base font-semibold text-foreground"> <span className={docSectionNumber}>5.</span> Additional Notes</h4>
           </div>
           <Textarea
             value={additionalNotes}
@@ -633,11 +641,11 @@ export default function CaptureEvidenceStep({
         </CardContent>
       </Card>
 
-      <div className="rounded-md border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 flex gap-3 items-start text-sm">
-        <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#FDE68A] bg-background">
-          <AlertTriangle className="h-4 w-4 text-[#F59E0B]" />
+      <div className={docWarningBanner}>
+        <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-500/40 bg-background">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </span>
-        <p className="text-[#92400E] leading-relaxed">
+        <p className="leading-relaxed">
           Caution! Only authorized data entry personnel should fill forms. No edits to layout or content.
         </p>
       </div>

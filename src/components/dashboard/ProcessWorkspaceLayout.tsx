@@ -450,10 +450,14 @@ export default function ProcessLayout({
     loadIssuePeopleAndSprints(selectedIssueProcessId);
   }, [workspaceSegment, isCreateDialogOpen, selectedIssueProcessId, loadIssuePeopleAndSprints]);
 
-  // Only the assignee of an issue can edit it; others can only view (when opening existing issue)
+  // Only the creator (issuer) can edit an existing issue; assignee and others are view-only
+  const isIssueCreator =
+    !!editingIssue &&
+    !!currentUserId &&
+    editingIssue.issuer != null &&
+    String(editingIssue.issuer) === String(currentUserId);
   const canEditIssue =
-    canAccessIssueForm &&
-    (!editingIssue || editingIssue.assignee === currentUserId);
+    canAccessIssueForm && (!editingIssue || isIssueCreator);
   const isViewOnly = !!editingIssue && !canEditIssue;
 
   const canAddIssueComment = useMemo(() => {

@@ -46,6 +46,21 @@ import {
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
+import {
+  docAlertInfo,
+  docAlertNote,
+  docAlertSuccess,
+  docDocStatus,
+  docDropdownContent,
+  docMenuItemAccent,
+  docMenuItemPrimary,
+  docPositionBadge,
+  docSearchInput,
+  docSelectTrigger,
+  docStatusBadgeDanger,
+  docStatusBadgeSuccess,
+  docStatusBadgeWarning,
+} from "@/lib/document-ui-classes";
 import { toast } from "sonner";
 import { getComplianceKpiFromDays, getDaysSince } from "@/lib/compliance-kpi";
 import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
@@ -383,20 +398,18 @@ function ObsoleteRegisterColumnHead({
 
 function EvidenceKpiText({ kpi }: { kpi: DocumentaryEvidenceRow["kpi"] }) {
   const map: Record<DocumentaryEvidenceRow["kpi"], string> = {
-    Consistent: "text-[#16A34A]",
-    Pending: "text-[#EA580C]",
-    Inconsistent: "text-[#DC2626]",
+    Consistent: "text-primary",
+    Pending: "text-amber-600 dark:text-amber-400",
+    Inconsistent: "text-destructive",
   };
   return <span className={cn("text-sm font-medium", map[kpi])}>{kpi}</span>;
 }
 
 function EvidenceRecordStatusBadge({ status }: { status: DocumentaryEvidenceRow["recordStatus"] }) {
   const map: Record<DocumentaryEvidenceRow["recordStatus"], string> = {
-    Success:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Pending:
-      "border-transparent bg-orange-500 text-white hover:bg-orange-500 shadow-none",
-    Fail: "border-transparent bg-red-600 text-white hover:bg-red-600 shadow-none",
+    Success: docStatusBadgeSuccess,
+    Pending: docStatusBadgeWarning,
+    Fail: docStatusBadgeDanger,
   };
   return (
     <Badge
@@ -424,14 +437,14 @@ function RetentionPeriodBadge({ label }: { label: string }) {
 function DisposalMethodBadge({ method }: { method: RecordsDisposalRow["disposalMethod"] }) {
   if (method === "Delete") {
     return (
-      <Badge className="gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 shadow-none hover:bg-red-50">
+      <Badge className="gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive shadow-none hover:bg-destructive/10">
         <Trash2 className="size-3.5" aria-hidden />
         Delete
       </Badge>
     );
   }
   return (
-    <Badge className="gap-1 rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 shadow-none hover:bg-slate-100">
+    <Badge className="gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted">
       <Scissors className="size-3.5" aria-hidden />
       Shred
     </Badge>
@@ -467,12 +480,9 @@ function StorageMediaCell({ media }: { media: RecordsDisposalRow["storageMedia"]
 
 function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recordRank"] }) {
   const map: Record<DocumentaryEvidenceRow["recordRank"], string> = {
-    Verified:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Captured:
-      "border-transparent bg-amber-500 text-white hover:bg-amber-500 shadow-none",
-    Archived:
-      "border-transparent bg-slate-500 text-white hover:bg-slate-500 shadow-none",
+    Verified: docStatusBadgeSuccess,
+    Captured: docStatusBadgeWarning,
+    Archived: "border-transparent bg-muted-foreground text-primary-foreground shadow-none hover:bg-muted-foreground/90",
   };
   return (
     <Badge
@@ -487,38 +497,35 @@ function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recor
 }
 
 function DocStatusBadge({ status }: { status: MasterDocumentRow["docStatus"] }) {
-  const map: Record<MasterDocumentRow["docStatus"], string> = {
-    "In-Progress": "bg-sky-50 text-sky-700 border border-sky-200",
-    Success: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    Pending: "bg-amber-50 text-amber-800 border border-amber-200",
-    Fail: "bg-red-50 text-red-700 border border-red-200",
-  };
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", map[status])}>
+    <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", docDocStatus[status])}>
       {status}
     </span>
   );
 }
 
 function DocPositionBadge({ position }: { position: MasterDocumentRow["docPosition"] }) {
+  const tone =
+    position === "Draft"
+      ? docPositionBadge.Draft
+      : position === "Review Pending"
+        ? docPositionBadge["Review Pending"]
+        : position === "Approval Pending"
+          ? docPositionBadge["Approval Pending"]
+          : position === "Needs Review Again"
+            ? docPositionBadge["Needs Review Again"]
+            : docPositionBadge.default;
   return (
-    <span
-      className={cn(
-        "inline-flex rounded-md px-2.5 py-1 text-xs font-semibold text-white",
-        position === "Draft"
-          ? "bg-orange-500"
-          : position === "Review Pending"
-            ? "bg-amber-600"
-            : position === "Approval Pending"
-              ? "bg-blue-600"
-              : position === "Needs Review Again"
-                ? "bg-red-600"
-            : "bg-neutral-700"
-      )}
-    >
+    <span className={cn("inline-flex rounded-md px-2.5 py-1 text-xs font-semibold", tone)}>
       {position}
     </span>
   );
+}
+
+function complianceStatusTextClass(statusLabel: string): string {
+  if (statusLabel === "Success" || statusLabel === "In-Progress") return "text-primary-foreground";
+  if (statusLabel === "Fail") return "text-destructive-foreground";
+  return "text-primary-foreground";
 }
 
 function MasterDocumentRowActionsMenu({
@@ -609,7 +616,7 @@ function MasterDocumentRowActionsMenu({
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary outline-none focus:bg-accent focus:text-accent-foreground [&_svg]:text-primary"
             onClick={() => {
               void onShare(row, viewHref);
             }}
@@ -628,7 +635,7 @@ function MasterDocumentRowActionsMenu({
           Download PDF
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]"
+          className={docMenuItemAccent}
           onSelect={() => onDownloadExcel(row)}
         >
           <FileSpreadsheet size={16} />
@@ -640,7 +647,7 @@ function MasterDocumentRowActionsMenu({
         </DropdownMenuLabel>
         <DropdownMenuItem
           asChild
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+          className={docMenuItemPrimary}
         >
           <Link href={workflowHref}>
             <Send size={16} />
@@ -668,7 +675,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[200px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[200px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted focus:text-foreground">
           <Eye size={16} className="text-foreground" />
@@ -677,7 +684,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary outline-none focus:bg-accent focus:text-accent-foreground [&_svg]:text-primary"
             onClick={() => onShare()}
           >
             <Share2 size={16} />
@@ -688,7 +695,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+        <DropdownMenuItem className={docMenuItemPrimary}>
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
@@ -713,7 +720,7 @@ function DocumentaryEvidenceRowActionsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[220px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Eye size={16} className="text-foreground" />
@@ -723,7 +730,7 @@ function DocumentaryEvidenceRowActionsMenu() {
           <Pencil size={16} className="text-foreground" />
           Edit
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6366F1] focus:bg-[#EEF2FF] focus:text-[#6366F1] [&_svg]:text-[#6366F1]">
+        <DropdownMenuItem className={docMenuItemPrimary}>
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
@@ -731,11 +738,11 @@ function DocumentaryEvidenceRowActionsMenu() {
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+        <DropdownMenuItem className={docMenuItemPrimary}>
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
+        <DropdownMenuSeparator className="my-2 bg-border" />
         <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           Record lifecycle
         </DropdownMenuLabel>
@@ -764,13 +771,13 @@ function RecordsDisposalRowActionsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[220px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Eye size={16} className="text-foreground" />
           View
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
+        <DropdownMenuItem className={docMenuItemPrimary}>
           <Share2 size={16} />
           Share
         </DropdownMenuItem>
@@ -778,7 +785,7 @@ function RecordsDisposalRowActionsMenu() {
           <FileDown size={16} />
           Download PDF
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+        <DropdownMenuItem className={docMenuItemPrimary}>
           <FileSpreadsheet size={16} />
           Download Excel
         </DropdownMenuItem>
@@ -1560,7 +1567,7 @@ export default function DocumentsContent() {
           <div className="w-full sm:w-auto">
             <p className="mb-2 text-xs text-muted-foreground">Select Table</p>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className="w-full sm:min-w-[340px] sm:max-w-[520px] border border-[#0000001A] rounded-xl bg-white px-3 py-2 text-sm">
+              <SelectTrigger className={cn(docSelectTrigger, "sm:min-w-[340px] sm:max-w-[520px]")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1587,10 +1594,10 @@ export default function DocumentsContent() {
         <CardContent className="space-y-4">
           {selectedTable === "Obsolete Document Register" ? (
             <div
-              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              className={cn(docAlertInfo, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">Superseded versions and retention</p>
+              <p className={docAlertNoteTitle}>Superseded versions and retention</p>
               <p className="mt-2 leading-relaxed">
                 When a <span className="font-medium">new version</span> of a document is created as a revision and{" "}
                 <span className="font-medium">approved</span>, the previous version is moved here automatically (it
@@ -1603,10 +1610,10 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Documentary Evidence" ? (
             <div
-              className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]"
+              className={cn(docAlertSuccess, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#15803D]">Captured F-type evidence records — awaiting verification</p>
+              <p className={docAlertNoteTitle}>Captured F-type evidence records — awaiting verification</p>
               <p className="mt-2 leading-relaxed">
                 This table shows F-type documentary evidence records where the <span className="font-medium">capture step is complete</span> but
                 verification is still pending. Once the designated verifier completes Verify &amp; Archive, the record moves to the{" "}
@@ -1616,10 +1623,10 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Records Disposal Log" ? (
             <div
-              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              className={cn(docAlertInfo, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">Completed evidence records — verified &amp; archived</p>
+              <p className={docAlertNoteTitle}>Completed evidence records — verified &amp; archived</p>
               <p className="mt-2 leading-relaxed">
                 Records appear here once <span className="font-medium">both</span> steps are finished: capture by Support Leadership and
                 verification by the designated Top/Operational verifier. Each row shows the retention period and archive location
@@ -1661,7 +1668,7 @@ export default function DocumentsContent() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
+                  className={docSearchInput}
                   placeholder="Search..."
                 />
               </div>
@@ -1684,7 +1691,7 @@ export default function DocumentsContent() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#0000001A] overflow-x-auto">
+          <div className="rounded-lg border border-border overflow-x-auto">
             {selectedTable === "Master Document List" ? (
               <Table>
                 <TableHeader>
@@ -1964,7 +1971,13 @@ export default function DocumentsContent() {
                             <span className={cn("text-sm font-semibold", kpiColor)}>{kpiLabel}</span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
-                            <span className={cn("inline-block rounded-md px-3 py-1 text-xs font-semibold text-white", statusBg)}>
+                            <span
+                              className={cn(
+                                "inline-block rounded-md px-3 py-1 text-xs font-semibold",
+                                statusBg,
+                                complianceStatusTextClass(statusLabel)
+                              )}
+                            >
                               {statusLabel}
                             </span>
                           </TableCell>
@@ -2190,7 +2203,7 @@ export default function DocumentsContent() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl border border-border p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Category 1 - Maintained Documents <span className="text-[#22B323]">(Type P)</span>
+                Category 1 - Maintained Documents <span className="text-primary">(Type P)</span>
               </h3>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <div>Policy</div>
@@ -2205,7 +2218,7 @@ export default function DocumentsContent() {
 
             <div className="rounded-xl border border-border p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Category 2 - Retained Records <span className="text-[#0EA5E9]">(Type F)</span>
+                Category 2 - Retained Records <span className="text-primary">(Type F)</span>
               </h3>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <div>Templates</div>

@@ -82,10 +82,10 @@ export async function PUT(
             { status: 403 }
           );
         }
-      } else if (!isAssignee) {
+      } else if (!isIssuer) {
         client.release();
         return NextResponse.json(
-          { error: "Only the assignee of this issue can edit it." },
+          { error: "Only the user who created this issue can edit it." },
           { status: 403 }
         );
       }
@@ -199,10 +199,23 @@ export async function DELETE(
 
     const client = await getTenantClient(ctx.tenant.orgId);
     try {
-      const existing = await client.query(`SELECT id FROM issues WHERE id = $1`, [issueId]);
+      const existing = await client.query(
+        `SELECT id, issuer FROM issues WHERE id = $1`,
+        [issueId]
+      );
       if (!existing.rows.length) {
         client.release();
         return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+      }
+      const row = existing.rows[0];
+      const uid = String(ctx.user.id);
+      const isIssuer = row.issuer != null && String(row.issuer) === uid;
+      if (!isIssuer) {
+        client.release();
+        return NextResponse.json(
+          { error: "Only the user who created this issue can delete it." },
+          { status: 403 }
+        );
       }
       await client.query(`DELETE FROM issues WHERE id = $1`, [issueId]);
       client.release();

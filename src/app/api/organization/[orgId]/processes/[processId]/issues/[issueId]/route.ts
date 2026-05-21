@@ -322,10 +322,10 @@ export async function PUT(
             { status: 403 }
           );
         }
-      } else if (!isAssignee) {
+      } else if (!isIssuer) {
         client.release();
         return NextResponse.json(
-          { error: "Only the assignee of this issue can edit it." },
+          { error: "Only the user who created this issue can edit it." },
           { status: 403 }
         );
       }
@@ -601,9 +601,8 @@ export async function DELETE(
 
     try {
 
-      // Verify issue exists and belongs to this process
       const issueResult = await client.query(
-        `SELECT id FROM issues WHERE id = $1 AND "processId" = $2`,
+        `SELECT id, issuer FROM issues WHERE id = $1 AND "processId" = $2`,
         [issueId, processId]
       );
 
@@ -615,7 +614,17 @@ export async function DELETE(
         );
       }
 
-      // Delete issue
+      const uid = String(ctx.user.id);
+      const issueIssuer = issueResult.rows[0].issuer;
+      const isIssuer = issueIssuer != null && String(issueIssuer) === uid;
+      if (!isIssuer) {
+        client.release();
+        return NextResponse.json(
+          { error: "Only the user who created this issue can delete it." },
+          { status: 403 }
+        );
+      }
+
       await client.query(
         `DELETE FROM issues WHERE id = $1`,
         [issueId]

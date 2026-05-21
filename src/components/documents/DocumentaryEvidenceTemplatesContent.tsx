@@ -22,6 +22,7 @@ import {
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
+import { docAlertInfo } from "@/lib/document-ui-classes";
 
 type DocumentsApiRecord = {
   id: string;
@@ -256,7 +257,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
           <li>
             <Link
               href={documentsHref}
-              className="text-foreground hover:text-[#6366F1] hover:underline"
+              className="text-foreground hover:text-primary hover:underline"
             >
               Documents
             </Link>
@@ -278,11 +279,8 @@ export default function DocumentaryEvidenceTemplatesContent() {
         </p>
       </div>
 
-      <div
-        className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
-        role="note"
-      >
-        <p className="font-semibold text-[#1E40AF]">How it works</p>
+      <div className={docAlertInfo} role="note">
+        <p className="font-semibold text-foreground">How it works</p>
         <p className="mt-2 leading-relaxed">
           These are approved <span className="font-medium">F-type (Retained Record)</span> forms from your master list.
           <span className="font-medium"> Support Leadership</span> runs capture; the{" "}
@@ -290,7 +288,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
           verification finishes, status becomes <span className="font-medium">Active</span>. New templates are added via{" "}
           <Link
             href={createHref}
-            className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
+            className="font-medium text-primary underline-offset-2 hover:underline"
           >
             Create Document
           </Link>
@@ -441,7 +439,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="gap-2 bg-[#22B323] text-white hover:bg-[#1a9825] shadow-sm"
+                                  className="gap-2 shadow-sm"
                                   asChild
                                 >
                                   <Link href={startCaptureUrl}>
@@ -453,7 +451,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
 
                               {/* Draft — Support can EDIT (continue) the draft */}
                               {latest && ws === "draft" && isSupport ? (
-                                <Button type="button" size="sm" className="gap-2 bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
+                                <Button type="button" size="sm" variant="secondary" className="gap-2 shadow-sm" asChild>
                                   <Link href={continueCaptureUrl}>
                                     <Pencil className="size-4 shrink-0" />
                                     Edit capture
@@ -476,7 +474,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      className="gap-2 bg-[#1E3A8A] text-white hover:bg-[#1E40AF]"
+                                      className="gap-2"
                                       asChild
                                     >
                                       <Link href={verifyUrl}>
@@ -503,7 +501,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      className="gap-2 bg-[#22B323] text-white hover:bg-[#1a9825] shadow-sm"
+                                      className="gap-2 shadow-sm"
                                       asChild
                                     >
                                       <Link href={startCaptureUrl}>

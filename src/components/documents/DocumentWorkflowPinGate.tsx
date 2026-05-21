@@ -54,7 +54,7 @@ export default function DocumentWorkflowPinGate({
     <Card className="border-border py-4 shadow-sm">
       <CardHeader className="space-y-1 pb-2">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-          <Lock className="h-5 w-5 text-[#22B323]" aria-hidden />
+          <Lock className="h-5 w-5 text-primary" aria-hidden />
           PIN required
         </CardTitle>
         <p className="text-sm font-normal text-muted-foreground leading-relaxed">
@@ -78,8 +78,8 @@ export default function DocumentWorkflowPinGate({
             placeholder="Enter PIN"
           />
         </div>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <Button type="button" className="bg-[#22B323] hover:bg-[#1a8f1b]" disabled={busy} onClick={() => void submit()}>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Button type="button" disabled={busy} onClick={() => void submit()}>
           {busy ? "Checking…" : "Unlock document"}
         </Button>
       </CardContent>

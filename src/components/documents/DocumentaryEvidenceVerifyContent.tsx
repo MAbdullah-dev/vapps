@@ -239,7 +239,7 @@ export default function DocumentaryEvidenceVerifyContent() {
   if (!meReady || loading) {
     return (
       <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 px-6 py-16">
-        <Loader2 className="h-10 w-10 animate-spin text-[#22B323]" aria-hidden />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
         <p className="text-sm font-medium text-foreground">Loading…</p>
       </div>
     );
