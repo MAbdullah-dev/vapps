@@ -145,7 +145,7 @@ export default function AuditHistoryDialog({
                     <StatusBadge type={entry.type} t={t} />
                     <span className="font-semibold text-foreground">{t(entry.title)}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">{entry.description}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{entry.description}</p>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3 text-muted-foreground" />
