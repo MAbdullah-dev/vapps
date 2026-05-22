@@ -13,7 +13,16 @@ CREATE TABLE IF NOT EXISTS "organization_info" (
     "contactEmail" TEXT,
     "phone" TEXT,
     "website" TEXT,
-    "industry" TEXT
+    "industry" TEXT,
+    "legalName" TEXT,
+    "taxId" TEXT,
+    "companySize" TEXT,
+    "foundedDate" TEXT,
+    "supportEmail" TEXT,
+    "fax" TEXT,
+    "brandColor" TEXT,
+    "brandFont" TEXT,
+    "logo" TEXT
 );
 
 -- Sites
@@ -139,6 +148,7 @@ CREATE TABLE IF NOT EXISTS "dashboard_widgets" (
     "auditTrend" BOOLEAN NOT NULL DEFAULT false,
     "projectProgress" BOOLEAN NOT NULL DEFAULT false,
     "documentVersion" BOOLEAN NOT NULL DEFAULT false,
+    "recentActivity" BOOLEAN NOT NULL DEFAULT true,
     "reportFrequency" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL
@@ -162,7 +172,7 @@ CREATE TABLE IF NOT EXISTS "security_settings" (
 -- ===============================
 -- SITE USERS
 -- ===============================
-CREATE TABLE site_users (
+CREATE TABLE IF NOT EXISTS site_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   site_id uuid NOT NULL,
   user_id uuid NOT NULL, -- master DB user.id
@@ -174,7 +184,7 @@ CREATE TABLE site_users (
 -- ===============================
 -- PROCESS USERS
 -- ===============================
-CREATE TABLE process_users (
+CREATE TABLE IF NOT EXISTS process_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   process_id uuid NOT NULL,
   user_id uuid NOT NULL, -- master DB user.id
@@ -186,7 +196,7 @@ CREATE TABLE process_users (
 -- ===============================
 -- INVITATIONS
 -- ===============================
-CREATE TABLE invitations (
+CREATE TABLE IF NOT EXISTS invitations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL,
   site_id uuid,

@@ -123,68 +123,90 @@ export async function createTenantDatabase(orgId: string): Promise<TenantDatabas
   }
 }
 
+function sortTenantMigrationFiles(files: string[]): string[] {
+  return files
+    .filter((f) => f.endsWith(".sql"))
+    .sort((a, b) => {
+      const numA = parseInt(a.match(/^(\d+)_/)?.[1] || "0", 10);
+      const numB = parseInt(b.match(/^(\d+)_/)?.[1] || "0", 10);
+      if (numA !== numB) return numA - numB;
+      return a.localeCompare(b);
+    });
+}
+
 /**
- * Helper to run tenant migrations programmatically
- * Runs all migration files in order (001, 002, 003, etc.)
- * @param connectionString - Tenant database connection string
- * @returns Success status
+ * Helper to run tenant migrations programmatically.
+ * Uses `tenant_schema_migrations` (same as scripts/run-pending-tenant-migrations.js)
+ * so each SQL file is applied at most once per tenant DB.
  */
 export async function runTenantMigrations(connectionString: string): Promise<boolean> {
   const fs = require("fs");
   const path = require("path");
-  
-  try {
-    const client = new Client({
-      connectionString,
-      ssl: getSSLConfig(connectionString),
-    });
 
+  const client = new Client({
+    connectionString,
+    ssl: getSSLConfig(connectionString),
+  });
+
+  try {
     await client.connect();
 
-    // Get all migration files in order
-    const migrationsDir = path.join(
-      process.cwd(),
-      "prisma",
-      "tenant-migrations"
-    );
-
+    const migrationsDir = path.join(process.cwd(), "prisma", "tenant-migrations");
     if (!fs.existsSync(migrationsDir)) {
       throw new Error(`Migrations directory not found: ${migrationsDir}`);
     }
 
-    // Read all files in the migrations directory
-    const files = fs.readdirSync(migrationsDir);
-    
-    // Filter and sort migration files (001_, 002_, 003_, etc.)
-    const migrationFiles = files
-      .filter((file: string) => file.endsWith(".sql"))
-      .sort((a: string, b: string) => {
-        // Extract number from filename (e.g., "001_" from "001_initial_tenant_schema.sql")
-        const numA = parseInt(a.match(/^(\d+)_/)?.[1] || "0", 10);
-        const numB = parseInt(b.match(/^(\d+)_/)?.[1] || "0", 10);
-        return numA - numB;
-      });
+    const migrationFiles = sortTenantMigrationFiles(fs.readdirSync(migrationsDir));
 
-    console.log(`Running ${migrationFiles.length} tenant migrations...`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenant_schema_migrations (
+        filename TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
 
-    // Execute each migration in order
-    for (const file of migrationFiles) {
-      const migrationPath = path.join(migrationsDir, file);
-      console.log(`Running migration: ${file}`);
+    const appliedRes = await client.query(
+      `SELECT filename FROM tenant_schema_migrations ORDER BY filename`
+    );
+    const applied = new Set<string>(
+      appliedRes.rows.map((r: { filename: string }) => r.filename)
+    );
 
-    const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
-
-    // Execute the migration
-    await client.query(migrationSQL);
-      console.log(`✓ Completed migration: ${file}`);
+    const pending = migrationFiles.filter((f) => !applied.has(f));
+    if (pending.length === 0) {
+      console.log("Tenant migrations: already up to date");
+      return true;
     }
 
-    await client.end();
+    console.log(`Running ${pending.length} pending tenant migration(s)...`);
 
-    console.log(`✓ All tenant migrations completed successfully`);
+    for (const file of pending) {
+      const migrationPath = path.join(migrationsDir, file);
+      const migrationSQL = fs.readFileSync(migrationPath, "utf-8");
+      console.log(`Running migration: ${file}`);
+      try {
+        await client.query("BEGIN");
+        await client.query(migrationSQL);
+        await client.query(
+          `INSERT INTO tenant_schema_migrations (filename) VALUES ($1)`,
+          [file]
+        );
+        await client.query("COMMIT");
+        console.log(`✓ Completed migration: ${file}`);
+      } catch (err: unknown) {
+        await client.query("ROLLBACK").catch(() => {});
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed on ${file}: ${message}`);
+      }
+    }
+
+    console.log("✓ All pending tenant migrations completed successfully");
     return true;
-  } catch (error: any) {
-    console.error("Error running tenant migrations:", error);
-    throw new Error(`Failed to run tenant migrations: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error running tenant migrations:", message);
+    throw new Error(`Failed to run tenant migrations: ${message}`);
+  } finally {
+    await client.end().catch(() => {});
   }
 }

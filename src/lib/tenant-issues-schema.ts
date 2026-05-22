@@ -1,10 +1,20 @@
 import type { PoolClient } from "pg";
 
-/** Idempotent: some tenant DBs may not have run SQL migrations yet. */
-export async function ensureIssueCommentsColumn(client: PoolClient) {
+/** Idempotent: some tenant DBs may not have run SQL migrations yet (see 021 / 026). */
+export async function ensureIssueWorkspaceColumns(client: PoolClient) {
+  await client.query(`ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "deadline" TIMESTAMP(3)`);
+  await client.query(`ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "siteId" TEXT`);
+  await client.query(
+    `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "issuer" TEXT, ADD COLUMN IF NOT EXISTS "verifier" TEXT`
+  );
   await client.query(
     `ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "comments" JSONB NOT NULL DEFAULT '[]'::jsonb`
   );
+}
+
+/** @deprecated Use ensureIssueWorkspaceColumns */
+export async function ensureIssueCommentsColumn(client: PoolClient) {
+  await ensureIssueWorkspaceColumns(client);
 }
 
 export async function getIssueVerificationsJoin(client: PoolClient): Promise<{

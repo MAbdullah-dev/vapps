@@ -118,7 +118,9 @@ Tenant DBs live on the **same PostgreSQL server** as the main DB (e.g. RDS/Auror
 | One-off tenant connection by URL | `src/lib/db/connection-helper.ts` |
 | Seed tenant data from onboarding | `src/lib/store-tenant-data.ts` |
 | Tenant schema (SQL) | `prisma/tenant-migrations/*.sql` |
+| Apply pending tenant SQL (deploy / local) | `npm run tenant:migrate-all` (tracks `tenant_schema_migrations` per DB) |
 | Main schema | `prisma/schema.prisma` |
+| Apply master Prisma migrations | `npm run db:migrate-deploy` |
 
 ---
 
