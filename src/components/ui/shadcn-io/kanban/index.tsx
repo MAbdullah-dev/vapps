@@ -277,7 +277,13 @@ export const KanbanProvider = <
 
     const { active, over } = event;
 
-    if (!over || active.id === over.id) {
+    if (!over) {
+      return;
+    }
+
+    // Column drops are applied in handleDragOver; reorder only when dropped on another card.
+    const overItem = data.find((item) => item.id === over.id);
+    if (!overItem || active.id === over.id) {
       return;
     }
 
@@ -285,6 +291,10 @@ export const KanbanProvider = <
 
     const oldIndex = newData.findIndex((item) => item.id === active.id);
     const newIndex = newData.findIndex((item) => item.id === over.id);
+
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
 
     newData = arrayMove(newData, oldIndex, newIndex);
 

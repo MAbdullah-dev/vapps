@@ -39,6 +39,7 @@ import {
   SelectContent,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
+import { generateId } from "@/lib/generate-id";
 import { toast } from "sonner";
 
 import {
@@ -458,14 +459,18 @@ export default function ProcessLayout({
     loadIssuePeopleAndSprints(selectedIssueProcessId);
   }, [workspaceSegment, isCreateDialogOpen, selectedIssueProcessId, loadIssuePeopleAndSprints]);
 
-  // Only the creator (issuer) can edit an existing issue; assignee and others are view-only
   const isIssueCreator =
     !!editingIssue &&
     !!currentUserId &&
     editingIssue.issuer != null &&
     String(editingIssue.issuer) === String(currentUserId);
+  const isIssueAssignee =
+    !!editingIssue &&
+    !!currentUserId &&
+    editingIssue.assignee != null &&
+    String(editingIssue.assignee) === String(currentUserId);
   const canEditIssue =
-    canAccessIssueForm && (!editingIssue || isIssueCreator);
+    canAccessIssueForm && (!editingIssue || isIssueCreator || isIssueAssignee);
   const isViewOnly = !!editingIssue && !canEditIssue;
 
   const canAddIssueComment = useMemo(() => {
@@ -488,10 +493,7 @@ export default function ProcessLayout({
 
     const text = commentText.trim();
     const newComment: Comment = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: generateId(),
       author: displayName,
       authorImage: session?.user?.image ?? null,
       text,
@@ -886,7 +888,7 @@ export default function ProcessLayout({
               <DialogTitle>{editingIssue ? (isViewOnly ? t("View Issue") : t("Edit Issue")) : t("Create Issue")}</DialogTitle>
               <DialogDescription>
                 {isViewOnly
-                  ? t("You are viewing this issue. Only the assignee can edit it.")
+                  ? t("You are viewing this issue. Only the assignee or issue creator can edit it.")
                   : editingIssue
                   ? t("Update the issue details.")
                   : t("Fill the details to create a new issue.")}

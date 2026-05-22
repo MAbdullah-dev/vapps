@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,13 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-
-const generateId = () => {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-};
+import { generateId } from "@/lib/generate-id";
 
 interface UploadedFile {
   id: string;
@@ -79,6 +83,7 @@ export default function ReviewDialog({
   const finalProcessId = processId || (params.processId as string);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
 
@@ -288,7 +293,7 @@ export default function ReviewDialog({
             // If no action plans, start with one empty row
             setActionPlans([
               {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 action: "",
                 responsible: "",
                 plannedDate: "",
@@ -327,7 +332,7 @@ export default function ReviewDialog({
     setExistingRootCauseFiles([]);
     setActionPlans([
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         action: "",
         responsible: "",
         plannedDate: "",
@@ -574,48 +579,43 @@ export default function ReviewDialog({
     }
   };
 
-  const handleClose = () => {
-    // Reset form when closing
-    setContainmentText("");
-    setRootCauseText("");
-    setContainmentFiles([]);
-    setRootCauseFiles([]);
-    setActionPlans([
-      {
-        id: crypto.randomUUID(),
-        action: "",
-        responsible: "",
-        plannedDate: "",
-        actualDate: "",
-        files: [],
-      },
-    ]);
+  const requestDiscard = () => {
+    if (isSubmitting || uploadingFiles) return;
+    setDiscardConfirmOpen(true);
+  };
+
+  const confirmDiscard = () => {
+    setDiscardConfirmOpen(false);
+    resetForm();
+    onCancel();
     onOpenChange(false);
   };
 
-  const handleCancel = () => {
-    const shouldCancel = window.confirm(
-      "Are you sure you want to cancel? Your unsaved review changes will be lost."
-    );
-
-    if (!shouldCancel) return;
-
-    handleClose();
-    onCancel();
-    toast.success("Review cancellation confirmed.");
-  };
-
   return (
-    <Dialog 
-      open={open} 
+    <>
+    <Dialog
+      open={open}
       onOpenChange={(isOpen) => {
-        // Prevent closing without submission - force cancel to revert status
-        if (!isOpen && !isSubmitting) {
-          handleCancel();
+        if (isOpen) {
+          onOpenChange(true);
+          return;
+        }
+        if (!isSubmitting && !uploadingFiles) {
+          requestDiscard();
         }
       }}
     >
-      <DialogContent className="max-w-4xl! max-h-[90vh] overflow-y-auto text-foreground">
+      <DialogContent
+        className="max-w-4xl! max-h-[90vh] overflow-y-auto text-foreground"
+        onPointerDownOutside={(e) => {
+          e.preventDefault();
+          requestDiscard();
+        }}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          requestDiscard();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Containment / Immediate Correction</DialogTitle>
           <DialogDescription>
@@ -631,7 +631,13 @@ export default function ReviewDialog({
           </div>
         )}
         
-        {!isLoadingReview && (
+        {!finalProcessId && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+            This issue must be linked to a process before you can complete the review form.
+          </p>
+        )}
+
+        {!isLoadingReview && finalProcessId && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Containment Section */}
         <div className="space-y-4">
@@ -896,11 +902,19 @@ export default function ReviewDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 pt-6">
-          <Button variant="ghost" onClick={handleCancel} disabled={isSubmitting}>
+        <div className="flex justify-end gap-2 border-t border-border pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={requestDiscard}
+            disabled={isSubmitting || uploadingFiles}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingReview || uploadingFiles}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting || isLoadingReview || uploadingFiles || !finalProcessId}
+          >
             {uploadingFiles ? (
               <>
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-primary-foreground"></div>
@@ -920,6 +934,31 @@ export default function ReviewDialog({
         )}
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard review changes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Unsaved containment, root cause, and action plan details will be lost. The issue will
+            return to its previous board column.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={(e) => {
+              e.preventDefault();
+              confirmDiscard();
+            }}
+          >
+            Discard and close
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

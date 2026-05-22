@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
-import { isIssueCommentsOnlyPatch } from "@/lib/issue-comment-permissions";
+import {
+  isIssueCommentsOnlyPatch,
+  isIssueStatusOnlyPatch,
+  isSameIssueUser,
+  issuePatchIncludesAssigneeForbiddenFields,
+  validateBoardIssueStatusTransition,
+} from "@/lib/issue-comment-permissions";
 import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
 import { cache, cacheKeys } from "@/lib/cache";
 
@@ -62,7 +68,7 @@ export async function PUT(
     try {
       await ensureIssueCommentsColumn(client);
       const existing = await client.query(
-        `SELECT id, assignee, issuer FROM issues WHERE id = $1`,
+        `SELECT id, assignee, issuer, status FROM issues WHERE id = $1`,
         [issueId]
       );
       if (!existing.rows.length) {
@@ -71,8 +77,10 @@ export async function PUT(
       }
       const row = existing.rows[0];
       const uid = String(ctx.user.id);
-      const isAssignee = row.assignee != null && String(row.assignee) === uid;
-      const isIssuer = row.issuer != null && String(row.issuer) === uid;
+      const isAssignee = isSameIssueUser(row.assignee as string | null, uid);
+      const isIssuer = isSameIssueUser(row.issuer as string | null, uid);
+      const currentStatus = String(row.status ?? "to-do");
+      const role = { isAssignee, isIssuer };
 
       if (commentsOnly) {
         if (!isAssignee && !isIssuer) {
@@ -82,16 +90,63 @@ export async function PUT(
             { status: 403 }
           );
         }
+      } else if (isIssueStatusOnlyPatch(body)) {
+        if (!isAssignee && !isIssuer) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the assignee or issue creator can update this issue." },
+            { status: 403 }
+          );
+        }
+        if (body.status !== undefined) {
+          const transitionError = validateBoardIssueStatusTransition(
+            currentStatus,
+            String(body.status),
+            role
+          );
+          if (transitionError) {
+            client.release();
+            return NextResponse.json({ error: transitionError }, { status: 403 });
+          }
+        }
+      } else if (isAssignee && !isIssuer) {
+        if (issuePatchIncludesAssigneeForbiddenFields(body)) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the issue creator can change assignee or ownership." },
+            { status: 403 }
+          );
+        }
+        if (body.status !== undefined) {
+          const transitionError = validateBoardIssueStatusTransition(
+            currentStatus,
+            String(body.status),
+            role
+          );
+          if (transitionError) {
+            client.release();
+            return NextResponse.json({ error: transitionError }, { status: 403 });
+          }
+        }
       } else if (!isIssuer) {
         client.release();
         return NextResponse.json(
-          { error: "Only the user who created this issue can edit it." },
+          { error: "Only the assignee or issue creator can edit this issue." },
           { status: 403 }
         );
       }
 
-      let resolvedProcessId: string | null | undefined = body.processId as string | null | undefined;
-      let resolvedSiteId: string | null | undefined = body.siteId;
+      const optionalString = (v: unknown): string | null | undefined =>
+        v === undefined
+          ? undefined
+          : v === null
+            ? null
+            : typeof v === "string"
+              ? v
+              : undefined;
+
+      let resolvedProcessId = optionalString(body.processId);
+      let resolvedSiteId = optionalString(body.siteId);
 
       if (resolvedProcessId !== undefined && resolvedProcessId !== null && resolvedProcessId !== "") {
         const processRes = await client.query(
@@ -113,8 +168,15 @@ export async function PUT(
         values.push(value);
       };
 
-      if (body.title !== undefined) add(`title`, body.title?.trim());
-      if (body.description !== undefined) add(`description`, body.description?.trim() || null);
+      if (body.title !== undefined) {
+        add(`title`, typeof body.title === "string" ? body.title.trim() : "");
+      }
+      if (body.description !== undefined) {
+        add(
+          `description`,
+          typeof body.description === "string" ? body.description.trim() || null : null
+        );
+      }
       if (body.priority !== undefined) add(`priority`, body.priority);
       if (body.status !== undefined) add(`status`, body.status);
       if (body.points !== undefined) add(`points`, body.points);
@@ -123,7 +185,13 @@ export async function PUT(
       if (body.sprintId !== undefined) add(`"sprintId"`, body.sprintId || null);
       if (body.order !== undefined) add(`"order"`, body.order);
       if (body.deadline !== undefined) {
-        add(`"deadline"`, body.deadline === null || body.deadline === "" ? null : new Date(body.deadline).toISOString());
+        const deadline = body.deadline;
+        add(
+          `"deadline"`,
+          deadline === null || deadline === ""
+            ? null
+            : new Date(typeof deadline === "string" ? deadline : String(deadline)).toISOString()
+        );
       }
       if (body.comments !== undefined) {
         const c = body.comments;

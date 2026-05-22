@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import {
   docAlertInfo,
   docAlertNote,
+  docAlertNoteTitle,
   docAlertSuccess,
   docDocStatus,
   docDropdownContent,

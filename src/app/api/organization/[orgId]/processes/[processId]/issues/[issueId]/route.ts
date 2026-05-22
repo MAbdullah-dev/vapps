@@ -6,7 +6,13 @@ import { logActivity } from "@/lib/activity-logger";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
 import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
-import { isIssueCommentsOnlyPatch } from "@/lib/issue-comment-permissions";
+import {
+  isIssueCommentsOnlyPatch,
+  isIssueStatusOnlyPatch,
+  isSameIssueUser,
+  issuePatchIncludesAssigneeForbiddenFields,
+  validateBoardIssueStatusTransition,
+} from "@/lib/issue-comment-permissions";
 import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
 
 /**
@@ -234,7 +240,7 @@ export async function PUT(
       await ensureIssueCommentsColumn(client);
 
       const issueResult = await client.query(
-        `SELECT id, assignee, issuer FROM issues WHERE id = $1 AND "processId" = $2`,
+        `SELECT id, assignee, issuer, status FROM issues WHERE id = $1 AND "processId" = $2`,
         [issueId, processId]
       );
 
@@ -246,11 +252,14 @@ export async function PUT(
         );
       }
 
-      const issueAssignee = issueResult.rows[0].assignee;
-      const issueIssuerRaw = issueResult.rows[0].issuer;
+      const issueRow = issueResult.rows[0];
+      const issueAssignee = issueRow.assignee;
+      const issueIssuerRaw = issueRow.issuer;
       const uid = String(ctx.user.id);
-      const isAssignee = issueAssignee != null && String(issueAssignee) === uid;
-      const isIssuer = issueIssuerRaw != null && String(issueIssuerRaw) === uid;
+      const isAssignee = isSameIssueUser(issueAssignee as string | null, uid);
+      const isIssuer = isSameIssueUser(issueIssuerRaw as string | null, uid);
+      const currentStatus = String(issueRow.status ?? "to-do");
+      const role = { isAssignee, isIssuer };
 
       // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
       const { prisma } = await import("@/lib/prisma");
@@ -322,10 +331,48 @@ export async function PUT(
             { status: 403 }
           );
         }
+      } else if (isIssueStatusOnlyPatch(body as Record<string, unknown>)) {
+        if (!isAssignee && !isIssuer) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the assignee or issue creator can update this issue." },
+            { status: 403 }
+          );
+        }
+        if (status !== undefined) {
+          const transitionError = validateBoardIssueStatusTransition(
+            currentStatus,
+            String(status),
+            role
+          );
+          if (transitionError) {
+            client.release();
+            return NextResponse.json({ error: transitionError }, { status: 403 });
+          }
+        }
+      } else if (isAssignee && !isIssuer) {
+        if (issuePatchIncludesAssigneeForbiddenFields(body as Record<string, unknown>)) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the issue creator can change assignee or ownership." },
+            { status: 403 }
+          );
+        }
+        if (status !== undefined) {
+          const transitionError = validateBoardIssueStatusTransition(
+            currentStatus,
+            String(status),
+            role
+          );
+          if (transitionError) {
+            client.release();
+            return NextResponse.json({ error: transitionError }, { status: 403 });
+          }
+        }
       } else if (!isIssuer) {
         client.release();
         return NextResponse.json(
-          { error: "Only the user who created this issue can edit it." },
+          { error: "Only the assignee or issue creator can edit this issue." },
           { status: 403 }
         );
       }

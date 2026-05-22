@@ -24,10 +24,12 @@ export async function POST(
       return NextResponse.json({ ok: true, dismissed: 0 });
     }
 
+    const resolvedOrgId = ctx.tenant.orgId;
+
     await prisma.userNotificationDismissal.createMany({
       data: activityIds.map((activityId) => ({
         userId: ctx.user.id,
-        organizationId: orgId,
+        organizationId: resolvedOrgId,
         activityId,
       })),
       skipDuplicates: true,

@@ -25,6 +25,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  isSameIssueUser,
+  validateBoardIssueStatusTransition,
+} from '@/lib/issue-comment-permissions';
+import { patchIssuesList } from '@/lib/issue-board-sync';
 
 // Define columns for the board
 const columns = [
@@ -238,7 +243,7 @@ const Board = () => {
         const hasNewerUpdate = currentIssue && currentIssue.status !== update.newStatus;
         
         if (!hasNewerUpdate) {
-          setIssues((prevIssues) =>
+          patchIssuesList(setIssues, issuesRef, (prevIssues) =>
             prevIssues.map((issue) =>
               issue.id === update.issueId
                 ? { ...issue, status: update.previousStatus, column: statusToColumnId(update.previousStatus) }
@@ -285,11 +290,7 @@ const Board = () => {
       return;
     }
 
-    // If this issue already has a failed update, don't queue new ones until it's resolved
-    if (failedUpdatesRef.current.has(issueId)) {
-      console.warn(`[UpdateQueue] Issue ${issueId} has a failed update, skipping queue`);
-      return;
-    }
+    failedUpdatesRef.current.delete(issueId);
 
     // Replace any existing update for this issue (only latest status matters)
     updateQueueRef.current.set(issueId, {
@@ -320,26 +321,19 @@ const Board = () => {
           return originalIssue;
         }
 
-        // Moving to Done is not allowed from the board – only the issuer can verify from Manage Issues
-        if (newStatus === 'done' && oldStatus !== 'done') {
-          toast.error("Only the issuer can verify this issue from Manage Issues. Issues cannot be moved to Done from the board.");
+        const isAssignee = isSameIssueUser(originalIssue.assignee, currentUserId);
+        const isIssuer = isSameIssueUser(originalIssue.issuer, currentUserId);
+        const transitionError = validateBoardIssueStatusTransition(oldStatus, newStatus, {
+          isAssignee,
+          isIssuer,
+        });
+        if (transitionError && oldStatus !== newStatus) {
+          toast.error(transitionError);
           return originalIssue;
         }
 
-        // Moving from To Do: only the assignee can move the issue from To Do
-        if (oldStatus === 'to-do' && (newStatus === 'in-progress' || newStatus === 'in-review')) {
-          if (originalIssue.assignee !== currentUserId) {
-            toast.error("Only the assignee can move this issue from To Do.");
-            return originalIssue;
-          }
-        }
-
-        // Moving from In Progress to In Review: only the assignee can move to In Review
+        // Moving from In Progress to In Review: open review dialog
         if (oldStatus === 'in-progress' && newStatus === 'in-review') {
-          if (originalIssue.assignee !== currentUserId) {
-            toast.error("Only the assignee can move this issue to In Review.");
-            return originalIssue;
-          }
           // Check if there's already a pending review update for this issue
           if (pendingReviewUpdate && pendingReviewUpdate.issueId === item.id) {
             return originalIssue;
@@ -350,11 +344,7 @@ const Board = () => {
             previousStatus: oldStatus,
           });
           setReviewDialogOpen(true);
-          return {
-            ...originalIssue,
-            status: newStatus,
-            column: item.column,
-          };
+          return originalIssue;
         }
 
         // Other moves (e.g. In Progress from To Do, or within same column): allow if assignee for this issue
@@ -373,6 +363,7 @@ const Board = () => {
     });
 
     setIssues(updatedIssues);
+    issuesRef.current = updatedIssues;
   }, [queueUpdate, pendingReviewUpdate, currentUserId, orgId, processId]);
 
   // Handle drag start - track that dragging has started
@@ -416,8 +407,7 @@ const Board = () => {
     // Mark this issue as having review data (prevents dialog from reopening)
     setIssuesWithReviewData((prev) => new Set(prev).add(update.issueId));
 
-    // Update UI optimistically FIRST to ensure it shows "in-review" status immediately
-    setIssues((prevIssues) =>
+    patchIssuesList(setIssues, issuesRef, (prevIssues) =>
       prevIssues.map((issue) =>
         issue.id === update.issueId
           ? {
@@ -427,17 +417,6 @@ const Board = () => {
             }
           : issue
       )
-    );
-    
-    // Also update the ref immediately to keep it in sync
-    issuesRef.current = issuesRef.current.map((issue) =>
-      issue.id === update.issueId
-        ? {
-            ...issue,
-            status: update.newStatus,
-            column: statusToColumnId(update.newStatus),
-          }
-        : issue
     );
 
     // Clear pending update and close dialog
@@ -459,8 +438,7 @@ const Board = () => {
   const handleReviewCancel = useCallback(() => {
     if (!pendingReviewUpdate) return;
 
-    // Revert UI to previous status
-    setIssues((prevIssues) =>
+    patchIssuesList(setIssues, issuesRef, (prevIssues) =>
       prevIssues.map((issue) =>
         issue.id === pendingReviewUpdate.issueId
           ? {
@@ -472,7 +450,6 @@ const Board = () => {
       )
     );
 
-    // Clear pending update
     setPendingReviewUpdate(null);
     setReviewDialogOpen(false);
   }, [pendingReviewUpdate]);
@@ -537,14 +514,7 @@ const Board = () => {
     <>
       <ReviewDialog
         open={reviewDialogOpen}
-        onOpenChange={(open) => {
-          // Prevent closing dialog without submission - force cancel to revert
-          if (!open && pendingReviewUpdate) {
-            handleReviewCancel();
-          } else {
-            setReviewDialogOpen(open);
-          }
-        }}
+        onOpenChange={setReviewDialogOpen}
         onSubmit={handleReviewSubmit}
         onCancel={handleReviewCancel}
         issueId={pendingReviewUpdate?.issueId}
@@ -556,6 +526,7 @@ const Board = () => {
       columns={columns}
         data={kanbanData}
         onDataChange={handleDataChange}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
     >
       {(column) => {

@@ -70,7 +70,7 @@ export async function GET(
         }>(
           `SELECT s.id::text AS id, s.code, s.name, s.location
            FROM site_users su
-           INNER JOIN sites s ON s.id = su.site_id
+           INNER JOIN sites s ON s.id = su.site_id::text
            WHERE su.user_id = $1
            ORDER BY s."createdAt" ASC
            LIMIT 1`,
@@ -87,7 +87,7 @@ export async function GET(
         }>(
           `SELECT p.id::text AS id, p.name, p."siteId"::text AS "siteId"
            FROM process_users pu
-           INNER JOIN processes p ON p.id = pu.process_id
+           INNER JOIN processes p ON p.id = pu.process_id::text
            WHERE pu.user_id = $1
            ORDER BY p."createdAt" ASC
            LIMIT 1`,

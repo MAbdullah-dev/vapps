@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
 import { cn } from "@/lib/utils";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 /** Maps FullCalendar CSS variables to shadcn theme tokens (light + dark). */
 const calendarShellClass = cn(
