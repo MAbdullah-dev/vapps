@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
+import { normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronLeft, FileText, ClipboardList, AlertCircle, CheckCircle, FileCheck, RotateCcw, FileStack } from "lucide-react";
@@ -39,11 +40,13 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
 }
 
 function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
+  const { t } = useTranslate();
   if (value == null || value === "") return null;
+  const displayValue = value === "—" ? t("—") : value;
   return (
     <div className="flex flex-wrap gap-x-2">
       <span className="font-medium text-muted-foreground min-w-[140px]">{label}:</span>
-      <span className="text-foreground">{value}</span>
+      <span className="text-foreground">{displayValue}</span>
     </div>
   );
 }
@@ -149,12 +152,6 @@ export default function AuditDetailHistoryPage() {
     ((step6 as any).managementComments != null && String((step6 as any).managementComments).trim() !== "");
   const hasReturnToAuditee = returnedFromStep5 || returnedFromStep6;
 
-  const fileEntry = (item: unknown): { name: string; key: string } | null => {
-    if (item && typeof item === "object" && "key" in item && typeof (item as any).key === "string") {
-      return { name: String((item as any).name ?? (item as any).fileName ?? "Document"), key: (item as any).key };
-    }
-    return null;
-  };
   const step4FileKeys = [
     (step4 as any).filesS2,
     (step4 as any).filesS3,
@@ -170,29 +167,51 @@ export default function AuditDetailHistoryPage() {
   step4FileKeys.forEach((arr, i) => {
     if (Array.isArray(arr)) {
       arr.forEach((item) => {
-        const e = fileEntry(item);
+        const e = normalizeAuditUploadedFileRef(item);
         if (e) step4Files.push({ ...e, source: step4Labels[i] });
       });
     }
   });
   const step5Evidence = Array.isArray((step5 as any).evidenceFiles)
-    ? ((step5 as any).evidenceFiles as unknown[]).map((item) => fileEntry(item)).filter((e): e is { name: string; key: string } => e != null)
+    ? ((step5 as any).evidenceFiles as unknown[])
+        .map((item) => normalizeAuditUploadedFileRef(item))
+        .filter((e): e is { name: string; key: string } => e != null)
     : [];
-  const allDocuments = [...step4Files, ...step5Evidence.map((e) => ({ ...e, source: t("Step 5 – Evidence") }))];
+  const allDocuments = useMemo(() => {
+    const step3Files: { name: string; key: string; source: string }[] = [];
+    findings.forEach((f: any, fi: number) => {
+      const ev = f.objectiveEvidence ?? f.objective_evidence;
+      if (!Array.isArray(ev)) return;
+      const clause =
+        f.clause != null && String(f.clause).trim() !== ""
+          ? String(f.clause)
+          : `${t("Row")} ${fi + 1}`;
+      ev.forEach((item: unknown) => {
+        const e = normalizeAuditUploadedFileRef(item);
+        if (e) step3Files.push({ ...e, source: `${t("Step 3 – Finding")} ${clause}` });
+      });
+    });
+    return [
+      ...step3Files,
+      ...step4Files,
+      ...step5Evidence.map((e) => ({ ...e, source: t("Step 5 – Evidence") })),
+    ];
+  }, [findings, step4Files, step5Evidence, t]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={getDashboardPath(orgId, "audit")}>
+            <Link href={getDashboardPath(orgId, "audit")} aria-label={t("Back")}>
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{t("Audit Detail History")}</h1>
             <p className="text-sm text-muted-foreground">
-              {t("Audit")} #{plan.auditNumber ?? plan.id} • {plan.title || t("Untitled")} • {t("Status:")} {plan.status ?? "—"}
+              {t("Audit")} #{plan.auditNumber ?? plan.id} • {plan.title || t("Untitled")} • {t("Status:")}{" "}
+              {plan.status ? t(plan.status) : t("—")}
             </p>
           </div>
         </div>
@@ -233,7 +252,7 @@ export default function AuditDetailHistoryPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/60">
                   <tr>
-                    <th className="text-left p-2">#</th>
+                    <th className="text-left p-2">{t("#")}</th>
                     <th className="text-left p-2">{t("Review category")}</th>
                     <th className="text-left p-2">{t("Comments")}</th>
                     <th className="text-left p-2">{t("Priority")}</th>
@@ -244,10 +263,10 @@ export default function AuditDetailHistoryPage() {
                   {amrcRows.map((r: any, i: number) => (
                     <tr key={r.id || i} className="border-t">
                       <td className="p-2">{i + 1}</td>
-                      <td className="p-2">{r.reviewCategory ?? r.review_category ?? "—"}</td>
-                      <td className="p-2">{r.comments ?? "—"}</td>
-                      <td className="p-2">{r.priority ?? "—"}</td>
-                      <td className="p-2">{r.action ?? "—"}</td>
+                      <td className="p-2">{r.reviewCategory ?? r.review_category ?? t("—")}</td>
+                      <td className="p-2">{r.comments ?? t("—")}</td>
+                      <td className="p-2">{r.priority ?? t("—")}</td>
+                      <td className="p-2">{r.action ?? t("—")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -271,21 +290,51 @@ export default function AuditDetailHistoryPage() {
                   <th className="text-left p-2">{t("Requirement")}</th>
                   <th className="text-left p-2">{t("Question")}</th>
                   <th className="text-left p-2">{t("Evidence")}</th>
+                  <th className="text-left p-2">{t("Attachments")}</th>
                   <th className="text-left p-2">{t("Status")}</th>
                 </tr>
               </thead>
               <tbody>
-                {findings.map((f: any, i: number) => (
+                {findings.map((f: any, i: number) => {
+                  const objEv = f.objectiveEvidence ?? f.objective_evidence;
+                  const attachmentRefs = Array.isArray(objEv)
+                    ? objEv
+                        .map((item: unknown) => normalizeAuditUploadedFileRef(item))
+                        .filter((e): e is { name: string; key: string } => e != null)
+                    : [];
+                  const dash = t("—");
+                  return (
                   <tr key={f.id || i} className="border-t">
-                    <td className="p-2">{f.clause ?? "—"}</td>
-                    <td className="p-2 max-w-[200px] truncate" title={f.requirement}>{f.requirement ?? "—"}</td>
-                    <td className="p-2 max-w-[200px] truncate" title={f.question}>{f.question ?? "—"}</td>
+                    <td className="p-2">{f.clause ?? dash}</td>
+                    <td className="p-2 max-w-[200px] truncate" title={f.requirement}>{f.requirement ?? dash}</td>
+                    <td className="p-2 max-w-[200px] truncate" title={f.question}>{f.question ?? dash}</td>
                     <td className="p-2 max-w-[180px] truncate" title={typeof f.evidenceSeen === "string" ? f.evidenceSeen : (f.evidenceSeen ? JSON.stringify(f.evidenceSeen) : "")}>
-                      {typeof f.evidenceSeen === "string" ? f.evidenceSeen : (f.evidenceSeen ? t("See details") : "—")}
+                      {typeof f.evidenceSeen === "string" ? f.evidenceSeen : (f.evidenceSeen ? t("See details") : dash)}
                     </td>
-                    <td className="p-2">{f.status ?? "—"}</td>
+                    <td className="p-2 align-top max-w-[200px]">
+                      {attachmentRefs.length === 0 ? (
+                        <span className="text-muted-foreground">{dash}</span>
+                      ) : (
+                        <ul className="space-y-1">
+                          {attachmentRefs.map((doc, j) => (
+                            <li key={`${doc.key}-${j}`}>
+                              <a
+                                href={`/api/files/download?key=${encodeURIComponent(doc.key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary font-medium hover:underline break-all"
+                              >
+                                {doc.name}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="p-2">{f.status ? t(f.status) : dash}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -373,7 +422,9 @@ export default function AuditDetailHistoryPage() {
         <DataRow label={t("Auditor comments")} value={(step5 as any).auditorComments} />
         {Array.isArray((step5 as any).evidenceFiles) && (step5 as any).evidenceFiles.length > 0 && (
           <div className="mt-2">
-            <p className="font-medium text-gray-600">{t("Evidence files:")} {(step5 as any).evidenceFiles.length} {t("file(s)")}</p>
+            <p className="font-medium text-muted-foreground">
+              {t("Evidence files:")} {(step5 as any).evidenceFiles.length} {t("file(s)")}
+            </p>
           </div>
         )}
       </Section>

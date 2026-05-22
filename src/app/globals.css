@@ -306,9 +306,21 @@ html.dark [data-brand-logo="dark-mode"] {
    Map legacy green/emerald/lime utility classes to theme tokens so the app
    follows one brand palette in both light and dark mode. */
 
+.rich-text-editor-root .tiptap {
+  color: var(--foreground);
+}
+
+.rich-text-editor-root .tiptap :where(p, li, blockquote) {
+  color: inherit;
+}
+
+.rich-text-editor-root .tiptap :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--foreground);
+}
+
 .rich-text-editor-root .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #9ca3af;
+  color: var(--muted-foreground);
   float: left;
   height: 0;
   pointer-events: none;

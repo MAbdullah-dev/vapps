@@ -166,7 +166,7 @@ export default function SummaryPage() {
       if (action.includes("created")) return <Circle className="h-4 w-4 text-blue-500" />;
       if (action.includes("status_changed")) return <PlayCircle className="h-4 w-4 text-orange-500" />;
       if (action.includes("completed") || action.includes("done")) return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      return <FileText className="h-4 w-4 text-gray-500" />;
+      return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
     if (entityType === "sprint") {
       return <GitBranch className="h-4 w-4 text-purple-500" />;
@@ -174,7 +174,7 @@ export default function SummaryPage() {
     if (entityType === "review") {
       return <FileText className="h-4 w-4 text-indigo-500" />;
     }
-    return <Circle className="h-4 w-4 text-gray-500" />;
+    return <Circle className="h-4 w-4 text-muted-foreground" />;
   };
 
   const getActivityMessage = (activity: Activity) => {
@@ -265,7 +265,7 @@ export default function SummaryPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading dashboard...</p>
+        <p className="text-muted-foreground">Loading dashboard...</p>
       </div>
     );
   }
@@ -282,7 +282,7 @@ export default function SummaryPage() {
         ].map((card, idx) => (
           <div
             key={idx}
-            className="card border border-[#0000001A] rounded-lg p-4 flex flex-col justify-between"
+            className="card border border-border rounded-lg p-4 flex flex-col justify-between"
           >
             <p className="text-[#717182] text-sm">{card.title}</p>
             <div className="mt-2">
@@ -290,7 +290,7 @@ export default function SummaryPage() {
               <Progress
                 value={card.progress}
                 color={card.color}
-                trackColor="#E5E7EB"
+                trackColor="hsl(var(--border))"
                 className="mt-2"
               />
             </div>
@@ -309,12 +309,12 @@ export default function SummaryPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {activities.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No activity yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No activity yet</p>
               ) : (
                 activities.map((activity) => (
                   <div
                     key={activity.id}
-                    className="flex items-start gap-3 border-b border-[#0000001A] pb-4 last:border-b-0"
+                    className="flex items-start gap-3 border-b border-border pb-4 last:border-b-0"
                   >
                     <Avatar className="h-8 w-8" style={{ backgroundColor: getUserAvatarColor(activity.userId) }}>
                       <AvatarFallback className="text-white text-xs">
@@ -324,10 +324,10 @@ export default function SummaryPage() {
                     <div className="flex-1 flex items-start gap-2">
                       <div className="mt-0.5">{getActivityIcon(activity.action, activity.entityType)}</div>
                       <div className="flex-1">
-                        <p className="text-[#6A7282] text-sm">
+                        <p className="text-muted-foreground text-sm">
                           {getActivityMessage(activity)}
                         </p>
-                        <span className="text-[#6A7282] text-xs flex items-center gap-1 mt-1">
+                        <span className="text-muted-foreground text-xs flex items-center gap-1 mt-1">
                           <Clock size={12} /> {formatTimeAgo(activity.createdAt)}
                         </span>
                       </div>
@@ -345,24 +345,24 @@ export default function SummaryPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {upcomingSprints.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No upcoming sprints</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No upcoming sprints</p>
               ) : (
                 upcomingSprints.map((sprint) => (
                   <div
                     key={sprint.id}
-                    className="flex items-center justify-between gap-3 border-b border-[#0000001A] pb-4 last:border-b-0"
+                    className="flex items-center justify-between gap-3 border-b border-border pb-4 last:border-b-0"
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-[#E5E7EB] text-[#364153]">
+                        <AvatarFallback className="bg-muted text-foreground">
                           <GitBranch className="h-4 w-4" />
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <p className="text-[#6A7282]">
-                          <span className="text-[#0A0A0A] me-2 font-medium">{sprint.name}</span>
+                        <p className="text-muted-foreground">
+                          <span className="text-foreground me-2 font-medium">{sprint.name}</span>
                         </p>
-                        <span className="text-[#6A7282] text-xs flex items-center gap-1">
+                        <span className="text-muted-foreground text-xs flex items-center gap-1">
                           <Calendar size={12} /> {formatDate(sprint.startDate)} - {formatDate(sprint.endDate)}
                         </span>
                       </div>
@@ -386,7 +386,7 @@ export default function SummaryPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {teamMembers.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No team members yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No team members yet</p>
               ) : (
                 teamMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-3">
@@ -396,8 +396,8 @@ export default function SummaryPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <p className="text-[#0A0A0A] font-medium">{member.name || member.email}</p>
-                      <span className="text-[#6A7282] text-xs capitalize">{member.role}</span>
+                      <p className="text-foreground font-medium">{member.name || member.email}</p>
+                      <span className="text-muted-foreground text-xs capitalize">{member.role}</span>
                     </div>
                   </div>
                 ))
@@ -414,18 +414,18 @@ export default function SummaryPage() {
               <Progress
                 value={stats.completionPercentage}
                 color="#364153"
-                trackColor="#E5E7EB"
+                trackColor="hsl(var(--border))"
                 className="mb-4"
               />
-              <div className="flex justify-between text-xs text-[#6A7282]">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Total tasks</span>
                 <span>{stats.total}</span>
               </div>
-              <div className="flex justify-between text-xs text-[#6A7282]">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Open tasks</span>
                 <span>{stats.toDo + stats.inProgress}</span>
               </div>
-              <div className="flex justify-between text-xs text-[#6A7282]">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Sync Status</span>
                 <Badge variant="outline">Synced</Badge>
               </div>

@@ -290,7 +290,13 @@ const HomePage = () => {
           </div>
           {/* Support Text */}
           <p className="text-sm text-center mt-6 text-muted-foreground">
-            {t("Need help? Contact")}{" "}<span className="text-primary font-medium">support@vie.com</span>
+            {t("Need help? Contact")}{" "}
+            <a
+              href="mailto:support@vietech.pro"
+              className="text-primary font-medium underline-offset-4 hover:underline"
+            >
+              support@vietech.pro
+            </a>
           </p>
         </div>
       </section>

@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
+import { AuditUploadedFilesList, normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
-import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 type PersistedStep5Data = {
   verificationOutcome?: string;
@@ -89,7 +89,11 @@ export default function CreateAuditStep5Page() {
               setAuditorComments(step5.auditorComments);
             }
             if (Array.isArray(step5.evidenceFiles)) {
-              setEvidenceFiles(step5.evidenceFiles as { name: string; key: string }[]);
+              setEvidenceFiles(
+                step5.evidenceFiles
+                  .map((raw: unknown) => normalizeAuditUploadedFileRef(raw))
+                  .filter((f): f is { name: string; key: string } => f != null)
+              );
             }
             if (typeof step5.verificationStartedAt === "string") {
               setVerificationStartedAt(step5.verificationStartedAt);
@@ -212,182 +216,181 @@ export default function CreateAuditStep5Page() {
       )}
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
         <div className={cn(!canEditStep5 && "pointer-events-none select-none opacity-90")}>
-        {/* Main title with thick green vertical bar to the left */}
-        <div className="flex items-center">
-          <div className="h-9 w-1.5 shrink-0 rounded-full bg-green-500" />
-          <div className="pl-3 min-w-0">
-            <h1 className="text-xl font-bold uppercase tracking-wide text-foreground">
-              {t(AUDIT_STEP_HERO[5])}
-            </h1>
-            <p className="mt-1 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          {/* Main title with thick green vertical bar to the left */}
+          <div className="flex items-center">
+            <div className="h-9 w-1.5 shrink-0 rounded-full bg-primary" />
+            <h1 className="pl-3 text-xl font-bold uppercase tracking-wide text-foreground">
               {t("EFFECTIVENESS VERIFICATION")}
-            </p>
+            </h1>
           </div>
-        </div>
 
-        {/* Verification Outcome */}
-        <div className="mt-8 space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-foreground">
-            {t("VERIFICATION OUTCOME")}
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setVerificationOutcome("effective")}
-              className={cn(
-                "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
-                verificationOutcome === "effective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
-                  : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
-              )}
-            >
-              <CheckCircle
-                className={cn(
-                  "h-14 w-14",
-                  verificationOutcome === "effective" ? "text-green-600" : "text-muted-foreground"
-                )}
-              />
-              <span className="text-sm font-bold uppercase tracking-wide">
-                {t("EFFECTIVE")}
-              </span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setVerificationOutcome("ineffective")}
-              className={cn(
-                "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
-                verificationOutcome === "ineffective"
-                  ? "border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100"
-                  : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
-              )}
-            >
-              <XCircle
-                className={cn(
-                  "h-14 w-14",
-                  verificationOutcome === "ineffective" ? "text-green-600" : "text-muted-foreground"
-                )}
-              />
-              <span className="text-sm font-bold uppercase tracking-wide">
-                {t("INEFFECTIVE")}
-              </span>
-            </Button>
-          </div>
-          <div className="flex gap-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-green-300 bg-green-100 text-green-600">
-              <RefreshCw className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-wide text-green-800">
-                {t("SYSTEM LOGIC")}
-              </p>
-              <p className="mt-1 italic leading-relaxed text-green-900/90">
-                {t("Step 4 (Corrective Action) Marking as")}{" "}
-                <span className="font-bold not-italic text-green-700">
-                  {t("Ineffective")}
-                </span>{" "}
-                {t(
-                  "will automatically route the workflow back to and flag the Auditee for a revised root cause analysis and corrective action."
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Auditor's Verification Comments */}
-        <div className="mt-8 space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-            {t("AUDITOR'S VERIFICATION COMMENTS")}
-          </h2>
-          <Textarea
-            placeholder={t(
-              "Detail the audit evidence used for verification (e.g., site visit on 04-Feb, review of..."
-            )}
-            className="min-h-28 rounded-lg border-border bg-background"
-            rows={4}
-            value={auditorComments}
-            onChange={(e) => setAuditorComments(e.target.value)}
-          />
-        </div>
-
-        {/* Revised Risk Severity & Attach Evidence - horizontal */}
-        <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-8">
-          <div className="min-w-0 flex-1 space-y-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              {t("REVISED RISK SEVERITY")}
+          {/* Verification Outcome */}
+          <div className="mt-8 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-foreground">
+              {t("VERIFICATION OUTCOME")}
             </h2>
-            <div className="rounded-lg border border-border bg-muted px-4 py-3 text-base text-foreground">
-              {t("Low (Level 2)")}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setVerificationOutcome("effective")}
+                className={cn(
+                  "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
+                  verificationOutcome === "effective"
+                    ? "border-2 border-primary bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25"
+                    : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
+                )}
+              >
+                <CheckCircle
+                  className={cn(
+                    "h-14 w-14",
+                    verificationOutcome === "effective" ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+                <span className="text-sm font-bold uppercase tracking-wide">
+                  {t("EFFECTIVE")}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setVerificationOutcome("ineffective")}
+                className={cn(
+                  "h-auto flex flex-col items-center justify-center gap-3 rounded-lg p-6 text-center transition-colors",
+                  verificationOutcome === "ineffective"
+                    ? "border-2 border-primary bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/20 dark:hover:bg-primary/25"
+                    : "border border-border bg-card text-muted-foreground hover:border-border hover:bg-muted/40"
+                )}
+              >
+                <XCircle
+                  className={cn(
+                    "h-14 w-14",
+                    verificationOutcome === "ineffective" ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+                <span className="text-sm font-bold uppercase tracking-wide">
+                  {t("INEFFECTIVE")}
+                </span>
+              </Button>
+            </div>
+            <div className="flex gap-4 rounded-lg border border-primary/20 bg-primary/5 px-5 py-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                <RefreshCw className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  {t("SYSTEM LOGIC")}
+                </p>
+                <p className="mt-1 italic leading-relaxed text-primary/90">
+                  {t("Step 4 (Corrective Action) Marking as")}{" "}
+                  <span className="font-bold not-italic text-primary">
+                    {t("Ineffective")}
+                  </span>{" "}
+                  {t(
+                    "will automatically route the workflow back to and flag the Auditee for a revised root cause analysis and corrective action."
+                  )}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-2">
+
+          {/* Auditor's Verification Comments */}
+          <div className="mt-8 space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              {t("ATTACH EVIDENCE")}
+              {t("AUDITOR'S VERIFICATION COMMENTS")}
             </h2>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleEvidenceChange}
+            <Textarea
+              placeholder={t(
+                "Detail the audit evidence used for verification (e.g., site visit on 04-Feb, review of..."
+              )}
+              className="min-h-28 rounded-lg border-border bg-background"
+              rows={4}
+              value={auditorComments}
+              onChange={(e) => setAuditorComments(e.target.value)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full gap-2 border-border bg-card py-6 text-foreground hover:bg-muted/40 sm:w-auto"
-              disabled={uploadingEvidence}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="h-4 w-4 text-muted-foreground" />
-              {uploadingEvidence ? t("Uploading…") : t("ATTACH EVIDENCE")}
-            </Button>
-            {evidenceFiles.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {evidenceFiles.length} {t("file(s) selected")}
-              </p>
-            )}
           </div>
-        </div>
 
-        {/* Verification Audit Trail */}
-        <div className="mt-8 space-y-4 border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              {t("VERIFICATION AUDIT TRAIL")}
-            </h2>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleCopyAuditTrail}
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-              title={t("Copy audit trail")}
-              aria-label={t("Copy audit trail")}
-            >
-              <ClipboardCheck className="h-5 w-5" />
-            </Button>
-          </div>
-          <div className="space-y-0">
-            {/* First entry: solid green vertical bar alongside */}
-            <div className="border-l-4 border-green-500 pl-4 pb-1">
-              <p className="font-semibold text-foreground">
-                {t("Verification Started")}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {isLoading ? t("…") : `${leadAuditorDisplay} • ${verificationStartedAt}`}
-              </p>
+          {/* Revised Risk Severity & Attach Evidence - horizontal */}
+          <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:gap-8">
+            <div className="min-w-0 flex-1 space-y-2">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                {t("REVISED RISK SEVERITY")}
+              </h2>
+              <div className="rounded-lg border border-border bg-muted px-4 py-3 text-base text-foreground">
+                {t("Low (Level 2)")}
+              </div>
             </div>
-            {/* Second entry: dashed light gray vertical bar, pending */}
-            <div className="mt-3 border-l-4 border-dashed border-border pl-4">
-              <p className="font-medium text-muted-foreground">
-                {t("Awaiting Final Verification")}
-              </p>
-              <p className="text-sm text-muted-foreground">{t("---")}</p>
+            <div className="min-w-0 flex-1 space-y-2">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                {t("ATTACH EVIDENCE")}
+              </h2>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleEvidenceChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2 border-border bg-card py-6 text-foreground hover:bg-muted/40 sm:w-auto"
+                disabled={uploadingEvidence}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                {uploadingEvidence ? t("Uploading…") : t("ATTACH EVIDENCE")}
+              </Button>
+              <AuditUploadedFilesList
+                files={evidenceFiles}
+                className={!canEditStep5 ? "pointer-events-auto" : undefined}
+                emptyHint={
+                  canEditStep5 ? (
+                    <p className="text-xs text-muted-foreground">{t("No files attached yet.")}</p>
+                  ) : undefined
+                }
+              />
+            </div>
+          </div>
+
+          {/* Verification Audit Trail */}
+          <div className="mt-8 space-y-4 border border-border rounded-lg p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                {t("VERIFICATION AUDIT TRAIL")}
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleCopyAuditTrail}
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title={t("Copy audit trail")}
+                aria-label={t("Copy audit trail")}
+              >
+                <ClipboardCheck className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="space-y-0">
+              {/* First entry: solid primary vertical bar alongside */}
+              <div className="border-l-4 border-primary pl-4 pb-1">
+                <p className="font-semibold text-foreground">
+                  {t("Verification Started")}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {isLoading ? t("…") : `${leadAuditorDisplay} • ${verificationStartedAt}`}
+                </p>
+              </div>
+              {/* Second entry: dashed light gray vertical bar, pending */}
+              <div className="mt-3 border-l-4 border-dashed border-border pl-4">
+                <p className="font-medium text-muted-foreground">
+                  {t("Awaiting Final Verification")}
+                </p>
+                <p className="text-sm text-muted-foreground">{t("---")}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Step navigation */}
@@ -402,7 +405,7 @@ export default function CreateAuditStep5Page() {
             {saving ? t("Saving…") : t("Save")}
           </Button>
           <Button
-            className="bg-green-600 text-white hover:bg-green-700"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={proceedingToStep6 || saving || !auditPlanId || !canEditStep5}
             onClick={async () => {
               if (!orgId || !auditPlanId) return;

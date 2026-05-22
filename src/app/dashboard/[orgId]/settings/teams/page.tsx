@@ -47,10 +47,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Search, Filter, Edit, Trash2, Mail, Info, UserPlus, ChevronRight } from "lucide-react";
+import { Search, Filter, Edit, Trash2, MailX, Info, UserPlus, ChevronRight } from "lucide-react";
 import CreateUserDialog from "@/components/dashboard/CreateUserDialog";
 import EditUserDialog from "@/components/dashboard/EditUserDialog";
 import DeleteUserDialog from "@/components/dashboard/DeleteUserDialog";
+import RevokeInvitationDialog from "@/components/dashboard/RevokeInvitationDialog";
 
 // Leadership to System Role mapping (single source of truth)
 const leadershipToRoleMap = {
@@ -100,6 +101,7 @@ export default function TeamsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [deletingUser, setDeletingUser] = useState<TeamMember | null>(null);
+  const [revokingInvite, setRevokingInvite] = useState<TeamMember | null>(null);
   const [canManageTeams, setCanManageTeams] = useState(false);
   const [currentUserSystemRole, setCurrentUserSystemRole] = useState<SystemRole>("Member");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -178,9 +180,9 @@ export default function TeamsPage() {
       case "Manager":
         return "bg-blue-100 text-blue-700 border-blue-200";
       case "Member":
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "border-border bg-muted text-muted-foreground";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "border-border bg-muted text-muted-foreground";
     }
   };
 
@@ -193,7 +195,7 @@ export default function TeamsPage() {
       case "SUPPORT":
         return "bg-blue-50 text-blue-600 border-blue-200";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "border-border bg-muted text-muted-foreground";
     }
   };
 
@@ -204,7 +206,7 @@ export default function TeamsPage() {
       case "Invited":
         return "bg-yellow-100 text-yellow-700 border-yellow-200";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "border-border bg-muted text-muted-foreground";
     }
   };
 
@@ -222,27 +224,27 @@ export default function TeamsPage() {
       <div className="flex justify-between items-start">
         <div>
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Link 
               href={getDashboardPath(orgId, "")}
-              className="hover:text-gray-700 transition-colors"
+              className="transition-colors hover:text-foreground"
             >
               Dashboard
             </Link>
             <ChevronRight className="h-4 w-4" />
             <Link
               href={getDashboardPath(orgId, "settings")}
-              className="hover:text-gray-700 transition-colors"
+              className="transition-colors hover:text-foreground"
             >
               Settings
             </Link>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-gray-900 font-medium">Teams</span>
+            <span className="font-medium text-foreground">Teams</span>
           </div>
           <div className="flex items-start gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Teams</h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <h1 className="text-2xl font-semibold text-foreground">Teams</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Manage organization users. Leadership tiers are assigned at organization level.
               </p>
             </div>
@@ -250,13 +252,13 @@ export default function TeamsPage() {
         </div>
         <div className="flex items-center gap-3">
           {isLoading && (
-            <p className="text-sm text-gray-500">Updating…</p>
+            <p className="text-sm text-muted-foreground">Updating…</p>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
               {canManageTeams && (
                 <Button 
-                  className="bg-black text-white hover:bg-gray-800 flex items-center gap-2"
+                  className="flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90"
                   onClick={() => setIsCreateUserDialogOpen(true)}
                 >
                   <UserPlus className="h-4 w-4" />
@@ -275,25 +277,25 @@ export default function TeamsPage() {
       <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-gray-500 mb-1">Total Users</div>
+            <div className="mb-1 text-sm text-muted-foreground">Total Users</div>
             <div className="text-2xl font-semibold">{totalUsers}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-gray-500 mb-1">Active</div>
+            <div className="mb-1 text-sm text-muted-foreground">Active</div>
             <div className="text-2xl font-semibold text-green-600">{activeUsers}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-gray-500 mb-1">Pending Invites</div>
+            <div className="mb-1 text-sm text-muted-foreground">Pending Invites</div>
             <div className="text-2xl font-semibold text-yellow-600">{pendingInvites}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-gray-500 mb-1">Admins</div>
+            <div className="mb-1 text-sm text-muted-foreground">Admins</div>
             <div className="text-2xl font-semibold">{admins}</div>
           </CardContent>
         </Card>
@@ -308,7 +310,7 @@ export default function TeamsPage() {
                 <CardTitle>Team Members</CardTitle>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Users are assigned to sites for scope, but leadership is organization-level</p>
@@ -319,7 +321,7 @@ export default function TeamsPage() {
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                 <Input
                   placeholder="Search users..."
                   className="pl-10 w-64"
@@ -343,7 +345,7 @@ export default function TeamsPage() {
                     <span>Job Title</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>User's job title or role designation</p>
@@ -356,7 +358,7 @@ export default function TeamsPage() {
                     <span>Leadership Tier</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Organization-level leadership tier. Determines system role and access permissions.</p>
@@ -370,7 +372,7 @@ export default function TeamsPage() {
                     <span>System Role</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Role is automatically assigned based on Leadership Level (read-only)</p>
@@ -383,7 +385,7 @@ export default function TeamsPage() {
                     <span>Site</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Assigned site for this user (required for all except Owner)</p>
@@ -396,7 +398,7 @@ export default function TeamsPage() {
                     <span>Process</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 cursor-help text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Assigned process for this user (required for all except Owner)</p>
@@ -412,13 +414,13 @@ export default function TeamsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                     Loading team members…
                   </TableCell>
                 </TableRow>
               ) : filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                     No team members found.
                   </TableCell>
                 </TableRow>
@@ -431,7 +433,7 @@ export default function TeamsPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={member.avatar} alt={member.name} />
-                          <AvatarFallback className="bg-gray-200 text-gray-600">
+                          <AvatarFallback className="bg-muted text-muted-foreground">
                             {getInitials(member.name)}
                           </AvatarFallback>
                         </Avatar>
@@ -439,7 +441,7 @@ export default function TeamsPage() {
                           <div className="font-medium">
                             {member.name && member.name !== "—" ? member.name : member.email || "—"}
                           </div>
-                          <div className="text-sm text-gray-500">{member.email}</div>
+                          <div className="text-sm text-muted-foreground">{member.email}</div>
                         </div>
                       </div>
                     </TableCell>
@@ -449,9 +451,9 @@ export default function TeamsPage() {
                           Owner
                         </Badge>
                       ) : member.jobTitle && member.jobTitle.trim() ? (
-                        <span className="text-sm font-medium text-gray-700">{member.jobTitle}</span>
+                        <span className="text-sm font-medium text-foreground">{member.jobTitle}</span>
                       ) : (
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -472,20 +474,20 @@ export default function TeamsPage() {
                     </TableCell>
                     <TableCell>
                       {member.siteName ? (
-                        <span className="text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-foreground">
                           {member.siteName}
                         </span>
                       ) : (
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {member.processName ? (
-                        <span className="text-sm font-medium text-gray-700">
+                        <span className="text-sm font-medium text-foreground">
                           {member.processName}
                         </span>
                       ) : (
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -496,15 +498,17 @@ export default function TeamsPage() {
                         {member.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-gray-500">{member.lastActive}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.lastActive}</TableCell>
                     <TableCell>
-                      {((!member.isOwner && canManageTeams) || (member.isOwner && member.id === currentUserId)) && (
-                        <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
+                        {member.status === "Active" &&
+                          ((!member.isOwner && canManageTeams) ||
+                            (member.isOwner && member.id === currentUserId)) && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8"
                                 onClick={() => setEditingUser(member)}
                               >
@@ -512,15 +516,32 @@ export default function TeamsPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{member.isOwner ? "Edit your site, process, and additional roles (e.g. Auditor)" : "Edit user details and leadership tier (role updates automatically)"}</p>
+                              <p>
+                                {member.isOwner
+                                  ? "Edit your site, process, and additional roles (e.g. Auditor)"
+                                  : "Edit user details and leadership tier (role updates automatically)"}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
-                          {!member.isOwner && member.status === "Invited" && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Mail className="h-4 w-4" />
-                            </Button>
+                        )}
+                          {member.status === "Invited" && canManageTeams && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-amber-600 hover:text-amber-800"
+                                  onClick={() => setRevokingInvite(member)}
+                                >
+                                  <MailX className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Revoke email invitation</p>
+                              </TooltipContent>
+                            </Tooltip>
                           )}
-                          {!member.isOwner && canManageTeams && (
+                          {member.status === "Active" && !member.isOwner && canManageTeams && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -537,8 +558,7 @@ export default function TeamsPage() {
                               </TooltipContent>
                             </Tooltip>
                           )}
-                        </div>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -592,6 +612,22 @@ export default function TeamsPage() {
           userEmail={deletingUser.email}
           onUserDeleted={() => {
             setDeletingUser(null);
+            fetchMembers();
+          }}
+        />
+      )}
+
+      {/* Revoke Invitation Dialog */}
+      {revokingInvite && (
+        <RevokeInvitationDialog
+          open={!!revokingInvite}
+          onOpenChange={(open) => !open && setRevokingInvite(null)}
+          orgId={orgId}
+          invitationId={revokingInvite.id}
+          userName={revokingInvite.name}
+          userEmail={revokingInvite.email}
+          onInvitationRevoked={() => {
+            setRevokingInvite(null);
             fetchMembers();
           }}
         />

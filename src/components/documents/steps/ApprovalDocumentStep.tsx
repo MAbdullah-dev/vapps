@@ -169,15 +169,15 @@ export default function ApprovalDocumentStep({
             <p className="font-semibold">{t("Approval restricted")}</p>
             <p className="mt-1 text-amber-900/90">
               {t("Only the Approver chosen in Create Document may complete this step. Sign in as")}{" "}
-              <span className="font-medium">{designatedApproverName || "—"}</span>
+              <span className="font-medium">{designatedApproverName || t("—")}</span>
               {t(", or use Back.")}
             </p>
           </div>
         </div>
       ) : null}
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-5">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] font-normal">
+          <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border font-normal">
             {DOC_REF}
           </Badge>
           <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
@@ -186,48 +186,48 @@ export default function ApprovalDocumentStep({
         </div>
 
         <div>
-          <p className="text-sm text-[#6B7280]">{t("Title:")}</p>
-          <p className="text-3xl font-bold text-[#111827]">{title || t("Untitled Document")}</p>
+          <p className="text-sm text-muted-foreground">{t("Title:")}</p>
+          <p className="text-3xl font-bold text-foreground">{title || t("Untitled Document")}</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-4 text-sm">
           <div>
-            <p className="text-[#6B7280]">{t("Type:")}</p>
+            <p className="text-muted-foreground">{t("Type:")}</p>
             <Badge className="mt-1 bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
               {documentTypeLabel}
             </Badge>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Doc Owner:")}</p>
-            <p className="font-semibold text-[#111827]">{processOwner || t("Manager Manufacturing")}</p>
+            <p className="text-muted-foreground">{t("Doc Owner:")}</p>
+            <p className="font-semibold text-foreground">{processOwner || t("Manager Manufacturing")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Standard:")}</p>
-            <p className="font-semibold text-[#111827]">{managementStandard || t("ISO 9001")}</p>
+            <p className="text-muted-foreground">{t("Standard:")}</p>
+            <p className="font-semibold text-foreground">{managementStandard || t("ISO 9001")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Clause:")}</p>
-            <p className="font-semibold text-[#111827]">{clause || t("4.1")}</p>
+            <p className="text-muted-foreground">{t("Clause:")}</p>
+            <p className="font-semibold text-foreground">{clause || t("4.1")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Sub-Clause")}</p>
-            <p className="font-semibold text-[#111827]">{subClause || t("4.1.6")}</p>
+            <p className="text-muted-foreground">{t("Sub-Clause")}</p>
+            <p className="font-semibold text-foreground">{subClause || t("4.1.6")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Site:")}</p>
-            <p className="font-semibold text-[#111827]">{site || t("S1")}</p>
+            <p className="text-muted-foreground">{t("Site:")}</p>
+            <p className="font-semibold text-foreground">{site || t("S1")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Process:")}</p>
-            <p className="font-semibold text-[#111827]">{processName || t("Manufacturing")}</p>
+            <p className="text-muted-foreground">{t("Process:")}</p>
+            <p className="font-semibold text-foreground">{processName || t("Manufacturing")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Doc#:")}</p>
-            <p className="font-semibold text-[#111827]">{processId || t("D6")}</p>
+            <p className="text-muted-foreground">{t("Doc#:")}</p>
+            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Version:")}</p>
-            <p className="font-semibold text-[#111827]">{t("v3")}</p>
+            <p className="text-muted-foreground">{t("Version:")}</p>
+            <p className="font-semibold text-foreground">{t("v3")}</p>
           </div>
         </div>
 
@@ -244,54 +244,56 @@ export default function ApprovalDocumentStep({
       </div>
 
       <nav aria-label={t("Breadcrumb")} className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
-        <Link href={listHref} className="text-[#6B7280] hover:text-[#111827] transition-colors">
+        <Link href={listHref} className="text-muted-foreground hover:text-foreground transition-colors">
           {t("Documents")}
         </Link>
-        <span className="text-[#6B7280]">&gt;</span>
-        <Link href={listHref} className="text-[#6B7280] hover:text-[#111827] transition-colors">
+        <span className="text-muted-foreground">&gt;</span>
+        <Link href={listHref} className="text-muted-foreground hover:text-foreground transition-colors">
           {t("Master Document List")}
         </Link>
-        <span className="text-[#6B7280]">&gt;</span>
-        <span className="font-medium text-[#111827]">{DOC_REF}</span>
+        <span className="text-muted-foreground">&gt;</span>
+        <span className="font-medium text-foreground">{DOC_REF}</span>
       </nav>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-background p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="font-bold text-[#111827]">{t("Approver Name")}</Label>
+            <Label className="font-bold text-foreground">{t("Approver Name")}</Label>
             <Input
               readOnly
               tabIndex={-1}
               value={designatedApproverName}
               placeholder={t("Set in Create Document (Approver)")}
-              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="h-10 bg-muted/30 border-border text-muted-foreground"
             />
-            <p className="text-xs text-[#6B7280]">{t("System value from Create Document (Approver)")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("System value from Create Document (Approver)")}
+            </p>
           </div>
           <div className="space-y-2">
-            <Label className="font-bold text-[#111827]">{t("Role / Designation")}</Label>
+            <Label className="font-bold text-foreground">{t("Role / Designation")}</Label>
             <Input
               readOnly
               tabIndex={-1}
               value={approverRole}
               placeholder={t("System generated job title")}
-              className="h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="h-10 bg-muted/30 border-border text-muted-foreground"
             />
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-4">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">{t("3.1 Approval")}</h4>
-          <p className="text-sm text-[#6B7280] mt-1">{t("Making it official for use!")}</p>
+          <h4 className="text-base font-bold text-foreground">{t("3.1 Approval")}</h4>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Making it official for use!")}</p>
         </div>
 
         <div className="rounded-lg bg-[#F0FDF4] border-l-4 border-l-[#16A34A] pl-4 pr-4 py-4 text-sm">
-          <ol className="list-decimal pl-5 space-y-4 text-[#111827]">
+          <ol className="list-decimal space-y-4 pl-5 text-foreground">
             <li>
               <span className="font-semibold">{t("Standards & Procedures Conformance")}</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 {t(
                   "Verified alignment with associated ISO standards, organizational policies, and related procedures for process improvement."
                 )}
@@ -299,7 +301,7 @@ export default function ApprovalDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Positive Organizational Impact")}</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 {t(
                   "Confirms this document/action supports continuous improvement and enhances organizational effectiveness."
                 )}
@@ -307,13 +309,13 @@ export default function ApprovalDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Interested Parties Consideration")}</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 {t("Ensures no adverse impact on customers, regulators, or other relevant stakeholders.")}
               </p>
             </li>
             <li>
               <span className="font-semibold">{t("Corrective Action Confirmation")}</span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 {t(
                   "Where the document/action involves Edit or Cancel, confirms required corrective actions have been effectively implemented."
                 )}
@@ -332,10 +334,10 @@ export default function ApprovalDocumentStep({
           />
           <div className="min-w-0 space-y-1">
             <label htmlFor="approval-ack" className="cursor-pointer">
-              <span className="font-semibold text-[#111827]">
+              <span className="font-semibold text-foreground">
                 {t("5. Accuracy & Integrity Assurance, and release of documented information")}
               </span>
-              <p className="mt-1 text-[#6B7280] font-normal">
+              <p className="mt-1 font-normal text-muted-foreground">
                 {t(
                   'Acknowledges that, to the best of my knowledge, all information provided in the Approval Points is accurate, current, and complete. The document will move to the "Published" folder/"Master Document List"; staff will be notified. When a change is needed, the version number increases (e.g., 1 to 2). Old versions will be moved to an "Obsolete" folder to prevent accidental use.'
                 )}
@@ -345,10 +347,10 @@ export default function ApprovalDocumentStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-6">
+      <div className="rounded-xl border border-border bg-background p-5 space-y-6">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">{t("2.2 Verification Outcome")}</h4>
-          <p className="text-sm text-[#6B7280] mt-2 leading-relaxed">
+          <h4 className="text-base font-bold text-foreground">{t("2.2 Verification Outcome")}</h4>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {t(
               "Effective means producing intended results, while ineffective means not producing them. It also means action that is sufficient or insufficient to achieve a purpose, respectively."
             )}
@@ -356,7 +358,7 @@ export default function ApprovalDocumentStep({
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-bold text-[#111827]">{t("Decision (Yes-Effective / No-Ineffective)")}</p>
+          <p className="text-sm font-bold text-foreground">{t("Decision (Yes-Effective / No-Ineffective)")}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
@@ -382,8 +384,8 @@ export default function ApprovalDocumentStep({
                 {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">{t("Effective - Close Document")}</p>
-                <p className="text-sm text-[#6B7280]">{t("Approved for Official Use")}</p>
+                <p className="font-semibold text-foreground">{t("Effective - Close Document")}</p>
+                <p className="text-sm text-muted-foreground">{t("Approved for Official Use")}</p>
               </div>
             </button>
             <button
@@ -410,15 +412,15 @@ export default function ApprovalDocumentStep({
                 {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">{t("Ineffective - Re-open Document")}</p>
-                <p className="text-sm text-[#6B7280]">{t("Requires Revisions for Approval")}</p>
+                <p className="font-semibold text-foreground">{t("Ineffective - Re-open Document")}</p>
+                <p className="text-sm text-muted-foreground">{t("Requires Revisions for Approval")}</p>
               </div>
             </button>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="approval-comments" className="text-sm font-bold text-[#111827]">
+          <Label htmlFor="approval-comments" className="text-sm font-bold text-foreground">
             {t("Comments")} <span className="text-red-600">*</span>
           </Label>
           <Textarea
@@ -429,7 +431,7 @@ export default function ApprovalDocumentStep({
             required={canPerformApproval && !readOnlyObserver}
             aria-required={canPerformApproval && !readOnlyObserver}
             placeholder={t("Enter your approval comments here (required)…")}
-            className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
+            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           {canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
             <p className="text-xs text-amber-800" role="status">
@@ -440,16 +442,18 @@ export default function ApprovalDocumentStep({
 
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">
+            <span className="shrink-0 text-sm font-bold text-foreground">
               {t("Reviewer Name & Identification#:")}
             </span>
-            <span className="text-sm text-[#6B7280] sm:text-right">{t("[Login/System Generated]")}</span>
+            <span className="text-sm text-muted-foreground sm:text-right">{t("[Login/System Generated]")}</span>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">{t("Review Date:")}</span>
-            <span className="text-sm font-semibold text-[#111827] sm:text-right">{reviewDateDisplay}</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">{t("Review Date:")}</span>
+            <span className="text-sm font-semibold text-foreground sm:text-right">{reviewDateDisplay}</span>
           </div>
-          <p className="text-xs italic text-[#6B7280] pt-1">{t("This document is valid without a signature")}</p>
+          <p className="pt-1 text-xs italic text-muted-foreground">
+            {t("This document is valid without a signature")}
+          </p>
         </div>
       </div>
 

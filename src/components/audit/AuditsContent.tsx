@@ -133,12 +133,16 @@ function getAuditStatusKey(
 }
 
 const getStatusColor = (key: AuditStatusKey) => {
-  if (key === "success") return "bg-green-100 text-green-800";
+  if (key === "success") return "bg-primary/15 text-primary dark:bg-primary/25";
   if (key === "in_progress") return "bg-yellow-100 text-yellow-800";
   if (key === "pending") return "bg-gray-100 text-gray-800";
   if (key === "fail") return "bg-red-100 text-red-700";
   return "";
 };
+
+function displayCellValue(value: string, t: (s: string) => string): string {
+  return value === "—" ? t("—") : value;
+}
 
 /** Steps 1,2,6 = lead; 3,5 = auditor; 4 = auditee. Edit only for own tab; no edit after closed. */
 function canEditAudit(audit: Audit, currentUserId: string | null): boolean {
@@ -178,12 +182,16 @@ function getColumns(
   {
     accessorKey: "standard",
     header: () => <TableHeader title={t("Standard")} sub={t("(e.g., ISO 9001, ESG & Sustainability)")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.standard}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.standard, t)}</span>
+    ),
   },
   {
     accessorKey: "scopeMethodBoundaries",
     header: () => <TableHeader title={t("Scope, Method & Boundaries")} sub={t("(On-Site/Remote/Hybrid)")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.scopeMethodBoundaries}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{t(row.original.scopeMethodBoundaries)}</span>
+    ),
   },
   {
     accessorKey: "auditType",
@@ -197,28 +205,36 @@ function getColumns(
   {
     accessorKey: "site",
     header: () => <TableHeader title={t("Site")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.site}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.site, t)}</span>
+    ),
   },
   {
     accessorKey: "process",
     header: () => <TableHeader title={t("Process")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.process}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.process, t)}</span>
+    ),
   },
   {
     accessorKey: "clause",
     header: () => <TableHeader title={t("Clause")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.clause}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.clause, t)}</span>
+    ),
   },
   {
     accessorKey: "subclauses",
     header: () => <TableHeader title={t("Subclauses")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.subclauses}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.subclauses, t)}</span>
+    ),
   },
   {
     accessorKey: "ncClassification",
     header: () => <TableHeader title={t("NC Classification")} sub={t("(Major/Minor)")} />,
     cell: ({ row }) => {
-      const label = row.original.ncClassification === "Major" ? "MA" : "mi";
+      const label = row.original.ncClassification === "Major" ? t("MA") : t("mi");
       return (
         <span className={`${getClassificationColor(row.original.ncClassification)} py-1 px-2 rounded-full text-xs font-medium`}>
           {label}
@@ -231,26 +247,30 @@ function getColumns(
     header: () => <TableHeader title={t("Risk Level")} sub={t("(High/Medium/Low)")} />,
     cell: ({ row }) => (
       <span className={`${getRiskLevelColor(row.original.riskLevel)} py-1 px-2 rounded-full text-xs font-medium`}>
-        {row.original.riskLevel}
+        {t(row.original.riskLevel)}
       </span>
     ),
   },
   {
     accessorKey: "plannedDate",
     header: () => <TableHeader title={t("Planned Date")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.plannedDate}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.plannedDate, t)}</span>
+    ),
   },
   {
     accessorKey: "actualDate",
     header: () => <TableHeader title={t("Actual Date")} />,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.actualDate || t("—")}</span>
+      <span className="text-muted-foreground">{displayCellValue(row.original.actualDate || "—", t)}</span>
     ),
   },
   {
     accessorKey: "dueDate",
     header: () => <TableHeader title={t("Due Date (30 days)")} />,
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.dueDate}</span>,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.dueDate, t)}</span>
+    ),
   },
   {
     accessorKey: "kpiScore",
@@ -259,7 +279,7 @@ function getColumns(
       const score = row.original.kpiScore;
       if (!score) return <span className="text-muted-foreground">{t("—")}</span>;
       if (score === "Consistent" || score.toLowerCase() === "consistent")
-        return <span className="font-medium text-green-600">{t("Consistent")}</span>;
+        return <span className="font-medium text-primary">{t("Consistent")}</span>;
       if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
         return <span className="font-medium text-red-600">{t("Inconsistent")}</span>;
       return <span className="text-muted-foreground">{score}</span>;
@@ -297,7 +317,7 @@ function getColumns(
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 1); }}
-            className="text-sm font-medium text-green-700 hover:underline focus:outline-none"
+            className="text-sm font-medium text-primary hover:underline focus:outline-none"
           >
             {t("Complete")}
           </button>
@@ -306,8 +326,8 @@ function getColumns(
       const step = audit.nextStepForUser;
       if (step == null) return <span className="text-muted-foreground">{t("—")}</span>;
       return (
-        <span className="text-sm font-medium text-green-700">
-          {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Step ${step}`)}
+        <span className="text-sm font-medium text-primary">
+          {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Open Step ${step}`)}
         </span>
       );
     },
@@ -323,6 +343,7 @@ function getColumns(
           <DropdownMenuTrigger asChild>
             <button
               type="button"
+              aria-label={t("Actions")}
               className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
               onClick={(e) => e.stopPropagation()}
             >
@@ -424,7 +445,7 @@ function mapPlansToAudits(list: any[]): Audit[] {
   });
 }
 
-function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] {
+function buildAuditHistoryEntries(plan: any, _audit: Audit, t: (s: string) => string): AuditHistoryEntry[] {
   const entries: AuditHistoryEntry[] = [];
   const createdAt: string | null = plan.createdAt ?? plan.planSubmittedAt ?? null;
 
@@ -433,7 +454,9 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
       id: "created",
       type: "Created",
       title: "Audit created",
-      description: `Audit plan created${plan.criteria ? ` (criteria: ${plan.criteria})` : ""}.`,
+      description: plan.criteria
+        ? t("Audit plan created (criteria: {criteria}).").replace("{criteria}", String(plan.criteria))
+        : t("Audit plan created."),
       date: formatDateTime(createdAt),
       by: "Lead Auditor",
     });
@@ -444,7 +467,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
       id: "plan_submitted",
       type: "Updated",
       title: "Plan submitted to auditee",
-      description: "Lead auditor submitted the audit plan to the auditee.",
+      description: t("Lead auditor submitted the audit plan to the auditee."),
       date: formatDateTime(plan.planSubmittedAt),
       by: "Lead Auditor",
     });
@@ -455,7 +478,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
       id: "findings_submitted",
       type: "Updated",
       title: "Findings submitted to auditee",
-      description: "Assigned auditor submitted audit findings to the auditee.",
+      description: t("Assigned auditor submitted audit findings to the auditee."),
       date: formatDateTime(plan.findingsSubmittedAt),
       by: "Assigned Auditor",
     });
@@ -469,7 +492,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
       title: "Corrective action submitted",
       description: step4.auditeeComments && String(step4.auditeeComments).trim().length > 0
         ? String(step4.auditeeComments)
-        : "Auditee submitted systemic corrective action for review.",
+        : t("Auditee submitted systemic corrective action for review."),
       date: formatDateTime(step4.dateOfReview ?? plan.updatedAt ?? plan.planSubmittedAt ?? plan.createdAt ?? null),
       by: "Auditee",
     });
@@ -480,12 +503,15 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
     entries.push({
       id: "step5_verification",
       type: "Updated",
-      title: `Effectiveness verification marked ${step5.verificationOutcome === "effective" ? "effective" : "ineffective"}`,
+      title:
+        step5.verificationOutcome === "effective"
+          ? "Effectiveness verification marked effective"
+          : "Effectiveness verification marked ineffective",
       description: step5.auditorComments && String(step5.auditorComments).trim().length > 0
         ? String(step5.auditorComments)
         : step5.verificationOutcome === "effective"
-          ? "Assigned auditor verified corrective actions as effective."
-          : "Assigned auditor marked corrective actions as ineffective.",
+          ? t("Assigned auditor verified corrective actions as effective.")
+          : t("Assigned auditor marked corrective actions as ineffective."),
       date: formatDateTime(step5.verificationStartedAt ?? plan.updatedAt ?? null),
       by: "Assigned Auditor",
     });
@@ -497,7 +523,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
         title: "Returned to auditee from Step 5",
         description: step5.auditorComments && String(step5.auditorComments).trim().length > 0
           ? String(step5.auditorComments)
-          : "Audit was returned to the auditee from Step 5 for revised corrective action.",
+          : t("Audit was returned to the auditee from Step 5 for revised corrective action."),
         date: formatDateTime(step5.verificationStartedAt ?? plan.updatedAt ?? null),
         by: "Assigned Auditor",
       });
@@ -516,8 +542,8 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
       description: step6.managementComments && String(step6.managementComments).trim().length > 0
         ? String(step6.managementComments)
         : step6.finalDecision === "effective"
-          ? "Management confirmed all findings are addressed and closed the audit."
-          : "Management decided the audit does not meet closure criteria and re-opened it for further action.",
+          ? t("Management confirmed all findings are addressed and closed the audit.")
+          : t("Management decided the audit does not meet closure criteria and re-opened it for further action."),
       date: formatDateTime(decisionDateString || plan.updatedAt || null),
       by: "Lead Auditor / Management",
     });
@@ -529,7 +555,7 @@ function buildAuditHistoryEntries(plan: any, audit: Audit): AuditHistoryEntry[] 
         title: "Returned to auditee from Step 6",
         description: step6.managementComments && String(step6.managementComments).trim().length > 0
           ? String(step6.managementComments)
-          : "Audit was returned to the auditee from Step 6 for additional corrective action.",
+          : t("Audit was returned to the auditee from Step 6 for additional corrective action."),
         date: formatDateTime(decisionDateString || plan.updatedAt || null),
         by: "Lead Auditor / Management",
       });
@@ -562,6 +588,14 @@ export default function AuditsContent() {
     [plansData?.plans]
   );
 
+  const auditStats = useMemo(() => {
+    const total = audits.length;
+    const successCount = audits.filter((a) => a.auditStatusKey === "success").length;
+    const backlogCount = audits.filter((a) => a.auditStatusKey === "pending" || a.auditStatusKey === "fail").length;
+    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    return { total, successCount, successRate, backlogCount };
+  }, [audits]);
+
   const handleViewHistory = useCallback(
     async (audit: Audit) => {
       if (!slug || !audit.auditPlanId) return;
@@ -571,7 +605,7 @@ export default function AuditsContent() {
         const res = await apiClient.getAuditPlan(slug, audit.auditPlanId);
         const plan = (res as { plan?: any }).plan;
         if (plan) {
-          setHistoryEntries(buildAuditHistoryEntries(plan, audit));
+          setHistoryEntries(buildAuditHistoryEntries(plan, audit, t));
         } else {
           setHistoryEntries([]);
         }
@@ -582,7 +616,7 @@ export default function AuditsContent() {
         setHistoryLoading(false);
       }
     },
-    [slug]
+    [slug, t]
   );
 
   const handleEditAudit = useCallback(
@@ -638,26 +672,26 @@ export default function AuditsContent() {
       </div>
 
       {/* Tenant Information Banner */}
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+      <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-3">
-            <Cloud className="text-blue-600" size={20} />
+            <Cloud className="text-primary" size={20} />
             <div>
-              <p className="text-sm font-medium text-foreground">{t("Active Tenant: Acme Corporation")}</p>
-              <a href="#" className="text-xs text-blue-600 hover:underline">{t("Auth0 Organization")}</a>
+              <p className="text-sm font-medium text-foreground">{t("Active Tenant")}</p>
+              <span className="text-xs text-muted-foreground">{slug}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Folder className="text-muted-foreground" size={18} />
-              <span className="bg-yellow-100 text-yellow-800 text-xs font-medium py-1 px-2 rounded-full">
+              <span className="rounded-full bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
                 {t("Shared S3")}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Upload className="text-muted-foreground" size={18} />
               <span className="text-sm text-muted-foreground">{t("100 MB limit")}</span>
-              <span className="bg-blue-600 text-white text-xs font-medium py-1 px-2 rounded-full">
+              <span className="rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
                 {t("Pro")}
               </span>
             </div>
@@ -669,15 +703,15 @@ export default function AuditsContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Total Audits")}</p>
-          <p className="text-2xl font-bold text-foreground">6</p>
+          <p className="text-2xl font-bold text-foreground">{auditStats.total}</p>
           <p className="text-xs text-muted-foreground mt-1">{t("All time")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Success Rate")}</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-foreground">50%</p>
-            <span className="bg-green-100 text-green-700 text-xs font-medium py-0.5 px-2 rounded-full">
-              {t("Good")}
+            <p className="text-2xl font-bold text-foreground">{auditStats.successRate}%</p>
+            <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
+              {auditStats.successRate >= 50 ? t("Good") : t("Fair")}
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">{t("Clean audits")}</p>
@@ -685,7 +719,7 @@ export default function AuditsContent() {
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Backlogs")}</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-foreground">2</p>
+            <p className="text-2xl font-bold text-foreground">{auditStats.backlogCount}</p>
             <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
               {t("Attention")}
             </span>
@@ -694,7 +728,7 @@ export default function AuditsContent() {
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Avg Closure Time")}</p>
-          <p className="text-2xl font-bold text-foreground">12 days</p>
+          <p className="text-2xl font-bold text-foreground">{t("12 days")}</p>
           <p className="text-xs text-muted-foreground mt-1">{t("Average completion")}</p>
         </div>
       </div>
@@ -768,6 +802,7 @@ export default function AuditsContent() {
                         if (!audit.auditPlanId) return;
                         const step = getEditStep(audit, currentUserId);
                         if (step != null && canEditAudit(audit, currentUserId)) handleEditAudit(audit, step);
+                        else if (audit.planStatus === "closed") handleOpenStep(audit, 1);
                         else if (audit.nextStepForUser != null) handleOpenStep(audit, audit.nextStepForUser);
                       }}
                     >

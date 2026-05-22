@@ -5,6 +5,9 @@ import { cache, cacheKeys } from "@/lib/cache";
 import { logActivity } from "@/lib/activity-logger";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
+import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
+import { isIssueCommentsOnlyPatch } from "@/lib/issue-comment-permissions";
+import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/issues/[issueId]
@@ -93,10 +96,18 @@ export async function GET(
     const cacheKey = cacheKeys.orgIssue(resolvedOrgId, processId, issueId);
     const cachedIssue = cache.get<any>(cacheKey);
     if (cachedIssue) {
+      normalizeIssueCommentsOnRow(cachedIssue as Record<string, unknown>);
       return NextResponse.json(
         { issue: cachedIssue },
         { status: 200 }
       );
+    }
+
+    const ensureClient = await getTenantClient(resolvedOrgId);
+    try {
+      await ensureIssueCommentsColumn(ensureClient);
+    } finally {
+      ensureClient.release();
     }
 
     // Fetch the issue using tenant pool (much faster than new Client())
@@ -120,7 +131,8 @@ export async function GET(
           i."order",
           i."createdAt",
           i."updatedAt",
-          i."deadline"
+          i."deadline",
+          i."comments"
         FROM issues i
         WHERE i.id = $1 AND i."processId" = $2`,
         [issueId, processId]
@@ -151,6 +163,7 @@ export async function GET(
         if (issues[0]) {
           if (!issues[0].deadline) issues[0].deadline = null;
           if (!issues[0].issuer) issues[0].issuer = null;
+          normalizeIssueCommentsOnRow(issues[0] as Record<string, unknown>);
         }
       } else {
         throw queryErr;
@@ -168,6 +181,7 @@ export async function GET(
     // Normalize issuer to string so client comparison with session user id is reliable
     if (issue) {
       issue.issuer = issue.issuer != null ? String(issue.issuer) : null;
+      normalizeIssueCommentsOnRow(issue as Record<string, unknown>);
     }
 
     // Cache the issue for 60 seconds
@@ -210,15 +224,17 @@ export async function PUT(
     cache.delete(cacheKey);
 
     const body = await req.json();
-    const { title, description, priority, status, points, assignee, tags, sprintId, order, deadline } = body;
+    const commentsOnly = isIssueCommentsOnlyPatch(body as Record<string, unknown>);
+    const { title, description, priority, status, points, assignee, tags, sprintId, order, deadline, comments } = body;
 
     const client = await getTenantClient(resolvedOrgId);
 
     try {
 
-      // Verify issue exists and get assignee for edit permission
+      await ensureIssueCommentsColumn(client);
+
       const issueResult = await client.query(
-        `SELECT id, assignee FROM issues WHERE id = $1 AND "processId" = $2`,
+        `SELECT id, assignee, issuer FROM issues WHERE id = $1 AND "processId" = $2`,
         [issueId, processId]
       );
 
@@ -230,15 +246,11 @@ export async function PUT(
         );
       }
 
-      // Only the assignee of the issue can edit it; others can only view
       const issueAssignee = issueResult.rows[0].assignee;
-      if (issueAssignee !== ctx.user.id) {
-        client.release();
-        return NextResponse.json(
-          { error: "Only the assignee of this issue can edit it." },
-          { status: 403 }
-        );
-      }
+      const issueIssuerRaw = issueResult.rows[0].issuer;
+      const uid = String(ctx.user.id);
+      const isAssignee = issueAssignee != null && String(issueAssignee) === uid;
+      const isIssuer = issueIssuerRaw != null && String(issueIssuerRaw) === uid;
 
       // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
       const { prisma } = await import("@/lib/prisma");
@@ -300,6 +312,22 @@ export async function PUT(
           client.release();
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+      }
+
+      if (commentsOnly) {
+        if (!isAssignee && !isIssuer) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the assignee or issue creator can add comments." },
+            { status: 403 }
+          );
+        }
+      } else if (!isAssignee) {
+        client.release();
+        return NextResponse.json(
+          { error: "Only the assignee of this issue can edit it." },
+          { status: 403 }
+        );
       }
 
       // Build update query dynamically
@@ -377,6 +405,21 @@ export async function PUT(
         updates.push(`"deadline" = $${paramIndex++}`);
         values.push(deadline === null || deadline === "" ? null : new Date(deadline).toISOString());
       }
+      if (comments !== undefined) {
+        if (!Array.isArray(comments)) {
+          client.release();
+          return NextResponse.json({ error: "comments must be an array" }, { status: 400 });
+        }
+        let commentsJson: string;
+        try {
+          commentsJson = JSON.stringify(comments);
+        } catch {
+          client.release();
+          return NextResponse.json({ error: "comments could not be serialized" }, { status: 400 });
+        }
+        updates.push(`"comments" = $${paramIndex++}::jsonb`);
+        values.push(commentsJson);
+      }
 
       if (updates.length === 0) {
         client.release();
@@ -436,13 +479,14 @@ export async function PUT(
           i."order",
           i."createdAt",
           i."updatedAt",
-          i."deadline"
+          i."deadline",
+          i."comments"
         FROM issues i
         WHERE i.id = $1`,
         [issueId]
       );
       } catch (selectErr: any) {
-        if (selectErr?.code === "42703" || (selectErr?.message && String(selectErr.message).includes("deadline"))) {
+        if (selectErr?.code === "42703" || (selectErr?.message && String(selectErr.message).includes("deadline")) || (selectErr?.message && String(selectErr.message).includes("comments"))) {
           updatedIssueResult = await client.query(
             `SELECT 
               i.id,
@@ -463,13 +507,17 @@ export async function PUT(
             WHERE i.id = $1`,
             [issueId]
           );
-          if (updatedIssueResult.rows[0]) updatedIssueResult.rows[0].deadline = null;
+          if (updatedIssueResult.rows[0]) {
+            updatedIssueResult.rows[0].deadline = null;
+            normalizeIssueCommentsOnRow(updatedIssueResult.rows[0] as Record<string, unknown>);
+          }
         } else {
           throw selectErr;
         }
       }
 
       const updatedIssue = updatedIssueResult.rows[0];
+      normalizeIssueCommentsOnRow(updatedIssue as Record<string, unknown>);
       
       // Invalidate cache for this issue and related caches
       cache.delete(cacheKey);

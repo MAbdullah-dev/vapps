@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Info, Save } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { organizationInfoQueryKey } from "@/lib/organization-info-query";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -30,18 +32,74 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
+function parseOrganizationAddress(raw: string | null | undefined) {
+  const empty = {
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "",
+  };
+  if (!raw || !String(raw).trim()) return empty;
+  try {
+    const parsed = JSON.parse(String(raw)) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object") {
+      return {
+        addressLine1: String(parsed.line1 ?? parsed.addressLine1 ?? ""),
+        addressLine2: String(parsed.line2 ?? parsed.addressLine2 ?? ""),
+        city: String(parsed.city ?? ""),
+        state: String(parsed.state ?? ""),
+        zipCode: String(parsed.zipCode ?? parsed.zip ?? ""),
+        country: String(parsed.country ?? ""),
+      };
+    }
+  } catch {
+    /* legacy newline-separated address */
+  }
+  const lines = String(raw).split("\n");
+  return {
+    ...empty,
+    addressLine1: lines[0] ?? "",
+    addressLine2: lines[1] ?? "",
+  };
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function OrganizationProfilePage() {
   const params = useParams();
   const orgId = params?.orgId as string;
+  const queryClient = useQueryClient();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const logoPreviewRef = useRef<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    logoPreviewRef.current = logoPreview;
+  }, [logoPreview]);
+
+  useEffect(() => {
+    return () => {
+      const u = logoPreviewRef.current;
+      if (u?.startsWith("blob:")) URL.revokeObjectURL(u);
+    };
+  }, []);
 
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
@@ -74,35 +132,57 @@ export default function OrganizationProfilePage() {
     }
   }, [orgId]);
 
+  const applyOrganizationInfo = (info: Record<string, unknown>) => {
+    const addr = parseOrganizationAddress(
+      typeof info.address === "string" ? info.address : null
+    );
+    setFormData({
+      name: String(info.name ?? ""),
+      legalName: String(info.legalName ?? ""),
+      registrationId: String(info.registrationId ?? ""),
+      taxId: String(info.taxId ?? ""),
+      industry: String(info.industry ?? ""),
+      companySize: String(info.companySize ?? ""),
+      foundedDate: String(info.foundedDate ?? ""),
+      website: String(info.website ?? ""),
+      primaryEmail: String(info.contactEmail ?? ""),
+      supportEmail: String(info.supportEmail ?? ""),
+      phone: String(info.phone ?? ""),
+      fax: String(info.fax ?? ""),
+      addressLine1: addr.addressLine1,
+      addressLine2: addr.addressLine2,
+      city: addr.city,
+      state: addr.state,
+      zipCode: addr.zipCode,
+      country: addr.country,
+      brandColor: String(info.brandColor ?? "#05EE07"),
+      brandFont: String(info.brandFont ?? "Arial"),
+    });
+    setLastUpdated(
+      typeof info.updatedAt === "string"
+        ? info.updatedAt
+        : info.updatedAt != null
+          ? String(info.updatedAt)
+          : null
+    );
+    setLogoPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      const next =
+        typeof info.logo === "string" && info.logo.length > 0 ? info.logo : null;
+      return next;
+    });
+    setLogoFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const fetchOrganizationInfo = async () => {
     try {
       setIsLoading(true);
       const response = await apiClient.getOrganizationInfo(orgId);
       if (response.organizationInfo) {
-        const info = response.organizationInfo;
-        setFormData({
-          name: info.name || "",
-          legalName: info.legalName || "",
-          registrationId: info.registrationId || "",
-          taxId: info.taxId || "",
-          industry: info.industry || "",
-          companySize: info.companySize || "",
-          foundedDate: info.foundedDate || "",
-          website: info.website || "",
-          primaryEmail: info.contactEmail || "",
-          supportEmail: info.supportEmail || "",
-          phone: info.phone || "",
-          fax: info.fax || "",
-          addressLine1: info.address?.split('\n')[0] || "",
-          addressLine2: info.address?.split('\n')[1] || "",
-          city: "",
-          state: "",
-          zipCode: "",
-          country: "",
-          brandColor: info.brandColor || "#05EE07",
-          brandFont: info.brandFont || "Arial",
-        });
-        setLastUpdated(info.updatedAt);
+        applyOrganizationInfo(
+          response.organizationInfo as Record<string, unknown>
+        );
       }
     } catch (error: any) {
       console.error("Error fetching organization info:", error);
@@ -115,11 +195,21 @@ export default function OrganizationProfilePage() {
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const address = [formData.addressLine1, formData.addressLine2]
-        .filter(Boolean)
-        .join('\n');
+      const address = JSON.stringify({
+        line1: formData.addressLine1,
+        line2: formData.addressLine2,
+        city: formData.city,
+        state: formData.state,
+        zipCode: formData.zipCode,
+        country: formData.country,
+      });
 
-      await apiClient.updateOrganizationInfo(orgId, {
+      let logoPayload: string | undefined;
+      if (logoFile) {
+        logoPayload = await readFileAsDataUrl(logoFile);
+      }
+
+      const response = await apiClient.updateOrganizationInfo(orgId, {
         name: formData.name,
         legalName: formData.legalName,
         registrationId: formData.registrationId,
@@ -132,14 +222,22 @@ export default function OrganizationProfilePage() {
         supportEmail: formData.supportEmail,
         phone: formData.phone,
         fax: formData.fax,
-        address: address || undefined,
+        address,
         contactName: formData.primaryEmail ? "Primary Contact" : undefined,
         contactEmail: formData.primaryEmail || undefined,
+        brandColor: formData.brandColor,
+        brandFont: formData.brandFont,
+        ...(logoPayload ? { logo: logoPayload } : {}),
       });
 
+      if (response.organizationInfo) {
+        applyOrganizationInfo(response.organizationInfo as Record<string, unknown>);
+      }
+      await queryClient.invalidateQueries({
+        queryKey: organizationInfoQueryKey(orgId),
+      });
       toast.success("Organization profile updated successfully");
       setIsEditing(false);
-      fetchOrganizationInfo();
     } catch (error: any) {
       console.error("Error saving organization info:", error);
       toast.error(error.message || "Failed to update organization profile");
@@ -164,7 +262,7 @@ export default function OrganizationProfilePage() {
   if (!orgId || orgId === 'undefined') {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading organization...</p>
+        <p className="text-muted-foreground">Loading organization...</p>
       </div>
     );
   }
@@ -172,7 +270,7 @@ export default function OrganizationProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -180,9 +278,17 @@ export default function OrganizationProfilePage() {
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error("Logo must be 2 MB or smaller");
+      e.target.value = "";
+      return;
+    }
 
     setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
+    setLogoPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   };
 
 
@@ -191,17 +297,17 @@ export default function OrganizationProfilePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">
+          <div className="text-sm text-muted-foreground mb-1">
             Settings &gt; Organization Profile
           </div>
-          <h1 className="text-2xl font-semibold">Organization Profile</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-semibold text-foreground">Organization Profile</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage your company information and branding.
           </p>
         </div>
         <div className="flex items-center gap-4">
           {lastUpdated && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               Last updated: {formatDate(lastUpdated)}
             </span>
           )}
@@ -245,7 +351,7 @@ export default function OrganizationProfilePage() {
                 {logoPreview ? (
                   <AvatarImage src={logoPreview} alt="Company Logo" />
                 ) : (
-                  <AvatarFallback className="bg-gray-800 text-white text-xl">
+                  <AvatarFallback className="bg-foreground text-background text-xl">
                     {formData.name.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 )}

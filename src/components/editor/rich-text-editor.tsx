@@ -90,7 +90,7 @@ function RichTextToolbar({ editor }: { editor: Editor }) {
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-[#E5E7EB] bg-white px-2 py-1.5">
+    <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/60 px-2 py-1.5">
       <Select
         value={blockMenuValue(editor)}
         onValueChange={(v) => {
@@ -382,7 +382,7 @@ export function RichTextEditor({
   if (!editor) {
     return (
       <div
-        className={cn("rounded-md border border-[#E5E7EB] bg-[#F9FAFB] animate-pulse", className)}
+        className={cn("rounded-md border border-border bg-muted animate-pulse", className)}
         style={{ minHeight }}
         aria-hidden
       />
@@ -395,7 +395,7 @@ export function RichTextEditor({
     <EditorContext.Provider value={{ editor }}>
       <div
         className={cn(
-          "overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F9FAFB] rich-text-editor-root",
+          "overflow-hidden rounded-md border border-border bg-background rich-text-editor-root",
           className
         )}
         style={{ minHeight }}
@@ -403,7 +403,7 @@ export function RichTextEditor({
         {toolbar && <RichTextToolbar editor={editor} />}
 
         <div
-          className="rich-text-editor-content bg-[#F9FAFB]"
+          className="rich-text-editor-content bg-background"
           style={{
             minHeight: Math.max(80, minHeight - (toolbar ? 44 : 0)),
           }}
@@ -414,4 +414,4 @@ export function RichTextEditor({
     </EditorContext.Provider>
   );
 }
-
+

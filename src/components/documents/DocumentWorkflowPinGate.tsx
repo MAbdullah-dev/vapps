@@ -51,13 +51,13 @@ export default function DocumentWorkflowPinGate({
   };
 
   return (
-    <Card className="border-[#E5E7EB] py-4 shadow-sm">
+    <Card className="border-border py-4 shadow-sm">
       <CardHeader className="space-y-1 pb-2">
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold text-[#0A0A0A]">
+        <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
           <Lock className="h-5 w-5 text-[#22B323]" aria-hidden />
           PIN required
         </CardTitle>
-        <p className="text-sm font-normal text-[#6A7282] leading-relaxed">
+        <p className="text-sm font-normal text-muted-foreground leading-relaxed">
           This document is locked. Enter the PIN set by the document initiator to open Review or Approval.
           The person who created the document does not need a PIN.
         </p>

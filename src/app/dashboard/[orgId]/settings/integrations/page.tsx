@@ -94,11 +94,11 @@ export default function IntegrationsPage() {
       {/* Header Section */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Integrations</div>
-          <h1 className="text-2xl font-semibold">Integrations</h1>
-          <p className="text-sm text-gray-500 mt-1">Connect third-party services and APIs</p>
+          <div className="mb-1 text-sm text-muted-foreground">Settings &gt; Integrations</div>
+          <h1 className="text-2xl font-semibold text-foreground">Integrations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Connect third-party services and APIs</p>
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-muted-foreground">
           Last updated: November 10, 2025 at 4:15 PM
         </div>
       </div>
@@ -130,7 +130,7 @@ export default function IntegrationsPage() {
                   </div>
                   <Button
                     variant={isConnected ? "outline" : "default"}
-                    className={isConnected ? "" : "bg-gray-900 hover:bg-gray-800"}
+                    className={isConnected ? "" : "bg-foreground text-background hover:bg-foreground/90"}
                     onClick={() => handleToggleConnection(integration.id)}
                   >
                     {isConnected ? "Disconnect" : "Connect"}
@@ -144,14 +144,14 @@ export default function IntegrationsPage() {
                       <Label htmlFor={`api-key-${integration.id}`} className="text-sm">
                         API Key / Token
                       </Label>
-                      <Info className="h-3 w-3 text-gray-400" />
+                      <Info className="h-3 w-3 text-muted-foreground" />
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
                         id={`api-key-${integration.id}`}
                         value={integration.defaultApiKey}
                         readOnly
-                        className="bg-gray-50"
+                        className="bg-muted"
                       />
                       <Button variant="ghost" size="icon">
                         <RefreshCw className="h-4 w-4" />

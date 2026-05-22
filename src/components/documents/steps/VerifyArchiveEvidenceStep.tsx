@@ -84,6 +84,22 @@ export default function VerifyArchiveEvidenceStep({
     [retentionPeriod, t]
   );
 
+  const recordIdDisplay = useMemo(
+    () =>
+      evidenceRecordId
+        ? `REC-${evidenceRecordId.slice(0, 8).toUpperCase()}`
+        : "REC-000000",
+    [evidenceRecordId]
+  );
+
+  const formTitleDisplay = useMemo(
+    () =>
+      pdfContext?.formTitle?.trim()
+        ? pdfContext.formTitle.trim()
+        : t("Inspection Checklist"),
+    [pdfContext?.formTitle, t]
+  );
+
   const canComplete = Boolean(verificationComments.trim()) && !readOnly;
 
   const now = useMemo(() => new Date(), []);
@@ -112,10 +128,9 @@ export default function VerifyArchiveEvidenceStep({
     const pdfData: EvidencePdfData = {
       ...stamp,
       ...pdfContext,
-      recordId: evidenceRecordId ? `REC-${evidenceRecordId.slice(0, 8).toUpperCase()}` : "REC-000000",
+      recordId: recordIdDisplay,
       reference,
-      formTitle:
-        (pdfContext?.formTitle && pdfContext.formTitle.trim()) || t("Inspection Checklist"),
+      formTitle: formTitleDisplay,
       capturedData: capturedData.trim() || t("—"),
       verifierName: designatedVerifier.name,
       verifierUserId: designatedVerifier.userId,
@@ -144,7 +159,7 @@ export default function VerifyArchiveEvidenceStep({
     }
   }, [
     t,
-    evidenceRecordId,
+    recordIdDisplay,
     reference,
     capturedData,
     designatedVerifier,
@@ -153,6 +168,7 @@ export default function VerifyArchiveEvidenceStep({
     previewRetention,
     archiveDateLabel,
     retentionExpiryLabel,
+    formTitleDisplay,
     pdfContext,
   ]);
 
@@ -192,14 +208,14 @@ export default function VerifyArchiveEvidenceStep({
 
   return (
     <>
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <h3 className="text-3xl leading-none font-bold text-[#111827] mb-3">
-              {readOnly ? t("Verified record (Active)") : t("Verify & Archive")}
-            </h3>
-              <p className="text-sm text-[#6B7280] max-w-2xl">
+              <h3 className="mb-3 text-3xl font-bold leading-none text-foreground">
+                {readOnly ? t("Verified record (Active)") : t("Verify & Archive")}
+              </h3>
+              <p className="max-w-2xl text-sm text-muted-foreground">
                 {readOnly
                   ? t(
                       "This documentary evidence record is complete. Verification and archive details are shown below."
@@ -216,27 +232,27 @@ export default function VerifyArchiveEvidenceStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]">
+            <h4 className="text-base font-semibold text-foreground">
               <span className="text-[#22B323]">1.</span> {t("Record summary")}
             </h4>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {t("Template reference and context captured in the previous step")}
             </p>
           </div>
 
-          <div className="border-t border-[#E5E7EB] pt-4">
-            <h5 className="text-sm font-semibold text-[#111827]">{t("Record information")}</h5>
+          <div className="border-t border-border pt-4">
+            <h5 className="text-sm font-semibold text-foreground">{t("Record information")}</h5>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label className="text-sm font-medium">{t("Record ID")}</Label>
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value="REC-000124"
-                  className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+                  value={recordIdDisplay}
+                  className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
               <div>
@@ -246,7 +262,7 @@ export default function VerifyArchiveEvidenceStep({
                   tabIndex={-1}
                   value={reference}
                   title={reference}
-                  className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+                  className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
               <div>
@@ -254,8 +270,8 @@ export default function VerifyArchiveEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("Inspection Checklist")}
-                  className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+                  value={formTitleDisplay}
+                  className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
             </div>
@@ -263,13 +279,13 @@ export default function VerifyArchiveEvidenceStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]">
+            <h4 className="text-base font-semibold text-foreground">
               <span className="text-[#22B323]">2.</span> {t("Captured data")}
             </h4>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {readOnly
                 ? t("Documentary evidence from capture (locked on this record).")
                 : t(
@@ -278,7 +294,7 @@ export default function VerifyArchiveEvidenceStep({
             </p>
           </div>
           <div
-            className="overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F9FAFB]"
+            className="overflow-hidden rounded-md border border-border bg-muted"
             aria-readonly="true"
           >
             <RichTextEditor
@@ -292,16 +308,14 @@ export default function VerifyArchiveEvidenceStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]">
+            <h4 className="text-base font-semibold text-foreground">
               <span className="text-[#22B323]">3.</span> {t("Verification")}
             </h4>
-            <p className="text-sm text-[#6B7280] mt-1">
-              {t(
-                "Designated verifier was selected during capture (Top or Operational leadership)."
-              )}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("Designated verifier was selected during capture (Top or Operational leadership).")}
             </p>
           </div>
 
@@ -312,7 +326,7 @@ export default function VerifyArchiveEvidenceStep({
                 readOnly
                 tabIndex={-1}
                 value={designatedVerifier.name}
-                className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#111827]"
+                className="mt-1 h-10 border-border bg-muted text-foreground"
               />
             </div>
             <div>
@@ -321,7 +335,7 @@ export default function VerifyArchiveEvidenceStep({
                 readOnly
                 tabIndex={-1}
                 value={designatedVerifier.userId}
-                className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#9CA3AF]"
+                className="mt-1 h-10 border-border bg-muted text-muted-foreground"
               />
             </div>
           </div>
@@ -335,7 +349,7 @@ export default function VerifyArchiveEvidenceStep({
               onChange={(e) => setVerificationComments(e.target.value)}
               readOnly={readOnly}
               placeholder={t("e.g. Verified against SOP; data complete and correct.")}
-              className="mt-1 min-h-[120px] resize-none bg-white border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
+              className="mt-1 min-h-[120px] resize-none border-border bg-background text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
@@ -350,13 +364,13 @@ export default function VerifyArchiveEvidenceStep({
         </CardContent>
       </Card>
 
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]">
+            <h4 className="text-base font-semibold text-foreground">
               <span className="text-[#22B323]">4.</span> {t("Archive configuration")}
             </h4>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {t("Storage location and retention (minimum 3 years per policy)")}
             </p>
           </div>
@@ -368,7 +382,7 @@ export default function VerifyArchiveEvidenceStep({
                 value={archiveLocation}
                 onChange={(e) => setArchiveLocation(e.target.value)}
                 readOnly={readOnly}
-                className="mt-1 h-10 bg-white border-[#E5E7EB] text-[#111827]"
+                className="mt-1 h-10 border-border bg-background text-foreground"
               />
             </div>
             <div>
@@ -377,34 +391,34 @@ export default function VerifyArchiveEvidenceStep({
                 value={retentionPeriod}
                 onChange={(e) => setRetentionPeriod(e.target.value)}
                 readOnly={readOnly}
-                className="mt-1 h-10 bg-white border-[#E5E7EB] text-[#111827]"
+                className="mt-1 h-10 border-border bg-background text-foreground"
               />
             </div>
           </div>
 
-          <div className="border-t border-[#E5E7EB] pt-4">
-            <h5 className="text-sm font-semibold text-[#111827]">{t("Auto-computed")}</h5>
+          <div className="border-t border-border pt-4">
+            <h5 className="text-sm font-semibold text-foreground">{t("Auto-computed")}</h5>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label className="text-sm font-medium">{t("Archive date (auto)")}</Label>
-                <Input readOnly tabIndex={-1} value={archiveDateLabel} className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]" />
+                <Input readOnly tabIndex={-1} value={archiveDateLabel} className="mt-1 h-10 border-border bg-muted text-muted-foreground" />
               </div>
               <div>
                 <Label className="text-sm font-medium">{t("Retention expiry (auto)")}</Label>
-                <Input readOnly tabIndex={-1} value={retentionExpiryLabel} className="mt-1 h-10 bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]" />
+                <Input readOnly tabIndex={-1} value={retentionExpiryLabel} className="mt-1 h-10 border-border bg-muted text-muted-foreground" />
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border border-[#0000001A]">
+      <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <h4 className="text-base font-semibold text-[#111827]">
+            <h4 className="text-base font-semibold text-foreground">
               <span className="text-[#22B323]">5.</span> {t("PDF evidence")}
             </h4>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {t("Preview what will be included in the generated documentary evidence PDF")}
             </p>
           </div>
@@ -415,7 +429,7 @@ export default function VerifyArchiveEvidenceStep({
               {t("PDF documentary evidence — preview")}
             </div>
             <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <PdfRow label={t("Record ID")} value="REC-000124" />
+              <PdfRow label={t("Record ID")} value={recordIdDisplay} />
               <PdfRow label={t("Reference")} value={reference} />
               <PdfRow label={t("Archive location")} value={previewArchiveLocation} />
               <PdfRow label={t("Retention")} value={previewRetention} />
@@ -469,7 +483,7 @@ function PdfRow({
   return (
     <div className={cn("flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4", className)}>
       <span className="font-medium text-[#15803D] shrink-0">{label}</span>
-      <span className="text-[#111827] text-right break-all">{value}</span>
+      <span className="break-all text-right text-foreground">{value}</span>
     </div>
   );
 }

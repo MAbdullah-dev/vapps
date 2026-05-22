@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import { prisma } from "@/lib/prisma";
-import { type Role } from "@/lib/roles";
-import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 
 /**
@@ -28,20 +26,17 @@ export async function PUT(
 
     const org = await prisma.organization.findUnique({
       where: { id: resolvedOrgId },
-      select: { ownerId: true, permissions: true },
+      select: { ownerId: true },
     });
     if (!org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
     const isOwner = org.ownerId === ctx.user.id;
     if (!isOwner) {
-      const stored = (org.permissions ?? null) as StoredPermissions | null;
-      if (!hasPermission(stored, ctx.tenant.userRole as Role, "manage_processes")) {
-        return NextResponse.json(
-          { error: "You do not have permission to manage processes." },
-          { status: 403 }
-        );
-      }
+      return NextResponse.json(
+        { error: "Only the organization owner can edit processes." },
+        { status: 403 }
+      );
     }
 
     if (!name || !name.trim()) {
@@ -149,20 +144,17 @@ export async function DELETE(
 
     const org = await prisma.organization.findUnique({
       where: { id: resolvedOrgId },
-      select: { ownerId: true, permissions: true },
+      select: { ownerId: true },
     });
     if (!org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
     const isOwner = org.ownerId === ctx.user.id;
     if (!isOwner) {
-      const stored = (org.permissions ?? null) as StoredPermissions | null;
-      if (!hasPermission(stored, ctx.tenant.userRole as Role, "manage_processes")) {
-        return NextResponse.json(
-          { error: "You do not have permission to manage processes." },
-          { status: 403 }
-        );
-      }
+      return NextResponse.json(
+        { error: "Only the organization owner can delete processes." },
+        { status: 403 }
+      );
     }
 
     const client = await getTenantClient(resolvedOrgId);

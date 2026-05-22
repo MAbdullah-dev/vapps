@@ -163,9 +163,9 @@ export default function ReviewDocumentStep({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-5">
+      <div className="space-y-5 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-[#F9FAFB] text-[#6B7280] border-[#E5E7EB] font-normal">
+          <Badge variant="outline" className="border-border bg-muted font-normal text-muted-foreground">
             Doc/2025/S1/P1/P/D1/v1
           </Badge>
           <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
@@ -174,46 +174,46 @@ export default function ReviewDocumentStep({
         </div>
 
         <div>
-          <p className="text-sm text-[#6B7280]">{t("Title:")}</p>
-          <p className="text-3xl font-bold text-[#111827]">{title || t("Untitled Document")}</p>
+          <p className="text-sm text-muted-foreground">{t("Title:")}</p>
+          <p className="text-3xl font-bold text-foreground">{title || t("Untitled Document")}</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-4 text-sm">
           <div>
-            <p className="text-[#6B7280]">{t("Type:")}</p>
-            <p className="font-semibold text-[#111827]">{documentTypeLabel}</p>
+            <p className="text-muted-foreground">{t("Type:")}</p>
+            <p className="font-semibold text-foreground">{documentTypeLabel}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Doc Owner:")}</p>
-            <p className="font-semibold text-[#111827]">{processOwner || t("Manager Manufacturing")}</p>
+            <p className="text-muted-foreground">{t("Doc Owner:")}</p>
+            <p className="font-semibold text-foreground">{processOwner || t("Manager Manufacturing")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Standard:")}</p>
-            <p className="font-semibold text-[#111827]">{managementStandard || t("ISO 9001")}</p>
+            <p className="text-muted-foreground">{t("Standard:")}</p>
+            <p className="font-semibold text-foreground">{managementStandard || t("ISO 9001")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Clause:")}</p>
-            <p className="font-semibold text-[#111827]">{clause || t("4.1")}</p>
+            <p className="text-muted-foreground">{t("Clause:")}</p>
+            <p className="font-semibold text-foreground">{clause || t("4.1")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Sub-Clause")}</p>
-            <p className="font-semibold text-[#111827]">{subClause || t("4.1.6")}</p>
+            <p className="text-muted-foreground">{t("Sub-Clause")}</p>
+            <p className="font-semibold text-foreground">{subClause || t("4.1.6")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Site:")}</p>
-            <p className="font-semibold text-[#111827]">{site || t("S1")}</p>
+            <p className="text-muted-foreground">{t("Site:")}</p>
+            <p className="font-semibold text-foreground">{site || t("S1")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Process:")}</p>
-            <p className="font-semibold text-[#111827]">{processName || t("Manufacturing")}</p>
+            <p className="text-muted-foreground">{t("Process:")}</p>
+            <p className="font-semibold text-foreground">{processName || t("Manufacturing")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Doc#:")}</p>
-            <p className="font-semibold text-[#111827]">{processId || t("D6")}</p>
+            <p className="text-muted-foreground">{t("Doc#:")}</p>
+            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
           </div>
           <div>
-            <p className="text-[#6B7280]">{t("Version:")}</p>
-            <p className="font-semibold text-[#111827]">{t("v3")}</p>
+            <p className="text-muted-foreground">{t("Version:")}</p>
+            <p className="font-semibold text-foreground">{t("v3")}</p>
           </div>
         </div>
 
@@ -229,7 +229,7 @@ export default function ReviewDocumentStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>{t("Reviewer Name")}</Label>
@@ -238,9 +238,9 @@ export default function ReviewDocumentStep({
               tabIndex={-1}
               value={processOwner ?? ""}
               placeholder={t("Set in Create Document (Process Owner / Responsible Person)")}
-              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="border-border bg-muted text-muted-foreground"
             />
-            <p className="text-xs text-[#6B7280]">
+            <p className="text-xs text-muted-foreground">
               {t("System value from Process Owner / Responsible Person")}
             </p>
           </div>
@@ -251,62 +251,64 @@ export default function ReviewDocumentStep({
               tabIndex={-1}
               value={reviewerRole}
               placeholder={t("System generated role")}
-              className="bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]"
+              className="border-border bg-muted text-muted-foreground"
             />
           </div>
         </div>
 
         {description ? (
-          <div className="mt-4 rounded-lg border border-[#F3F4F6] bg-[#FAFAFA] px-4 py-3 text-sm text-[#4B5563]">
+          <div className="mt-4 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
             {description}
           </div>
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4">
-          <h4 className="text-base font-bold text-[#111827]">{t("2.1 Review Points")}</h4>
-          <p className="text-sm text-[#6B7280] mt-1">{t("Checking if the Rule Works!")}</p>
+          <h4 className="text-base font-bold text-foreground">{t("2.1 Review Points")}</h4>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Checking if the Rule Works!")}</p>
         </div>
 
         <div className="rounded-lg bg-[#F0F7FF] border-l-4 border-l-[#3B82F6] pl-4 pr-4 py-4 text-sm">
-          <ol className="list-decimal pl-5 space-y-3 text-[#111827]">
+          <ol className="list-decimal pl-5 space-y-3 text-foreground">
             <li>
               <span className="font-semibold">{t("Associated Standards:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
-                {t("Confirm relevant international / national standards have been reviewed (if applicable).")}
+              <span className="font-normal text-muted-foreground">
+                {t(
+                  "Confirm relevant international / national standards have been reviewed (if applicable)."
+                )}
               </span>
             </li>
             <li>
               <span className="font-semibold">{t("Organizational Procedures:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t("Verify related procedures have been checked for adequacy and consistency.")}
               </span>
             </li>
             <li>
               <span className="font-semibold">{t("4M Change Verification:")}</span>
-              <ul className="mt-2 ml-4 list-disc space-y-1 text-[#6B7280] font-normal">
+              <ul className="mt-2 ml-4 list-disc space-y-1 font-normal text-muted-foreground">
                 <li>
-                  <span className="font-semibold text-[#111827]">{t("Man")}</span>{" "}
+                  <span className="font-semibold text-foreground">{t("Man")}</span>{" "}
                   {t("– Roles, responsibilities, or competency requirements reviewed.")}
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">{t("Material")}</span>{" "}
+                  <span className="font-semibold text-foreground">{t("Material")}</span>{" "}
                   {t("– Inputs, resources, or specifications assessed.")}
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">{t("Method")}</span>{" "}
+                  <span className="font-semibold text-foreground">{t("Method")}</span>{" "}
                   {t("– Processes, workflows, or instructions confirmed.")}
                 </li>
                 <li>
-                  <span className="font-semibold text-[#111827]">{t("Machine")}</span>{" "}
+                  <span className="font-semibold text-foreground">{t("Machine")}</span>{" "}
                   {t("– Tools, equipment, or systems validated.")}
                 </li>
               </ul>
             </li>
             <li>
               <span className="font-semibold">{t("Legal & Regulatory Requirements:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "Compliance with all applicable laws, regulations, and customer requirements confirmed."
                 )}
@@ -314,7 +316,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Document Accuracy & Control:")}</span>
-              <ul className="mt-2 ml-4 list-disc space-y-1 text-[#6B7280] font-normal">
+              <ul className="mt-2 ml-4 list-disc space-y-1 font-normal text-muted-foreground">
                 <li>{t("Purpose, scope, and content remain clear, current, and correct.")}</li>
                 <li>{t("Version control, references, and linked documents are up to date.")}</li>
                 <li>{t("Obsolete versions identified and marked for withdrawal.")}</li>
@@ -322,7 +324,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Process & Performance Impact:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "Potential impacts on quality, safety, environment, and performance evaluated. Risks and opportunities documented where necessary."
                 )}
@@ -330,7 +332,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Linkage & References:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "All associated and supporting documents have been linked to ensure completeness and performance of the document/action."
                 )}
@@ -338,7 +340,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Activity Feed Verification:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   'Notification and acknowledgement alerts have been checked; no conflicts remain in the "Activity Feed" section.'
                 )}
@@ -346,7 +348,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Corrective Action Record:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "For cases of Edit, Obsolete, or Transfer, the document owner has provided satisfactory comments and corrective action records."
                 )}
@@ -354,7 +356,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Stakeholder Notification:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "All relevant concerns and stakeholders have been informed about the change in the document/action."
                 )}
@@ -362,7 +364,7 @@ export default function ReviewDocumentStep({
             </li>
             <li>
               <span className="font-semibold">{t("Integrity & Accuracy:")}</span>{" "}
-              <span className="text-[#6B7280] font-normal">
+              <span className="font-normal text-muted-foreground">
                 {t(
                   "Digital issuance complies with ISO 9001:2015 clause 7.5 requirements, ensuring the reliability, authenticity, and integrity of documented information."
                 )}
@@ -380,10 +382,10 @@ export default function ReviewDocumentStep({
             className="mt-1"
           />
           <div className="space-y-1 min-w-0">
-            <label htmlFor="review-ack" className="font-semibold text-[#111827] cursor-pointer block">
+            <label htmlFor="review-ack" className="block cursor-pointer font-semibold text-foreground">
               {t("Acknowledgement")}
             </label>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-muted-foreground">
               {t(
                 "I confirm that I have taken full care and professional responsibility in reviewing the above document/action."
               )}
@@ -392,10 +394,10 @@ export default function ReviewDocumentStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 space-y-6">
+      <div className="space-y-6 rounded-xl border border-border bg-card p-5">
         <div>
-          <h4 className="text-base font-bold text-[#111827]">{t("2.2 Verification Outcome")}</h4>
-          <p className="text-sm text-[#6B7280] mt-2 leading-relaxed">
+          <h4 className="text-base font-bold text-foreground">{t("2.2 Verification Outcome")}</h4>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {t(
               "Effective means producing intended results, while ineffective means not producing them. It also means action that is sufficient or insufficient to achieve a purpose, respectively."
             )}
@@ -403,9 +405,7 @@ export default function ReviewDocumentStep({
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-bold text-[#111827]">
-            {t("Decision (Yes-Effective / No-Ineffective)")}
-          </p>
+          <p className="text-sm font-bold text-foreground">{t("Decision (Yes-Effective / No-Ineffective)")}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
@@ -416,7 +416,7 @@ export default function ReviewDocumentStep({
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
                   ? "border-[#16A34A] bg-[#F0FDF4]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  : "border-border bg-card hover:bg-muted"
               )}
             >
               <span
@@ -424,15 +424,15 @@ export default function ReviewDocumentStep({
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "effective"
                     ? "border-[#16A34A] bg-[#16A34A]"
-                    : "border-[#D1D5DB] bg-white"
+                    : "border-border bg-card"
                 )}
                 aria-hidden
               >
                 {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">{t("Effective - Close Document")}</p>
-                <p className="text-sm text-[#6B7280]">{t("Proceed to next step Approval")}</p>
+                <p className="font-semibold text-foreground">{t("Effective - Close Document")}</p>
+                <p className="text-sm text-muted-foreground">{t("Proceed to next step Approval")}</p>
               </div>
             </button>
             <button
@@ -444,7 +444,7 @@ export default function ReviewDocumentStep({
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
                   ? "border-[#DC2626] bg-[#FEF2F2]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  : "border-border bg-card hover:bg-muted"
               )}
             >
               <span
@@ -452,15 +452,15 @@ export default function ReviewDocumentStep({
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "ineffective"
                     ? "border-[#DC2626] bg-[#DC2626]"
-                    : "border-[#D1D5DB] bg-white"
+                    : "border-border bg-card"
                 )}
                 aria-hidden
               >
                 {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-[#111827]">{t("Ineffective - Re-open Document")}</p>
-                <p className="text-sm text-[#6B7280]">
+                <p className="font-semibold text-foreground">{t("Ineffective - Re-open Document")}</p>
+                <p className="text-sm text-muted-foreground">
                   {t(
                     "Send back to initiator of the document step 1 draft/create for corrective action and resubmission."
                   )}
@@ -471,7 +471,7 @@ export default function ReviewDocumentStep({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="review-comments" className="text-sm font-bold text-[#111827]">
+          <Label htmlFor="review-comments" className="text-sm font-bold text-foreground">
             {t("Comments")} <span className="text-red-600">*</span>
           </Label>
           <Textarea
@@ -482,7 +482,7 @@ export default function ReviewDocumentStep({
             required={canPerformReview && !readOnlyObserver}
             aria-required={canPerformReview && !readOnlyObserver}
             placeholder={t("Enter your review comments here (required)…")}
-            className="min-h-[120px] resize-y bg-[#F9FAFB] border-[#E5E7EB] text-[#111827] placeholder:text-[#9CA3AF]"
+            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           {canPerformReview && !readOnlyObserver && !reviewComments.trim() ? (
             <p className="text-xs text-amber-800" role="status">
@@ -491,18 +491,18 @@ export default function ReviewDocumentStep({
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
+        <div className="space-y-4 rounded-lg border border-border bg-muted p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">
+            <span className="shrink-0 text-sm font-bold text-foreground">
               {t("Reviewer Name & Identification#:")}
             </span>
-            <span className="text-sm text-[#6B7280] sm:text-right">{t("[Login/System Generated]")}</span>
+            <span className="text-sm text-muted-foreground sm:text-right">{t("[Login/System Generated]")}</span>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
-            <span className="text-sm font-bold text-[#111827] shrink-0">{t("Review Date:")}</span>
-            <span className="text-sm font-semibold text-[#111827] sm:text-right">{reviewDateDisplay}</span>
+            <span className="shrink-0 text-sm font-bold text-foreground">{t("Review Date:")}</span>
+            <span className="text-sm font-semibold text-foreground sm:text-right">{reviewDateDisplay}</span>
           </div>
-          <p className="text-xs italic text-[#6B7280] pt-1">
+          <p className="pt-1 text-xs italic text-muted-foreground">
             {t("This document is valid without a signature")}
           </p>
         </div>

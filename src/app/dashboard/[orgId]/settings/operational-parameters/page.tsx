@@ -27,7 +27,7 @@ export default function OperationalParametersPage() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm text-gray-500 mb-1">Settings &gt; Operational Parameters</div>
-          <h1 className="text-2xl font-semibold">Operational Parameters</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Operational Parameters</h1>
           <p className="text-sm text-gray-500 mt-1">
             Configure workflow, SLA, and notification defaults moved from onboarding.
           </p>

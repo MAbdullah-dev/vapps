@@ -99,7 +99,7 @@ export default function Step2() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-2">Sites & Processes</h2>
+      <h2 className="mb-2 text-lg font-semibold text-foreground">Sites & Processes</h2>
       <p className="text-sm text-gray-500 mb-6">
         Configure your sites and assign process groups using process taxonomy
         (ISO-aligned)

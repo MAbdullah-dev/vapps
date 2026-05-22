@@ -68,9 +68,24 @@ type Process = {
   name: string;
 };
 
+const PRIORITY_LABEL_KEYS: Record<Issue["priority"], string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  "to-do": "To Do",
+  "in-progress": "In Progress",
+  "in-review": "In Review",
+  done: "Done",
+  backlog: "Backlog",
+};
+
 export default function IssuesOrgBacklogPage() {
   const { orgId } = useOrg();
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const [siteId, setSiteId] = useState("");
   const [processes, setProcesses] = useState<Process[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string>("");
@@ -110,11 +125,23 @@ export default function IssuesOrgBacklogPage() {
       setProcesses([]);
       setSelectedProcessId("");
     }
-  }, [orgId, siteId]);
+  }, [orgId, siteId, t]);
 
   useEffect(() => {
     loadProcesses();
   }, [loadProcesses]);
+
+  const formatPriority = (priority?: string) => {
+    const key = (priority || "medium") as Issue["priority"];
+    const label = PRIORITY_LABEL_KEYS[key];
+    return label ? t(label) : priority ?? t("Medium");
+  };
+
+  const formatStatus = (status?: string) => {
+    if (!status) return "";
+    const label = STATUS_LABEL_KEYS[status];
+    return label ? t(label) : status;
+  };
 
   const fetchData = useCallback(async () => {
     if (!orgId || !siteId || !selectedProcessId) {
@@ -192,7 +219,10 @@ export default function IssuesOrgBacklogPage() {
 
   const formatDate = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return d.toLocaleDateString(locale === "en" ? "en-US" : locale, {
+      month: "short",
+      day: "numeric",
+    });
   };
 
   const formatDateForAPI = (date: Date) => date.toISOString().split("T")[0];
@@ -220,7 +250,7 @@ export default function IssuesOrgBacklogPage() {
       const { start, end } = createSprintDates();
       const sprintNumber = sprints.length + 1;
       const result = await apiClient.createSprint(orgId, selectedProcessId, {
-        name: `Sprint ${sprintNumber}`,
+        name: `${t("Sprint")} ${sprintNumber}`,
         startDate: start,
         endDate: end,
       });
@@ -394,10 +424,10 @@ export default function IssuesOrgBacklogPage() {
               <div className="flex items-center gap-2">
                 <span className="font-medium text-muted-foreground">{issue.id}</span>
                 <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
-                  {issue.priority}
+                  {formatPriority(issue.priority)}
                 </span>
               </div>
-              <p className="text-sm mt-1 font-medium">{issue.title}</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{issue.title}</p>
             </button>
           </div>
 
@@ -499,7 +529,7 @@ export default function IssuesOrgBacklogPage() {
                   />
                 ) : (
                   <h2
-                    className="text-lg font-medium cursor-pointer hover:underline"
+                    className="cursor-pointer text-lg font-medium text-foreground hover:underline"
                     onClick={() => setSprintDetail(sprint)}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
@@ -555,7 +585,7 @@ export default function IssuesOrgBacklogPage() {
 
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between p-4">
-            <h2 className="text-lg font-medium flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-medium text-foreground">
               <ChevronDown /> {t("Backlog")}
             </h2>
             <Badge variant="secondary">{backlogIssues.length} {t("issues")}</Badge>
@@ -577,7 +607,9 @@ export default function IssuesOrgBacklogPage() {
 
         <div className="rounded-xl border bg-card">
           <div className="p-4 border-b">
-            <h3 className="text-sm font-semibold">{t("Unlinked Issues (no process)")}</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("Unlinked Issues (no process)")}
+            </h3>
             <p className="text-xs text-muted-foreground">
               {t("These stay outside sprint planning until linked to a process.")}
             </p>
@@ -603,9 +635,9 @@ export default function IssuesOrgBacklogPage() {
                     )
                   }
                 >
-                  <p className="text-sm font-medium">{issue.title}</p>
+                  <p className="text-sm font-medium text-foreground">{issue.title}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {issue.id} · {issue.priority || "medium"} · {issue.status}
+                    {issue.id} · {formatPriority(issue.priority)} · {formatStatus(issue.status)}
                   </p>
                 </button>
               ))
@@ -658,13 +690,13 @@ export default function IssuesOrgBacklogPage() {
                       className="flex items-center justify-between px-4 py-3 text-sm"
                     >
                       <div>
-                        <p className="font-medium">{issue.title}</p>
+                        <p className="font-medium text-foreground">{issue.title}</p>
                         <p className="text-muted-foreground text-xs mt-0.5">
-                          {issue.id} · {issue.priority}
+                          {issue.id} · {formatPriority(issue.priority)}
                         </p>
                       </div>
                       <Badge variant="outline" className="text-xs">
-                        {issue.priority}
+                        {formatPriority(issue.priority)}
                       </Badge>
                     </div>
                   ))

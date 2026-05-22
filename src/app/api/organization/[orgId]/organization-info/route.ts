@@ -1,7 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
+import { requireOrgSettingsAccess } from "@/lib/require-org-settings-access";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
+import type { PoolClient } from "pg";
+
+/** Keeps older tenant DBs compatible with the profile UI (matches 025 migration). */
+async function ensureOrganizationInfoProfileColumns(client: PoolClient) {
+  const stmts = [
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "legalName" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "taxId" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "companySize" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "foundedDate" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "supportEmail" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "fax" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "brandColor" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "brandFont" TEXT`,
+    `ALTER TABLE "organization_info" ADD COLUMN IF NOT EXISTS "logo" TEXT`,
+  ];
+  for (const sql of stmts) {
+    await client.query(sql);
+  }
+}
 
 /**
  * GET /api/organization/[orgId]/organization-info
@@ -19,6 +39,9 @@ export async function GET(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
 
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);
@@ -74,73 +97,132 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const settingsDenied = await requireOrgSettingsAccess(ctx);
+    if (settingsDenied) return settingsDenied;
+
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);
 
     try {
+      await ensureOrganizationInfoProfileColumns(client);
+
       // Check if organization info exists
       const existingResult = await client.query(
         `SELECT id FROM organization_info ORDER BY "createdAt" DESC LIMIT 1`
       );
 
+      const b = body as Record<string, unknown>;
+      const contactEmailVal =
+        (b.contactEmail as string | undefined) ?? (b.primaryEmail as string | undefined);
+
       const {
         name,
+        legalName,
         registrationId,
+        taxId,
         address,
         contactName,
         contactEmail,
         phone,
+        fax,
         website,
         industry,
-      } = body;
+        companySize,
+        foundedDate,
+        supportEmail,
+        brandColor,
+        brandFont,
+        logo,
+      } = b as {
+        name?: string;
+        legalName?: string;
+        registrationId?: string;
+        taxId?: string;
+        address?: string;
+        contactName?: string;
+        contactEmail?: string;
+        phone?: string;
+        fax?: string;
+        website?: string;
+        industry?: string;
+        companySize?: string;
+        foundedDate?: string;
+        supportEmail?: string;
+        brandColor?: string;
+        brandFont?: string;
+        logo?: string | null;
+      };
+
+      const emailForRow = contactEmail !== undefined ? contactEmail : contactEmailVal;
+
+      const nullIfEmpty = (v: unknown) => {
+        if (v === undefined || v === null) return null;
+        if (typeof v === "string" && v.trim() === "") return null;
+        return v;
+      };
 
       if (existingResult.rows.length === 0) {
-        // Create new organization info
         const id = crypto.randomUUID();
         await client.query(
           `INSERT INTO organization_info (
-            id, name, "registrationId", address, "contactName", 
-            "contactEmail", phone, website, industry, "createdAt", "updatedAt"
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
-          [id, name, registrationId || null, address || null, contactName || null, contactEmail || null, phone || null, website || null, industry || null]
+            id, name, "legalName", "registrationId", "taxId", address, "contactName",
+            "contactEmail", phone, fax, website, industry, "companySize", "foundedDate",
+            "supportEmail", "brandColor", "brandFont", logo,
+            "createdAt", "updatedAt"
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW()
+          )`,
+          [
+            id,
+            (name as string) || "Organization",
+            nullIfEmpty(legalName),
+            nullIfEmpty(registrationId),
+            nullIfEmpty(taxId),
+            nullIfEmpty(address),
+            nullIfEmpty(contactName),
+            nullIfEmpty(emailForRow),
+            nullIfEmpty(phone),
+            nullIfEmpty(fax),
+            nullIfEmpty(website),
+            nullIfEmpty(industry),
+            nullIfEmpty(companySize),
+            nullIfEmpty(foundedDate),
+            nullIfEmpty(supportEmail),
+            nullIfEmpty(brandColor),
+            nullIfEmpty(brandFont),
+            logo === null || logo === "" ? null : (logo as string) ?? null,
+          ]
         );
       } else {
-        // Update existing organization info
         const updates: string[] = [];
-        const values: any[] = [];
+        const values: unknown[] = [];
         let paramIndex = 1;
 
-        if (name !== undefined) {
-          updates.push(`name = $${paramIndex++}`);
-          values.push(name);
+        const add = (colSql: string, val: unknown) => {
+          updates.push(`${colSql} = $${paramIndex++}`);
+          values.push(val);
+        };
+
+        if (name !== undefined) add("name", name || "Organization");
+        if (legalName !== undefined) add(`"legalName"`, nullIfEmpty(legalName));
+        if (registrationId !== undefined) add(`"registrationId"`, nullIfEmpty(registrationId));
+        if (taxId !== undefined) add(`"taxId"`, nullIfEmpty(taxId));
+        if (address !== undefined) add("address", nullIfEmpty(address));
+        if (contactName !== undefined) add(`"contactName"`, nullIfEmpty(contactName));
+        if (contactEmail !== undefined || b.primaryEmail !== undefined) {
+          add(`"contactEmail"`, nullIfEmpty(emailForRow));
         }
-        if (registrationId !== undefined) {
-          updates.push(`"registrationId" = $${paramIndex++}`);
-          values.push(registrationId || null);
-        }
-        if (address !== undefined) {
-          updates.push(`address = $${paramIndex++}`);
-          values.push(address || null);
-        }
-        if (contactName !== undefined) {
-          updates.push(`"contactName" = $${paramIndex++}`);
-          values.push(contactName || null);
-        }
-        if (contactEmail !== undefined) {
-          updates.push(`"contactEmail" = $${paramIndex++}`);
-          values.push(contactEmail || null);
-        }
-        if (phone !== undefined) {
-          updates.push(`phone = $${paramIndex++}`);
-          values.push(phone || null);
-        }
-        if (website !== undefined) {
-          updates.push(`website = $${paramIndex++}`);
-          values.push(website || null);
-        }
-        if (industry !== undefined) {
-          updates.push(`industry = $${paramIndex++}`);
-          values.push(industry || null);
+        if (phone !== undefined) add("phone", nullIfEmpty(phone));
+        if (fax !== undefined) add("fax", nullIfEmpty(fax));
+        if (website !== undefined) add("website", nullIfEmpty(website));
+        if (industry !== undefined) add("industry", nullIfEmpty(industry));
+        if (companySize !== undefined) add(`"companySize"`, nullIfEmpty(companySize));
+        if (foundedDate !== undefined) add(`"foundedDate"`, nullIfEmpty(foundedDate));
+        if (supportEmail !== undefined) add(`"supportEmail"`, nullIfEmpty(supportEmail));
+        if (brandColor !== undefined) add(`"brandColor"`, nullIfEmpty(brandColor));
+        if (brandFont !== undefined) add(`"brandFont"`, nullIfEmpty(brandFont));
+        if (logo !== undefined) {
+          add("logo", logo === null || logo === "" ? null : logo);
         }
 
         if (updates.length > 0) {

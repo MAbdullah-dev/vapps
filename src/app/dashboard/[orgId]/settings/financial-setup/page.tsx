@@ -23,9 +23,9 @@ export default function FinancialSetupPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-sm text-gray-500 mb-1">Settings &gt; Financial Setup</div>
-          <h1 className="text-2xl font-semibold">Financial Setup</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <div className="text-sm text-muted-foreground mb-1">Settings &gt; Financial Setup</div>
+          <h1 className="text-2xl font-semibold text-foreground">Financial Setup</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Configure currency, accounting template, and default financial accounts.
           </p>
         </div>

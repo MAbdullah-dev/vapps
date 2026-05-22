@@ -103,14 +103,14 @@ function workflowStatusLabel(
 ): { label: string; className: string } {
   const s = String(ws ?? "").trim();
   if (!s)
-    return { label: t("—"), className: "bg-slate-50 text-slate-600 ring-slate-200/80" };
+    return { label: t("—"), className: "bg-muted/30 text-muted-foreground ring-border" };
   if (s === "draft")
     return { label: t("Capture"), className: "bg-amber-50 text-amber-900 ring-amber-200/80" };
   if (s === "capture_submitted")
     return { label: t("Verify"), className: "bg-sky-50 text-sky-900 ring-sky-200/80" };
   if (s === "completed")
     return { label: t("Active"), className: "bg-emerald-50 text-emerald-800 ring-emerald-200/80" };
-  return { label: s, className: "bg-slate-50 text-slate-700 ring-slate-200/80" };
+  return { label: s, className: "bg-muted/30 text-foreground ring-border" };
 }
 
 export default function DocumentaryEvidenceTemplatesContent() {
@@ -284,7 +284,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
       </nav>
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-[#0A0A0A]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {t("Documentary Evidence Record Templates")}
         </h1>
         <p className="text-sm text-muted-foreground max-w-3xl">
@@ -317,10 +317,10 @@ export default function DocumentaryEvidenceTemplatesContent() {
         </p>
       </div>
 
-      <Card className="border border-[#0000001A] shadow-sm">
+      <Card className="border border-border shadow-sm">
         <CardContent className="space-y-4 pt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-semibold text-[#0A0A0A]">
+            <h2 className="text-base font-semibold text-foreground">
               {t("Available F-Record Templates")}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 (
@@ -332,18 +332,20 @@ export default function DocumentaryEvidenceTemplatesContent() {
               <Search
                 size={16}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
               />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("Search templates...")}
+                aria-label={t("Search templates")}
                 disabled={isLoading || templates.length === 0}
-                className="h-10 pl-9 bg-[#F9FAFB] border-[#E5E7EB]"
+                className="h-10 pl-9 bg-muted/30 border-border"
               />
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#E5E7EB] overflow-x-auto">
+          <div className="rounded-lg border border-border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
@@ -411,7 +413,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                       <TableCell className="text-sm font-medium text-foreground whitespace-nowrap">
                         {row.referenceNumber}
                       </TableCell>
-                      <TableCell className="text-sm font-semibold text-[#0A0A0A] max-w-[200px]">
+                      <TableCell className="text-sm font-semibold text-foreground max-w-[200px]">
                         {row.formTitle}
                       </TableCell>
                       <TableCell className="text-sm font-medium text-foreground">{row.site}</TableCell>
@@ -424,7 +426,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2 py-0.5 text-xs font-medium text-[#4B5563]"
+                          className="rounded-md border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                         >
                           {row.version}
                         </Badge>

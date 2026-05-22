@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
@@ -56,7 +57,60 @@ import { RichTextEditor } from "@/components/editor/rich-text-editor";
 
 import { Command, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
-import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resolveProfileImageSrc } from "@/lib/profile-image";
+import { coerceCommentsArray } from "@/lib/issue-comments-normalize";
+
+function initialsFromLabel(label: string): string {
+  const t = label.trim();
+  if (!t) return "?";
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2 && parts[0][0] && parts[parts.length - 1][0]) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return t.slice(0, 2).toUpperCase();
+}
+
+type IssueCommentRow = {
+  id: string;
+  author: string;
+  authorImage: string | null;
+  text: string;
+  createdAt: string;
+};
+
+function parseIssueComments(raw: unknown): IssueCommentRow[] {
+  const arr = coerceCommentsArray(raw);
+
+  return arr
+    .filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === "object" && !Array.isArray(c))
+    .map((c) => {
+      const id =
+        c.id != null && (typeof c.id === "string" || typeof c.id === "number")
+          ? String(c.id)
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const author =
+        typeof c.author === "string" && c.author.trim() ? c.author.trim() : "User";
+      const authorImage =
+        typeof c.authorImage === "string" ? c.authorImage : null;
+      const text = typeof c.text === "string" ? c.text : "";
+      const createdAt =
+        typeof c.createdAt === "string" && c.createdAt.trim()
+          ? c.createdAt.trim()
+          : new Date().toISOString();
+      return { id, author, authorImage, text, createdAt };
+    })
+    .filter((c) => c.text.trim() !== "");
+}
+
+function commentTimeLabel(isoOrPhrase: string, tr: (s: string) => string): string {
+  const t = isoOrPhrase.trim();
+  if (!t) return "";
+  if (t === "Just now") return tr("Just now");
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return t;
+  return formatDistanceToNow(d, { addSuffix: true });
+}
 
 type WorkspaceSegment = "processes" | "issues";
 
@@ -80,7 +134,11 @@ export default function ProcessLayout({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "manager" | "member">("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [processData, setProcessData] = useState<{ siteId: string } | null>(null);
+  const [processData, setProcessData] = useState<{
+    siteId: string;
+    name?: string;
+    description?: string | null;
+  } | null>(null);
   const [isLoadingProcess, setIsLoadingProcess] = useState(true);
   const [userRole, setUserRole] = useState<string>("member");
 
@@ -93,30 +151,12 @@ export default function ProcessLayout({
 
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
 
-  type Comment = {
-    id: number
-    author: string
-    text: string
-    createdAt: string
-  }
+  type Comment = IssueCommentRow
 
   const [commentText, setCommentText] = useState("")
   const [comments, setComments] = useState<Comment[]>([])
+  const [isPostingComment, setIsPostingComment] = useState(false)
 
-
-  const handleAddComment = () => {
-    if (!commentText.trim()) return
-
-    const newComment: Comment = {
-      id: Date.now(),
-      author: "John Doe", // later replace with logged-in user
-      text: commentText,
-      createdAt: "Just now",
-    }
-
-    setComments((prev) => [newComment, ...prev])
-    setCommentText("")
-  }
 
   // Fetch current user role (Level 1 = owner/admin, Level 2 = manager, Level 3 = member)
   useEffect(() => {
@@ -156,12 +196,12 @@ export default function ProcessLayout({
         }
       } catch (error: any) {
         console.error("Error loading assignees/sprints:", error);
-        toast.error("Failed to load assignees");
+        toast.error(t("Failed to load assignees"));
       } finally {
         setIsLoadingUsers(false);
       }
     },
-    [orgId]
+    [orgId, t]
   );
 
   // Fetch metadata and site context; defer heavy assignee/sprint queries until dialog is opened.
@@ -198,7 +238,7 @@ export default function ProcessLayout({
         }
       } catch (error: any) {
         console.error("Error fetching data:", error);
-        toast.error("Failed to load data");
+        toast.error(t("Failed to load data"));
       } finally {
         setIsLoadingMetadata(false);
       }
@@ -207,7 +247,7 @@ export default function ProcessLayout({
     if (orgId && (processId || workspaceSegment === "issues")) {
       fetchData();
     }
-  }, [orgId, processId, workspaceSegment]);
+  }, [orgId, processId, workspaceSegment, t]);
 
 
   // Listen for openIssueDialog event from board
@@ -232,6 +272,8 @@ export default function ProcessLayout({
         setPoints(0);
         setEditorContent("");
         setDate(undefined);
+        setComments([]);
+        setCommentText("");
         if (workspaceSegment === "issues") {
           setSelectedIssueProcessId("__none__");
           const sid = getSelectedSiteIdFromStorage(orgId as string);
@@ -247,13 +289,18 @@ export default function ProcessLayout({
 
       try {
         setIsLoadingIssue(true);
+        setComments([]);
+        setCommentText("");
+        const requestedIssueId = issueId;
         const response =
           workspaceSegment === "issues"
             ? await apiClient.getOrgIssue(orgId as string, issueId)
             : await apiClient.getIssue(orgId as string, processId as string, issueId);
         const issue = response.issue;
 
-        // Populate form with issue data
+        if (!issue || String(issue.id) !== String(requestedIssueId)) {
+          return;
+        }
         setEditingIssue(issue);
         setTitle(issue.title || "");
         setTag(issue.tags && issue.tags.length > 0 ? issue.tags[0] : "");
@@ -268,6 +315,7 @@ export default function ProcessLayout({
         setPoints(issue.points || 0);
         setEditorContent(issue.description || "");
         setDate(issue.deadline ? new Date(issue.deadline) : undefined);
+        setComments(parseIssueComments(issue.comments));
         if (workspaceSegment === "issues") {
           await loadIssuePeopleAndSprints(processForIssue);
         }
@@ -276,7 +324,7 @@ export default function ProcessLayout({
         setIsCreateDialogOpen(true);
       } catch (error: any) {
         console.error("Error loading issue:", error);
-        toast.error("Failed to load issue details");
+        toast.error(t("Failed to load issue details"));
       } finally {
         setIsLoadingIssue(false);
       }
@@ -304,6 +352,8 @@ export default function ProcessLayout({
       setPoints(0);
       setEditorContent("");
       setDate(undefined);
+      setComments([]);
+      setCommentText("");
       setCustomTitleMode(false);
       setCustomTagMode(false);
       setCustomSourceMode(false);
@@ -414,6 +464,70 @@ export default function ProcessLayout({
     (!editingIssue || editingIssue.assignee === currentUserId);
   const isViewOnly = !!editingIssue && !canEditIssue;
 
+  const canAddIssueComment = useMemo(() => {
+    if (!editingIssue?.id || !currentUserId) return false;
+    const uid = String(currentUserId);
+    const assigneeId =
+      editingIssue.assignee != null ? String(editingIssue.assignee) : "";
+    const issuerId =
+      editingIssue.issuer != null ? String(editingIssue.issuer) : "";
+    return uid === assigneeId || (issuerId !== "" && uid === issuerId);
+  }, [editingIssue?.id, editingIssue?.assignee, editingIssue?.issuer, currentUserId]);
+
+  const handleAddComment = useCallback(async () => {
+    if (!commentText.trim() || !canAddIssueComment) return;
+
+    const displayName =
+      session?.user?.name?.trim() ||
+      session?.user?.email?.trim() ||
+      "User";
+
+    const text = commentText.trim();
+    const newComment: Comment = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      author: displayName,
+      authorImage: session?.user?.image ?? null,
+      text,
+      createdAt: new Date().toISOString(),
+    }
+
+    const previous = comments;
+    const next = [newComment, ...previous];
+    setComments(next);
+    setCommentText("");
+
+    if (!editingIssue?.id) return;
+
+    setIsPostingComment(true);
+    try {
+      if (workspaceSegment === "issues") {
+        await apiClient.updateOrgIssue(orgId as string, editingIssue.id, { comments: next });
+      } else if (processId) {
+        await apiClient.updateIssue(orgId as string, processId, editingIssue.id, { comments: next });
+      }
+    } catch (error: any) {
+      setComments(previous);
+      setCommentText(text);
+      toast.error(error?.message || t("Failed to save comment"));
+    } finally {
+      setIsPostingComment(false);
+    }
+  }, [
+    commentText,
+    canAddIssueComment,
+    session?.user?.name,
+    session?.user?.email,
+    session?.user?.image,
+    comments,
+    editingIssue?.id,
+    workspaceSegment,
+    orgId,
+    processId,
+  ]);
+
   const handleAddCustomTitle = () => {
     setCustomTitleMode(true);
   };
@@ -513,6 +627,7 @@ export default function ProcessLayout({
           sprintId: selectedSprint === "__backlog__" ? null : (selectedSprint || null),
           status: selectedStatus || undefined,
           deadline: date ? date.toISOString() : null,
+          comments,
         };
 
         if (workspaceSegment === "issues") {
@@ -540,6 +655,8 @@ export default function ProcessLayout({
         setPoints(0);
         setEditorContent("");
         setDate(undefined);
+        setComments([]);
+        setCommentText("");
         if (workspaceSegment === "issues") {
           setSelectedIssueProcessId("__none__");
         }
@@ -612,6 +729,8 @@ export default function ProcessLayout({
       setPoints(0);
       setEditorContent("");
       setDate(undefined);
+      setComments([]);
+      setCommentText("");
       if (workspaceSegment === "issues") {
         setSelectedIssueProcessId("__none__");
       }
@@ -658,26 +777,26 @@ export default function ProcessLayout({
         setProcessData(process);
       } catch (error: any) {
         console.error("Error fetching process:", error);
-        toast.error("Failed to load process information");
+        toast.error(t("Failed to load process information"));
       } finally {
         setIsLoadingProcess(false);
       }
     };
 
     fetchProcess();
-  }, [orgId, processId]);
+  }, [orgId, processId, t]);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!orgId || !processId || !processData) {
-      toast.error("Missing required information");
+      toast.error(t("Missing required information"));
       return;
     }
 
     if (!email || !email.includes("@")) {
-      toast.error("Please enter a valid email address");
+      toast.error(t("Please enter a valid email address"));
       return;
     }
 
@@ -693,7 +812,7 @@ export default function ProcessLayout({
         role: role,
       });
 
-      toast.success("Invitation sent successfully!");
+      toast.success(t("Invitation sent successfully!"));
 
       // Refresh process users list
       try {
@@ -709,7 +828,7 @@ export default function ProcessLayout({
       setRole("member");
       setDialogOpen(false);
     } catch (error: any) {
-      toast.error(error.message || "Failed to send invitation");
+      toast.error(error.message || t("Failed to send invitation"));
     } finally {
       setIsSubmitting(false);
     }
@@ -731,19 +850,24 @@ export default function ProcessLayout({
             <span className="bg-primary p-2 rounded text-primary-foreground">
               <TrendingUp size={16} />
             </span>
-            <h1 className="text-base font-bold capitalize">
+            <h1 className="text-base font-bold capitalize text-foreground">
               {workspaceSegment === "issues"
                 ? (() => {
                     const site = sitesForIssue.find((s) => s.id === selectedIssueSiteId);
                     return site ? `${t("Issues")} — ${site.name}` : t("Issues");
                   })()
-                : processId?.toString().replaceAll("-", " ")}
+                : processData?.name?.trim() ||
+                  (isLoadingProcess ? t("Loading…") : t("Process"))}
             </h1>
           </div>
 
-          <p className="text-sm text-muted-foreground mb-4">
-            {t("Building the next generation mobile experience...")}
-          </p>
+          {workspaceSegment !== "issues" && (
+            <p className="text-sm text-muted-foreground mb-4">
+              {isLoadingProcess && !processData?.description?.trim()
+                ? t("Loading…")
+                : processData?.description?.trim() || t("No description yet.")}
+            </p>
+          )}
         </div>
 
         {/* Create Issue Dialog - any level can create issues */}
@@ -770,12 +894,12 @@ export default function ProcessLayout({
 
               {/* Title */}
               <div className="space-y-1">
-                <Label className="mb-2">Title*</Label>
+                <Label className="mb-2">{t("Title")}*</Label>
 
                 {customTitleMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
-                      placeholder="Enter custom title"
+                      placeholder={t("Enter custom title")}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full"
@@ -804,7 +928,7 @@ export default function ProcessLayout({
                         }
                       }}
                     >
-                      Save
+                      {t("Save")}
                     </Button>
 
                     <Button
@@ -812,7 +936,7 @@ export default function ProcessLayout({
                       variant="outline"
                       onClick={() => setCustomTitleMode(false)}
                     >
-                      Cancel
+                      {t("Cancel")}
                     </Button>
                   </div>
                 ) : (
@@ -824,13 +948,13 @@ export default function ProcessLayout({
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={isLoadingMetadata ? "Loading titles..." : "Select a title *"} />
+                        <SelectValue placeholder={isLoadingMetadata ? t("Loading titles...") : t("Select a title *")} />
                       </SelectTrigger>
 
                       <SelectContent>
-                        {titles.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
+                        {titles.map((titleOpt) => (
+                          <SelectItem key={titleOpt} value={titleOpt}>
+                            {titleOpt}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -838,20 +962,20 @@ export default function ProcessLayout({
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info size={24} />
+                        <Info size={24} aria-hidden />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Add to library</p>
+                        <p>{t("Add to library")}</p>
                       </TooltipContent>
                     </Tooltip>
 
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomTitleMode(true)}
                     >
-                      Add Custom Title
+                      {t("Add Custom Title")}
                     </Button>
                   </div>
                 )}
@@ -859,12 +983,12 @@ export default function ProcessLayout({
 
               {/* Tag */}
               <div className="space-y-1">
-                <Label className="mb-2">Tag*</Label>
+                <Label className="mb-2">{t("Tag")}*</Label>
 
                 {customTagMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
-                      placeholder="Enter custom tag"
+                      placeholder={t("Enter custom tag")}
                       value={tag}
                       onChange={(e) => setTag(e.target.value)}
                       className="w-full"
@@ -893,7 +1017,7 @@ export default function ProcessLayout({
                         }
                       }}
                     >
-                      Save
+                      {t("Save")}
                     </Button>
 
                     <Button
@@ -901,20 +1025,20 @@ export default function ProcessLayout({
                       variant="outline"
                       onClick={() => setCustomTagMode(false)}
                     >
-                      Cancel
+                      {t("Cancel")}
                     </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
                     <Select value={tag} onValueChange={setTag} disabled={isViewOnly}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a tag *" />
+                        <SelectValue placeholder={t("Select a tag *")} />
                       </SelectTrigger>
 
                       <SelectContent>
-                        {tags.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
+                        {tags.map((tagOpt) => (
+                          <SelectItem key={tagOpt} value={tagOpt}>
+                            {tagOpt}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -922,20 +1046,20 @@ export default function ProcessLayout({
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info size={24} />
+                        <Info size={24} aria-hidden />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Add to library</p>
+                        <p>{t("Add to library")}</p>
                       </TooltipContent>
                     </Tooltip>
 
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomTagMode(true)}
                     >
-                      Add Custom Tag
+                      {t("Add Custom Tag")}
                     </Button>
                   </div>
                 )}
@@ -943,12 +1067,12 @@ export default function ProcessLayout({
 
               {/* Source */}
               <div className="space-y-1">
-                <Label className="mb-2">Source*</Label>
+                <Label className="mb-2">{t("Source")}*</Label>
 
                 {customSourceMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
-                      placeholder="Enter custom source"
+                      placeholder={t("Enter custom source")}
                       value={source}
                       onChange={(e) => setSource(e.target.value)}
                       className="w-full"
@@ -977,7 +1101,7 @@ export default function ProcessLayout({
                         }
                       }}
                     >
-                      Save
+                      {t("Save")}
                     </Button>
 
                     <Button
@@ -985,7 +1109,7 @@ export default function ProcessLayout({
                       variant="outline"
                       onClick={() => setCustomSourceMode(false)}
                     >
-                      Cancel
+                      {t("Cancel")}
                     </Button>
                   </div>
                 ) : (
@@ -997,7 +1121,7 @@ export default function ProcessLayout({
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={isLoadingMetadata ? "Loading sources..." : "Select a source *"} />
+                        <SelectValue placeholder={isLoadingMetadata ? t("Loading sources...") : t("Select a source *")} />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -1011,20 +1135,20 @@ export default function ProcessLayout({
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info size={24} />
+                        <Info size={24} aria-hidden />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Add to library</p>
+                        <p>{t("Add to library")}</p>
                       </TooltipContent>
                     </Tooltip>
 
                     <Button
                       type="button"
                       className="w-40"
-                      variant="dark"
+                      variant="default"
                       onClick={() => setCustomSourceMode(true)}
                     >
-                      Add Custom Source
+                      {t("Add Custom Source")}
                     </Button>
                   </div>
                 )}
@@ -1033,7 +1157,7 @@ export default function ProcessLayout({
               {workspaceSegment === "issues" && (
                 <div className="flex items-center gap-4">
                   <div className="w-1/2">
-                    <Label className="mb-2">Site*</Label>
+                    <Label className="mb-2">{t("Site")}*</Label>
                     <Select
                       value={selectedIssueSiteId}
                       onValueChange={(value) => {
@@ -1044,7 +1168,7 @@ export default function ProcessLayout({
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select site" />
+                        <SelectValue placeholder={t("Select site")} />
                       </SelectTrigger>
                       <SelectContent>
                         {sitesForIssue.map((site) => (
@@ -1056,7 +1180,7 @@ export default function ProcessLayout({
                     </Select>
                   </div>
                   <div className="w-1/2">
-                    <Label className="mb-2">Link to Process (Optional)</Label>
+                    <Label className="mb-2">{t("Link to Process (Optional)")}</Label>
                     <Select
                       value={selectedIssueProcessId}
                       onValueChange={async (value) => {
@@ -1097,10 +1221,10 @@ export default function ProcessLayout({
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingMetadata}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="No process link" />
+                        <SelectValue placeholder={t("No process link")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">No process link</SelectItem>
+                        <SelectItem value="__none__">{t("No process link")}</SelectItem>
                         {selectedSiteProcesses.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.name}
@@ -1115,22 +1239,22 @@ export default function ProcessLayout({
               {/* Priority & Status */}
               <div className="flex items-center gap-4">
                 <div className="w-1/2">
-                  <Label className="mb-2">Priority</Label>
+                  <Label className="mb-2">{t("Priority")}</Label>
                   <Select onValueChange={setSelectedPriority} value={selectedPriority} disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Medium (default)" />
+                      <SelectValue placeholder={t("Medium (default)")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="low">{t("Low")}</SelectItem>
+                      <SelectItem value="medium">{t("Medium")}</SelectItem>
+                      <SelectItem value="high">{t("High")}</SelectItem>
+                      <SelectItem value="critical">{t("Critical")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="w-1/2">
-                  <Label className="mb-2">Status</Label>
+                  <Label className="mb-2">{t("Status")}</Label>
                   <Select
                     onValueChange={setSelectedStatus}
                     value={selectedStatus}
@@ -1149,25 +1273,25 @@ export default function ProcessLayout({
                           editingIssue
                             ? undefined
                             : (selectedSprint && selectedSprint !== "__backlog__")
-                              ? "In Progress (auto)"
-                              : "To Do (default)"
+                              ? t("In Progress (auto)")
+                              : t("To Do (default)")
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="to-do">To Do</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="done">Done</SelectItem>
+                      <SelectItem value="to-do">{t("To Do")}</SelectItem>
+                      <SelectItem value="in-progress">{t("In Progress")}</SelectItem>
+                      <SelectItem value="done">{t("Done")}</SelectItem>
                     </SelectContent>
                   </Select>
                   {editingIssue && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Status cannot be changed when editing. Create a new issue to set a different status.
+                      {t("Status cannot be changed when editing. Create a new issue to set a different status.")}
                     </p>
                   )}
                   {!editingIssue && selectedSprint && selectedSprint !== "__backlog__" && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Status will be set to "In Progress" when sprint is selected
+                      {t('Status will be set to "In Progress" when sprint is selected')}
                     </p>
                   )}
                 </div>
@@ -1176,7 +1300,7 @@ export default function ProcessLayout({
               {/* Assignee & Sprint */}
               <div className="flex items-center gap-4">
                 <div className="w-1/2 space-y-2">
-                  <Label>Assignee*</Label>
+                  <Label>{t("Assignee")}*</Label>
 
                   {/* Selected Pills */}
                   {selectedAssignees.length > 0 && (
@@ -1222,17 +1346,17 @@ export default function ProcessLayout({
                         )}
                       >
                         {isLoadingUsers
-                          ? "Loading users..."
+                          ? t("Loading users...")
                           : processUsers.length === 0
-                            ? "No users available"
-                            : "Select assignee(s)"}
+                            ? t("No users available")
+                            : t("Select assignee(s)")}
                         <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
 
                     <PopoverContent className="w-full p-0" align="start">
                       <Command>
-                        <CommandEmpty>No users found.</CommandEmpty>
+                        <CommandEmpty>{t("No users found.")}</CommandEmpty>
                         <CommandGroup>
                           {processUsers.map((user) => (
                             <CommandItem
@@ -1271,7 +1395,7 @@ export default function ProcessLayout({
 
 
                 <div className="w-1/2">
-                  <Label className="mb-2">Sprint</Label>
+                  <Label className="mb-2">{t("Sprint")}</Label>
                   <Select
                     onValueChange={(value) => {
                       setSelectedSprint(value);
@@ -1290,24 +1414,24 @@ export default function ProcessLayout({
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder={isLoadingMetadata ? "Loading sprints..." : "Select sprint (optional)"} />
+                      <SelectValue placeholder={isLoadingMetadata ? t("Loading sprints...") : t("Select sprint (optional)")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__backlog__">None (Backlog)</SelectItem>
+                      <SelectItem value="__backlog__">{t("None (Backlog)")}</SelectItem>
                       {sprints.map((sprint) => (
                         <SelectItem key={sprint.id} value={sprint.id}>{sprint.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Leave empty to add to backlog
+                    {t("Leave empty to add to backlog")}
                   </p>
                 </div>
               </div>
 
               {/* Due Date */}
               <div className="space-y-1">
-                <Label className="mb-2">Due Date</Label>
+                <Label className="mb-2">{t("Due Date")}</Label>
                 <Popover open={open} onOpenChange={setOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -1316,8 +1440,8 @@ export default function ProcessLayout({
                       className="w-full justify-between"
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue}
                     >
-                      {date ? date.toLocaleDateString() : "Select date"}
-                      <ChevronDownIcon className="text-muted" />
+                      {date ? date.toLocaleDateString() : t("Select date")}
+                      <ChevronDownIcon className="text-muted-foreground" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto overflow-hidden p-0" align="start">
@@ -1336,91 +1460,105 @@ export default function ProcessLayout({
               </div>
 
               <div>
-                <Label className="mb-2">Description</Label>
+                <Label className="mb-2">{t("Description")}</Label>
                 <RichTextEditor
                   value={editorContent}
                   onChange={setEditorContent}
                   readOnly={isViewOnly}
-                  placeholder="Enter issue description..."
+                  placeholder={t("Enter issue description...")}
                   minHeight={200}
                   showToolbar={!isViewOnly}
                 />
               </div>
 
-              {/* Comments Section */}
-              <div className="space-y-1 border p-4 rounded-2xl">
-                <div className="mb-3">
-                  <Label className="mb-4 flex items-center gap-2">
-                    <MessageSquare size={20} /> Comments
+              {editingIssue && (
+              <div className="space-y-3 rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="space-y-3">
+                  <Label className="mb-0 flex items-center gap-2 text-base font-medium text-foreground">
+                    <MessageSquare className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                    {t("Comments")}
                   </Label>
 
-                  <div className="pl-5">
+                  {canAddIssueComment ? (
+                  <div className="space-y-3 pl-0 sm:pl-1">
                     <Textarea
-                      placeholder="Add a comment..."
-                      className="bg-muted mb-3"
+                      placeholder={t("Add a comment…")}
+                      className="min-h-[88px] resize-y border border-input bg-background text-foreground placeholder:text-muted-foreground shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
-                      disabled={isViewOnly}
+                      disabled={isPostingComment}
                     />
                     <Button
                       type="button"
-                      variant="dark"
-                      className="mb-6"
-                      onClick={handleAddComment}
-                      disabled={isViewOnly}
+                      variant="default"
+                      className="mb-0"
+                      onClick={() => void handleAddComment()}
+                      disabled={isPostingComment}
                     >
-                      <Send size={16} /> Comment
+                      <Send size={16} /> {t("Comment")}
                     </Button>
                   </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                      {t("Only the assignee or the person who created this issue can add comments.")}
+                    </p>
+                  )}
                 </div>
 
                 {/* Comments List */}
                 {comments.length === 0 && (
-                  <p className="text-sm text-muted-foreground pl-5">No comments yet</p>
+                  <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
+                    {t("No comments yet")}
+                  </p>
                 )}
 
-                {comments.map((comment) => (
+                {comments.map((comment) => {
+                  const avatarSrc = resolveProfileImageSrc(comment.authorImage);
+                  return (
                   <div
                     key={comment.id}
-                    className="border border-border p-3 rounded-2xl bg-card flex gap-3 mb-3"
+                    className="flex gap-3 rounded-xl border border-border bg-muted/30 p-3 text-card-foreground shadow-xs dark:bg-muted/20"
                   >
-                    <Image
-                      src="/svgs/apple.svg"
-                      alt="User avatar"
-                      width={24}
-                      height={24}
-                      className="rounded-full h-6 w-6"
-                    />
+                    <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border">
+                      {avatarSrc ? (
+                        <AvatarImage src={avatarSrc} alt="" />
+                      ) : null}
+                      <AvatarFallback className="bg-muted text-[10px] font-medium text-muted-foreground">
+                        {initialsFromLabel(comment.author)}
+                      </AvatarFallback>
+                    </Avatar>
 
-                    <div className="flex flex-col flex-1">
-                      <h6 className="font-medium">{comment.author}</h6>
-                      <p>{comment.text}</p>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <h6 className="truncate text-sm font-semibold text-foreground">{comment.author}</h6>
+                      <p className="wrap-break-word whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{comment.text}</p>
                     </div>
 
-                    <small className="text-muted-foreground ml-auto">
-                      {comment.createdAt}
+                    <small className="ml-auto shrink-0 self-start text-xs text-muted-foreground tabular-nums">
+                      {commentTimeLabel(comment.createdAt, t)}
                     </small>
                   </div>
-                ))}
+                  );
+                })}
               </div>
+              )}
 
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
-                    {isViewOnly ? "Close" : "Cancel"}
+                    {isViewOnly ? t("Close") : t("Cancel")}
                   </Button>
                 </DialogClose>
                 {!isViewOnly && (
                   <Button type="submit" disabled={isCreatingIssue || isUpdatingIssue || isLoadingIssue}>
                     {isLoadingIssue
-                      ? "Loading..."
+                      ? t("Loading...")
                       : isUpdatingIssue
-                        ? "Updating..."
+                        ? t("Updating...")
                         : isCreatingIssue
-                          ? "Creating..."
+                          ? t("Creating...")
                           : editingIssue
-                            ? "Update Issue"
-                            : "Create Issue"}
+                            ? t("Update Issue")
+                            : t("Create Issue")}
                   </Button>
                 )}
               </DialogFooter>

@@ -47,6 +47,7 @@ import { Info, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 // Leadership level constants (organization-level identity)
 const LEADERSHIP_TOP = 1;
@@ -115,6 +116,7 @@ export default function CreateUserDialog({
   canManageTeams = false,
   onUserCreated,
 }: CreateUserDialogProps) {
+  const { t } = useTranslate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [jobTitle, setJobTitle] = useState<JobTitle | "">("");
@@ -228,31 +230,33 @@ export default function CreateUserDialog({
 
     // Common validations (all tiers)
     if (!fullName.trim()) {
-      newErrors.fullName = "Full name is required";
+      newErrors.fullName = t("Full name is required");
     }
     if (!email.trim()) {
-      newErrors.email = "Email address is required";
+      newErrors.email = t("Email address is required");
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Please enter a valid email address";
+      newErrors.email = t("Please enter a valid email address");
     }
     if (!jobTitle) {
-      newErrors.jobTitle = "Job title is required";
+      newErrors.jobTitle = t("Job title is required");
     }
     if (!organization) {
-      newErrors.organization = "Organization is required";
+      newErrors.organization = t("Organization is required");
     }
 
     // Every user (Admin, Manager, Member) must have one site and one process. Owner is not invited from this dialog.
     if (!site) {
-      newErrors.site = "Select one site.";
+      newErrors.site = t("Select one site.");
     }
     if (!process) {
-      newErrors.process = "Select one process.";
+      newErrors.process = t("Select one process.");
     }
 
     // Permission check (all tiers)
     if (jobTitle && systemRole && !canCreateThisRole(systemRole)) {
-      newErrors.jobTitle = `You don't have permission to create ${systemRole} users. ${canCreateMembersOnly ? "You can only create Member users." : ""}`;
+      newErrors.jobTitle = canCreateMembersOnly
+        ? t("You don't have permission to create this role. You can only create Member users.")
+        : t("You don't have permission to create users with this role.");
     }
 
     setErrors(newErrors);
@@ -293,12 +297,12 @@ export default function CreateUserDialog({
       setProcess("");
       setSelectedAdditionalRoleIds([]);
       setErrors({});
-      toast.success("Invitation sent successfully.");
+      toast.success(t("Invitation sent successfully."));
       onOpenChange(false);
       onUserCreated?.();
     } catch (error: any) {
       console.error("Error sending invitation:", error);
-      const message = error?.message || "Failed to send invitation. Please try again.";
+      const message = error?.message || t("Failed to send invitation. Please try again.");
       setErrors({ email: message });
       toast.error(message);
     } finally {
@@ -336,9 +340,9 @@ export default function CreateUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New User</DialogTitle>
+          <DialogTitle>{t("Create New User")}</DialogTitle>
           <DialogDescription>
-            Add a new user to your organization. System role is automatically assigned based on job title.
+            {t("Add a new user to your organization. System role is automatically assigned based on job title.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -346,7 +350,7 @@ export default function CreateUserDialog({
           {/* Full Name */}
           <div className="space-y-2">
             <Label htmlFor="fullName">
-              Full Name <span className="text-red-500">*</span>
+              {t("Full Name")} <span className="text-red-500">*</span>
             </Label>
             <Input
               id="fullName"
@@ -357,7 +361,7 @@ export default function CreateUserDialog({
                   setErrors({ ...errors, fullName: undefined });
                 }
               }}
-              placeholder="John Doe"
+              placeholder={t("John Doe")}
               className={errors.fullName ? "border-red-500" : ""}
             />
             {errors.fullName && (
@@ -371,7 +375,7 @@ export default function CreateUserDialog({
           {/* Email Address */}
           <div className="space-y-2">
             <Label htmlFor="email">
-              Email Address <span className="text-red-500">*</span>
+              {t("Email Address")} <span className="text-red-500">*</span>
             </Label>
             <Input
               id="email"
@@ -383,7 +387,7 @@ export default function CreateUserDialog({
                   setErrors({ ...errors, email: undefined });
                 }
               }}
-              placeholder="john.doe@example.com"
+              placeholder={t("john.doe@example.com")}
               className={errors.email ? "border-red-500" : ""}
             />
             {errors.email && (
@@ -398,14 +402,14 @@ export default function CreateUserDialog({
           <div className="space-y-2">
             <Label htmlFor="jobTitle">
               <div className="flex items-center gap-2">
-                <span>Job Title</span>
+                <span>{t("Job Title")}</span>
                 <span className="text-red-500">*</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    <Info className="h-4 w-4 cursor-help text-muted-foreground" aria-hidden />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Defines the user's business designation and determines their system role.</p>
+                    <p>{t("Defines the user's business designation and determines their system role.")}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -415,19 +419,19 @@ export default function CreateUserDialog({
                 id="jobTitle"
                 className={`w-full ${errors.jobTitle ? "border-red-500" : ""}`}
               >
-                <SelectValue placeholder="Select job title" />
+                <SelectValue placeholder={t("Select job title")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CEO">CEO</SelectItem>
-                <SelectItem value="CTO">CTO</SelectItem>
-                <SelectItem value="CFO">CFO</SelectItem>
-                <SelectItem value="VP">VP</SelectItem>
-                <SelectItem value="Director">Director</SelectItem>
-                <SelectItem value="Plant Manager">Plant Manager</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Supervisor">Supervisor</SelectItem>
-                <SelectItem value="Team Lead">Team Lead</SelectItem>
-                <SelectItem value="Coordinator">Coordinator</SelectItem>
+                <SelectItem value="CEO">{t("CEO")}</SelectItem>
+                <SelectItem value="CTO">{t("CTO")}</SelectItem>
+                <SelectItem value="CFO">{t("CFO")}</SelectItem>
+                <SelectItem value="VP">{t("VP")}</SelectItem>
+                <SelectItem value="Director">{t("Director")}</SelectItem>
+                <SelectItem value="Plant Manager">{t("Plant Manager")}</SelectItem>
+                <SelectItem value="Manager">{t("Manager")}</SelectItem>
+                <SelectItem value="Supervisor">{t("Supervisor")}</SelectItem>
+                <SelectItem value="Team Lead">{t("Team Lead")}</SelectItem>
+                <SelectItem value="Coordinator">{t("Coordinator")}</SelectItem>
               </SelectContent>
             </Select>
             {errors.jobTitle && (
@@ -443,21 +447,21 @@ export default function CreateUserDialog({
             <div className="space-y-2">
               <Label>
                 <div className="flex items-center gap-2">
-                  <span>Leadership Level</span>
+                  <span>{t("Leadership Level")}</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 cursor-help text-muted-foreground" aria-hidden />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Determines the user's authority in the organization. Automatically set based on job title.</p>
+                      <p>{t("Determines the user's authority in the organization. Automatically set based on job title.")}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
               </Label>
               <Input
-                value={`Level ${roleLevel}`}
+                value={`${t("Level")} ${roleLevel}`}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
           )}
@@ -467,21 +471,21 @@ export default function CreateUserDialog({
             <div className="space-y-2">
               <Label>
                 <div className="flex items-center gap-2">
-                  <span>System Role</span>
+                  <span>{t("System Role")}</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 cursor-help text-muted-foreground" aria-hidden />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Controls what actions the user can perform in Vie. Automatically assigned based on leadership level.</p>
+                      <p>{t("Controls what actions the user can perform in Vie. Automatically assigned based on leadership level.")}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
               </Label>
               <Input
-                value={systemRole}
+                value={t(systemRole)}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted cursor-not-allowed"
               />
             </div>
           )}
@@ -489,13 +493,13 @@ export default function CreateUserDialog({
           {/* Organization */}
           <div className="space-y-2">
             <Label htmlFor="organization">
-              Organization <span className="text-red-500">*</span>
+              {t("Organization")} <span className="text-red-500">*</span>
             </Label>
             <Input
               id="organization"
               value={orgName || orgId}
               disabled
-              className="bg-gray-50 cursor-not-allowed"
+              className="bg-muted cursor-not-allowed"
             />
           </div>
 
@@ -504,14 +508,14 @@ export default function CreateUserDialog({
             <>
               <div className="space-y-2">
                 <Label htmlFor="site">
-                  Site <span className="text-red-500">*</span>
+                  {t("Site")} <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-xs text-gray-500 mb-1">
-                  Select the site where this user will operate.
+                <p className="mb-1 text-xs text-muted-foreground">
+                  {t("Select the site where this user will operate.")}
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
                   <SelectTrigger id="site" className={`w-full ${errors.site ? "border-red-500" : ""}`}>
-                    <SelectValue placeholder="Select one site" />
+                    <SelectValue placeholder={t("Select one site")} />
                   </SelectTrigger>
                   <SelectContent>
                     {sites.map((s) => (
@@ -531,10 +535,10 @@ export default function CreateUserDialog({
               {site && (
                 <div className="space-y-2">
                   <Label htmlFor="process">
-                    Process <span className="text-red-500">*</span>
+                    {t("Process")} <span className="text-red-500">*</span>
                   </Label>
-                  <p className="text-xs text-gray-500 mb-1">
-                    Select one process within this site.
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t("Select one process within this site.")}
                   </p>
                   <Select
                     value={process}
@@ -544,7 +548,11 @@ export default function CreateUserDialog({
                     }}
                   >
                     <SelectTrigger id="process" className={`w-full ${errors.process ? "border-red-500" : ""}`}>
-                      <SelectValue placeholder={processes.length === 0 ? "No processes available" : "Select one process"} />
+                      <SelectValue
+                        placeholder={
+                          processes.length === 0 ? t("No processes available") : t("Select one process")
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {processes.map((p) => (
@@ -566,11 +574,11 @@ export default function CreateUserDialog({
               {/* Optional additional roles (e.g. Auditor) — not combined with Level 3 / Support leadership job titles */}
               {assignableAdditionalRoles.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Additional roles (optional)</Label>
-                  <p className="text-xs text-gray-500 mb-1">
-                    Assign custom roles such as Auditor if needed.
+                  <Label>{t("Additional roles (optional)")}</Label>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t("Assign custom roles such as Auditor if needed.")}
                   </p>
-                  <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+                  <div className="flex flex-wrap gap-3 rounded-md border border-border bg-muted/50 p-3">
                     {assignableAdditionalRoles.map((ar) => (
                       <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -583,9 +591,9 @@ export default function CreateUserDialog({
                               setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
                             }
                           }}
-                          className="rounded border-gray-300"
+                          className="rounded border-border"
                         />
-                        <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                        <span className="text-sm font-medium text-foreground">{ar.name}</span>
                       </label>
                     ))}
                   </div>
@@ -599,7 +607,7 @@ export default function CreateUserDialog({
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
               <div className="flex items-center gap-2 text-sm text-yellow-800">
                 <AlertCircle className="h-4 w-4" />
-                <span>You don't have permission to create users.</span>
+                <span>{t("You don't have permission to create users.")}</span>
               </div>
             </div>
           )}
@@ -607,14 +615,14 @@ export default function CreateUserDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isLoading || cannotCreateUsers || !!(systemRole && !canCreateThisRole(systemRole))}
-            className="bg-black text-white hover:bg-gray-800"
+            className="bg-foreground text-background hover:bg-foreground/90"
           >
-            {isLoading ? "Creating..." : "Create User"}
+            {isLoading ? t("Creating...") : t("Create User")}
           </Button>
         </DialogFooter>
       </DialogContent>

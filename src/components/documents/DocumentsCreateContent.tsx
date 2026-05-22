@@ -56,14 +56,14 @@ function normalizeRecordWorkflow(raw: string | undefined | null): RecordWorkflow
 function DocumentWorkflowHydrationPlaceholder({ stepLabel }: { stepLabel: "Review" | "Approval" }) {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] px-6 py-24 text-center"
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 px-6 py-24 text-center"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
       <Loader2 className="h-9 w-9 animate-spin text-[#22B323]" aria-hidden />
-      <p className="text-sm font-medium text-[#374151]">Loading document…</p>
-      <p className="max-w-sm text-xs text-[#6B7280]">Securing access for {stepLabel}. Please wait.</p>
+      <p className="text-sm font-medium text-foreground">Loading document…</p>
+      <p className="max-w-sm text-xs text-muted-foreground">Securing access for {stepLabel}. Please wait.</p>
     </div>
   );
 }
@@ -913,7 +913,7 @@ export default function DocumentsCreateContent() {
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
-            <h2 className="text-lg font-bold text-[#0A0A0A]">Document Management</h2>
+            <h2 className="text-lg font-bold text-foreground">Document Management</h2>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="flex items-center gap-2">
                 <Save size={14} />
@@ -948,7 +948,7 @@ export default function DocumentsCreateContent() {
                       ? "bg-[#22B323] border-[#22B323] text-white"
                       : isDone
                       ? "bg-[#EEFFF3] border-[#22B323] text-[#15803D]"
-                      : "bg-[#F3F4F6] border-[#E5E7EB] text-[#6B7280] hover:bg-[#EBEEF2]"
+                      : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
                   )}
                 >
                   <span
@@ -961,7 +961,7 @@ export default function DocumentsCreateContent() {
                         : "border-[#D1D5DB] bg-white"
                     )}
                   >
-                    <DisplayIcon size={15} className={cn(isCurrent || isDone ? "text-white" : "text-[#9CA3AF]")} />
+                    <DisplayIcon size={15} className={cn(isCurrent || isDone ? "text-white" : "text-muted-foreground")} />
                   </span>
                   <span className="text-xs font-medium">{label}</span>
                 </button>

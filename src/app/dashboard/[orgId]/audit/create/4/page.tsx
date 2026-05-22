@@ -6,6 +6,7 @@ import { useRef, useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
+import { AuditUploadedFilesList, normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -162,11 +163,7 @@ export default function CreateAuditStep4Page() {
           if (typeof d.riskJustificationPost === "string") setRiskJustificationPost(d.riskJustificationPost);
           const fileList = (x: unknown): { name: string; key: string }[] =>
             Array.isArray(x)
-              ? x.filter((i): i is { name: string; key: string } => {
-                  if (i == null || typeof i !== "object") return false;
-                  const o = i as Record<string, unknown>;
-                  return typeof o.name === "string" && typeof o.key === "string";
-                })
+              ? x.map(normalizeAuditUploadedFileRef).filter((i): i is { name: string; key: string } => i != null)
               : [];
           if (Array.isArray(d.filesS2)) setFilesS2(fileList(d.filesS2));
           if (Array.isArray(d.filesS3)) setFilesS3(fileList(d.filesS3));
@@ -266,6 +263,40 @@ export default function CreateAuditStep4Page() {
       setSavingStep4(false);
     }
   };
+
+  const AttachFileBlock = ({ section, files }: { section: string; files: { name: string; key: string }[] }) => (
+    <div className="rounded-lg border border-border bg-muted/80 p-6">
+      <input
+        ref={(el) => { fileInputRefs.current[section] = el; }}
+        type="file"
+        accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFileChange(e, section)}
+      />
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
+          <Paperclip className="h-6 w-6" />
+        </div>
+        <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
+        <p className="text-xs text-muted-foreground">{t("Drag & drop your file here, or click to browse")}</p>
+        {files.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {files.length} {t("file(s) attached")}
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={uploadingFile}
+          onClick={() => fileInputRefs.current[section]?.click()}
+          className="rounded-lg border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
+        >
+          {t("UPLOAD FILE")}
+        </Button>
+      </div>
+    </div>
+  );
 
   const canEditStep4 =
     planStatus !== "closed" && currentUserRole === "auditee";
@@ -378,7 +409,7 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S1 Containment */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("*S1 CONTAINMENT")}{" "}
           <span className="text-blue-600">{t("(STOP THE 'BLEEDING' IMMEDIATELY!)")}</span>
         </h2>
@@ -391,12 +422,12 @@ export default function CreateAuditStep4Page() {
           </p>
         </div>
         <div className="mt-4 space-y-2">
-          <Label className="text-sm font-medium uppercase tracking-wide text-gray-600">
+          <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             {t("CONTAINMENT ACTION DESCRIPTION")}
           </Label>
           <Textarea
             placeholder={t("Describe the immediate actions taken to contain the nonconformity...")}
-            className="min-h-24 rounded-lg border-gray-300"
+            className="min-h-24 rounded-lg border-border"
             rows={4}
             value={containmentDescription}
             onChange={(e) => setContainmentDescription(e.target.value)}
@@ -404,18 +435,18 @@ export default function CreateAuditStep4Page() {
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label className="text-sm font-medium uppercase tracking-wide text-gray-600">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               {t("RESPONSIBLE PERSON")}
             </Label>
             <Input
               placeholder={t("Full Name / Job Title")}
-              className="rounded-lg border-gray-300"
+              className="rounded-lg border-border"
               value={responsiblePerson}
               onChange={(e) => setResponsiblePerson(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-sm font-medium uppercase tracking-wide text-gray-600">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               {t("TARGET COMPLETION DATE")}
             </Label>
             <Popover>
@@ -423,8 +454,8 @@ export default function CreateAuditStep4Page() {
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full justify-start rounded-lg border-gray-300 text-left font-normal",
-                    !targetCompletionDate && "text-gray-500"
+                    "w-full justify-start rounded-lg border-border text-left font-normal",
+                    !targetCompletionDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
@@ -444,7 +475,7 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S2 Evidence of S1 */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("*S2 EVIDENCE OF S1")}{" "}
           <span className="text-blue-600">{t("(PROVE YOU STOPPED IT!)")}</span>
         </h2>
@@ -456,7 +487,7 @@ export default function CreateAuditStep4Page() {
             {t("The Underlying Reason For An Issue, Identified Through Analysis To Ensure A Permanent Solution And Prevent Recurrence. Auditors May Use Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA.")}
           </p>
         </div>
-        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 p-6">
+        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
           <input
             ref={(el) => { fileInputRefs.current["s2"] = el; }}
             type="file"
@@ -471,11 +502,10 @@ export default function CreateAuditStep4Page() {
             </div>
             <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
             <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            {filesS2.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {filesS2.length} {t("file(s) selected")}
-              </p>
-            )}
+            <AuditUploadedFilesList
+              files={filesS2}
+              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+            />
             <Button
               type="button"
               variant="outline"
@@ -489,11 +519,11 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S3 Root Cause Analysis (RCA) */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("S3 ROOT CAUSE ANALYSIS (RCA)")}{" "}
           <span className="text-blue-600">{t("(THE 'DEEP DIVE' USING 5-WHY OR FISHBONE!)")}</span>
         </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
@@ -502,7 +532,7 @@ export default function CreateAuditStep4Page() {
           </p>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
           <RichTextEditor
             value={rootCauseNarrative}
             onChange={setRootCauseNarrative}
@@ -512,7 +542,7 @@ export default function CreateAuditStep4Page() {
           />
         </div>
 
-        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 p-6">
+        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
           <input
             ref={(el) => { fileInputRefs.current["s3"] = el; }}
             type="file"
@@ -527,11 +557,10 @@ export default function CreateAuditStep4Page() {
             </div>
             <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
             <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            {filesS3.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {filesS3.length} {t("file(s) selected")}
-              </p>
-            )}
+            <AuditUploadedFilesList
+              files={filesS3}
+              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+            />
             <Button
               type="button"
               variant="outline"
@@ -546,7 +575,7 @@ export default function CreateAuditStep4Page() {
 
         <div className="mt-8 space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("SIMILAR PROCESSES IMPACTED (IF ANY):")}</h3>
-          <div className="flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+          <div className="flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
               <Info className="h-5 w-5" />
             </div>
@@ -561,7 +590,7 @@ export default function CreateAuditStep4Page() {
                 name="similarProcesses"
                 checked={similarProcessesImpacted === "yes"}
                 onChange={() => setSimilarProcessesImpacted("yes")}
-                className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500"
+                className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
               />
               <span className="text-sm font-bold text-foreground">{t("YES")}</span>
             </label>
@@ -571,14 +600,14 @@ export default function CreateAuditStep4Page() {
                 name="similarProcesses"
                 checked={similarProcessesImpacted === "no"}
                 onChange={() => setSimilarProcessesImpacted("no")}
-                className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500"
+                className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
               />
               <span className="text-sm font-bold text-foreground">{t("NO")}</span>
             </label>
           </div>
           <Textarea
             placeholder={t("Include all relevant processes....")}
-            className="min-h-24 rounded-lg border-gray-300"
+            className="min-h-24 rounded-lg border-border"
             rows={4}
             value={similarProcessesList}
             onChange={(e) => setSimilarProcessesList(e.target.value)}
@@ -586,11 +615,11 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S4 Root Cause Result */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("S4 ROOT CAUSE RESULT")}{" "}
           <span className="text-base font-normal normal-case text-blue-600">{t("(CLEAR STATEMENT OF THE 'SYSTEMIC FAILURE'!)")}</span>
         </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
@@ -601,7 +630,7 @@ export default function CreateAuditStep4Page() {
         <div className="mt-4">
           <Textarea
             placeholder={t("Provide the multiline narrative result of the corrective action implementation...")}
-            className="min-h-32 rounded-lg border-gray-300"
+            className="min-h-32 rounded-lg border-border"
             rows={6}
             value={rootCauseResult}
             onChange={(e) => setRootCauseResult(e.target.value)}
@@ -609,11 +638,11 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S5 Systemic Corrective Action */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("S5 SYSTEMIC CORRECTIVE ACTION")}{" "}
           <span className="text-base font-normal normal-case text-blue-600">{t("(CHANGE THE PROCESS, PROCEDURE, CONTROL PLAN, AND FLOWCHART!)")}</span>
         </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
@@ -623,8 +652,8 @@ export default function CreateAuditStep4Page() {
         </div>
         <div className="mt-4">
           <Textarea
-            placeholder={t("Provide the multiline narrative result of the systemic corrective action...")}
-            className="min-h-32 rounded-lg border-gray-300"
+            placeholder={t("Provide the multiline narrative result of the corrective action implementation...")}
+            className="min-h-32 rounded-lg border-border"
             rows={6}
             value={systemicCorrectiveAction}
             onChange={(e) => setSystemicCorrectiveAction(e.target.value)}
@@ -632,19 +661,19 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S6 Evidence of Implementation S5 */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("S6 EVIDENCE OF IMPLEMENTATION S5")}{" "}
           <span className="text-blue-600">{t("(PROVE THE PROCESS CHANGED!)")}</span>
         </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
             <Info className="h-5 w-5" />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-gray-700">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
             {t('Implementation Evidence Should Demonstrate Process Changes And Sustained Compliance. Examples Include Revised Documentation, Training Records, Implementation Photos Or System Logs, And Monitoring Results. Physical Changes E.G., High-Resolution "Before" And "After" Photos Of New Signage, Shadow Boards, Or Poka-Yoke Sensors.')}
           </p>
         </div>
-        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 p-6">
+        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
           <input
             ref={(el) => { fileInputRefs.current["s6"] = el; }}
             type="file"
@@ -659,11 +688,10 @@ export default function CreateAuditStep4Page() {
             </div>
             <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
             <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            {filesS6.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {filesS6.length} {t("file(s) selected")}
-              </p>
-            )}
+            <AuditUploadedFilesList
+              files={filesS6}
+              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+            />
             <Button
               type="button"
               variant="outline"
@@ -677,7 +705,7 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S7 Verification */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-gray-900">
+        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
           {t("S7 VERIFICATION ()")}
         </h2>
         <div className="mt-4 flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
@@ -693,7 +721,7 @@ export default function CreateAuditStep4Page() {
             </p>
           </div>
         </div>
-        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 p-6">
+        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
           <input
             ref={(el) => { fileInputRefs.current["s7"] = el; }}
             type="file"
@@ -708,11 +736,10 @@ export default function CreateAuditStep4Page() {
             </div>
             <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
             <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            {filesS7.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {filesS7.length} {t("file(s) selected")}
-              </p>
-            )}
+            <AuditUploadedFilesList
+              files={filesS7}
+              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+            />
             <Button
               type="button"
               variant="outline"
@@ -727,7 +754,7 @@ export default function CreateAuditStep4Page() {
 
         {/* Risk Severity (Review) */}
         <div className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">{t("RISK SEVERITY (REVIEW):")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("RISK SEVERITY (REVIEW):")}</h3>
           <div className="flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
               <Info className="h-5 w-5" />
@@ -748,7 +775,7 @@ export default function CreateAuditStep4Page() {
                       : level === "medium"
                         ? "border-green-500 bg-green-50 text-green-700"
                         : "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                    : "border-border bg-background text-muted-foreground hover:border-input"
                 )}
               >
                 <input
@@ -766,10 +793,10 @@ export default function CreateAuditStep4Page() {
 
         {/* Auditee Comments (Mandatory) */}
         <div className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">{t("AUDITEE COMMENTS (MANDATORY)")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("AUDITEE COMMENTS (MANDATORY)")}</h3>
           <Textarea
             placeholder={t("Final auditee observations regarding the CA effectiveness and risk mitigation...")}
-            className="min-h-32 rounded-lg border-gray-300"
+            className="min-h-32 rounded-lg border-border"
             rows={6}
             value={auditeeComments}
             onChange={(e) => setAuditeeComments(e.target.value)}
@@ -830,7 +857,7 @@ export default function CreateAuditStep4Page() {
                 variant="outline"
                 disabled={savingStep4 || !auditPlanId}
                 onClick={handleSaveStep4}
-                className="inline-flex items-center gap-2 rounded-lg border-2 border-green-500 bg-transparent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 hover:text-white"
+                className="inline-flex items-center gap-2 rounded-lg border-2 border-primary bg-transparent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 hover:text-white"
               >
                 <Save className="h-4 w-4" />
                 {savingStep4 ? t("Saving…") : t("SAVE")}
@@ -838,7 +865,7 @@ export default function CreateAuditStep4Page() {
               <Button
                 type="button"
                 disabled={submittingToAuditor || !auditPlanId}
-                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-green-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
                 onClick={async () => {
                   if (!orgId || !auditPlanId) return;
                   setSubmittingToAuditor(true);

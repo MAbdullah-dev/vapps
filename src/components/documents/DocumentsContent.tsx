@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Archive,
   Cloud,
   Download,
   Eye,
@@ -40,6 +41,7 @@ import {
   Send,
   Server,
   Share2,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
@@ -280,6 +282,17 @@ type ObsoleteDocumentRow = {
   archivedLocation: string;
 };
 
+type DocumentaryEvidenceRow = {
+  kpi: "Consistent" | "Pending" | "Inconsistent";
+  recordStatus: "Success" | "Pending" | "Fail";
+  recordRank: "Verified" | "Captured" | "Archived";
+};
+
+type RecordsDisposalRow = {
+  disposalMethod: "Delete" | "Shred";
+  storageMedia: "Cloud" | "Physical" | "Local Server";
+};
+
 function ObsoleteTypeBadge({ type }: { type: ObsoleteDocumentRow["type"] }) {
   const map: Record<ObsoleteDocumentRow["type"], string> = {
     P: "border-transparent bg-violet-100 text-violet-800 hover:bg-violet-100",
@@ -303,7 +316,7 @@ function ArchivedLocationBadge({ label }: { label: string }) {
   return (
     <Badge
       variant="outline"
-      className="rounded-md border-[#E5E7EB] bg-[#F3F4F6] px-2.5 py-1 text-xs font-medium text-[#4B5563] hover:bg-[#F3F4F6]"
+      className="rounded-md border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
     >
       {t(label)}
     </Badge>
@@ -348,6 +361,117 @@ function ObsoleteRegisterColumnHead({
         </span>
       ) : null}
     </TableHead>
+  );
+}
+
+function EvidenceKpiText({ kpi }: { kpi: DocumentaryEvidenceRow["kpi"] }) {
+  const { t } = useTranslate();
+  const map: Record<DocumentaryEvidenceRow["kpi"], string> = {
+    Consistent: "text-[#16A34A]",
+    Pending: "text-[#EA580C]",
+    Inconsistent: "text-[#DC2626]",
+  };
+  return <span className={cn("text-sm font-medium", map[kpi])}>{t(kpi)}</span>;
+}
+
+function EvidenceRecordStatusBadge({ status }: { status: DocumentaryEvidenceRow["recordStatus"] }) {
+  const { t } = useTranslate();
+  const map: Record<DocumentaryEvidenceRow["recordStatus"], string> = {
+    Success:
+      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
+    Pending:
+      "border-transparent bg-orange-500 text-white hover:bg-orange-500 shadow-none",
+    Fail: "border-transparent bg-red-600 text-white hover:bg-red-600 shadow-none",
+  };
+  return (
+    <Badge
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        map[status]
+      )}
+    >
+      {t(status)}
+    </Badge>
+  );
+}
+
+function RetentionPeriodBadge({ label }: { label: string }) {
+  const { t } = useTranslate();
+  return (
+    <Badge
+      variant="outline"
+      className="rounded-md border-border bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+    >
+      {t(label)}
+    </Badge>
+  );
+}
+
+function DisposalMethodBadge({ method }: { method: RecordsDisposalRow["disposalMethod"] }) {
+  const { t } = useTranslate();
+  if (method === "Delete") {
+    return (
+      <Badge className="gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 shadow-none hover:bg-red-50">
+        <Trash2 className="size-3.5" aria-hidden />
+        {t("Delete")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="gap-1 rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 shadow-none hover:bg-slate-100">
+      <Scissors className="size-3.5" aria-hidden />
+      {t("Shred")}
+    </Badge>
+  );
+}
+
+function StorageMediaCell({ media }: { media: RecordsDisposalRow["storageMedia"] }) {
+  const { t } = useTranslate();
+  const map = {
+    Cloud: {
+      Icon: Cloud,
+      text: "text-violet-600",
+      label: "Cloud",
+    },
+    Physical: {
+      Icon: HardDrive,
+      text: "text-slate-600",
+      label: "Physical",
+    },
+    "Local Server": {
+      Icon: Server,
+      text: "text-orange-600",
+      label: "Local Server",
+    },
+  } as const;
+  const { Icon, text, label } = map[media];
+  return (
+    <div className={cn("flex items-center gap-1.5 text-sm font-medium", text)}>
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span>{t(label)}</span>
+    </div>
+  );
+}
+
+function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recordRank"] }) {
+  const { t } = useTranslate();
+  const map: Record<DocumentaryEvidenceRow["recordRank"], string> = {
+    Verified:
+      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
+    Captured:
+      "border-transparent bg-amber-500 text-white hover:bg-amber-500 shadow-none",
+    Archived:
+      "border-transparent bg-slate-500 text-white hover:bg-slate-500 shadow-none",
+  };
+  return (
+    <Badge
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-semibold",
+        map[rank]
+      )}
+    >
+      {t(rank)}
+    </Badge>
   );
 }
 
@@ -432,43 +556,43 @@ function MasterDocumentRowActionsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6A7282] hover:bg-[#F3F4F6] hover:text-[#0A0A0A] data-[state=open]:bg-[#F3F4F6]"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted"
           aria-label={t("Row actions")}
         >
-          <MoreVertical size={18} />
+          <MoreVertical size={18} aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className="w-[220px] rounded-xl border border-border bg-popover p-2 shadow-lg"
       >
-        <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+        <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Link href={viewHref}>
-            <Eye size={16} className="text-[#6A7282]" />
+            <Eye size={16} className="text-muted-foreground" aria-hidden />
             {t("View")}
           </Link>
         </DropdownMenuItem>
         {canEditDirectly ? (
-          <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+          <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
             <Link href={editHref}>
-              <Pencil size={16} className="text-[#6A7282]" />
+              <Pencil size={16} className="text-muted-foreground" aria-hidden />
               {t("Edit")}
             </Link>
           </DropdownMenuItem>
         ) : (
           <>
-            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
               {t("Revision Required")}
             </DropdownMenuLabel>
-            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+            <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseUpdateHref}>
-                <Pencil size={16} className="text-[#6A7282]" />
+                <Pencil size={16} className="text-muted-foreground" aria-hidden />
                 {t("Revise & Update")}
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6]">
+            <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseTransferHref}>
-                <Pencil size={16} className="text-[#6A7282]" />
+                <Pencil size={16} className="text-muted-foreground" aria-hidden />
                 {t("Revise & Transfer")}
               </Link>
             </DropdownMenuItem>
@@ -487,7 +611,7 @@ function MasterDocumentRowActionsMenu({
           </button>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]"
+          className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground"
           onSelect={() => {
             void onDownloadPdf(row);
           }}
@@ -502,8 +626,8 @@ function MasterDocumentRowActionsMenu({
           <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-[#9CA3AF]">
+        <DropdownMenuSeparator className="my-2 bg-border" />
+        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           {t("Workflow")}
         </DropdownMenuLabel>
         <DropdownMenuItem
@@ -511,7 +635,7 @@ function MasterDocumentRowActionsMenu({
           className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
         >
           <Link href={workflowHref}>
-            <Send size={16} />
+            <Send size={16} aria-hidden />
             {workflowLabel}
           </Link>
         </DropdownMenuItem>
@@ -539,8 +663,8 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
         align="end"
         className="w-[200px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
       >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#0A0A0A] focus:bg-[#F3F4F6] focus:text-[#0A0A0A]">
-          <Eye size={16} className="text-[#0A0A0A]" />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted focus:text-foreground">
+          <Eye size={16} className="text-foreground" aria-hidden />
           {t("View")}
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
@@ -549,16 +673,108 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
             onClick={() => onShare()}
           >
-            <Share2 size={16} />
+            <Share2 size={16} aria-hidden />
             {t("Share")}
           </button>
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6B7280] focus:bg-[#F9FAFB] focus:text-[#6B7280] [&_svg]:text-[#6B7280]">
-          <FileDown size={16} />
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
+          <FileDown size={16} aria-hidden />
           {t("Download PDF")}
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} />
+          <FileSpreadsheet size={16} aria-hidden />
+          {t("Download Excel")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function DocumentaryEvidenceRowActionsMenu() {
+  const { t } = useTranslate();
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t("Row actions")}
+        >
+          <MoreVertical className="size-[18px]" aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+      >
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Eye size={16} className="text-foreground" aria-hidden />
+          {t("View")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Pencil size={16} className="text-foreground" aria-hidden />
+          {t("Edit")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6366F1] focus:bg-[#EEF2FF] focus:text-[#6366F1] [&_svg]:text-[#6366F1]">
+          <Share2 size={16} aria-hidden />
+          {t("Share")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
+          <FileDown size={16} aria-hidden />
+          {t("Download PDF")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+          <FileSpreadsheet size={16} aria-hidden />
+          {t("Download Excel")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
+        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+          {t("Record lifecycle")}
+        </DropdownMenuLabel>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
+          <Archive size={16} aria-hidden />
+          {t("Archive Record")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function RecordsDisposalRowActionsMenu() {
+  const { t } = useTranslate();
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t("Row actions")}
+        >
+          <MoreVertical className="size-[18px]" aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+      >
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Eye size={16} className="text-foreground" aria-hidden />
+          {t("View")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
+          <Share2 size={16} aria-hidden />
+          {t("Share")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
+          <FileDown size={16} aria-hidden />
+          {t("Download PDF")}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
+          <FileSpreadsheet size={16} aria-hidden />
           {t("Download Excel")}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -1038,7 +1254,7 @@ export default function DocumentsContent() {
     const stepLane = isP
       ? `${t("Created By")}: ${capLabel} | ${t("Reviewed By")}: ${revLabel} | ${t("Approved By")}: ${appLabel}`
       : `${t("Capture By")}: ${capLabel} | ${t("Verified By")}: ${verLabel} | ${t("DISCARD")}`;
-    const bodyPlain = htmlToPlain(docRow.mainContent ?? "") || docRow.title || "—";
+    const bodyPlain = htmlToPlain(docRow.mainContent ?? "") || docRow.title || t("—");
     const esc = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const html = `<!DOCTYPE html>
@@ -1126,7 +1342,15 @@ export default function DocumentsContent() {
         t(docRow.kpi),
         t(docRow.docStatus),
         t(docRow.docPosition),
-        t(docRow.workflowStatus),
+        t(
+          docRow.workflowStatus === "in_review"
+            ? "In review"
+            : docRow.workflowStatus === "in_approval"
+              ? "In approval"
+              : docRow.workflowStatus === "approved"
+                ? "Approved"
+                : "Draft"
+        ),
       ]);
       downloadExcelTable("master-document-list.xls", headers, rows);
       toast.success(t("Excel file downloaded."));
@@ -1305,25 +1529,26 @@ export default function DocumentsContent() {
             <div>
               <div className="flex items-center gap-2">
                 <FileText size={20} />
-                <h1 className="text-xl sm:text-2xl font-semibold text-[#0A0A0A]">
+                <h1 className="text-xl sm:text-2xl font-semibold text-foreground">
                   {t("Document Management Tables")}
                 </h1>
               </div>
-              <p className="text-sm text-[#9CA3AF] mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {t("View and manage documents across different categories")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 asChild
-                className="flex items-center gap-2 bg-transparent hover:bg-transparent border border-[#5ea500] text-[#5ea500]"
+                variant="outline"
+                className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <Link href={documentaryEvidenceTemplatesHref}>
                   <FileText size={16} />
                   {t("Documentary Evidence Records")}
                 </Link>
               </Button>
-              <Button asChild className="text-white flex items-center gap-2" variant="default">
+              <Button asChild variant="default" className="flex items-center gap-2">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
                   {t("Create Document")}
@@ -1338,7 +1563,7 @@ export default function DocumentsContent() {
       <Card className="py-4">
         <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="w-full sm:w-auto">
-            <p className="text-xs text-[#6A7282] mb-2">{t("Select Table")}</p>
+            <p className="mb-2 text-xs text-muted-foreground">{t("Select Table")}</p>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
               <SelectTrigger className="w-full sm:min-w-[340px] sm:max-w-[520px] border border-[#0000001A] rounded-xl bg-white px-3 py-2 text-sm">
                 <SelectValue />
@@ -1415,7 +1640,7 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Master Document List" ? (
             <div
-              className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#4B5563]"
+              className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground"
               role="note"
             >
               <p className="leading-relaxed">
@@ -1427,7 +1652,7 @@ export default function DocumentsContent() {
           ) : null}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-[#0A0A0A]">
+              <h2 className="text-base font-semibold text-foreground">
                 {selectedTable === "Obsolete Document Register"
                   ? t("Obsolete Document Register P/F")
                   : selectedTable === "Documentary Evidence"
@@ -1442,13 +1667,15 @@ export default function DocumentsContent() {
               <div className="relative">
                 <Search
                   size={16}
-                  className="absolute top-1/2 left-3 -translate-y-1/2 text-[#6A7282]"
+                  className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
                 />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
                   placeholder={t("Search...")}
+                  aria-label={t("Search")}
                 />
               </div>
 
@@ -1474,31 +1701,31 @@ export default function DocumentsContent() {
             {selectedTable === "Master Document List" ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-[#FAFAFA] hover:bg-[#FAFAFA]">
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
+                  <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
                       {t("Document Ref.")}
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
                       {t("Nature of Document")}
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Title")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Type")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Site")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Process")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Standard")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Clause")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Subclause")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc#")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Version")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Plan Date")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Release Date")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] min-w-[140px]">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Title")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Type")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Site")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Process")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Standard")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Clause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Subclause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Plan Date")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Release Date")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground min-w-[140px]">
                       {t("Review Due (Lifecycle in Years)")}
                     </TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("KPI")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc Status")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] whitespace-nowrap">{t("Doc Position")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-[#0A0A0A] w-[56px] text-center">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("KPI")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc Status")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc Position")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground w-[56px] text-center">
                       {t("Actions")}
                     </TableHead>
                   </TableRow>
@@ -1523,13 +1750,13 @@ export default function DocumentsContent() {
                   ) : (
                     filteredMaster.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="text-sm font-medium text-[#0A0A0A] whitespace-nowrap">
+                        <TableCell className="text-sm font-medium text-foreground whitespace-nowrap">
                           {doc.documentRef}
                         </TableCell>
-                        <TableCell className="text-sm text-[#0A0A0A]">{t(doc.natureOfDocument)}</TableCell>
-                        <TableCell className="text-sm text-[#0A0A0A] max-w-[200px]">{doc.title}</TableCell>
+                        <TableCell className="text-sm text-foreground">{t(doc.natureOfDocument)}</TableCell>
+                        <TableCell className="text-sm text-foreground max-w-[200px]">{doc.title}</TableCell>
                         <TableCell>
-                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl text-[#0A0A0A]">
+                          <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold text-foreground">
                             {doc.type}
                           </span>
                         </TableCell>
@@ -1538,8 +1765,8 @@ export default function DocumentsContent() {
                         <TableCell className="text-sm">{doc.standard}</TableCell>
                         <TableCell className="text-sm max-w-[120px]">{doc.clause}</TableCell>
                         <TableCell className="text-sm max-w-[160px]">{doc.subclause}</TableCell>
-                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.docNumber}</TableCell>
-                        <TableCell className="text-sm font-semibold text-[#0A0A0A]">{doc.version}</TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">{doc.docNumber}</TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">{doc.version}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
@@ -1720,10 +1947,10 @@ export default function DocumentsContent() {
                       const captureDate = captureDateObj
                         ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
                         : "-";
-                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || "—";
+                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || t("—");
                       const verifyDate = va.completedAt
                         ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
-                        : "—";
+                        : t("—");
                       const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
                       const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
                       const kpiColor = daysSinceCapture > 40 ? "text-red-600" : daysSinceCapture > 30 ? "text-amber-600" : "text-[#22B323]";
@@ -1889,21 +2116,25 @@ export default function DocumentsContent() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("Document Ref.")}</TableHead>
-                    <TableHead>{t("Nature of Document")}</TableHead>
-                    <TableHead>{t("Title")}</TableHead>
-                    <TableHead>{t("Type")}</TableHead>
-                    <TableHead>{t("Site")}</TableHead>
-                    <TableHead>{t("Process")}</TableHead>
-                    <TableHead>{t("Standard")}</TableHead>
-                    <TableHead>{t("Clause")}</TableHead>
-                    <TableHead>{t("Subclause")}</TableHead>
-                    <TableHead>{t("Doc#")}</TableHead>
-                    <TableHead>{t("Version")}</TableHead>
-                    <TableHead>{t("Plan Date")}</TableHead>
-                    <TableHead>{t("Release Date")}</TableHead>
-                    <TableHead>{t("Review Due")}</TableHead>
+                  <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Document Ref.")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Nature of Document")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Title")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Type")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Site")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Process")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Standard")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Clause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Subclause")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Plan Date")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Release Date")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Review Due")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1926,11 +2157,11 @@ export default function DocumentsContent() {
                   ) : (
                     filteredMaster.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="font-medium text-[#0A0A0A]">{doc.documentRef}</TableCell>
+                        <TableCell className="font-medium text-foreground">{doc.documentRef}</TableCell>
                         <TableCell>{t(doc.natureOfDocument)}</TableCell>
                         <TableCell>{doc.title}</TableCell>
                         <TableCell>
-                          <span className="text-xs font-semibold bg-[#ECEEF2] px-2 py-1 rounded-3xl">
+                          <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold">
                             {doc.type}
                           </span>
                         </TableCell>
@@ -1991,38 +2222,40 @@ export default function DocumentsContent() {
       {/* Document Classification */}
       <Card>
         <CardContent className="space-y-4">
-          <h2 className="text-base font-semibold text-[#0A0A0A]">
+          <h2 className="text-base font-semibold text-foreground">
             {t("Document Classification")}
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-[#0000001A] p-4">
-              <h3 className="font-semibold text-sm mb-3">
-                {t("Category 1 - Maintained Documents")} <span className="text-[#22B323]">(Type P)</span>
+            <div className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
+                {t("Category 1 - Maintained Documents")}{" "}
+                <span className="text-[#22B323]">{t("(Type P)")}</span>
               </h3>
-              <div className="text-sm text-[#6A7282] space-y-1">
+              <div className="space-y-1 text-sm text-muted-foreground">
                 <div>{t("Policy")}</div>
                 <div>{t("Procedure")}</div>
                 <div>{t("SOP")}</div>
                 <div>{t("Work Instruction")}</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">{t("Lifecycle:")}</span>{" "}
-                  {t("Draft -> Create -> Review -> Approve -> Obsolete")}
+                  <span className="font-medium text-foreground">{t("Lifecycle:")}</span>{" "}
+                  {t("Draft → Create → Review → Approve → Obsolete")}
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#0000001A] p-4">
-              <h3 className="font-semibold text-sm mb-3">
-                {t("Category 2 - Retained Records")} <span className="text-[#0EA5E9]">(Type F)</span>
+            <div className="rounded-xl border border-border p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
+                {t("Category 2 - Retained Records")}{" "}
+                <span className="text-[#0EA5E9]">{t("(Type F)")}</span>
               </h3>
-              <div className="text-sm text-[#6A7282] space-y-1">
+              <div className="space-y-1 text-sm text-muted-foreground">
                 <div>{t("Templates")}</div>
                 <div>{t("Forms")}</div>
                 <div>{t("Checklists")}</div>
                 <div>
-                  <span className="font-medium text-[#0A0A0A]">{t("Lifecycle:")}</span>{" "}
-                  {t("Draft + Capture -> Verify & Archive -> Dispose")}
+                  <span className="font-medium text-foreground">{t("Lifecycle:")}</span>{" "}
+                  {t("Draft + Capture → Verify & Archive → Dispose")}
                 </div>
               </div>
             </div>
@@ -2032,4 +2265,3 @@ export default function DocumentsContent() {
     </div>
   );
 }
-

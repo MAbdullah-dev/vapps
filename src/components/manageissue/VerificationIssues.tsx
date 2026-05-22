@@ -69,7 +69,20 @@ import { useOrgOptional } from "@/components/providers/org-provider"
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site"
 import { useTranslate } from "@/components/providers/translation-provider"
 
-import SignatureCanvas from "react-signature-canvas";
+const STATUS_LABEL_KEYS: Record<string, string> = {
+    "to-do": "To Do",
+    "in-progress": "In Progress",
+    "in-review": "In Review",
+    done: "Done",
+    backlog: "Backlog",
+}
+
+const KNOWN_ISSUE_TAGS = [
+    "Quality Issue",
+    "Process Improvement",
+    "Risk Mitigation",
+    "Customer Concern",
+] as const
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -122,6 +135,17 @@ export default function IssuesDashboard({
     const routeProcessId = standaloneProcessId ?? (params.processId as string | undefined)
     const { t } = useTranslate()
 
+    const formatTag = (tag?: string) => {
+        if (!tag || tag === "Unknown") return t("Unknown")
+        return (KNOWN_ISSUE_TAGS as readonly string[]).includes(tag) ? t(tag) : tag
+    }
+
+    const formatStatus = (status?: string) => {
+        if (!status) return "—"
+        const label = STATUS_LABEL_KEYS[status]
+        return label ? t(label) : status
+    }
+
     const [siteIdForIssues, setSiteIdForIssues] = useState("")
     useEffect(() => {
         if (!issuesWorkspaceForOrg || !orgId) return
@@ -164,7 +188,6 @@ export default function IssuesDashboard({
     // Verification form state
     const [closeOutDate, setCloseOutDate] = useState<Date | undefined>(new Date())
     const [verificationDate, setVerificationDate] = useState<Date | undefined>(new Date())
-    const [signature, setSignature] = useState<string>("");
     const [closureComments, setClosureComments] = useState("")
     const [verificationFiles, setVerificationFiles] = useState<File[]>([])
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -178,22 +201,6 @@ export default function IssuesDashboard({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const reassignmentFileInputRef = useRef<HTMLInputElement>(null)
 
-    const sigCanvas = useRef<SignatureCanvas | null>(null);
-
-    const handleClear = () => {
-        if (sigCanvas.current) {
-            sigCanvas.current.clear(); // Clears the signature canvas
-        }
-    };
-
-    const handleSave = () => {
-        if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-            const signatureData = sigCanvas.current.toDataURL();
-            setSignature(signatureData); // Save the base64 image string
-        } else {
-            toast.error(t("Please provide a signature."));
-        }
-    };
     const handleClick = () => {
         fileInputRef.current?.click()
     }
@@ -301,7 +308,6 @@ export default function IssuesDashboard({
             closureComments: closureComments?.length,
             closeOutDate,
             verificationDate,
-            signature: signature?.length,
             orgId,
             processId: processIdForIssue(selectedIssue),
         })
@@ -332,10 +338,6 @@ export default function IssuesDashboard({
             return
         }
 
-        if (!signature || !signature.trim()) {
-            toast.error(t("Please provide your signature"))
-            return
-        }
 
         setIsSubmitting(true)
         try {
@@ -377,7 +379,6 @@ export default function IssuesDashboard({
                 closureComments,
                 closeOutDate: closeOutDate.toISOString(),
                 verificationDate: verificationDate.toISOString(),
-                signature,
                 filesCount: uploadedFiles.length,
             })
 
@@ -387,7 +388,6 @@ export default function IssuesDashboard({
                 verificationFiles: uploadedFiles,
                 closeOutDate: closeOutDate.toISOString(),
                 verificationDate: verificationDate.toISOString(),
-                signature,
                 kpiScore: 3, // Default KPI, can be calculated later
             })
 
@@ -431,7 +431,6 @@ export default function IssuesDashboard({
             setVerificationFiles([])
             setCloseOutDate(new Date())
             setVerificationDate(new Date())
-            setSignature("")
         } catch (error: any) {
             console.error("Error submitting verification:", error)
             toast.error(error.message || t("Failed to submit verification"))
@@ -655,6 +654,7 @@ export default function IssuesDashboard({
                             size="sm"
                             disabled={page === 1}
                             onClick={() => setPage(page - 1)}
+                            aria-label={t("Previous page")}
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -668,6 +668,7 @@ export default function IssuesDashboard({
                             size="sm"
                             disabled={page === totalPages}
                             onClick={() => setPage(page + 1)}
+                            aria-label={t("Next page")}
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -697,7 +698,7 @@ export default function IssuesDashboard({
 
                     <TabsTrigger value="verification">
                         {t("Verification Required")}
-                        <Badge className="text-[#8200DB] bg-[#F3E8FF] border-[#DAB2FF] rounded-md ml-2">
+                        <Badge className="text-primary bg-primary/10 border-primary/30 rounded-md ml-2">
                             {filteredPending.length}
                         </Badge>
                     </TabsTrigger>
@@ -708,7 +709,7 @@ export default function IssuesDashboard({
                     {/* Search + Filters */}
                     <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
                         <div className="relative w-full max-w-md">
-                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 placeholder={t("Search by title or reference...")}
                                 value={search}
@@ -748,19 +749,19 @@ export default function IssuesDashboard({
 
                     {/* Cards */}
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        <Card className="border-l-4 border-l-blue-500">
+                        <Card className="border-l-4 border-l-chart-2">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Total Issues")}</p>
                                         <p className="text-2xl font-bold mt-2">{filteredAll.length}</p>
                                     </div>
-                                    <FileText className="h-8 w-8 text-blue-500" />
+                                    <FileText className="h-8 w-8 text-chart-2" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-orange-500">
+                        <Card className="border-l-4 border-l-chart-3">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -769,12 +770,12 @@ export default function IssuesDashboard({
                                             {filteredAll.filter((i) => i.status !== "done").length}
                                         </p>
                                     </div>
-                                    <Clock className="h-8 w-8 text-orange-500" />
+                                    <Clock className="h-8 w-8 text-chart-3" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-green-500">
+                        <Card className="border-l-4 border-l-primary">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -783,19 +784,19 @@ export default function IssuesDashboard({
                                             {filteredAll.filter((i) => i.status === "done").length}
                                         </p>
                                     </div>
-                                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                                    <CheckCircle2 className="h-8 w-8 text-primary" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-purple-500">
+                        <Card className="border-l-4 border-l-chart-4">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Avg. KPI Score")}</p>
                                         <p className="text-2xl font-bold mt-2">2.3</p>
                                     </div>
-                                    <AlertCircle className="h-8 w-8 text-purple-500" />
+                                    <AlertCircle className="h-8 w-8 text-chart-4" />
                                 </div>
                             </CardContent>
                         </Card>
@@ -837,7 +838,7 @@ export default function IssuesDashboard({
                                                     <TableCell className="font-mono text-sm">{issue.id.substring(0, 8)}...</TableCell>
                                                     <TableCell className="font-medium max-w-md">{issue.title}</TableCell>
                                                     <TableCell>
-                                                        <Badge variant={issue.tagVariant}>{issue.tag}</Badge>
+                                                        <Badge variant={issue.tagVariant}>{formatTag(issue.tag)}</Badge>
                                                     </TableCell>
                                                     <TableCell>{issue.source || "—"}</TableCell>
                                                     <TableCell>—</TableCell> {/* Issuer not in DB */}
@@ -847,7 +848,7 @@ export default function IssuesDashboard({
                                                     <TableCell>—</TableCell> {/* Due date not in DB */}
                                                     <TableCell>
                                                         <Badge variant={issue.status === "done" ? "default" : issue.status === "in-review" ? "secondary" : "destructive"}>
-                                                            {issue.status}
+                                                            {formatStatus(issue.status)}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>{issue.kpi || 0}</TableCell>
@@ -857,7 +858,7 @@ export default function IssuesDashboard({
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon">
+                                                        <Button variant="ghost" size="icon" aria-label={t("Open menu")}>
                                                             <MoreVertical className="h-4 w-4" />
                                                         </Button>
                                                     </TableCell>
@@ -878,7 +879,7 @@ export default function IssuesDashboard({
                     {/* Search + Filters */}
                     <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
                         <div className="relative w-full max-w-md">
-                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 placeholder={t("Search by title or ID...")}
                                 value={search}
@@ -905,38 +906,38 @@ export default function IssuesDashboard({
 
                     {/* Cards */}
                     <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
-                        <Card className="border-l-4 border-l-purple-500">
+                        <Card className="border-l-4 border-l-chart-4">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Pending Verification")}</p>
                                         <p className="text-2xl font-bold mt-2">{filteredPending.length}</p>
                                     </div>
-                                    <Clock className="h-8 w-8 text-purple-500" />
+                                    <Clock className="h-8 w-8 text-chart-4" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-green-500">
+                        <Card className="border-l-4 border-l-primary">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Avg. Resolution Time")}</p>
                                         <p className="text-2xl font-bold mt-2">{t("22 days")}</p>
                                     </div>
-                                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                                    <CheckCircle2 className="h-8 w-8 text-primary" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-blue-500">
+                        <Card className="border-l-4 border-l-chart-2">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Expected KPI")}</p>
                                         <p className="text-2xl font-bold mt-2">2.7</p>
                                     </div>
-                                    <FileText className="h-8 w-8 text-blue-500" />
+                                    <FileText className="h-8 w-8 text-chart-2" />
                                 </div>
                             </CardContent>
                         </Card>
@@ -976,7 +977,7 @@ export default function IssuesDashboard({
                                                     <TableCell className="font-medium">{issue.title}</TableCell>
 
                                                     <TableCell>
-                                                        <Badge variant={issue.tagVariant}>{issue.tag}</Badge>
+                                                        <Badge variant={issue.tagVariant}>{formatTag(issue.tag)}</Badge>
                                                     </TableCell>
 
                                                     <TableCell>{issue.assignee}</TableCell>
@@ -987,8 +988,8 @@ export default function IssuesDashboard({
                                                     <TableCell className="text-center">
                                                         <div
                                                             className={`inline-flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${(issue.kpi || 0) > 0
-                                                                ? "bg-green-100 text-green-800"
-                                                                : "bg-red-100 text-red-800"
+                                                                ? "bg-primary/15 text-primary dark:bg-primary/25"
+                                                                : "bg-destructive/15 text-destructive dark:bg-destructive/25"
                                                                 }`}
                                                         >
                                                             {issue.kpi || 0}
@@ -1034,7 +1035,7 @@ export default function IssuesDashboard({
 
                     {/* Issue Summary */}
                     <div className="space-y-4">
-                        <h3 className="font-semibold text-sm">{t("Issue Summary")}</h3>
+                        <h3 className="font-semibold text-sm text-foreground">{t("Issue Summary")}</h3>
 
                         {isLoadingReview ? (
                             <div className="flex items-center justify-center py-8">
@@ -1045,12 +1046,12 @@ export default function IssuesDashboard({
                                 <div className="space-y-2 text-sm">
                                     <p>
                                         <span className="text-muted-foreground block">{t("Issue ID")}</span>
-                                        <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
+                                        <span className="font-medium text-foreground">{selectedIssue?.id || "—"}</span>
                                     </p>
 
                                     <p>
                                         <span className="text-muted-foreground block">{t("Title")}</span>
-                                        <span className="font-medium text-[#0A0A0A]">
+                                        <span className="font-medium text-foreground">
                                             {selectedIssue?.title || "—"}
                                         </span>
                                     </p>
@@ -1058,7 +1059,7 @@ export default function IssuesDashboard({
                                     <p>
                                         <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
-                                            {selectedIssue?.tag || "—"}
+                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : "—"}
                                         </Badge>
                                     </p>
                                 </div>
@@ -1066,7 +1067,7 @@ export default function IssuesDashboard({
                                 {/* Description */}
                                 <div>
                                     <p className="text-sm text-muted-foreground mb-1">{t("Description")}</p>
-                                    <p className="text-sm text-[#0A0A0A]">
+                                    <p className="text-sm text-foreground">
                                         {selectedIssue?.description || t("No description provided")}
                                     </p>
                                 </div>
@@ -1075,7 +1076,7 @@ export default function IssuesDashboard({
                                 {issueReview?.rootCauseText && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Root Cause Analysis")}</p>
-                                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                                        <div className="rounded-md border border-border bg-muted p-3 text-sm">
                                             {issueReview.rootCauseText}
                                         </div>
                                     </div>
@@ -1085,7 +1086,7 @@ export default function IssuesDashboard({
                                 {issueReview?.containmentText && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Containment Action")}</p>
-                                        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
+                                        <div className="rounded-md border border-border bg-accent p-3 text-sm">
                                             {issueReview.containmentText}
                                         </div>
                                     </div>
@@ -1095,7 +1096,7 @@ export default function IssuesDashboard({
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Corrective Action Plan")}</p>
-                                        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
+                                        <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
@@ -1218,14 +1219,14 @@ export default function IssuesDashboard({
 
                         {/* Decision */}
                         <div className="pt-2">
-                            <p className="text-sm font-semibold mb-3 text-[#0A0A0A]">
+                            <p className="text-sm font-semibold mb-3 text-foreground">
                                 {t("Issuer Verification Decision")}
                             </p>
 
                             <div className="space-y-3">
                                 {/* GREEN BUTTON */}
                                 <Button
-                                    className="w-full justify-start h-auto gap-3 bg-green-600 hover:bg-green-700"
+                                    className="w-full justify-start h-auto gap-3"
                                     onClick={() => {
                                         setOpenFirst(false)
                                         setOpenSubmit(true)
@@ -1242,7 +1243,7 @@ export default function IssuesDashboard({
                                 {/* RED BUTTON */}
                                 <Button
                                     variant="outline"
-                                    className="w-full justify-start gap-3 h-auto border-red-500 text-red-600 hover:bg-red-50"
+                                    className="w-full justify-start gap-3 h-auto border-destructive text-destructive hover:bg-destructive/10"
                                     onClick={() => {
                                         setOpenFirst(false)
                                         setOpenNoSubmit(true)
@@ -1273,9 +1274,9 @@ export default function IssuesDashboard({
                     </DialogHeader>
 
                     {/* Assignee Investigation Summary */}
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-4">
-                        <div className="flex items-center gap-2 font-semibold text-sm">
-                            <Info className="text-[#155DFC]" /> {t("Assignee Investigation Summary")}
+                    <div className="rounded-lg border border-border bg-muted p-4 space-y-4">
+                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                            <Info className="text-primary" /> {t("Assignee Investigation Summary")}
                         </div>
 
                         <div className="space-y-2 text-sm">
@@ -1284,7 +1285,7 @@ export default function IssuesDashboard({
                                     <p className="text-muted-foreground mb-1">
                                         {t("Containment / Immediate Correction:")}
                                     </p>
-                                    <div className="rounded-md border bg-white p-2">{issueReview.containmentText}</div>
+                                    <div className="rounded-md border border-border bg-card p-2 text-foreground">{issueReview.containmentText}</div>
                                 </div>
                             )}
 
@@ -1293,14 +1294,14 @@ export default function IssuesDashboard({
                                     <p className="text-muted-foreground mb-1">
                                         {t("Root Cause of Problem:")}
                                     </p>
-                                    <div className="rounded-md border bg-white p-2">{issueReview.rootCauseText}</div>
+                                    <div className="rounded-md border border-border bg-card p-2 text-foreground">{issueReview.rootCauseText}</div>
                                 </div>
                             )}
 
                             {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                 <div>
                                     <p className="text-muted-foreground mb-1">{t("Action Plan:")}</p>
-                                    <div className="overflow-hidden rounded-md border bg-white">
+                                    <div className="overflow-hidden rounded-md border border-border bg-card">
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted">
                                                 <tr>
@@ -1327,7 +1328,7 @@ export default function IssuesDashboard({
 
                     {/* Effectiveness Verification */}
                     <div className="space-y-4 pt-4">
-                        <h3 className="font-semibold text-sm">
+                        <h3 className="font-semibold text-sm text-foreground">
                             {t("Effectiveness Verification & Closure")}
                         </h3>
 
@@ -1340,7 +1341,7 @@ export default function IssuesDashboard({
                         {/* Closure Comments */}
                         <div>
                             <Label className="text-sm font-medium">
-                                {t("Closure Comments")} <span className="text-red-500">*</span>
+                                {t("Closure Comments")} <span className="text-destructive">*</span>
                             </Label>
                             <Textarea
                                 className="mt-1"
@@ -1355,7 +1356,7 @@ export default function IssuesDashboard({
                         {/* Attachments */}
                         <div className="flex items-center justify-between gap-4">
                             <div>
-                                <p className="text-sm font-medium text-[#0A0A0A]">{t("Attach Verification Evidence")}</p>
+                                <p className="text-sm font-medium text-foreground">{t("Attach Verification Evidence")}</p>
                                 <p className="text-xs text-muted-foreground">
                                     {t(
                                         "Upload photos, documents, or test results proving effectiveness. Max 5 files, JPEG/JPG/PNG up to 2MB each."
@@ -1391,7 +1392,7 @@ export default function IssuesDashboard({
                             {/* Issue Close Out Date */}
                             <div>
                                 <Label className="text-sm font-medium">
-                                    {t("Issue Close Out Date")} <span className="text-red-500">*</span>
+                                    {t("Issue Close Out Date")} <span className="text-destructive">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1420,7 +1421,7 @@ export default function IssuesDashboard({
                             {/* Effectiveness Verification Date */}
                             <div>
                                 <Label className="text-sm font-medium">
-                                    {t("Effectiveness Verification Date")} <span className="text-red-500">*</span>
+                                    {t("Effectiveness Verification Date")} <span className="text-destructive">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1447,72 +1448,18 @@ export default function IssuesDashboard({
                             </div>
                         </div>
 
-
-                        {/* Signature */}
-                        <div>
-                            <Label className="text-sm font-medium">
-                                {t("Issuer Signature")} <span className="text-red-500">*</span>
-                            </Label>
-
-                            {/* Signature Pad */}
-                            <div className="mt-2">
-                                <SignatureCanvas
-                                    ref={sigCanvas}
-                                    backgroundColor="white"
-                                    penColor="black"
-                                    canvasProps={{
-                                        width: 400,
-                                        height: 100,
-                                        className: "border bg-white p-2"
-                                    }}
-                                />
-                            </div>
-
-
-                            {/* Clear and Save Buttons */}
-                            <div className="mt-2">
-                                <button onClick={handleClear} className="mr-2 text-sm text-blue-500">
-                                    {t("Clear")}
-                                </button>
-                                <button onClick={handleSave} className="text-sm text-blue-500">
-                                    {t("Save Signature")}
-                                </button>
-                            </div>
-
-                            {/* Signature Preview */}
-                            <p className="text-xs text-muted-foreground mt-2">
-                                {t("Digital Signature Preview:")}
-                            </p>
-                            <div className="rounded-md border bg-white p-2 text-sm font-semibold font-times h-30">
-                                {signature ? (
-                                    <img src={signature} alt={t("Signature Preview")} />
-                                ) : (
-                                    <i>{t("Draw your signature above")}</i>
-                                )}
-                            </div>
-
-                            <div className="mt-2 border p-2 rounded-md">
-                                <input
-                                    type="text"
-                                    className="mt-1 w-full"
-                                    value={signature || ""}
-                                    onChange={(e) => setSignature(e.target.value)}
-                                    placeholder={t("Enter signature (if not drawn)")}
-                                />
-                            </div>
-                        </div>
                     </div>
 
                     {/* Decision */}
-                    <p className="text-[#0A0A0A] font-semibold">{t("Issuer Verification Decision")}</p>
-                    <div className="rounded-lg border border-[#B9F8CF] bg-[#F0FDF4] p-4">
+                    <p className="text-foreground font-semibold">{t("Issuer Verification Decision")}</p>
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
                         <div className="flex gap-2.5">
-                            <CircleCheck className="text-[#00A63E]" size={20} />
+                            <CircleCheck className="text-primary" size={20} />
                             <div>
-                                <p className="font-semibold text-sm mb-1 text-[#00A63E]">
+                                <p className="font-semibold text-sm mb-1 text-primary">
                                     {t("Confirm Effectiveness")}
                                 </p>
-                                <p className="text-xs mb-3 text-[#00A63E]">
+                                <p className="text-xs mb-3 text-muted-foreground">
                                     {t(
                                         "This will close the issue, calculate the KPI score, and move it to Completed Issues."
                                     )}
@@ -1522,9 +1469,9 @@ export default function IssuesDashboard({
 
                         <div className="flex justify-end gap-2">
                             <Button
-                                className="bg-green-600 hover:bg-green-700 w-[80%]"
+                                className="w-[80%]"
                                 onClick={handleSubmitEffective}
-                                disabled={isSubmitting || !closureComments || !closeOutDate || !verificationDate || !signature}
+                                disabled={isSubmitting || !closureComments || !closeOutDate || !verificationDate}
                             >
                                 {isSubmitting ? t("Submitting...") : t("Confirm & Close Issue")}
                             </Button>
@@ -1561,7 +1508,7 @@ export default function IssuesDashboard({
                     </DialogHeader>
                     {/* Issue Summary */}
                     <div className="space-y-4">
-                        <h3 className="font-semibold text-sm">{t("Issue Summary")}</h3>
+                        <h3 className="font-semibold text-sm text-foreground">{t("Issue Summary")}</h3>
                         {isLoadingReview ? (
                             <div className="flex items-center justify-center py-8">
                                 <p className="text-sm text-muted-foreground">{t("Loading issue review data...")}</p>
@@ -1571,25 +1518,25 @@ export default function IssuesDashboard({
                                 <div className="space-y-2 text-sm">
                                     <p>
                                         <span className="text-muted-foreground block">{t("Issue ID")}</span>
-                                        <span className="font-medium text-[#0A0A0A]">{selectedIssue?.id || "—"}</span>
+                                        <span className="font-medium text-foreground">{selectedIssue?.id || "—"}</span>
                                     </p>
                                     <p>
                                         <span className="text-muted-foreground block">{t("Title")}</span>
-                                        <span className="font-medium text-[#0A0A0A]">
+                                        <span className="font-medium text-foreground">
                                             {selectedIssue?.title || "—"}
                                         </span>
                                     </p>
                                     <p>
                                         <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
-                                            {selectedIssue?.tag || "—"}
+                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : "—"}
                                         </Badge>
                                     </p>
                                 </div>
                                 {/* Description */}
                                 <div>
                                     <p className="text-sm text-muted-foreground mb-1">{t("Description")}</p>
-                                    <p className="text-sm text-[#0A0A0A]">
+                                    <p className="text-sm text-foreground">
                                         {selectedIssue?.description || t("No description provided")}
                                     </p>
                                 </div>
@@ -1597,7 +1544,7 @@ export default function IssuesDashboard({
                                 {issueReview?.rootCauseText && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Root Cause Analysis")}</p>
-                                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+                                        <div className="rounded-md border border-border bg-muted p-3 text-sm">
                                             {issueReview.rootCauseText}
                                         </div>
                                     </div>
@@ -1606,7 +1553,7 @@ export default function IssuesDashboard({
                                 {issueReview?.containmentText && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Containment Action")}</p>
-                                        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm">
+                                        <div className="rounded-md border border-border bg-accent p-3 text-sm">
                                             {issueReview.containmentText}
                                         </div>
                                     </div>
@@ -1615,7 +1562,7 @@ export default function IssuesDashboard({
                                 {issueReview?.actionPlans && issueReview.actionPlans.length > 0 && (
                                     <div>
                                         <p className="text-sm text-muted-foreground mb-1">{t("Corrective Action Plan")}</p>
-                                        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm space-y-2">
+                                        <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm space-y-2">
                                             {issueReview.actionPlans.map((plan, idx) => (
                                                 <div key={idx} className="border-b last:border-b-0 pb-2 last:pb-0">
                                                     <p className="font-medium">{plan.action}</p>
@@ -1732,34 +1679,36 @@ export default function IssuesDashboard({
                                 )}
                             </>
                         )}
-                        <p className="text-sm font-semibold text-[#0A0A0A]">
+                        <p className="text-sm font-semibold text-foreground">
                             {t("Issuer Verification Decision")}
                         </p>
-                        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 space-y-4">
+                        <div className="mt-6 rounded-md border border-destructive/30 bg-destructive/10 p-4 space-y-4">
                             {/* Header */}
                             <div className="flex items-start gap-2">
-                                <AlertCircle className="text-red-700 mt-1" size={20} />
+                                <AlertCircle className="text-destructive mt-1" size={20} />
                                 <div>
-                                    <h3 className="font-semibold text-sm text-red-700">
+                                    <h3 className="font-semibold text-sm text-destructive">
                                         {t("Reassignment Required")}
                                     </h3>
-                                    <p className="text-sm text-red-600">
-                                        {t("Provide new instructions and reassign the issue for corrective action.")}
+                                    <p className="text-sm text-destructive">
+                                        {t(
+                                            "Provide new instructions and reassign the issue for corrective action."
+                                        )}
                                     </p>
                                 </div>
                             </div>
 
                             {/* New Instructions */}
                             <div className="space-y-1">
-                                <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    {t("New Instructions")} <span className="text-red-600">*</span>
+                                <Label className="text-sm font-medium text-foreground">
+                                    {t("New Instructions")} <span className="text-destructive">*</span>
                                 </Label>
                                 <Textarea
                                     rows={3}
                                     placeholder={t(
                                         "Explain why the corrective action was ineffective and provide new guidance..."
                                     )}
-                                    className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                                    className="mt-1"
                                     value={reassignmentInstructions}
                                     onChange={(e) => setReassignmentInstructions(e.target.value)}
                                 />
@@ -1767,12 +1716,12 @@ export default function IssuesDashboard({
 
                             {/* New Assignee */}
                             <div className="space-y-1">
-                                <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    {t("New Assignee")} <span className="text-red-600">*</span>
+                                <Label className="text-sm font-medium text-foreground">
+                                    {t("New Assignee")} <span className="text-destructive">*</span>
                                 </Label>
 
                                 <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
-                                    <SelectTrigger className="w-full border-red-200">
+                                    <SelectTrigger className="w-full border-destructive/30">
                                         <SelectValue placeholder={t("Select assignee")} />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1787,8 +1736,8 @@ export default function IssuesDashboard({
 
                             {/* New Due Date */}
                             <div className="space-y-1">
-                                <Label className="text-sm font-medium text-[#0A0A0A]">
-                                    {t("New Due Date")} <span className="text-red-600">*</span>
+                                <Label className="text-sm font-medium text-foreground">
+                                    New Due Date <span className="text-destructive">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1796,7 +1745,7 @@ export default function IssuesDashboard({
                                         <Button
                                             variant="outline"
                                             className={cn(
-                                                "w-full justify-start text-left text-sm border-red-200",
+                                                "w-full justify-start text-left text-sm border-destructive/30",
                                                 !dueDate && "text-muted-foreground"
                                             )}
                                         >
@@ -1818,7 +1767,7 @@ export default function IssuesDashboard({
 
                             {/* Attachment */}
                             <div className="space-y-1">
-                                <Label className="text-sm font-medium text-[#0A0A0A]">
+                                <Label className="text-sm font-medium text-foreground">
                                     {t("Attachment (Optional)")}
                                 </Label>
                                 <input
@@ -1833,7 +1782,7 @@ export default function IssuesDashboard({
                                         variant="outline"
                                         type="button"
                                         onClick={() => reassignmentFileInputRef.current?.click()}
-                                        className="border-red-200"
+                                        className="border-destructive/30"
                                     >
                                         <Upload className="mr-2 h-4 w-4" /> {t("Upload Files")}
                                     </Button>
@@ -1848,7 +1797,8 @@ export default function IssuesDashboard({
                             {/* Actions */}
                             <div className="flex justify-end gap-2 pt-2">
                                 <Button
-                                    className="bg-red-600 hover:bg-red-700 text-white w-[80%]"
+                                    variant="destructive"
+                                    className="w-[80%]"
                                     onClick={handleSubmitIneffective}
                                     disabled={isSubmitting || !selectedAssignee || !dueDate || !reassignmentInstructions}
                                 >

@@ -91,7 +91,7 @@ export default function KPIReportsPage() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm text-gray-500 mb-1">Settings &gt; KPI & Reports</div>
-          <h1 className="text-2xl font-semibold">KPI & Reports Configuration</h1>
+          <h1 className="text-2xl font-semibold text-foreground">KPI & Reports Configuration</h1>
           <p className="text-sm text-gray-500 mt-1">
             Customize key performance indicators and dashboard metrics.
           </p>
@@ -100,9 +100,7 @@ export default function KPIReportsPage() {
           <div className="text-sm text-gray-500">
             Last updated: November 11, 2025 at 1:30 PM
           </div>
-          <Button variant="default" className="bg-gray-900 hover:bg-gray-800">
-            Edit KPIs
-          </Button>
+          <Button variant="default">Edit KPIs</Button>
         </div>
       </div>
 
@@ -116,12 +114,12 @@ export default function KPIReportsPage() {
           {kpis.map((kpi) => (
             <div
               key={kpi.id}
-              className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100"
+              className="flex items-center gap-4 rounded-lg border border-border bg-muted p-4"
             >
               <TargetIcon />
               <div className="flex-1">
-                <div className="font-semibold text-gray-900 mb-1">{kpi.name}</div>
-                <div className="text-sm text-gray-600">
+                <div className="mb-1 font-semibold text-foreground">{kpi.name}</div>
+                <div className="text-sm text-muted-foreground">
                   Target: {kpi.target} • Current: {kpi.current}
                 </div>
               </div>

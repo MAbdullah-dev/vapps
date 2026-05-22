@@ -187,9 +187,9 @@ export default function DocumentaryEvidenceCaptureContent() {
 
   if (!meReady || (Boolean(evidenceFromUrl) && evidenceLoading)) {
     return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] px-6 py-16">
+      <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 px-6 py-16">
         <Loader2 className="h-10 w-10 animate-spin text-[#22B323]" aria-hidden />
-        <p className="text-sm font-medium text-[#374151]">Loading…</p>
+        <p className="text-sm font-medium text-foreground">Loading…</p>
       </div>
     );
   }
@@ -205,7 +205,7 @@ export default function DocumentaryEvidenceCaptureContent() {
               Operational leadership can open capture from the templates table in <span className="font-medium">view</span>{" "}
               mode after submission.
             </p>
-            <Button asChild variant="outline" className="mt-2 border-amber-300 bg-white">
+            <Button asChild variant="outline" className="mt-2 border-amber-300 bg-background">
               <Link href={recordsHref}>Back to templates</Link>
             </Button>
           </CardContent>
@@ -216,10 +216,10 @@ export default function DocumentaryEvidenceCaptureContent() {
 
   return (
     <div className="space-y-6">
-      <Card className="border border-[#0000001A] py-4">
+      <Card className="border border-border py-4">
         <CardContent className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-[36px] leading-tight font-bold text-[#111827]">Documentary Evidence Records</h2>
+            <h2 className="text-[36px] leading-tight font-bold text-foreground">Documentary Evidence Records</h2>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" asChild>
                 <Link href={documentsHref}>Exit to Dashboard</Link>
@@ -228,7 +228,7 @@ export default function DocumentaryEvidenceCaptureContent() {
           </div>
 
           {readOnly ? (
-            <div className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
               <span className="font-semibold">View only.</span> Capture has been submitted or completed; fields cannot be
               edited here.
             </div>
@@ -251,18 +251,18 @@ export default function DocumentaryEvidenceCaptureContent() {
       <nav aria-label="Breadcrumb" className="text-sm">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li>
-            <Link href={documentsHref} className="text-[#6B7280] hover:text-[#111827]">
+            <Link href={documentsHref} className="text-muted-foreground hover:text-foreground">
               Documents
             </Link>
           </li>
-          <li className="text-[#9CA3AF]">›</li>
+          <li className="text-muted-foreground/70">›</li>
           <li>
-            <Link href={recordsHref} className="text-[#6B7280] hover:text-[#111827]">
+            <Link href={recordsHref} className="text-muted-foreground hover:text-foreground">
               Documentary Evidence Records
             </Link>
           </li>
-          <li className="text-[#9CA3AF]">›</li>
-          <li className="font-semibold text-[#111827]">{readOnly ? "View capture" : "Capture"}</li>
+          <li className="text-muted-foreground/70">›</li>
+          <li className="font-semibold text-foreground">{readOnly ? "View capture" : "Capture"}</li>
         </ol>
       </nav>
 

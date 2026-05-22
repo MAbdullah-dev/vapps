@@ -94,7 +94,7 @@ const Step6 = () => {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-2">Customers & Vendors</h1>
+      <h1 className="mb-2 text-2xl font-bold text-foreground">Customers & Vendors</h1>
       <p className="text-gray-600 mb-8">Configure your customers & vendors settings</p>
 
       <div className="flex mb-6">
@@ -122,7 +122,7 @@ const Step6 = () => {
         <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-10">
           {tab === "customers" && (
             <>
-              <h3 className="text-xl font-semibold">Add Customer</h3>
+              <h3 className="text-xl font-semibold text-foreground">Add Customer</h3>
               {customerFields.map((field, index) => (
                 <div key={field.id}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -201,7 +201,7 @@ const Step6 = () => {
 
           {tab === "vendors" && (
             <>
-              <h3 className="text-xl font-semibold">Add Vendor</h3>
+              <h3 className="text-xl font-semibold text-foreground">Add Vendor</h3>
               {vendorFields.map((field, index) => (
                 <div key={field.id}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

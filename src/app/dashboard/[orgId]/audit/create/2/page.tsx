@@ -863,7 +863,7 @@ export default function CreateAuditStep2Page() {
   }, [planStatus, currentUserRole]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-100]:border-border/60 [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
       <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep2 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -872,17 +872,17 @@ export default function CreateAuditStep2Page() {
             : t("View only — only the Lead Auditor can edit this step.")}
         </div>
       )}
-<div className="rounded-lg bg-white px-5 py-8">
+<div className="rounded-lg bg-background px-5 py-8">
         <div className={cn(!canEditStep2 && "pointer-events-none select-none opacity-90")}>
       {/* Step 2 header */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm my-6">
+      <div className="rounded-lg border border-gray-200 bg-card p-6 shadow-sm my-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
                 {t(AUDIT_STEP_HERO[2])}
               </h1>
-              <span className="inline-flex items-center rounded-full bg-green-600 px-3 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
+              <span className="inline-flex items-center rounded-full bg-primary px-3 py-0.5 text-xs font-medium uppercase tracking-wide text-primary-foreground">
                 {t("Operational Level")}
               </span>
             </div>
@@ -892,7 +892,7 @@ export default function CreateAuditStep2Page() {
           </div>
           <Link
             href="#"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 hover:underline"
           >
             {t("Learn More")}
             <ExternalLink className="h-4 w-4" />
@@ -901,23 +901,21 @@ export default function CreateAuditStep2Page() {
       </div>
 
       {/* ISO 19011:2026 Alignment Note */}
-      <div className="relative overflow-hidden rounded-lg border border-blue-200 bg-blue-50/80 px-5 py-4 mb-6">
+      <div className="relative overflow-hidden rounded-lg border border-primary/20 bg-primary/5 px-5 py-4 mb-6">
         <div className="flex gap-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Info className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-bold uppercase tracking-wide text-gray-800">
               {t("ISO 19011:2026 Alignment Note")}
             </h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-blue-700">
-              {t(
-                "“This audit program, aligned with ISO 19011:2026, provides a structured, risk-based framework for establishing, implementing, monitoring, reviewing, and improving audits of management systems and ESG Sustainability expectations, ensuring they are effective, consistent, and objective.”"
-              )}
+            <p className="mt-1.5 text-sm leading-relaxed text-primary">
+              {t("&ldquo;This audit program, aligned with ISO 19011:2026, provides a structured, risk-based framework for establishing, implementing, monitoring, reviewing, and improving audits of management systems and ESG Sustainability expectations, ensuring they are effective, consistent, and objective.&rdquo;")}
             </p>
           </div>
           <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20">
-            <ShieldCheck className="h-16 w-16 text-blue-400" strokeWidth={1.5} />
+            <ShieldCheck className="h-16 w-16 text-primary/40" strokeWidth={1.5} />
           </div>
         </div>
       </div>
@@ -937,9 +935,9 @@ export default function CreateAuditStep2Page() {
         <div
           onClick={() => setSelectedPlanOption("A")}
           className={cn(
-            "rounded-lg border-2 bg-white p-6 shadow-sm transition-all cursor-pointer hover:shadow-md",
+            "rounded-lg border-2 bg-card p-6 shadow-sm transition-all cursor-pointer hover:shadow-md",
             selectedPlanOption === "A"
-              ? "border-green-600 bg-green-50/30"
+              ? "border-primary bg-primary/10"
               : "border-gray-200 hover:border-gray-300"
           )}
         >
@@ -955,8 +953,8 @@ export default function CreateAuditStep2Page() {
               </p>
             </div>
             {selectedPlanOption === "A" && (
-              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
-                <Check className="h-4 w-4 text-white" />
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
+                <Check className="h-4 w-4 text-primary-foreground" />
               </div>
             )}
           </div>
@@ -973,14 +971,14 @@ export default function CreateAuditStep2Page() {
                 />
               </div>
               {programSearch.trim() !== "" && filteredProgramsForSearch.length > 0 && (
-                <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div className="rounded-lg border border-gray-200 bg-popover shadow-sm overflow-hidden">
                   <p className="px-3 py-2 text-xs font-medium uppercase text-gray-500 bg-gray-50">{t("Select a program")}</p>
                   <ul className="max-h-48 overflow-y-auto">
                     {filteredProgramsForSearch.map((pg) => (
                       <li key={pg.id}>
                         <button
                           type="button"
-                          className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 border-t border-gray-100 flex items-center justify-between"
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-muted border-t border-gray-100 flex items-center justify-between"
                           onClick={() => selectProgramById(pg.id)}
                         >
                           <span className="font-medium text-gray-900">{formatProgramDisplay(pg)}</span>
@@ -997,14 +995,10 @@ export default function CreateAuditStep2Page() {
                 </p>
               )}
               {program && (
-                <div className="rounded-lg border border-green-200 bg-green-50/50 px-4 py-3">
-                  <p className="text-sm font-medium text-green-800">
-                    {t("Linked program:")} {formatProgramDisplay(program as ProgramListItem)}
-                  </p>
-                  <p className="text-xs text-green-700 mt-0.5">
-                    {t("Objectives, type, criteria, and scope are pre-filled from this program.")}
-                  </p>
-                </div>
+                <div className="rounded-lg border border-primary/25 bg-primary/10 px-4 py-3">
+                  <p className="text-sm font-medium text-primary">{t("Linked program:")} {formatProgramDisplay(program as ProgramListItem)}</p>
+                  <p className="text-xs text-primary/90 mt-0.5">{t("Objectives, type, criteria, and scope are pre-filled from this program.")}</p>
+                </div>  
               )}
               {program && (
                 <div className="flex flex-wrap gap-2">
@@ -1045,10 +1039,10 @@ export default function CreateAuditStep2Page() {
         {/* <div
           onClick={() => setSelectedPlanOption("B")}
           className={cn(
-            "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
+            "rounded-lg border-2 bg-card p-6 shadow-sm cursor-pointer transition-all",
             "hover:shadow-md",
             selectedPlanOption === "B"
-              ? "border-green-600 bg-green-50/30"
+              ? "border-primary bg-primary/10"
               : "border-gray-200 hover:border-gray-300"
           )}
         >
@@ -1062,8 +1056,8 @@ export default function CreateAuditStep2Page() {
               </p>
             </div>
             {selectedPlanOption === "B" && (
-              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
-                <Check className="h-4 w-4 text-white" />
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
+                <Check className="h-4 w-4 text-primary-foreground" />
               </div>
             )}
           </div>
@@ -1098,10 +1092,10 @@ export default function CreateAuditStep2Page() {
         <div
           onClick={() => setSelectedPlanOption("C")}
           className={cn(
-            "rounded-lg border-2 bg-white p-6 shadow-sm cursor-pointer transition-all",
+            "rounded-lg border-2 bg-card p-6 shadow-sm cursor-pointer transition-all",
             "hover:shadow-md",
             selectedPlanOption === "C"
-              ? "border-green-600 bg-green-50/30"
+              ? "border-primary bg-primary/10"
               : "border-gray-200 hover:border-gray-300"
           )}
         >
@@ -1112,12 +1106,12 @@ export default function CreateAuditStep2Page() {
               </h3>
             </div>
             {selectedPlanOption === "C" && (
-              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600">
-                <Check className="h-4 w-4 text-white" />
+              <div className="ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
+                <Check className="h-4 w-4 text-primary-foreground" />
               </div>
             )}
           </div>
-          <div className="mt-4 rounded-lg border border-gray-300 bg-gray-100/80 p-4">
+          <div className="mt-4 rounded-lg border border-gray-300 bg-muted/80 p-4">
             <div className="flex gap-3">
               <Clock className="h-5 w-5 shrink-0 text-gray-500" />
               <div className="min-w-0">
@@ -1140,9 +1134,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={identificationOpen}
         onOpenChange={setIdentificationOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Plan Identification")}
           </h3>
@@ -1232,9 +1226,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={objectivesOpen}
         onOpenChange={setObjectivesOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Plan Objectives")}
           </h3>
@@ -1247,19 +1241,19 @@ export default function CreateAuditStep2Page() {
         <CollapsibleContent>
           <div className="border-t border-gray-200 px-6 py-5 space-y-6">
             {/* System Generated - Program Purpose & Objectives (from Step 1) */}
-            <div className="rounded-lg border border-green-300 bg-green-50/80 p-4">
-              <h4 className="text-sm font-bold uppercase tracking-wide text-green-800">
+            <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
+              <h4 className="text-sm font-bold uppercase tracking-wide text-primary">
                 {t("System Generated - Program Purpose & Objectives")}
               </h4>
               <div className="mt-3 flex gap-3">
-                <Info className="h-5 w-5 shrink-0 text-green-700 mt-0.5" />
+                <Info className="h-5 w-5 shrink-0 text-primary mt-0.5" />
                 <p className="text-sm text-gray-700">
                   {t(
                     "Audit objectives define the purpose of each audit cycle. They may include checking documentation and conformity, evaluating effectiveness and efficiency, verifying corrective actions, reviewing clause adequacy, or investigating risks and changes that impact product or system performance."
                   )}
                 </p>
               </div>
-              <p className="mt-2 text-xs text-green-700">
+              <p className="mt-2 text-xs text-primary/90">
                 {t("Selected from Step 1 — PROGRAM PURPOSE & OBJECTIVES (SELECT ONE).")}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1275,13 +1269,13 @@ export default function CreateAuditStep2Page() {
                       key={label}
                       className={cn(
                         "flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors",
-                        isSelectedFromStep1 ? "border-green-500 bg-green-50/50" : "border-gray-200 bg-gray-50/50 opacity-75"
+                        isSelectedFromStep1 ? "border-primary bg-primary/10" : "border-gray-200 bg-muted/50 opacity-75"
                       )}
                     >
                       {isSelectedFromStep1 ? (
-                        <Check className="h-5 w-5 shrink-0 text-green-600" />
+                        <Check className="h-5 w-5 shrink-0 text-primary" />
                       ) : (
-                        <div className="h-5 w-5 shrink-0 rounded border border-gray-300 bg-white" />
+                        <div className="h-5 w-5 shrink-0 rounded border border-gray-300 bg-card" />
                       )}
                       <span className={cn("text-sm", isSelectedFromStep1 ? "text-gray-900 font-medium" : "text-gray-500")}>{t(label)}</span>
                     </div>
@@ -1311,9 +1305,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={auditTypeOpen}
         onOpenChange={setAuditTypeOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Type")}
           </h3>
@@ -1343,10 +1337,10 @@ export default function CreateAuditStep2Page() {
                     variant="ghost"
                     onClick={() => setSelectedAuditType(type.id)}
                     className={cn(
-                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-gray-50/80 whitespace-normal",
+                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-muted/80 whitespace-normal",
                       selectedAuditType === type.id
-                        ? "border-green-500 bg-green-50/30"
-                        : "border-gray-200 bg-white"
+                        ? "border-primary bg-primary/10"
+                        : "border-gray-200 bg-card"
                     )}
                   >
                     <Checkbox
@@ -1365,7 +1359,7 @@ export default function CreateAuditStep2Page() {
                             className={
                               type.badgeVariant === "yellow"
                                 ? "inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium uppercase text-amber-900"
-                                : "text-xs font-medium uppercase text-blue-600"
+                                : "text-xs font-medium uppercase text-primary"
                             }
                           >
                             {t(type.badge)}
@@ -1449,9 +1443,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={scopeOpen}
         onOpenChange={setScopeOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Scope & Boundaries")}
           </h3>
@@ -1482,12 +1476,12 @@ export default function CreateAuditStep2Page() {
                     className={cn(
                       "h-auto relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 p-5 transition-colors",
                       methodology === id
-                        ? "border-green-500 bg-green-50/30"
-                        : "border-gray-200 bg-white hover:bg-gray-50/80"
+                        ? "border-primary bg-primary/10"
+                        : "border-gray-200 bg-card hover:bg-muted/80"
                     )}
                   >
                     {methodology === id && (
-                      <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-green-500" />
+                      <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-primary" />
                     )}
                     <Icon className="h-8 w-8 text-gray-600" />
                     <span className="text-sm font-bold uppercase tracking-wide text-gray-900">
@@ -1496,8 +1490,8 @@ export default function CreateAuditStep2Page() {
                   </Button>
                 ))}
               </div>
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
-                <Info className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+              <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex gap-3">
+                <Info className="h-5 w-5 shrink-0 text-primary mt-0.5" />
                 <p className="text-sm text-gray-700 italic">
                   {t(
                     "ISO Guidance: Scope should define the extent and boundaries of the audit, such as physical and virtual locations, organizational units, activities and processes, and the time period covered."
@@ -1522,7 +1516,7 @@ export default function CreateAuditStep2Page() {
                         key={site.id}
                         className={cn(
                           "flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                          selectedSiteIds.includes(site.id) ? "border-green-500 bg-green-50/50" : "border-gray-200 bg-white hover:bg-gray-50/80"
+                          selectedSiteIds.includes(site.id) ? "border-primary bg-primary/10" : "border-gray-200 bg-card hover:bg-muted/80"
                         )}
                       >
                         <Checkbox
@@ -1547,7 +1541,7 @@ export default function CreateAuditStep2Page() {
                   {t("Location Details")}
                 </h4>
                 {methodology === "on-site" ? (
-                  <div className="flex min-h-[200px] w-full flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6">
+                  <div className="flex min-h-[200px] w-full flex-col items-center justify-center rounded-lg border border-gray-200 bg-muted/50 p-6">
                     <Building2 className="h-16 w-16 text-gray-300" />
                     <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
                       {t("Physical Location")}
@@ -1561,7 +1555,7 @@ export default function CreateAuditStep2Page() {
                     <PopoverTrigger asChild>
                       <button
                         type="button"
-                        className="flex min-h-[200px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 p-6 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-1"
+                        className="flex min-h-[200px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-gray-200 bg-muted/50 p-6 text-left transition-colors hover:border-gray-300 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-1"
                       >
                         <Building2 className="h-16 w-16 text-gray-300" />
                         <p className="mt-3 text-sm font-medium uppercase tracking-wide text-gray-600">
@@ -1576,7 +1570,7 @@ export default function CreateAuditStep2Page() {
                       <div className="p-4 space-y-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs font-medium uppercase tracking-wide text-gray-700 flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-green-600" />
+                            <MapPin className="h-4 w-4 text-primary" />
                             {t("Add location")}
                           </Label>
                           <Input
@@ -1624,7 +1618,7 @@ export default function CreateAuditStep2Page() {
                       </p>
                     </div>
                   ) : (
-                    <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/50">
+                    <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-muted/50">
                       <p className="text-sm text-gray-500">{t("No location selected. Click the card above to add a location.")}</p>
                     </div>
                   )}
@@ -1643,7 +1637,7 @@ export default function CreateAuditStep2Page() {
                     {t("Audit Mode (System Generated)")}
                   </span>
                   <div className="inline-flex items-center gap-2 w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium uppercase text-gray-800">
                       {methodology === "on-site"
                         ? t("ON-SITE")
@@ -1658,7 +1652,7 @@ export default function CreateAuditStep2Page() {
                     {t("Site (System Generated)")}
                   </span>
                   <div className="inline-flex items-center gap-2 w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5">
-                    <MapPin className="h-4 w-4 text-green-600" />
+                    <MapPin className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium text-gray-800">
                       {displaySite}
                     </span>
@@ -1684,9 +1678,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={calendarOpen}
         onOpenChange={setCalendarOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Plan Calendar")}
           </h3>
@@ -1701,7 +1695,7 @@ export default function CreateAuditStep2Page() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50/80">
+                  <TableRow className="border-gray-200 bg-muted/80">
                     <TableHead className="px-6 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       {t("Field")}
                     </TableHead>
@@ -1819,9 +1813,9 @@ export default function CreateAuditStep2Page() {
                 </TableBody>
               </Table>
             </div>
-            <div className="flex items-center gap-2 rounded-b-lg border-t border-green-200 bg-green-50 px-6 py-3">
-              <Lock className="h-5 w-5 shrink-0 text-green-700" />
-              <p className="text-sm font-medium uppercase text-green-800">
+            <div className="flex items-center gap-2 rounded-b-lg border-t border-primary/20 bg-primary/5 px-6 py-3">
+              <Lock className="h-5 w-5 shrink-0 text-primary" />
+              <p className="text-sm font-medium uppercase text-primary">
                 {t("Permission Note: Only the lead auditor can create or reschedule audits.")}
               </p>
             </div>
@@ -1833,9 +1827,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={criteriaOpen}
         onOpenChange={setCriteriaOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Plan Criteria (Select One)")}
           </h3>
@@ -1867,8 +1861,8 @@ export default function CreateAuditStep2Page() {
                       className={cn(
                         "flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors",
                         selectedChecklistId === c.id
-                          ? "border-green-500 bg-green-50/30"
-                          : "border-gray-200 bg-white hover:bg-gray-50/80"
+                          ? "border-primary bg-primary/10"
+                          : "border-gray-200 bg-card hover:bg-muted/80"
                       )}
                     >
                       <Checkbox
@@ -1882,7 +1876,7 @@ export default function CreateAuditStep2Page() {
                             setSelectedCriteria(null);
                           }
                         }}
-                        className="border-2 border-green-600 data-[state=checked]:border-green-600"
+                        className="border-2 border-primary data-[state=checked]:border-primary"
                       />
                       <span className="text-sm font-medium uppercase tracking-wide text-gray-800">
                         {c.name}
@@ -1893,13 +1887,11 @@ export default function CreateAuditStep2Page() {
                     </Label>
                   ))}
                 </div>
-                <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 flex gap-3">
-                  <RefreshCw className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
-                  <p className="text-sm text-blue-700">
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex gap-3">
+                  <RefreshCw className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+                  <p className="text-sm text-primary">
                     <span className="font-semibold uppercase">{t("Automation Note:")}</span>{" "}
-                    {t(
-                      "Criteria selection influences audit checklist generation and evidence requirements in Step 3."
-                    )}
+                    {t("Criteria selection influences audit checklist generation and evidence requirements in Step 3.")}
                   </p>
                 </div>
               </>
@@ -1912,9 +1904,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={methodsOpen}
         onOpenChange={setMethodsOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Audit Methods & Risk Considerations")}
           </h3>
@@ -1929,7 +1921,7 @@ export default function CreateAuditStep2Page() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50/80">
+                  <TableRow className="border-gray-200 bg-muted/80">
                     <TableHead className="whitespace-nowrap px-4 py-3 text-xs font-bold uppercase tracking-wide text-gray-700">
                       {t("AMRC#")}
                     </TableHead>
@@ -1985,7 +1977,7 @@ export default function CreateAuditStep2Page() {
                         >
                           <SelectTrigger
                             size="sm"
-                            className="h-8 min-w-[90px] rounded-full border-gray-300 bg-gray-200/80 px-3 text-xs font-medium uppercase text-gray-700"
+                            className="h-8 min-w-[90px] rounded-full border-gray-300 bg-muted/80 px-3 text-xs font-medium uppercase text-gray-700"
                           >
                             <SelectValue placeholder={t("Priority")} />
                           </SelectTrigger>
@@ -2029,7 +2021,7 @@ export default function CreateAuditStep2Page() {
               <Button
                 type="button"
                 onClick={addMethodologyRow}
-                className="bg-green-600 text-white hover:bg-green-700"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 {t("Add Methodology Row")}
@@ -2043,9 +2035,9 @@ export default function CreateAuditStep2Page() {
       <Collapsible
         open={auditorRoleOpen}
         onOpenChange={setAuditorRoleOpen}
-        className="rounded-lg border border-gray-200 bg-white shadow-sm mb-6"
+        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
       >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50/80 transition-colors rounded-lg">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
             {t("Auditor Role & Competence")}
           </h3>
@@ -2060,10 +2052,10 @@ export default function CreateAuditStep2Page() {
             {/* Two panels: Core Auditor Competence | Lead Auditor Self-Evaluation */}
             <div className="grid gap-6 sm:grid-cols-2">
               {/* Core Auditor Competence */}
-              <div className="relative rounded-lg border border-gray-200 bg-white p-5">
+              <div className="relative rounded-lg border border-gray-200 bg-card p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900 border-b-2 border-green-600 pb-1 w-fit">
+                    <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900 border-b-2 border-primary pb-1 w-fit">
                       {t("Core Auditor Competence")}
                     </h4>
                     <p className="mt-1 text-xs text-gray-500">
@@ -2076,7 +2068,7 @@ export default function CreateAuditStep2Page() {
                   {CORE_AUDITOR_COMPETENCIES.map((item) => (
                     <Label
                       key={item}
-                      className="flex items-center gap-3 rounded border border-gray-100 bg-gray-50/50 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-3 rounded border border-gray-100 bg-muted/50 px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                     >
                       <Checkbox
                         checked={!!coreCompetence[item]}
@@ -2091,26 +2083,26 @@ export default function CreateAuditStep2Page() {
               </div>
 
               {/* Lead Auditor Self-Evaluation */}
-              <div className="relative overflow-hidden rounded-lg border border-green-800/30 bg-green-900/20 p-5">
+              <div className="relative overflow-hidden rounded-lg border border-primary/30 bg-primary/10 p-5">
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-10">
-                  <ShieldCheck className="h-24 w-24 text-green-600" strokeWidth={1.5} />
+                  <ShieldCheck className="h-24 w-24 text-primary" strokeWidth={1.5} />
                 </div>
-                <h4 className="text-sm font-bold uppercase tracking-wide text-green-900 border-b-2 border-green-600 pb-1 w-fit">
+                <h4 className="text-sm font-bold uppercase tracking-wide text-primary border-b-2 border-primary pb-1 w-fit">
                   {t("Lead Auditor Self-Evaluation")}
                 </h4>
-                <p className="mt-1 text-xs text-green-800/80">
+                <p className="mt-1 text-xs text-primary/80">
                   {t("Leadership & Management Clauses")}
                 </p>
                 <div className="mt-4 space-y-2 relative">
                   {LEAD_AUDITOR_SELF_EVAL_ITEMS.map((item) => (
                     <Label
                       key={item}
-                      className="flex items-center gap-3 rounded border border-green-200/50 bg-white/60 px-3 py-2 cursor-pointer hover:bg-white/80 transition-colors"
+                      className="flex items-center gap-3 rounded border border-primary/20 bg-card/60 px-3 py-2 cursor-pointer hover:bg-card/80 transition-colors"
                     >
                       <Checkbox
                         checked={!!leadAuditorSelfEval[item]}
                         onCheckedChange={() => toggleLeadAuditorSelfEval(item)}
-                        className="border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                        className="border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=checked]:text-primary-foreground"
                       />
                       <span className="text-xs font-medium uppercase tracking-wide text-gray-800">
                         {t(item)}
@@ -2122,7 +2114,7 @@ export default function CreateAuditStep2Page() {
             </div>
 
             {/* Auditor Assignment — search/select only users with Auditor role; UIN = user id (auto); Role = Auditor | Trainee */}
-            <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-5 space-y-4">
+            <div className="rounded-lg border border-gray-200 bg-muted/50 p-5 space-y-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
@@ -2137,7 +2129,7 @@ export default function CreateAuditStep2Page() {
                 <Button
                   type="button"
                   onClick={addAuditorResource}
-                  className="bg-green-600 text-white hover:bg-green-700 shrink-0"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   {t("Add Auditor Resource")}
@@ -2165,7 +2157,7 @@ export default function CreateAuditStep2Page() {
                 return (
                   <div
                     key={resource.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 space-y-4"
+                    className="rounded-lg border border-gray-200 bg-card p-4 space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wide text-gray-500">
@@ -2198,7 +2190,7 @@ export default function CreateAuditStep2Page() {
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="ml-auto text-xs text-blue-600 hover:text-blue-700"
+                              className="ml-auto text-xs text-primary hover:text-primary/80"
                               onClick={() => clearAuditorForResource(resource.id)}
                             >
                               {t("Change")}
@@ -2216,7 +2208,7 @@ export default function CreateAuditStep2Page() {
                               }
                             />
                             {resource.auditorSearch.trim() !== "" && (
-                              <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                              <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-popover shadow-lg">
                                 {dropdownAuditors.length === 0 ? (
                                   <p className="px-3 py-2 text-sm text-gray-500">{t("No auditors match or all are already assigned.")}</p>
                                 ) : (
@@ -2224,7 +2216,7 @@ export default function CreateAuditStep2Page() {
                                     <button
                                       key={aud.id}
                                       type="button"
-                                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
                                       onClick={() => selectAuditorForResource(resource.id, aud)}
                                     >
                                       <User className="h-4 w-4 text-gray-400" />
@@ -2264,7 +2256,7 @@ export default function CreateAuditStep2Page() {
                     </div>
 
                     <div className="pt-3 border-t border-gray-100">
-                      <h5 className="text-xs font-bold uppercase tracking-wide text-green-700 mb-3">
+                      <h5 className="text-xs font-bold uppercase tracking-wide text-primary mb-3">
                         {t("Manual Entry")}
                       </h5>
                       <div className="grid gap-4 sm:grid-cols-3">
@@ -2317,40 +2309,38 @@ export default function CreateAuditStep2Page() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Audit Plan Summary & Actions - dark card */}
-      <div className="rounded-xl border border-green-500/30 bg-gray-900 shadow-lg shadow-green-500/5 overflow-hidden">
-        <div className="border-t border-green-400/40" aria-hidden />
+      {/* Audit Plan Summary & Actions */}
+      <div className="rounded-xl border border-primary/30 bg-card text-card-foreground shadow-lg shadow-primary/10 overflow-hidden">
+        <div className="border-t border-primary/40" aria-hidden />
         <div className="px-6 py-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                {t("Audit Plan Date")}
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                Audit Plan Date
               </p>
-              <p className="mt-1 text-xl font-bold text-white">{datePrepared ? format(datePrepared, "MM-dd-yyyy") : "—"}</p>
-              <p className="mt-0.5 text-xs text-gray-400">{t("Date Prepared")}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{datePrepared ? format(datePrepared, "MM-dd-yyyy") : "—"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Date Prepared</p>
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                {t("Planned Date")}
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                Planned Date
               </p>
-              <p className="mt-1 text-xl font-bold text-white">{plannedDate ? format(plannedDate, "MM-dd-yyyy") : "—"}</p>
-              <p className="mt-0.5 text-xs text-gray-400">{t("User-selected")}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{plannedDate ? format(plannedDate, "MM-dd-yyyy") : "—"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">User-selected</p>
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-green-400">
-                {t("Lead Auditor")}
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                Lead Auditor
               </p>
-              <p className="mt-1 text-xl font-bold text-white">{currentUserName}</p>
-              <p className="mt-0.5 text-xs text-gray-400">{t("Audit creator")}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{currentUserName}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Audit creator</p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex flex-col items-center justify-center rounded-lg border border-gray-600 bg-gray-800/80 px-4 py-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-                  <Check className="h-4 w-4 text-green-600" />
+              <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-muted px-4 py-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background">
+                  <Check className="h-4 w-4 text-primary" />
                 </div>
-                <p className="mt-2 text-xs text-gray-300">
-                  {effectiveProgramId ? `${t("Program")}: ${effectiveProgramId.slice(0, 8)}…` : "—"}
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{effectiveProgramId ? `Program: ${effectiveProgramId.slice(0, 8)}…` : "—"}</p>
               </div>
             </div>
           </div>
@@ -2359,7 +2349,7 @@ export default function CreateAuditStep2Page() {
             <Button
               type="button"
               variant="outline"
-              className="border-green-500 bg-transparent text-green-500 hover:bg-green-500/10 hover:text-green-400"
+              className="border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
               disabled={!effectiveProgramId || isSubmittingPlan}
               onClick={() => submitAuditPlan(true)}
             >
@@ -2368,7 +2358,7 @@ export default function CreateAuditStep2Page() {
             </Button>
             <Button
               type="button"
-              className="bg-green-600 text-white hover:bg-green-700"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={!effectiveProgramId || isSubmittingPlan}
               onClick={() => submitAuditPlan(false)}
             >
@@ -2392,7 +2382,7 @@ export default function CreateAuditStep2Page() {
             Previous Step
           </Link>
         </Button>
-        <Button className="bg-green-600 text-white hover:bg-green-700" asChild>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary/90" asChild>
           <Link
             href={(() => {
               const params = new URLSearchParams();

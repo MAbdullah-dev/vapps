@@ -25,7 +25,13 @@ class ApiClient {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
-        const errorMessage = (error.response?.data as any)?.error || error.message || "Something went wrong";
+        const data = error.response?.data as { error?: string; message?: string } | undefined;
+        const base = data?.error || error.message || "Something went wrong";
+        const detail = data?.message;
+        const errorMessage =
+          detail && typeof detail === "string" && detail.trim() !== "" && detail !== base
+            ? `${base}: ${detail}`
+            : base;
         throw new Error(errorMessage);
       }
     );
@@ -810,6 +816,13 @@ class ApiClient {
     sprintId?: string | null;
     order?: number;
     deadline?: string | null;
+    comments?: Array<{
+      id: string | number;
+      author: string;
+      authorImage?: string | null;
+      text: string;
+      createdAt: string;
+    }>;
   }) {
     return this.put<{ issue: any; message: string }>(
       `/organization/${orgId}/processes/${processId}/issues/${issueId}`,
@@ -833,6 +846,13 @@ class ApiClient {
     deadline?: string | null;
     processId?: string | null;
     siteId?: string | null;
+    comments?: Array<{
+      id: string | number;
+      author: string;
+      authorImage?: string | null;
+      text: string;
+      createdAt: string;
+    }>;
   }) {
     return this.put<{ issue: any; message: string }>(
       `/organization/${orgId}/issues/${issueId}`,
@@ -1334,6 +1354,10 @@ class ApiClient {
     address?: string;
     contactName?: string;
     contactEmail?: string;
+    brandColor?: string;
+    brandFont?: string;
+    /** Base64 data URL or null to clear */
+    logo?: string | null;
   }) {
     return this.put<{ message: string; organizationInfo: any }>(
       `/organization/${orgId}/organization-info`,

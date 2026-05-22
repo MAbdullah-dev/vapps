@@ -28,6 +28,7 @@ import { Info, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
+import { useTranslate } from "@/components/providers/translation-provider";
 
 // Leadership level constants
 const LEADERSHIP_TOP = 1;
@@ -108,6 +109,7 @@ export default function EditUserDialog({
   isOwnerEditingSelf = false,
   onUserUpdated,
 }: EditUserDialogProps) {
+  const { t } = useTranslate();
   const [name, setName] = useState(userName || "");
   const [jobTitle, setJobTitle] = useState<JobTitle | "">(currentJobTitle as JobTitle || "");
   const [site, setSite] = useState(currentSiteId || "");
@@ -183,7 +185,7 @@ export default function EditUserDialog({
       setSites(res.sites || []);
     } catch (e: any) {
       console.error("Failed to load sites", e);
-      toast.error("Failed to load sites");
+      toast.error(t("Failed to load sites"));
     }
   };
 
@@ -193,7 +195,7 @@ export default function EditUserDialog({
       setProcesses(res.processes || []);
     } catch (e: unknown) {
       console.error("Failed to load processes", e);
-      toast.error("Failed to load processes");
+      toast.error(t("Failed to load processes"));
       setProcesses([]);
     }
   };
@@ -202,13 +204,13 @@ export default function EditUserDialog({
     const newErrors: FormErrors = {};
 
     if (!isOwnerEditingSelf && !jobTitle) {
-      newErrors.jobTitle = "Job title is required";
+      newErrors.jobTitle = t("Job title is required");
     }
 
     // Every user (except owner editing self) must have one site and one process
     if (!isOwnerEditingSelf) {
-      if (!site) newErrors.site = "Select one site";
-      if (!process) newErrors.process = "Select one process";
+      if (!site) newErrors.site = t("Select one site");
+      if (!process) newErrors.process = t("Select one process");
     }
 
     setErrors(newErrors);
@@ -235,12 +237,12 @@ export default function EditUserDialog({
         additionalRoleIds: selectedAdditionalRoleIds.length > 0 ? selectedAdditionalRoleIds : [],
       });
 
-      toast.success("User updated successfully");
+      toast.success(t("User updated successfully"));
       onOpenChange(false);
       onUserUpdated?.();
     } catch (error: any) {
       console.error("Error updating user:", error);
-      const message = error?.message || "Failed to update user. Please try again.";
+      const message = error?.message || t("Failed to update user. Please try again.");
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -276,9 +278,9 @@ export default function EditUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit User</DialogTitle>
+          <DialogTitle>{t("Edit User")}</DialogTitle>
           <DialogDescription>
-            Update user's job title, role, and site/process assignments.
+            {t("Update user's job title, role, and site/process assignments.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -286,39 +288,43 @@ export default function EditUserDialog({
           {/* User Info */}
           <div className="space-y-2">
             <Label htmlFor="edit-name">
-              Name <span className="text-red-500">*</span>
+              {t("Name")} <span className="text-red-500">*</span>
             </Label>
             <Input 
               id="edit-name"
               value={name} 
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter user's full name"
+              placeholder={t("Enter user's full name")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={userEmail} disabled className="bg-gray-50 cursor-not-allowed" />
+            <Label>{t("Email")}</Label>
+            <Input value={userEmail} disabled className="bg-muted/30 cursor-not-allowed" />
           </div>
 
           {/* Job Title (read-only for org owner editing self) */}
           <div className="space-y-2">
             <Label htmlFor="jobTitle">
               <div className="flex items-center gap-2">
-                <span>Job Title</span>
+                <span>{t("Job Title")}</span>
                 {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" aria-hidden />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{isOwnerEditingSelf ? "Organization owner. You can set your site, process, and additional roles (e.g. Auditor) below." : "Defines the user's business designation and determines their system role."}</p>
+                    <p>
+                      {isOwnerEditingSelf
+                        ? t("Organization owner. You can set your site, process, and additional roles (e.g. Auditor) below.")
+                        : t("Defines the user's business designation and determines their system role.")}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </div>
             </Label>
             {isOwnerEditingSelf ? (
-              <Input id="jobTitle" value="Owner" disabled className="bg-gray-50 cursor-not-allowed" />
+              <Input id="jobTitle" value={t("Owner")} disabled className="bg-muted/30 cursor-not-allowed" />
             ) : (
               <>
                 <Select value={jobTitle} onValueChange={handleJobTitleChange}>
@@ -326,19 +332,19 @@ export default function EditUserDialog({
                     id="jobTitle"
                     className={errors.jobTitle ? "border-red-500" : ""}
                   >
-                    <SelectValue placeholder="Select job title" />
+                    <SelectValue placeholder={t("Select job title")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CEO">CEO</SelectItem>
-                    <SelectItem value="CTO">CTO</SelectItem>
-                    <SelectItem value="CFO">CFO</SelectItem>
-                    <SelectItem value="VP">VP</SelectItem>
-                    <SelectItem value="Director">Director</SelectItem>
-                    <SelectItem value="Plant Manager">Plant Manager</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
-                    <SelectItem value="Supervisor">Supervisor</SelectItem>
-                    <SelectItem value="Team Lead">Team Lead</SelectItem>
-                    <SelectItem value="Coordinator">Coordinator</SelectItem>
+                    <SelectItem value="CEO">{t("CEO")}</SelectItem>
+                    <SelectItem value="CTO">{t("CTO")}</SelectItem>
+                    <SelectItem value="CFO">{t("CFO")}</SelectItem>
+                    <SelectItem value="VP">{t("VP")}</SelectItem>
+                    <SelectItem value="Director">{t("Director")}</SelectItem>
+                    <SelectItem value="Plant Manager">{t("Plant Manager")}</SelectItem>
+                    <SelectItem value="Manager">{t("Manager")}</SelectItem>
+                    <SelectItem value="Supervisor">{t("Supervisor")}</SelectItem>
+                    <SelectItem value="Team Lead">{t("Team Lead")}</SelectItem>
+                    <SelectItem value="Coordinator">{t("Coordinator")}</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.jobTitle && (
@@ -356,21 +362,21 @@ export default function EditUserDialog({
             <div className="space-y-2">
               <Label>
                 <div className="flex items-center gap-2">
-                  <span>Leadership Level</span>
+                  <span>{t("Leadership Level")}</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" aria-hidden />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Automatically set based on job title.</p>
+                      <p>{t("Automatically set based on job title.")}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
               </Label>
               <Input
-                value={`Level ${roleLevel}`}
+                value={`${t("Level")} ${roleLevel}`}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted/30 cursor-not-allowed"
               />
             </div>
           )}
@@ -380,21 +386,21 @@ export default function EditUserDialog({
             <div className="space-y-2">
               <Label>
                 <div className="flex items-center gap-2">
-                  <span>System Role</span>
+                  <span>{t("System Role")}</span>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" aria-hidden />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Automatically assigned based on leadership level.</p>
+                      <p>{t("Automatically assigned based on leadership level.")}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
               </Label>
               <Input
-                value={systemRole}
+                value={t(systemRole)}
                 disabled
-                className="bg-gray-50 cursor-not-allowed"
+                className="bg-muted/30 cursor-not-allowed"
               />
             </div>
           )}
@@ -404,17 +410,17 @@ export default function EditUserDialog({
             <>
               <div className="space-y-2">
                 <Label htmlFor="edit-site">
-                  Site {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
+                  {t("Site")} {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                 </Label>
-                <p className="text-xs text-gray-500 mb-1">
-                  Select the site where this user operates.
+                <p className="text-xs text-muted-foreground mb-1">
+                  {t("Select the site where this user operates.")}
                 </p>
                 <Select value={site} onValueChange={handleSiteChange}>
                   <SelectTrigger
                     id="edit-site"
                     className={`w-full ${errors.site ? "border-red-500" : ""}`}
                   >
-                    <SelectValue placeholder="Select one site" />
+                    <SelectValue placeholder={t("Select one site")} />
                   </SelectTrigger>
                   <SelectContent>
                     {sites.map((s) => (
@@ -435,10 +441,10 @@ export default function EditUserDialog({
               {site && (
                 <div className="space-y-2">
                   <Label htmlFor="edit-process">
-                    Process {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
+                    {t("Process")} {!isOwnerEditingSelf && <span className="text-red-500">*</span>}
                   </Label>
-                  <p className="text-xs text-gray-500 mb-1">
-                    Select one process within this site.
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {t("Select one process within this site.")}
                   </p>
                   <Select
                     value={process}
@@ -451,7 +457,9 @@ export default function EditUserDialog({
                       id="edit-process"
                       className={`w-full ${errors.process ? "border-red-500" : ""}`}
                     >
-                      <SelectValue placeholder={processes.length === 0 ? "No processes" : "Select one process"} />
+                      <SelectValue
+                        placeholder={processes.length === 0 ? t("No processes") : t("Select one process")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {processes.map((p) => (
@@ -475,11 +483,11 @@ export default function EditUserDialog({
           {/* Additional roles (e.g. Auditor) — not for Support / Level 3 job titles */}
           {assignableAdditionalRoles.length > 0 && (
             <div className="space-y-2">
-              <Label>Additional roles (e.g. Auditor)</Label>
-              <p className="text-xs text-gray-500 mb-1">
-                Assign or remove custom roles such as Auditor.
+              <Label>{t("Additional roles (e.g. Auditor)")}</Label>
+              <p className="text-xs text-muted-foreground mb-1">
+                {t("Assign or remove custom roles such as Auditor.")}
               </p>
-              <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-gray-50/50">
+              <div className="flex flex-wrap gap-3 border rounded-md p-3 bg-muted/20">
                 {assignableAdditionalRoles.map((ar) => (
                   <label key={ar.id} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -492,9 +500,9 @@ export default function EditUserDialog({
                           setSelectedAdditionalRoleIds((prev) => prev.filter((id) => id !== ar.id));
                         }
                       }}
-                      className="rounded border-gray-300"
+                      className="rounded border-border"
                     />
-                    <span className="text-sm font-medium text-gray-700">{ar.name}</span>
+                    <span className="text-sm font-medium text-foreground">{ar.name}</span>
                   </label>
                 ))}
               </div>
@@ -504,10 +512,10 @@ export default function EditUserDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? "Updating..." : "Update User"}
+            {isLoading ? t("Updating...") : t("Update User")}
           </Button>
         </DialogFooter>
       </DialogContent>

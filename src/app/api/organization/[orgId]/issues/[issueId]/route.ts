@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
+import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
+import { isIssueCommentsOnlyPatch } from "@/lib/issue-comment-permissions";
+import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
+import { cache, cacheKeys } from "@/lib/cache";
 
 /**
  * GET /api/organization/[orgId]/issues/[issueId]
@@ -16,12 +20,15 @@ export async function GET(
 
     const client = await getTenantClient(ctx.tenant.orgId);
     try {
+      await ensureIssueCommentsColumn(client);
       const result = await client.query(`SELECT * FROM issues WHERE id = $1`, [issueId]);
       client.release();
       if (!result.rows.length) {
         return NextResponse.json({ error: "Issue not found" }, { status: 404 });
       }
-      return NextResponse.json({ issue: result.rows[0] });
+      const issue = result.rows[0] as Record<string, unknown>;
+      normalizeIssueCommentsOnRow(issue);
+      return NextResponse.json({ issue });
     } catch (error: any) {
       client.release();
       return NextResponse.json(
@@ -48,16 +55,34 @@ export async function PUT(
     const { orgId, issueId } = await params;
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const body = await req.json();
+    const body = await req.json() as Record<string, unknown>;
+    const commentsOnly = isIssueCommentsOnlyPatch(body);
 
     const client = await getTenantClient(ctx.tenant.orgId);
     try {
-      const existing = await client.query(`SELECT id, assignee FROM issues WHERE id = $1`, [issueId]);
+      await ensureIssueCommentsColumn(client);
+      const existing = await client.query(
+        `SELECT id, assignee, issuer FROM issues WHERE id = $1`,
+        [issueId]
+      );
       if (!existing.rows.length) {
         client.release();
         return NextResponse.json({ error: "Issue not found" }, { status: 404 });
       }
-      if (existing.rows[0].assignee !== ctx.user.id) {
+      const row = existing.rows[0];
+      const uid = String(ctx.user.id);
+      const isAssignee = row.assignee != null && String(row.assignee) === uid;
+      const isIssuer = row.issuer != null && String(row.issuer) === uid;
+
+      if (commentsOnly) {
+        if (!isAssignee && !isIssuer) {
+          client.release();
+          return NextResponse.json(
+            { error: "Only the assignee or issue creator can add comments." },
+            { status: 403 }
+          );
+        }
+      } else if (!isAssignee) {
         client.release();
         return NextResponse.json(
           { error: "Only the assignee of this issue can edit it." },
@@ -65,7 +90,7 @@ export async function PUT(
         );
       }
 
-      let resolvedProcessId: string | null | undefined = body.processId;
+      let resolvedProcessId: string | null | undefined = body.processId as string | null | undefined;
       let resolvedSiteId: string | null | undefined = body.siteId;
 
       if (resolvedProcessId !== undefined && resolvedProcessId !== null && resolvedProcessId !== "") {
@@ -100,6 +125,22 @@ export async function PUT(
       if (body.deadline !== undefined) {
         add(`"deadline"`, body.deadline === null || body.deadline === "" ? null : new Date(body.deadline).toISOString());
       }
+      if (body.comments !== undefined) {
+        const c = body.comments;
+        if (!Array.isArray(c)) {
+          client.release();
+          return NextResponse.json({ error: "comments must be an array" }, { status: 400 });
+        }
+        let commentsJson: string;
+        try {
+          commentsJson = JSON.stringify(c);
+        } catch {
+          client.release();
+          return NextResponse.json({ error: "comments could not be serialized" }, { status: 400 });
+        }
+        updates.push(`"comments" = $${idx++}::jsonb`);
+        values.push(commentsJson);
+      }
       if (resolvedProcessId !== undefined) {
         add(`"processId"`, resolvedProcessId || null);
       }
@@ -119,8 +160,16 @@ export async function PUT(
         values
       );
       const updated = await client.query(`SELECT * FROM issues WHERE id = $1`, [issueId]);
+      const updatedRow = updated.rows[0] as Record<string, unknown>;
+      normalizeIssueCommentsOnRow(updatedRow);
+      const tenantOrgId = ctx.tenant.orgId;
+      const processIdForCache = updatedRow.processId;
+      if (processIdForCache != null && String(processIdForCache) !== "") {
+        cache.delete(cacheKeys.orgIssue(tenantOrgId, String(processIdForCache), issueId));
+      }
+      cache.clearPattern(`org:${tenantOrgId}:processes:*`);
       client.release();
-      return NextResponse.json({ message: "Issue updated successfully", issue: updated.rows[0] });
+      return NextResponse.json({ message: "Issue updated successfully", issue: updatedRow });
     } catch (error: any) {
       client.release();
       return NextResponse.json(

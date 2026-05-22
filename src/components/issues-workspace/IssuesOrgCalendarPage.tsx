@@ -9,7 +9,44 @@ import interactionPlugin from "@fullcalendar/interaction";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site";
-import { useTranslate } from "@/components/providers/translation-provider";
+import { cn } from "@/lib/utils";
+
+/** Maps FullCalendar CSS variables to shadcn theme tokens (light + dark). */
+const calendarShellClass = cn(
+  "rounded-lg border border-border bg-card p-4 text-foreground shadow-sm",
+  "[--fc-page-bg-color:var(--card)]",
+  "[--fc-neutral-bg-color:color-mix(in_oklch,var(--muted)_45%,transparent)]",
+  "[--fc-neutral-text-color:var(--muted-foreground)]",
+  "[--fc-border-color:var(--border)]",
+  "[--fc-button-text-color:var(--primary-foreground)]",
+  "[--fc-button-bg-color:var(--primary)]",
+  "[--fc-button-border-color:var(--primary)]",
+  "[--fc-button-hover-bg-color:var(--accent)]",
+  "[--fc-button-hover-border-color:var(--accent)]",
+  "[--fc-button-active-bg-color:var(--primary)]",
+  "[--fc-button-active-border-color:var(--primary)]",
+  "[--fc-event-bg-color:var(--primary)]",
+  "[--fc-event-border-color:var(--primary)]",
+  "[--fc-event-text-color:var(--primary-foreground)]",
+  "[--fc-more-link-bg-color:var(--muted)]",
+  "[--fc-more-link-text-color:var(--foreground)]",
+  "[--fc-today-bg-color:color-mix(in_oklch,var(--accent)_35%,transparent)]",
+  "[--fc-highlight-color:color-mix(in_oklch,var(--accent)_25%,transparent)]",
+  "[--fc-now-indicator-color:var(--destructive)]",
+  "[&_.fc]:text-foreground",
+  "[&_.fc-toolbar-title]:text-foreground",
+  "[&_.fc-col-header-cell-cushion]:text-muted-foreground",
+  "[&_.fc-daygrid-day-number]:text-foreground",
+  "[&_.fc-day-other_.fc-daygrid-day-number]:text-muted-foreground",
+  "[&_.fc-timegrid-slot-label-cushion]:text-muted-foreground",
+  "[&_.fc-timegrid-axis-cushion]:text-muted-foreground",
+  "[&_.fc-list-day-text]:text-foreground",
+  "[&_.fc-list-day-side-text]:text-muted-foreground",
+  "[&_.fc-list-event-title]:text-foreground",
+  "[&_.fc-list-event-time]:text-muted-foreground",
+  "[&_.fc-event]:cursor-pointer",
+  "[&_.fc-daygrid-event]:cursor-pointer"
+);
 
 type CalendarEvent = {
   id: string;
@@ -93,7 +130,7 @@ export default function IssuesOrgCalendarPage() {
   }
 
   return (
-    <div className="p-4 bg-card border border-border rounded-lg shadow-sm text-foreground [&_.fc-event]:cursor-pointer [&_.fc-daygrid-event]:cursor-pointer">
+    <div className={calendarShellClass}>
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">{t("Loading calendar...")}</div>
       ) : (

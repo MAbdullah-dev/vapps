@@ -109,7 +109,7 @@ export default function CreateAuditStep6Page() {
   }, [planStatus, currentUserRole]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
       <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
       {!canEditStep6 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -122,7 +122,7 @@ export default function CreateAuditStep6Page() {
         <div className={cn(!canEditStep6 && "pointer-events-none select-none opacity-90")}>
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 border-green-200 bg-green-50 text-green-600">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 border-primary/20 bg-primary/5 text-primary">
             <FileCheck className="h-8 w-8" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-foreground">
@@ -130,7 +130,7 @@ export default function CreateAuditStep6Page() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {t("Audit ID:")}{" "}
-            <span className="font-semibold text-green-600">{isLoading ? "…" : auditIdDisplay}</span>
+            <span className="font-semibold text-primary">{isLoading ? t("…") : auditIdDisplay}</span>
             {" • "}
             {t("ISO 19011:2026 Compliant")}
           </p>
@@ -151,12 +151,12 @@ export default function CreateAuditStep6Page() {
                 className={cn(
                   "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "effective"
-                    ? "border-green-500 bg-green-50 hover:bg-green-100"
+                    ? "border-primary bg-primary/10 hover:bg-primary/15"
                     : "border-border bg-card hover:border-border"
                 )}
               >
                 {finalDecision === "effective" ? (
-                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 ) : (
                   <Square className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 )}
@@ -176,12 +176,12 @@ export default function CreateAuditStep6Page() {
                 className={cn(
                   "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "ineffective"
-                    ? "border-green-500 bg-green-50 hover:bg-green-100"
+                    ? "border-primary bg-primary/10 hover:bg-primary/15"
                     : "border-border bg-card hover:border-border"
                 )}
               >
                 {finalDecision === "ineffective" ? (
-                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 ) : (
                   <Square className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 )}
@@ -202,7 +202,7 @@ export default function CreateAuditStep6Page() {
           {/* Right: Management Comments */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 shrink-0 text-green-500" />
+              <MessageSquare className="h-5 w-5 shrink-0 text-primary" />
               <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 {t("MANAGEMENT COMMENTS")}
               </h2>
@@ -222,7 +222,7 @@ export default function CreateAuditStep6Page() {
         {/* Authentication & Seal */}
         <div className="mt-10 space-y-4 bg-accent rounded-xl p-6">
           <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
+            <CheckCircle className="h-5 w-5 shrink-0 text-primary" />
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               {t("AUTHENTICATION & SEAL")}
             </h2>
@@ -238,9 +238,9 @@ export default function CreateAuditStep6Page() {
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                   {t("APPROVED BY (LEAD AUDITOR)")}
                 </p>
-                <p className="mt-1 font-bold text-foreground">{isLoading ? "…" : leadAuditorDisplay.name}</p>
+                <p className="mt-1 font-bold text-foreground">{isLoading ? t("…") : leadAuditorDisplay.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {isLoading ? "…" : leadAuditorDisplay.role}
+                  {isLoading ? t("…") : leadAuditorDisplay.role}
                 </p>
               </div>
               <div className="bg-card rounded-lg p-4 border border-border">
@@ -252,7 +252,7 @@ export default function CreateAuditStep6Page() {
               </div>
             </div>
             <div className="flex shrink-0 items-center justify-center">
-              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-green-200 bg-green-50/50 p-1">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 p-1">
                 <span
                   className="block max-w-[80px] text-center text-[9px] font-medium uppercase leading-tight text-muted-foreground"
                   style={{ transform: "rotate(-45deg)" }}
@@ -270,19 +270,19 @@ export default function CreateAuditStep6Page() {
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {t("TOTAL FINDINGS")}
             </p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.total}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? t("…") : stats.total}</p>
           </div>
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {t("MAJOR NCS CLOSED")}
             </p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.majorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? t("…") : stats.majorNcs}</p>
           </div>
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {t("MINOR NCS CLOSED")}
             </p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? "…" : stats.minorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? t("…") : stats.minorNcs}</p>
           </div>
         </div>
       </div>
@@ -304,7 +304,7 @@ export default function CreateAuditStep6Page() {
           </Link>
         </Button> */}
         <Button
-          className="bg-green-600 text-white hover:bg-green-700 ml-auto"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 ml-auto"
           disabled={closing || !auditPlanId || !canEditStep6}
           onClick={async () => {
             if (!orgId || !auditPlanId) return;

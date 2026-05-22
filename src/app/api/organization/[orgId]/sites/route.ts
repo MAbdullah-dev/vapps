@@ -43,9 +43,7 @@ export async function GET(
     const isOwner = org?.ownerId === ctx.user.id;
     const userRoleFromOrg = isOwner ? "owner" : (userOrg?.role || "member");
     const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRoleFromOrg);
-    const isTopLeadership = leadershipTier === "Top" || isOwner;
-    const isOperationalLeadership = leadershipTier === "Operational";
-    const isSupportLeadership = leadershipTier === "Support";
+    const isSupportLeadership = leadershipTier === "Support" && !isOwner;
 
     const client = await getTenantClient(resolvedOrgId);
 
@@ -53,29 +51,27 @@ export async function GET(
       let allowedSiteIds: string[] | null = null;
       let allowedProcessIds: string[] | null = null;
 
-      if (isOperationalLeadership) {
+      if (isOwner) {
+        // Owner may switch active site in settings; API returns all sites for that UI.
+      } else {
         const siteRows = await client.query<{ site_id: string }>(
           `SELECT site_id::text as site_id FROM site_users WHERE user_id = $1`,
           [ctx.user.id]
         );
         allowedSiteIds = siteRows.rows.map((r) => r.site_id);
-        if (allowedSiteIds.length === 0) {
-          client.release();
-          const response = {
-            sites: [],
-            userRole,
-            organization: { id: tenant.orgId, name: tenant.orgName },
-          };
-          cache.set(cacheKey, response, 60 * 1000);
-          return NextResponse.json(response);
+
+        if (allowedSiteIds.length === 0 && isSupportLeadership) {
+          const processRows = await client.query<{ process_id: string }>(
+            `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
+            [ctx.user.id]
+          );
+          allowedProcessIds = processRows.rows.map((r) => r.process_id);
         }
-      } else if (isSupportLeadership) {
-        const processRows = await client.query<{ process_id: string }>(
-          `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
-          [ctx.user.id]
-        );
-        allowedProcessIds = processRows.rows.map((r) => r.process_id);
-        if (allowedProcessIds.length === 0) {
+
+        if (
+          allowedSiteIds.length === 0 &&
+          (!allowedProcessIds || allowedProcessIds.length === 0)
+        ) {
           client.release();
           const response = {
             sites: [],
@@ -89,7 +85,7 @@ export async function GET(
 
       let rows: any[];
 
-      if (isTopLeadership) {
+      if (isOwner) {
         const result = await client.query(`
           SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
                  p.id as "processId", p.name as "processName", p."createdAt" as "processCreatedAt"
