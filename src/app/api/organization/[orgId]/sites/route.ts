@@ -75,7 +75,8 @@ export async function GET(
           client.release();
           const response = {
             sites: [],
-            userRole,
+            userRole: userRoleFromOrg,
+            isOwner,
             organization: { id: tenant.orgId, name: tenant.orgName },
           };
           cache.set(cacheKey, response, 60 * 1000);
@@ -148,7 +149,8 @@ export async function GET(
 
       const response = {
         sites: Array.from(sitesMap.values()),
-        userRole,
+        userRole: userRoleFromOrg,
+        isOwner,
         organization: { id: tenant.orgId, name: tenant.orgName },
       };
 

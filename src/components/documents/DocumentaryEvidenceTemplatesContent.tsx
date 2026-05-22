@@ -24,6 +24,7 @@ import {
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
+import { docAlertInfo } from "@/lib/document-ui-classes";
 
 type DocumentsApiRecord = {
   id: string;
@@ -97,6 +98,12 @@ function pickLatestEvidenceByTemplate(rows: EvidenceApiRow[]): Map<string, Evide
   return m;
 }
 
+const WORKFLOW_STATUS_KEYS: Record<string, string> = {
+  draft: "Capture",
+  capture_submitted: "Verify",
+  completed: "Active",
+};
+
 function workflowStatusLabel(
   ws: string | undefined,
   t: (text: string) => string
@@ -110,7 +117,16 @@ function workflowStatusLabel(
     return { label: t("Verify"), className: "bg-sky-50 text-sky-900 ring-sky-200/80" };
   if (s === "completed")
     return { label: t("Active"), className: "bg-emerald-50 text-emerald-800 ring-emerald-200/80" };
-  return { label: s, className: "bg-muted/30 text-foreground ring-border" };
+  const key = WORKFLOW_STATUS_KEYS[s];
+  return {
+    label: key ? t(key) : s,
+    className: "bg-muted/30 text-foreground ring-border",
+  };
+}
+
+function displayCell(value: string, t: (text: string) => string): string {
+  if (!value || value === "-") return t("—");
+  return value;
 }
 
 export default function DocumentaryEvidenceTemplatesContent() {
@@ -271,7 +287,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
           <li>
             <Link
               href={documentsHref}
-              className="text-foreground hover:text-[#6366F1] hover:underline"
+              className="text-foreground hover:text-primary hover:underline"
             >
               {t("Documents")}
             </Link>
@@ -294,11 +310,8 @@ export default function DocumentaryEvidenceTemplatesContent() {
         </p>
       </div>
 
-      <div
-        className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
-        role="note"
-      >
-        <p className="font-semibold text-[#1E40AF]">{t("How it works")}</p>
+      <div className={docAlertInfo} role="note">
+        <p className="font-semibold text-foreground">{t("How it works")}</p>
         <p className="mt-2 leading-relaxed">
           {t("These are approved")}{" "}
           <span className="font-medium">{t("F-type (Retained Record)")}</span> {t("forms from your master list.")}{" "}
@@ -309,7 +322,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
           {t(". New templates are added via")}{" "}
           <Link
             href={createHref}
-            className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
+            className="font-medium text-primary underline-offset-2 hover:underline"
           >
             {t("Create Document")}
           </Link>
@@ -414,21 +427,29 @@ export default function DocumentaryEvidenceTemplatesContent() {
                         {row.referenceNumber}
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-foreground max-w-[200px]">
-                        {row.formTitle}
+                        {displayCell(row.formTitle, t)}
                       </TableCell>
-                      <TableCell className="text-sm font-medium text-foreground">{row.site}</TableCell>
-                      <TableCell className="text-sm font-medium text-foreground">{row.process}</TableCell>
-                      <TableCell className="text-sm font-medium text-foreground">{row.standard}</TableCell>
-                      <TableCell className="text-sm text-foreground max-w-[140px]">{row.clause}</TableCell>
+                      <TableCell className="text-sm font-medium text-foreground">
+                        {displayCell(row.site, t)}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium text-foreground">
+                        {displayCell(row.process, t)}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium text-foreground">
+                        {displayCell(row.standard, t)}
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground max-w-[140px]">
+                        {displayCell(row.clause, t)}
+                      </TableCell>
                       <TableCell className="text-sm text-foreground max-w-[180px]">
-                        {row.subclause}
+                        {displayCell(row.subclause, t)}
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
                           className="rounded-md border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                         >
-                          {row.version}
+                          {displayCell(row.version, t)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -464,7 +485,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                 <Button
                                   type="button"
                                   size="sm"
-                                  className="gap-2 bg-[#22B323] text-white hover:bg-[#1a9825] shadow-sm"
+                                  className="gap-2 shadow-sm"
                                   asChild
                                 >
                                   <Link href={startCaptureUrl}>
@@ -476,7 +497,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
 
                               {/* Draft — Support can EDIT (continue) the draft */}
                               {latest && ws === "draft" && canRunSupportCapture ? (
-                                <Button type="button" size="sm" className="gap-2 bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
+                                <Button type="button" size="sm" variant="secondary" className="gap-2 shadow-sm" asChild>
                                   <Link href={continueCaptureUrl}>
                                     <Pencil className="size-4 shrink-0" />
                                     {t("Edit capture")}
@@ -499,7 +520,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      className="gap-2 bg-[#1E3A8A] text-white hover:bg-[#1E40AF]"
+                                      className="gap-2"
                                       asChild
                                     >
                                       <Link href={verifyUrl}>
@@ -526,7 +547,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      className="gap-2 bg-[#22B323] text-white hover:bg-[#1a9825] shadow-sm"
+                                      className="gap-2 shadow-sm"
                                       asChild
                                     >
                                       <Link href={startCaptureUrl}>

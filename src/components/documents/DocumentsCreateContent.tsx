@@ -10,6 +10,17 @@ import { AlertTriangle, Check, CheckCircle, FileText, Loader2, Save, Search } fr
 import { getDashboardPath } from "@/lib/subdomain";
 import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
 import { cn, documentActorMatches } from "@/lib/utils";
+import {
+  docAlertDestructive,
+  docAlertDestructiveBody,
+  docAlertDestructiveTitle,
+  docStepCurrent,
+  docStepDone,
+  docStepIconCurrent,
+  docStepIconDone,
+  docStepIconIdle,
+  docStepIdle,
+} from "@/lib/document-ui-classes";
 import CreateDocumentStep from "@/components/documents/steps/CreateDocumentStep";
 import ReviewDocumentStep from "@/components/documents/steps/ReviewDocumentStep";
 import ApprovalDocumentStep from "@/components/documents/steps/ApprovalDocumentStep";
@@ -24,12 +35,40 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 import { appendDocumentRecord } from "@/lib/documentLocalStorage";
+import { getSelectedSiteFromStorage } from "@/lib/selected-site";
 import { toast } from "sonner";
+
+type MeApiResponse = {
+  isOwner?: boolean;
+  assignedSite?: {
+    id: string;
+    code?: string | null;
+    name: string;
+    location?: string | null;
+  } | null;
+  assignedProcess?: { id: string; name: string; siteId: string } | null;
+};
 
 type SitesApiResponse = {
   sites?: Array<{ id: string; name: string; code?: string; location?: string | null }>;
+  userRole?: string;
+  isOwner?: boolean;
   organization?: { name?: string };
 };
+
+function siteOptionFromApi(site: {
+  id: string;
+  name?: string;
+  code?: string | null;
+  location?: string | null;
+}): SiteOption {
+  return {
+    id: String(site.id),
+    name: String(site.name ?? site.code ?? ""),
+    code: String(site.code ?? ""),
+    location: site.location ? String(site.location) : "",
+  };
+}
 
 type ProcessesApiResponse = {
   processes?: Array<{ id: string; name: string; siteId?: string }>;
@@ -61,7 +100,7 @@ function DocumentWorkflowHydrationPlaceholder({ stepLabel }: { stepLabel: "Revie
       aria-live="polite"
       aria-busy="true"
     >
-      <Loader2 className="h-9 w-9 animate-spin text-[#22B323]" aria-hidden />
+      <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
       <p className="text-sm font-medium text-foreground">Loading document…</p>
       <p className="max-w-sm text-xs text-muted-foreground">Securing access for {stepLabel}. Please wait.</p>
     </div>
@@ -121,7 +160,6 @@ export default function DocumentsCreateContent() {
     organizationName: "",
     organizationIdentification: "",
     industryType: "",
-    otherIndustry: "",
     site: "",
     siteId: "",
     location: "",
@@ -137,6 +175,8 @@ export default function DocumentsCreateContent() {
   });
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [processes, setProcesses] = useState<ProcessOption[]>([]);
+  /** Org owner may pick any site/process; all other users have a single assignment. */
+  const [isOrgOwner, setIsOrgOwner] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(true);
   const [isLoadingSites, setIsLoadingSites] = useState(false);
   const [isLoadingProcesses, setIsLoadingProcesses] = useState(false);
@@ -171,6 +211,9 @@ export default function DocumentsCreateContent() {
   const [workflowPinGateRequired, setWorkflowPinGateRequired] = useState(false);
   const [workflowPinGateSatisfied, setWorkflowPinGateSatisfied] = useState(true);
   const workflowPinForPatchesRef = useRef("");
+  /** Prevent re-applying profile defaults after the user changes site/process manually. */
+  const siteAutoFilledRef = useRef(false);
+  const processAutoFilledRef = useRef(false);
 
   const steps = useMemo(
     () => [
@@ -384,46 +427,101 @@ export default function DocumentsCreateContent() {
       setIsLoadingContext(true);
       setIsLoadingSites(true);
       try {
-        const [profileRes, orgInfoRes, sitesRes] = await Promise.all([
+        const [profileRes, meRes, orgInfoRes, sitesRes] = await Promise.all([
           fetch("/api/user/profile", { credentials: "include" }),
+          fetch(`/api/organization/${orgId}/me`, { credentials: "include" }),
           fetch(`/api/organization/${orgId}/organization-info`, { credentials: "include" }),
           fetch(`/api/organization/${orgId}/sites`, { credentials: "include" }),
         ]);
 
         const profileJson = profileRes.ok ? await profileRes.json() : null;
+        const meJson = (meRes.ok ? await meRes.json() : null) as MeApiResponse | null;
         const orgInfoJson = orgInfoRes.ok ? await orgInfoRes.json() : null;
         const sitesJson = sitesRes.ok ? await sitesRes.json() : null;
 
         if (ignore) return;
 
         const typedSitesJson = (sitesJson ?? {}) as SitesApiResponse;
-        const loadedSites: SiteOption[] = (typedSitesJson.sites ?? []).map((site) => ({
-          id: String(site.id),
-          name: String(site.name ?? site.code ?? ""),
-          code: String(site.code ?? ""),
-          location: site.location ? String(site.location) : "",
-        }));
+        const owner =
+          meJson?.isOwner === true ||
+          typedSitesJson.isOwner === true ||
+          String(typedSitesJson.userRole ?? "").toLowerCase() === "owner";
+        setIsOrgOwner(owner);
+
+        let loadedSites: SiteOption[] = (typedSitesJson.sites ?? []).map((site) =>
+          siteOptionFromApi(site)
+        );
+
+        if (!owner && meJson?.assignedSite) {
+          const assigned = siteOptionFromApi(meJson.assignedSite);
+          if (!loadedSites.some((s) => s.id === assigned.id)) {
+            loadedSites = [assigned, ...loadedSites];
+          }
+        }
 
         setSites(loadedSites);
-        setFormData((prev) => ({
-          ...prev,
-          loginUserId: String(profileJson?.id ?? prev.loginUserId ?? ""),
-          loginUserName: String(profileJson?.name ?? prev.loginUserName ?? ""),
-          createdByUserId: prev.createdByUserId || String(profileJson?.id ?? ""),
-          createdByUserName: prev.createdByUserName || String(profileJson?.name ?? ""),
-          organizationName: String(
-            orgInfoJson?.organizationInfo?.name ??
-              typedSitesJson.organization?.name ??
-              prev.organizationName ??
-              ""
-          ),
-          organizationIdentification: String(
-            orgInfoJson?.organizationInfo?.registrationId ??
-              prev.organizationIdentification ??
-              ""
-          ),
-          industryType: String(orgInfoJson?.organizationInfo?.industry ?? prev.industryType ?? ""),
-        }));
+
+        const shouldApplyProfile = !owner && !recordId;
+        const meSite = shouldApplyProfile && meJson?.assignedSite
+          ? siteOptionFromApi(meJson.assignedSite)
+          : undefined;
+        const meProcess = shouldApplyProfile ? meJson?.assignedProcess : undefined;
+
+        setFormData((prev) => {
+          const next = {
+            ...prev,
+            loginUserId: String(profileJson?.id ?? prev.loginUserId ?? ""),
+            loginUserName: String(profileJson?.name ?? prev.loginUserName ?? ""),
+            createdByUserId: prev.createdByUserId || String(profileJson?.id ?? ""),
+            createdByUserName: prev.createdByUserName || String(profileJson?.name ?? ""),
+            organizationName: String(
+              orgInfoJson?.organizationInfo?.name ??
+                typedSitesJson.organization?.name ??
+                prev.organizationName ??
+                ""
+            ),
+            organizationIdentification: String(
+              orgInfoJson?.organizationInfo?.registrationId ??
+                prev.organizationIdentification ??
+                ""
+            ),
+            industryType: String(
+              orgInfoJson?.organizationInfo?.industry ?? prev.industryType ?? ""
+            ),
+          };
+
+          if (!shouldApplyProfile || prev.site || siteAutoFilledRef.current) {
+            return next;
+          }
+
+          const stored = getSelectedSiteFromStorage(orgId);
+          const fromList =
+            (meSite && loadedSites.find((s) => s.id === meSite.id)) ||
+            (stored?.id ? loadedSites.find((s) => s.id === stored.id) : undefined) ||
+            loadedSites[0];
+
+          if (!fromList) {
+            return next;
+          }
+
+          siteAutoFilledRef.current = true;
+          if (meProcess?.id) {
+            processAutoFilledRef.current = true;
+          }
+
+          return {
+            ...next,
+            site: fromList.id,
+            siteId: fromList.code ?? "",
+            location: fromList.location ?? "",
+            ...(meProcess?.id
+              ? {
+                  processId: String(meProcess.id),
+                  processName: String(meProcess.name ?? ""),
+                }
+              : {}),
+          };
+        });
       } finally {
         if (!ignore) {
           setIsLoadingSites(false);
@@ -436,7 +534,7 @@ export default function DocumentsCreateContent() {
     return () => {
       ignore = true;
     };
-  }, [orgId]);
+  }, [orgId, recordId]);
 
   useEffect(() => {
     let ignore = false;
@@ -460,6 +558,21 @@ export default function DocumentsCreateContent() {
           siteId: String(process.siteId ?? formData.site),
         }));
         setProcesses(loadedProcesses);
+
+        const profileProcess =
+          !isOrgOwner && !recordId && loadedProcesses[0] ? loadedProcesses[0] : undefined;
+
+        if (profileProcess && !processAutoFilledRef.current) {
+          setFormData((prev) => {
+            if (prev.processId || prev.processName) return prev;
+            processAutoFilledRef.current = true;
+            return {
+              ...prev,
+              processName: profileProcess.name,
+              processId: profileProcess.id,
+            };
+          });
+        }
       } finally {
         if (!ignore) setIsLoadingProcesses(false);
       }
@@ -468,7 +581,7 @@ export default function DocumentsCreateContent() {
     return () => {
       ignore = true;
     };
-  }, [orgId, formData.site]);
+  }, [orgId, formData.site, recordId, isOrgOwner]);
 
   useEffect(() => {
     let ignore = false;
@@ -583,8 +696,67 @@ export default function DocumentsCreateContent() {
       setWorkflowPinGateRequired(false);
       setWorkflowPinGateSatisfied(true);
       workflowPinForPatchesRef.current = "";
+      siteAutoFilledRef.current = false;
+      processAutoFilledRef.current = false;
     }
   }, [recordId]);
+
+  /** Apply site/process from profile when sites list arrives (e.g. after sidebar sync). */
+  useEffect(() => {
+    if (isOrgOwner || isViewMode || createStepReadOnly || recordId) return;
+    if (!orgId || sites.length === 0) return;
+
+    setFormData((prev) => {
+      if (prev.site) return prev;
+
+      const stored = getSelectedSiteFromStorage(orgId);
+      const fromList =
+        (stored?.id ? sites.find((s) => s.id === stored.id) : undefined) ?? sites[0];
+      if (!fromList) return prev;
+
+      siteAutoFilledRef.current = true;
+      return {
+        ...prev,
+        site: fromList.id,
+        siteId: fromList.code ?? "",
+        location: fromList.location ?? "",
+      };
+    });
+  }, [isOrgOwner, isViewMode, createStepReadOnly, recordId, orgId, sites]);
+
+  useEffect(() => {
+    if (isOrgOwner || isViewMode || createStepReadOnly || recordId) return;
+    if (!formData.site || processes.length === 0) return;
+
+    setFormData((prev) => {
+      if (prev.processId || prev.processName) return prev;
+      const chosen = processes[0];
+      if (!chosen) return prev;
+      processAutoFilledRef.current = true;
+      return {
+        ...prev,
+        processName: chosen.name,
+        processId: chosen.id,
+      };
+    });
+  }, [
+    isOrgOwner,
+    isViewMode,
+    createStepReadOnly,
+    recordId,
+    formData.site,
+    processes,
+  ]);
+
+  const siteSelectionLocked = useMemo(
+    () => !isViewMode && !isOrgOwner && Boolean(formData.site),
+    [isViewMode, isOrgOwner, formData.site]
+  );
+
+  const processSelectionLocked = useMemo(
+    () => !isViewMode && !isOrgOwner && Boolean(formData.processId),
+    [isViewMode, isOrgOwner, formData.processId]
+  );
 
   const showWorkflowPinWall =
     hasPersistedRecord &&
@@ -945,23 +1117,28 @@ export default function DocumentsCreateContent() {
                     "flex flex-col items-center justify-center min-h-[92px] gap-2",
                     !navAllowed && "opacity-40 cursor-not-allowed",
                     isCurrent
-                      ? "bg-[#22B323] border-[#22B323] text-white"
+                      ? docStepCurrent
                       : isDone
-                      ? "bg-[#EEFFF3] border-[#22B323] text-[#15803D]"
-                      : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                      ? docStepDone
+                      : docStepIdle
                   )}
                 >
                   <span
                     className={cn(
                       "h-8 w-8 rounded-full border flex items-center justify-center",
                       isCurrent
-                        ? "border-white/70 bg-white/15"
+                        ? docStepIconCurrent
                         : isDone
-                        ? "border-[#22B323] bg-[#22B323]"
-                        : "border-[#D1D5DB] bg-white"
+                        ? docStepIconDone
+                        : docStepIconIdle
                     )}
                   >
-                    <DisplayIcon size={15} className={cn(isCurrent || isDone ? "text-white" : "text-muted-foreground")} />
+                    <DisplayIcon
+                      size={15}
+                      className={cn(
+                        isCurrent || isDone ? "text-primary-foreground" : "text-muted-foreground"
+                      )}
+                    />
                   </span>
                   <span className="text-xs font-medium">{label}</span>
                 </button>
@@ -972,29 +1149,23 @@ export default function DocumentsCreateContent() {
       </Card>
 
       {reviewReturnNotice ? (
-        <div
-          role="status"
-          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[#991B1B] shadow-sm"
-        >
+        <div role="status" className={docAlertDestructive}>
           <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" aria-hidden />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
             <div className="min-w-0 space-y-1">
-              <p className="text-sm font-semibold text-[#7F1D1D]">
+              <p className={docAlertDestructiveTitle}>
                 Document marked ineffective — returned for correction
                 {reviewReturnNotice.reviewerName ? (
-                  <span className="font-normal text-[#991B1B]">
-                    {" "}
-                    (Reviewer: {reviewReturnNotice.reviewerName})
-                  </span>
+                  <span className="font-normal"> (Reviewer: {reviewReturnNotice.reviewerName})</span>
                 ) : null}
               </p>
               {reviewReturnNotice.comments.trim() ? (
-                <p className="text-sm leading-relaxed text-[#7F1D1D]">
-                  <span className="font-medium text-[#991B1B]">Reviewer comment: </span>
+                <p className={docAlertDestructiveBody}>
+                  <span className="font-medium">Reviewer comment: </span>
                   {reviewReturnNotice.comments.trim()}
                 </p>
               ) : (
-                <p className="text-sm text-[#991B1B]">No additional comment was provided.</p>
+                <p className="text-sm text-destructive/90">No additional comment was provided.</p>
               )}
             </div>
           </div>
@@ -1002,29 +1173,23 @@ export default function DocumentsCreateContent() {
       ) : null}
 
       {approvalReturnNotice ? (
-        <div
-          role="status"
-          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[#991B1B] shadow-sm"
-        >
+        <div role="status" className={docAlertDestructive}>
           <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" aria-hidden />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
             <div className="min-w-0 space-y-1">
-              <p className="text-sm font-semibold text-[#7F1D1D]">
+              <p className={docAlertDestructiveTitle}>
                 Approval marked ineffective — returned for correction
                 {approvalReturnNotice.approverName ? (
-                  <span className="font-normal text-[#991B1B]">
-                    {" "}
-                    (Approver: {approvalReturnNotice.approverName})
-                  </span>
+                  <span className="font-normal"> (Approver: {approvalReturnNotice.approverName})</span>
                 ) : null}
               </p>
               {approvalReturnNotice.comments.trim() ? (
-                <p className="text-sm leading-relaxed text-[#7F1D1D]">
-                  <span className="font-medium text-[#991B1B]">Approver comment: </span>
+                <p className={docAlertDestructiveBody}>
+                  <span className="font-medium">Approver comment: </span>
                   {approvalReturnNotice.comments.trim()}
                 </p>
               ) : (
-                <p className="text-sm text-[#991B1B]">No additional comment was provided.</p>
+                <p className="text-sm text-destructive/90">No additional comment was provided.</p>
               )}
             </div>
           </div>
@@ -1033,12 +1198,12 @@ export default function DocumentsCreateContent() {
 
       {showAnnualReReviewGate && !isHydratingRecord ? (
         <div
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 shadow-sm"
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4 text-sm text-foreground shadow-sm"
           role="region"
           aria-label="Annual document re-review"
         >
-          <p className="font-semibold text-amber-900">Annual re-review required</p>
-          <p className="mt-2 leading-relaxed text-amber-950/90">
+          <p className="font-semibold text-foreground">Annual re-review required</p>
+          <p className="mt-2 leading-relaxed text-muted-foreground">
             At least one year has passed since the last review on this approved document. The Process
             Owner may perform review again only after the document creator accepts a re-review request.
           </p>
@@ -1052,7 +1217,7 @@ export default function DocumentsCreateContent() {
                   asked to start a new review cycle.
                 </p>
                 {formData.annualReviewRevalidation?.message?.trim() ? (
-                  <div className="rounded-md border border-amber-200/80 bg-white/70 px-3 py-2 text-amber-950">
+                  <div className="rounded-md border border-border bg-card px-3 py-2 text-foreground">
                     {formData.annualReviewRevalidation.message}
                   </div>
                 ) : null}
@@ -1060,7 +1225,6 @@ export default function DocumentsCreateContent() {
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-amber-700 text-white hover:bg-amber-800"
                     disabled={annualReviewActionBusy}
                     onClick={() => void runAnnualReviewAction("annual-review-accept")}
                   >
@@ -1070,7 +1234,6 @@ export default function DocumentsCreateContent() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="border-amber-300"
                     disabled={annualReviewActionBusy}
                     onClick={() => void runAnnualReviewAction("annual-review-decline")}
                   >
@@ -1079,7 +1242,7 @@ export default function DocumentsCreateContent() {
                 </div>
               </div>
             ) : (
-              <p className="mt-3 text-amber-900/90">
+              <p className="mt-3 text-muted-foreground">
                 Waiting for{" "}
                 <span className="font-medium">
                   {formData.createdByUserName?.trim() || "the document creator"}
@@ -1090,7 +1253,7 @@ export default function DocumentsCreateContent() {
           ) : (
             <div className="mt-4 space-y-3">
               {annualRvStatus === "declined" ? (
-                <p className="text-amber-900">
+                <p className="text-muted-foreground">
                   The creator declined the previous request. You may send another request.
                 </p>
               ) : null}
@@ -1099,19 +1262,18 @@ export default function DocumentsCreateContent() {
                 onChange={(e) => setAnnualRequestNote(e.target.value)}
                 placeholder="Optional note to the document creator (why re-review is needed)"
                 rows={3}
-                className="max-w-xl border-amber-200 bg-white/80 text-amber-950 placeholder:text-amber-800/50"
+                className="max-w-xl border-border bg-background text-foreground placeholder:text-muted-foreground"
               />
               <Button
                 type="button"
                 size="sm"
-                className="bg-amber-700 text-white hover:bg-amber-800"
                 disabled={annualReviewActionBusy || !isLoggedIn}
                 onClick={() => void runAnnualReviewAction("annual-review-request", annualRequestNote)}
               >
                 Send re-review request to document creator
               </Button>
               {!isLoggedIn ? (
-                <p className="text-xs text-amber-800/80">Sign in to send a request.</p>
+                <p className="text-xs text-muted-foreground">Sign in to send a request.</p>
               ) : null}
             </div>
           )}
@@ -1130,6 +1292,8 @@ export default function DocumentsCreateContent() {
               setDocType={(value) => setField("docType", value)}
               site={formData.site}
               setSite={(value) => {
+                siteAutoFilledRef.current = true;
+                processAutoFilledRef.current = false;
                 const selectedSite = sites.find((item) => item.id === value);
                 setFormData((prev) => ({
                   ...prev,
@@ -1140,8 +1304,10 @@ export default function DocumentsCreateContent() {
                   processId: "",
                 }));
               }}
+              siteSelectionLocked={siteSelectionLocked}
               processName={formData.processName}
               setProcessName={(value) => {
+                processAutoFilledRef.current = true;
                 const selectedProcess = processes.find((item) => item.id === value);
                 setFormData((prev) => ({
                   ...prev,
@@ -1149,6 +1315,7 @@ export default function DocumentsCreateContent() {
                   processId: selectedProcess?.id ?? "",
                 }));
               }}
+              processSelectionLocked={processSelectionLocked}
               description={formData.description}
               setDescription={(value) => setField("description", value)}
               loginUserName={formData.loginUserName}
@@ -1156,8 +1323,6 @@ export default function DocumentsCreateContent() {
               organizationName={formData.organizationName}
               organizationIdentification={formData.organizationIdentification}
               industryType={formData.industryType}
-              otherIndustry={formData.otherIndustry}
-              setOtherIndustry={(value) => setField("otherIndustry", value)}
               siteId={formData.siteId}
               location={formData.location}
               processId={formData.processId}

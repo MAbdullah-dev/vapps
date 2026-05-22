@@ -13,6 +13,10 @@ import {
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
 import CaptureEvidenceStep from "@/components/documents/steps/CaptureEvidenceStep";
+import {
+  docEvidenceStepCurrent,
+  docEvidenceStepIconCurrent,
+} from "@/lib/document-ui-classes";
 
 type EvidenceRow = {
   workflow_status?: string;
@@ -188,7 +192,7 @@ export default function DocumentaryEvidenceCaptureContent() {
   if (!meReady || (Boolean(evidenceFromUrl) && evidenceLoading)) {
     return (
       <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 px-6 py-16">
-        <Loader2 className="h-10 w-10 animate-spin text-[#22B323]" aria-hidden />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
         <p className="text-sm font-medium text-foreground">Loading…</p>
       </div>
     );
@@ -197,15 +201,15 @@ export default function DocumentaryEvidenceCaptureContent() {
   if (!canUseCapturePage) {
     return (
       <div className="space-y-6">
-        <Card className="border-amber-200 bg-amber-50/90">
+        <Card className="border-amber-500/30 bg-amber-500/10">
           <CardContent className="py-10 text-center space-y-3">
-            <h2 className="text-lg font-semibold text-amber-950">Capture is restricted</h2>
-            <p className="text-sm text-amber-900/90 max-w-md mx-auto leading-relaxed">
+            <h2 className="text-lg font-semibold text-foreground">Capture is restricted</h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
               Only <span className="font-medium">Support Leadership</span> can enter and edit capture data. Top and
               Operational leadership can open capture from the templates table in <span className="font-medium">view</span>{" "}
               mode after submission.
             </p>
-            <Button asChild variant="outline" className="mt-2 border-amber-300 bg-background">
+            <Button asChild variant="outline" className="mt-2">
               <Link href={recordsHref}>Back to templates</Link>
             </Button>
           </CardContent>
@@ -228,19 +232,16 @@ export default function DocumentaryEvidenceCaptureContent() {
           </div>
 
           {readOnly ? (
-            <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
               <span className="font-semibold">View only.</span> Capture has been submitted or completed; fields cannot be
               edited here.
             </div>
           ) : null}
 
           <div className="max-w-md">
-            <div
-              className="rounded-lg border px-4 py-3 bg-[#22B323] border-[#22B323] text-white flex flex-col items-center justify-center min-h-[92px] gap-2"
-              aria-current="step"
-            >
-              <span className="h-8 w-8 rounded-full border border-white/70 bg-white/15 flex items-center justify-center">
-                <FileText size={15} className="text-white" />
+            <div className={docEvidenceStepCurrent} aria-current="step">
+              <span className={docEvidenceStepIconCurrent}>
+                <FileText size={15} className="text-primary-foreground" />
               </span>
               <span className="text-xs font-medium text-center leading-snug">Capture</span>
             </div>

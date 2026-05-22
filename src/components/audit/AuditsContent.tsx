@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
 import { useOrg } from "@/components/providers/org-provider";
+import { useTranslate } from "@/components/providers/translation-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import AuditHistoryDialog, { AuditHistoryEntry } from "./AuditHistoryDialog";
-import { useTranslate } from "@/components/providers/translation-provider";
+import {
+  getAuditStatusByDays,
+  getAuditStatusColor,
+  getAuditComplianceKpi,
+  getDaysBetween,
+} from "@/lib/compliance-kpi";
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
+import { cn } from "@/lib/utils";
 
 const NEXT_STEP_LABELS: Record<number, string> = {
   3: "Complete Findings (Step 3)",
@@ -54,6 +62,36 @@ const AUDIT_STATUS_LABEL_EN: Record<AuditStatusKey, string> = {
   pending: "Pending > 30 days",
   fail: "Fail > 40 days",
 };
+
+const KPI_LABEL_KEYS: Record<Audit["kpiLabel"], string> = {
+  Consistent: "Consistent",
+  Pending: "Pending",
+  Inconsistent: "Inconsistent",
+};
+
+const DISPLAY_VALUE_KEYS = new Set([
+  "On-Site",
+  "Remote",
+  "Hybrid",
+  "FPA",
+  "SPA",
+  "TPA",
+  "High",
+  "Medium",
+  "Low",
+  "Major",
+  "Minor",
+]);
+
+function displayCellValue(value: string, t: (s: string) => string): string {
+  if (!value || value === "—") return t("—");
+  return DISPLAY_VALUE_KEYS.has(value) ? t(value) : value;
+}
+
+function translateAuditStatus(status: string, t: (s: string) => string): string {
+  const match = Object.values(AUDIT_STATUS_LABEL_EN).find((label) => label === status);
+  return match ? t(match) : status;
+}
 
 type Audit = {
   id: string;
@@ -79,8 +117,14 @@ type Audit = {
   actualDate: string;
   dueDate: string;
   kpiScore: string | null;
-  auditStatusKey: AuditStatusKey;
+  /** Time-based compliance KPI label */
+  kpiLabel: "Consistent" | "Pending" | "Inconsistent";
+  kpiColorClass: string;
+  complianceStatus: "Success" | "Pending" | "Fail" | "In-Progress";
+  auditStatus: string;
   criteria?: string;
+  createdAt?: string | null;
+  closedAt?: string | null;
 };
 
 function TableHeader({ title, sub }: { title: string; sub?: string }) {
@@ -102,47 +146,6 @@ const getRiskLevelColor = (riskLevel: string) => {
   if (riskLevel === "Medium") return "bg-yellow-100 text-yellow-800";
   return "bg-blue-100 text-blue-800";
 };
-
-/** Day-threshold status as a stable key; display via AUDIT_STATUS_LABEL_EN + t(). */
-function getAuditStatusKey(
-  planStatus: string,
-  plannedDate: string | null,
-  datePrepared: string | null,
-  createdAt: string | null
-): AuditStatusKey {
-  const refDate = plannedDate || datePrepared || createdAt;
-  const refTime = refDate ? new Date(refDate).getTime() : Date.now();
-  const days = Math.floor((Date.now() - refTime) / (24 * 60 * 60 * 1000));
-
-  if (planStatus === "closed") return "success";
-  const inProgress = [
-    "plan_submitted_to_auditee",
-    "findings_submitted_to_auditee",
-    "ca_submitted_to_auditor",
-    "pending_closure",
-    "verification_ineffective",
-  ].includes(planStatus);
-  if (inProgress || planStatus === "draft") {
-    if (days < 30) return "in_progress";
-    if (days <= 40) return "pending";
-    return "fail";
-  }
-  if (days < 30) return "in_progress";
-  if (days <= 40) return "pending";
-  return "fail";
-}
-
-const getStatusColor = (key: AuditStatusKey) => {
-  if (key === "success") return "bg-primary/15 text-primary dark:bg-primary/25";
-  if (key === "in_progress") return "bg-yellow-100 text-yellow-800";
-  if (key === "pending") return "bg-gray-100 text-gray-800";
-  if (key === "fail") return "bg-red-100 text-red-700";
-  return "";
-};
-
-function displayCellValue(value: string, t: (s: string) => string): string {
-  return value === "—" ? t("—") : value;
-}
 
 /** Steps 1,2,6 = lead; 3,5 = auditor; 4 = auditee. Edit only for own tab; no edit after closed. */
 function canEditAudit(audit: Audit, currentUserId: string | null): boolean {
@@ -198,7 +201,7 @@ function getColumns(
     header: () => <TableHeader title={t("Audit Type")} sub={t("FPA/SPA/TPA")} />,
     cell: ({ row }) => (
       <span className="bg-muted text-muted-foreground py-1 px-2 rounded-full text-xs font-medium">
-        {row.original.auditType}
+        {t(row.original.auditType)}
       </span>
     ),
   },
@@ -273,16 +276,32 @@ function getColumns(
     ),
   },
   {
-    accessorKey: "kpiScore",
-    header: () => <TableHeader title={t("KPI (Score)")} />,
+    accessorKey: "kpiLabel",
+    header: () => (
+      <TableHeader
+        title={t("KPI")}
+        sub={t("≤30d Green · >30d Yellow · >40d Red")}
+      />
+    ),
     cell: ({ row }) => {
-      const score = row.original.kpiScore;
-      if (!score) return <span className="text-muted-foreground">{t("—")}</span>;
-      if (score === "Consistent" || score.toLowerCase() === "consistent")
-        return <span className="font-medium text-primary">{t("Consistent")}</span>;
-      if (score === "Inconsistent" || score.toLowerCase() === "inconsistent")
-        return <span className="font-medium text-red-600">{t("Inconsistent")}</span>;
-      return <span className="text-muted-foreground">{score}</span>;
+      const audit = row.original;
+      const programNote =
+        audit.kpiScore &&
+        !["consistent", "inconsistent", "pending"].includes(audit.kpiScore.toLowerCase())
+          ? audit.kpiScore
+          : null;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className={cn("text-sm font-semibold", audit.kpiColorClass)}>
+            {t(KPI_LABEL_KEYS[audit.kpiLabel])}
+          </span>
+          {programNote ? (
+            <span className="text-xs text-muted-foreground">
+              {t("Program")}: {programNote}
+            </span>
+          ) : null}
+        </div>
+      );
     },
   },
   {
@@ -295,13 +314,12 @@ function getColumns(
       />
     ),
     cell: ({ row }) => {
-      const key = row.original.auditStatusKey;
-      const badgeClass = getStatusColor(key);
-      const label = t(AUDIT_STATUS_LABEL_EN[key]);
-      if (!badgeClass) return <span className="text-muted-foreground">{label}</span>;
+      const audit = row.original;
+      const badgeClass = getAuditStatusColor(audit.auditStatus);
+      if (!badgeClass) return <span className="text-muted-foreground">{translateAuditStatus(audit.auditStatus, t)}</span>;
       return (
         <span className={`${badgeClass} py-1 px-2 rounded-full text-xs font-medium`}>
-          {label}
+          {translateAuditStatus(audit.auditStatus, t)}
         </span>
       );
     },
@@ -327,7 +345,7 @@ function getColumns(
       if (step == null) return <span className="text-muted-foreground">{t("—")}</span>;
       return (
         <span className="text-sm font-medium text-primary">
-          {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Open Step ${step}`)}
+          {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : `${t("Open Step")} ${step}`}
         </span>
       );
     },
@@ -370,7 +388,7 @@ function getColumns(
             {step != null && audit.planStatus !== "closed" && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, step); }}>
                 <Pencil className="mr-2 h-4 w-4" />
-                {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : t(`Open Step ${step}`)}
+                {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : `${t("Open Step")} ${step}`}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -416,6 +434,12 @@ function mapPlansToAudits(list: any[]): Audit[] {
         : "—";
     const kpiScore =
       p.kpiScore != null && String(p.kpiScore).trim() !== "" ? String(p.kpiScore).trim() : null;
+    const compliance = getAuditComplianceKpi(
+      p.status,
+      p.plannedDate ?? null,
+      p.datePrepared ?? null,
+      p.createdAt ?? null
+    );
     return {
       id: p.auditNumber || p.id,
       auditProgramRef,
@@ -439,8 +463,16 @@ function mapPlansToAudits(list: any[]): Audit[] {
       actualDate: p.findingsSubmittedAt ? formatDate(p.findingsSubmittedAt) : "—",
       dueDate,
       kpiScore,
-      auditStatusKey: getAuditStatusKey(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
+      kpiLabel: compliance.kpiLabel,
+      kpiColorClass: compliance.kpiColorClass,
+      complianceStatus: compliance.statusLabel,
+      auditStatus: getAuditStatusByDays(p.status, p.plannedDate ?? null, p.datePrepared ?? null, p.createdAt ?? null),
       criteria: p.criteria,
+      createdAt: p.createdAt ?? null,
+      closedAt:
+        p.status === "closed"
+          ? p.findingsSubmittedAt ?? p.planSubmittedAt ?? p.createdAt ?? null
+          : null,
     };
   });
 }
@@ -590,10 +622,26 @@ export default function AuditsContent() {
 
   const auditStats = useMemo(() => {
     const total = audits.length;
-    const successCount = audits.filter((a) => a.auditStatusKey === "success").length;
-    const backlogCount = audits.filter((a) => a.auditStatusKey === "pending" || a.auditStatusKey === "fail").length;
-    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
-    return { total, successCount, successRate, backlogCount };
+    const closed = audits.filter((a) => a.planStatus === "closed");
+    const successRate =
+      total > 0 ? Math.round((closed.length / total) * 100) : 0;
+    const backlogs = audits.filter(
+      (a) =>
+        a.planStatus !== "closed" &&
+        (a.kpiLabel === "Pending" || a.kpiLabel === "Inconsistent")
+    ).length;
+    const closureDays = closed
+      .map((a) => {
+        if (!a.createdAt) return null;
+        const end = a.closedAt ?? new Date().toISOString();
+        return getDaysBetween(a.createdAt, end);
+      })
+      .filter((d): d is number => d != null && d >= 0);
+    const avgClosure =
+      closureDays.length > 0
+        ? Math.round(closureDays.reduce((s, d) => s + d, 0) / closureDays.length)
+        : 0;
+    return { total, successRate, backlogs, avgClosure };
   }, [audits]);
 
   const handleViewHistory = useCallback(
@@ -710,25 +758,31 @@ export default function AuditsContent() {
           <p className="text-sm text-muted-foreground mb-1">{t("Success Rate")}</p>
           <div className="flex items-center gap-2">
             <p className="text-2xl font-bold text-foreground">{auditStats.successRate}%</p>
-            <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
-              {auditStats.successRate >= 50 ? t("Good") : t("Fair")}
-            </span>
+            {auditStats.successRate >= 50 ? (
+              <span className="bg-primary/15 text-primary text-xs font-medium py-0.5 px-2 rounded-full dark:bg-primary/25">
+                {t("Good")}
+              </span>
+            ) : null}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{t("Clean audits")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Closed audits")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Backlogs")}</p>
           <div className="flex items-center gap-2">
-            <p className="text-2xl font-bold text-foreground">{auditStats.backlogCount}</p>
-            <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
-              {t("Attention")}
-            </span>
+            <p className="text-2xl font-bold text-foreground">{auditStats.backlogs}</p>
+            {auditStats.backlogs > 0 ? (
+              <span className="bg-orange-100 text-orange-700 text-xs font-medium py-0.5 px-2 rounded-full">
+                {t("Attention")}
+              </span>
+            ) : null}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{t("Pending audits")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Pending / overdue KPI")}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-sm text-muted-foreground mb-1">{t("Avg Closure Time")}</p>
-          <p className="text-2xl font-bold text-foreground">{t("12 days")}</p>
+          <p className="text-2xl font-bold text-foreground">
+            {auditStats.avgClosure > 0 ? `${auditStats.avgClosure} ${t("days")}` : t("—")}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{t("Average completion")}</p>
         </div>
       </div>
@@ -825,6 +879,8 @@ export default function AuditsContent() {
           </div>
         </CardContent>
       </Card>
+
+      <KpiStatusLogicCard className="mt-6" />
 
       {/* Audit History Dialog */}
       <AuditHistoryDialog

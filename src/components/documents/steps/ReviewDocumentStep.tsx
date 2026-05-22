@@ -8,9 +8,16 @@ import { AlertTriangle, Check, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn, documentActorMatches } from "@/lib/utils";
+import {
+  docBadgeActive,
+  docCalloutInfo,
+  docCalloutWarning,
+} from "@/lib/document-ui-classes";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslate } from "@/components/providers/translation-provider";
+
+const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
 
 type ReviewDocumentStepProps = {
   title: string;
@@ -166,11 +173,9 @@ export default function ReviewDocumentStep({
       <div className="space-y-5 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="border-border bg-muted font-normal text-muted-foreground">
-            Doc/2025/S1/P1/P/D1/v1
+            {DOC_REF}
           </Badge>
-          <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
-            {t("Active")}
-          </Badge>
+          <Badge className={docBadgeActive}>{t("Active")}</Badge>
         </div>
 
         <div>
@@ -269,7 +274,7 @@ export default function ReviewDocumentStep({
           <p className="mt-1 text-sm text-muted-foreground">{t("Checking if the Rule Works!")}</p>
         </div>
 
-        <div className="rounded-lg bg-[#F0F7FF] border-l-4 border-l-[#3B82F6] pl-4 pr-4 py-4 text-sm">
+        <div className={docCalloutInfo}>
           <ol className="list-decimal pl-5 space-y-3 text-foreground">
             <li>
               <span className="font-semibold">{t("Associated Standards:")}</span>{" "}
@@ -373,7 +378,7 @@ export default function ReviewDocumentStep({
           </ol>
         </div>
 
-        <div className="mt-4 rounded-lg bg-[#FFFBEB] border-l-4 border-l-[#FACC15] pl-4 pr-4 py-4 flex gap-3 items-start">
+        <div className={cn("mt-4", docCalloutWarning)}>
           <Checkbox
             id="review-ack"
             checked={reviewAcknowledged}
@@ -415,20 +420,22 @@ export default function ReviewDocumentStep({
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
-                  ? "border-[#16A34A] bg-[#F0FDF4]"
-                  : "border-border bg-card hover:bg-muted"
+                  ? "border-primary bg-primary/10 dark:bg-primary/15"
+                  : "border-border bg-card hover:bg-muted/50"
               )}
             >
               <span
                 className={cn(
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "effective"
-                    ? "border-[#16A34A] bg-[#16A34A]"
-                    : "border-border bg-card"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background"
                 )}
                 aria-hidden
               >
-                {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
+                {verificationOutcome === "effective" ? (
+                  <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
+                ) : null}
               </span>
               <div className="min-w-0 space-y-1">
                 <p className="font-semibold text-foreground">{t("Effective - Close Document")}</p>
@@ -443,20 +450,22 @@ export default function ReviewDocumentStep({
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
                 (!canPerformReview || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
-                  ? "border-[#DC2626] bg-[#FEF2F2]"
-                  : "border-border bg-card hover:bg-muted"
+                  ? "border-destructive bg-destructive/10 dark:bg-destructive/15"
+                  : "border-border bg-card hover:bg-muted/50"
               )}
             >
               <span
                 className={cn(
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "ineffective"
-                    ? "border-[#DC2626] bg-[#DC2626]"
-                    : "border-border bg-card"
+                    ? "border-destructive bg-destructive text-destructive-foreground"
+                    : "border-border bg-background"
                 )}
                 aria-hidden
               >
-                {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
+                {verificationOutcome === "ineffective" ? (
+                  <Check className="h-3 w-3 text-destructive-foreground" strokeWidth={3} />
+                ) : null}
               </span>
               <div className="min-w-0 space-y-1">
                 <p className="font-semibold text-foreground">{t("Ineffective - Re-open Document")}</p>

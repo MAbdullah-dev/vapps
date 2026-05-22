@@ -27,6 +27,11 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { documentActivityVerb } from "@/lib/document-activity-labels";
+import {
+    DEFAULT_DASHBOARD_WIDGETS,
+    normalizeDashboardWidgets,
+    type DashboardWidgetsConfig,
+} from "@/lib/dashboard-widgets";
 
 const BOTPRESS_INJECT_URL = "https://cdn.botpress.cloud/webchat/v3.6/inject.js";
 const BOTPRESS_CONFIG_SCRIPT_URL =
@@ -54,7 +59,25 @@ type ActivityItem = {
   processName?: string | null;
 };
 
-function formatTimeAgo(dateString: string, tr: (s: string) => string): string {
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  "to-do": "To Do",
+  "in-progress": "In Progress",
+  "in-review": "In Review",
+  done: "Done",
+  backlog: "Backlog",
+};
+
+const PIE_STATUS_LABEL_KEYS: Record<string, string> = {
+  "To Do": "To Do",
+  "In Progress": "In Progress",
+  Done: "Done",
+};
+
+function formatTimeAgo(
+  dateString: string,
+  tr: (s: string) => string,
+  locale: string
+): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -63,10 +86,20 @@ function formatTimeAgo(dateString: string, tr: (s: string) => string): string {
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
   if (diffSec < 60) return tr("Just now");
-  if (diffMin < 60) return tr(`${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`);
-  if (diffHr < 24) return tr(`${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`);
-  if (diffDay < 7) return tr(`${diffDay} day${diffDay !== 1 ? "s" : ""} ago`);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  if (diffMin < 60) return `${diffMin} ${tr("minutes ago")}`;
+  if (diffHr < 24) return `${diffHr} ${tr("hours ago")}`;
+  if (diffDay < 7) return `${diffDay} ${tr("days ago")}`;
+  return date.toLocaleDateString(locale === "en" ? "en-US" : locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatIssueStatus(status: string | undefined, tr: (s: string) => string): string {
+  if (!status) return tr("updated");
+  const label = STATUS_LABEL_KEYS[status];
+  return label ? tr(label) : status;
 }
 
 function getActivityMessage(activity: ActivityItem, tr: (s: string) => string): ReactNode {
@@ -75,7 +108,9 @@ function getActivityMessage(activity: ActivityItem, tr: (s: string) => string): 
   const processCtx = activity.processName ? ` ${tr("in")} ${activity.processName}` : "";
 
   if (activity.entityType === "audit_plan") {
-    const label = activity.details?.statusLabel || activity.action?.replace("audit_plan.", "") || tr("updated");
+    const rawLabel =
+      activity.details?.statusLabel || activity.action?.replace("audit_plan.", "") || "updated";
+    const label = tr(rawLabel);
     return (
       <>
         <span className="text-foreground font-medium">{tr("Audit")}</span>
@@ -85,7 +120,7 @@ function getActivityMessage(activity: ActivityItem, tr: (s: string) => string): 
   }
 
   if (activity.entityType === "document" || activity.action.startsWith("document.")) {
-    const verb = documentActivityVerb(activity.action);
+    const verb = tr(documentActivityVerb(activity.action));
     return (
       <>
         <span className="text-foreground font-medium">{userName}</span>
@@ -99,9 +134,11 @@ function getActivityMessage(activity: ActivityItem, tr: (s: string) => string): 
       return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("created issue")} {entityTitle}{processCtx}</span></>;
     case "issue.updated":
       return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("updated issue")} {entityTitle}{processCtx}</span></>;
-    case "issue.status_changed":
-      const newStatus = activity.details?.newStatus || tr("updated");
+    case "issue.status_changed": {
+      const rawStatus = activity.details?.newStatus;
+      const newStatus = rawStatus ? formatIssueStatus(rawStatus, tr) : tr("updated");
       return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("changed status of")} {entityTitle} {tr("to")} {newStatus}{processCtx}</span></>;
+    }
     case "issue.assigned":
       const assignee = activity.details?.assignee || tr("someone");
       return <><span className="text-foreground font-medium">{userName}</span><span className="text-muted-foreground"> {tr("assigned")} {entityTitle} {tr("to")} {assignee}{processCtx}</span></>;
@@ -146,7 +183,7 @@ type DashboardStats = {
 export default function OrgDashboardPage() {
     const ACTIVITY_PAGE_SIZE = 10;
     const params = useParams();
-    const { t } = useTranslate();
+    const { t, locale } = useTranslate();
     const orgId = params?.orgId as string;
 
     const chartConfig = useMemo(
@@ -181,6 +218,31 @@ export default function OrgDashboardPage() {
     const [lineChartData, setLineChartData] = useState<Array<{ month: string; created: number; completed: number }>>([]);
     const [pieChartData, setPieChartData] = useState<Array<{ status: string; count: number; fill: string }>>([]);
     const [chartsLoading, setChartsLoading] = useState(true);
+    const [widgets, setWidgets] = useState<DashboardWidgetsConfig>(DEFAULT_DASHBOARD_WIDGETS);
+    const [widgetsLoading, setWidgetsLoading] = useState(true);
+
+    const loadWidgets = useCallback(() => {
+        if (!orgId) return;
+        setWidgetsLoading(true);
+        apiClient
+            .getDashboardWidgets(orgId)
+            .then((res) => setWidgets(normalizeDashboardWidgets(res.widgets)))
+            .catch(() => setWidgets(DEFAULT_DASHBOARD_WIDGETS))
+            .finally(() => setWidgetsLoading(false));
+    }, [orgId]);
+
+    useEffect(() => {
+        loadWidgets();
+    }, [loadWidgets]);
+
+    useEffect(() => {
+        const onWidgetsUpdated = (event: Event) => {
+            const detail = (event as CustomEvent).detail as { orgId?: string };
+            if (detail?.orgId === orgId) loadWidgets();
+        };
+        window.addEventListener("dashboardWidgetsUpdated", onWidgetsUpdated);
+        return () => window.removeEventListener("dashboardWidgetsUpdated", onWidgetsUpdated);
+    }, [orgId, loadWidgets]);
 
     const [botpressInjectReady, setBotpressInjectReady] = useState(false);
     const pendingOpenBotpressRef = useRef(false);
@@ -269,36 +331,61 @@ export default function OrgDashboardPage() {
             .finally(() => setChartsLoading(false));
     }, [orgId]);
 
-    const onBotpressConfigLoaded = useCallback(() => {
-        const w = window as BotpressWindow;
-        w.botpress?.on?.("webchat:initialized", () => {
-            if (pendingOpenBotpressRef.current) tryOpenBotpress();
-        });
-        tryOpenBotpress();
-    }, [tryOpenBotpress]);
+    const showStatCards =
+        widgets.projectProgress ||
+        widgets.overdueTasks ||
+        widgets.auditTrend ||
+        widgets.complianceScore;
 
-    const lineChartDisplayData = useMemo(
-        () => lineChartData.map((row) => ({ ...row, month: t(row.month) })),
-        [lineChartData, t]
-    );
+    const statCardCount = [
+        widgets.projectProgress,
+        widgets.overdueTasks,
+        widgets.auditTrend,
+        widgets.complianceScore,
+    ].filter(Boolean).length;
+
+    const statGridClass =
+        statCardCount <= 1
+            ? "grid-cols-1"
+            : statCardCount === 2
+              ? "grid-cols-1 sm:grid-cols-2"
+              : statCardCount === 3
+                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+
+    const lineChartDisplayData = useMemo(() => lineChartData, [lineChartData]);
+
     const pieChartDisplayData = useMemo(
-        () => pieChartData.map((row) => ({ ...row, status: t(row.status) })),
+        () =>
+            pieChartData.map((entry) => ({
+                ...entry,
+                status: PIE_STATUS_LABEL_KEYS[entry.status]
+                    ? t(PIE_STATUS_LABEL_KEYS[entry.status])
+                    : entry.status,
+            })),
         [pieChartData, t]
     );
 
+    if (!widgetsLoading && !showStatCards && !widgets.tasksCompleted && !widgets.issueDistribution && !widgets.recentActivity && !widgets.auditTrend) {
+        return (
+            <div className="rounded-xl border border-border bg-muted/30 p-8 text-center text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">{t("No dashboard widgets selected")}</p>
+                <p className="text-sm">
+                    {t("Enable widgets under")}{" "}
+                    <Link href={`/dashboard/${orgId}/settings/kpi-reports`} className="text-primary underline">
+                        {t("Settings → KPI & Reports")}
+                    </Link>
+                    .
+                </p>
+            </div>
+        );
+    }
+
     return (
         <>
-            <Script src={BOTPRESS_INJECT_URL} strategy="afterInteractive" onLoad={() => setBotpressInjectReady(true)} />
-            {botpressInjectReady ? (
-                <Script
-                    src={BOTPRESS_CONFIG_SCRIPT_URL}
-                    strategy="afterInteractive"
-                    onLoad={onBotpressConfigLoaded}
-                />
-            ) : null}
-            {/* Top Cards */}
-            <div className="dashboard-progress-cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {/* Card 1 - Active Projects */}
+            {showStatCards ? (
+            <div className={`dashboard-progress-cards grid ${statGridClass} gap-4 mb-6`}>
+                {widgets.projectProgress ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">{t("Active Projects")}</p>
@@ -309,8 +396,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("Across organization")}</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 2 - Open Issues */}
+                {widgets.overdueTasks ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">{t("Open Issues")}</p>
@@ -321,8 +409,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("To do + In progress")}</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 3 - Upcoming Audits */}
+                {widgets.auditTrend ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">{t("Upcoming Audits")}</p>
@@ -333,8 +422,9 @@ export default function OrgDashboardPage() {
                         <p className="flex items-center text-sm mt-1 text-muted-foreground">{t("In progress (pending)")}</p>
                     </div>
                 </div>
+                ) : null}
 
-                {/* Card 4 - Compliance Score */}
+                {widgets.complianceScore ? (
                 <div className="flex flex-col justify-between bg-background text-foreground rounded-xl border border-border p-5">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-xs text-muted-foreground">{t("Compliance Score")}</p>
@@ -345,12 +435,13 @@ export default function OrgDashboardPage() {
                         <Progress value={statsLoading ? 0 : (stats?.complianceScore ?? 0)} className="h-2" />
                     </div>
                 </div>
+                ) : null}
             </div>
-       
+            ) : null}
 
-            {/* Charts Grid */}
+            {(widgets.tasksCompleted || widgets.issueDistribution) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Line Chart - Issues created vs completed (last 6 months) */}
+                {widgets.tasksCompleted ? (
                 <Card>
                     <CardHeader>
                         <CardTitle>{t("Issues created vs completed")}</CardTitle>
@@ -405,8 +496,9 @@ export default function OrgDashboardPage() {
                         </div>
                     </CardFooter>
                 </Card>
+                ) : null}
 
-                {/* Pie Chart - Issues by status */}
+                {widgets.issueDistribution ? (
                 <Card>
                     <CardHeader className="items-center pb-0">
                         <CardTitle>{t("Issues by status")}</CardTitle>
@@ -445,9 +537,17 @@ export default function OrgDashboardPage() {
                         </div>
                     </CardFooter>
                 </Card>
+                ) : null}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                {/* Recent Activity Card */}
+            ) : null}
+
+            {(widgets.recentActivity || widgets.auditTrend) && (
+            <div
+                className={`grid grid-cols-1 gap-4 mt-6 ${
+                    widgets.recentActivity && widgets.auditTrend ? "sm:grid-cols-2" : ""
+                }`}
+            >
+                {widgets.recentActivity && (
                 <Card>
                     <CardHeader>
                         <CardTitle>{t("Recent Activity")}</CardTitle>
@@ -476,7 +576,7 @@ export default function OrgDashboardPage() {
                                             {getActivityMessage(activity, t)}
                                         </p>
                                         <span className="text-muted-foreground text-xs mt-0.5">
-                                            {formatTimeAgo(activity.createdAt, t)}
+                                            {formatTimeAgo(activity.createdAt, t, locale)}
                                         </span>
                                     </li>
                                 </ul>
@@ -485,7 +585,7 @@ export default function OrgDashboardPage() {
                         {!activitiesLoading && lastMonthActivities.length > ACTIVITY_PAGE_SIZE ? (
                             <div className="flex items-center justify-between pt-2">
                                 <span className="text-xs text-muted-foreground">
-                                    Page {activitiesPage} of {totalActivityPages}
+                                    {t("Page")} {activitiesPage} {t("of")} {totalActivityPages}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -494,8 +594,9 @@ export default function OrgDashboardPage() {
                                         size="sm"
                                         onClick={() => setActivitiesPage((prev) => Math.max(1, prev - 1))}
                                         disabled={activitiesPage === 1}
+                                        aria-label={t("Previous page")}
                                     >
-                                        Previous
+                                        {t("Previous")}
                                     </Button>
                                     <Button
                                         type="button"
@@ -503,16 +604,18 @@ export default function OrgDashboardPage() {
                                         size="sm"
                                         onClick={() => setActivitiesPage((prev) => Math.min(totalActivityPages, prev + 1))}
                                         disabled={activitiesPage === totalActivityPages}
+                                        aria-label={t("Next page")}
                                     >
-                                        Next
+                                        {t("Next")}
                                     </Button>
                                 </div>
                             </div>
                         ) : null}
                     </CardContent>
                 </Card>
+                )}
 
-                {/* Upcoming Audits Card */}
+                {widgets.auditTrend && (
                 <Card>
                     <CardHeader>
                         <CardTitle>{t("Upcoming Audits")}</CardTitle>
@@ -530,11 +633,14 @@ export default function OrgDashboardPage() {
                                     audit.title?.trim() ||
                                     (audit.auditNumber ? `${t("Audit")} #${audit.auditNumber}` : t("Audit"));
                                 const dateStr = audit.plannedDate
-                                    ? new Date(audit.plannedDate).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                          year: "numeric",
-                                      })
+                                    ? new Date(audit.plannedDate).toLocaleDateString(
+                                          locale === "en" ? "en-US" : locale,
+                                          {
+                                              month: "short",
+                                              day: "numeric",
+                                              year: "numeric",
+                                          }
+                                      )
                                     : "—";
                                 return (
                                     <Link
@@ -565,8 +671,10 @@ export default function OrgDashboardPage() {
                         )}
                     </CardContent>
                 </Card>
+                )}
             </div>
-       
+            )}
+
             <div className="mt-5 p-5 rounded-lg bg-background border border-border flex sm:flex-row flex-col sm:items-center justify-between">
                 <div className="description mb-3.5 sm:mb-0">
                     <h3 className="font-semibold text-sm mb-1 text-foreground">{t("Need Help? Ask Vie AI")}</h3>

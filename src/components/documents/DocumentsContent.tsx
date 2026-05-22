@@ -46,8 +46,44 @@ import {
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { cn } from "@/lib/utils";
-import { useTranslate } from "@/components/providers/translation-provider";
+import {
+  docAlertInfo,
+  docAlertNote,
+  docAlertSuccess,
+  docDocStatus,
+  docDropdownContent,
+  docMenuItemAccent,
+  docMenuItemPrimary,
+  docPositionBadge,
+  docSearchInput,
+  docSelectTrigger,
+  docStatusBadgeDanger,
+  docStatusBadgeSuccess,
+  docStatusBadgeWarning,
+} from "@/lib/document-ui-classes";
 import { toast } from "sonner";
+import { getComplianceKpiFromDays, getDaysSince } from "@/lib/compliance-kpi";
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
+import { useTranslate } from "@/components/providers/translation-provider";
+
+function displayCell(value: string, t: (text: string) => string): string {
+  if (!value || value === "-") return t("—");
+  return value;
+}
+
+function formatLocaleDate(
+  value: Date | string | null | undefined,
+  locale: string
+): string {
+  if (!value) return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 export type MasterDocumentRow = {
   id: string;
@@ -367,9 +403,9 @@ function ObsoleteRegisterColumnHead({
 function EvidenceKpiText({ kpi }: { kpi: DocumentaryEvidenceRow["kpi"] }) {
   const { t } = useTranslate();
   const map: Record<DocumentaryEvidenceRow["kpi"], string> = {
-    Consistent: "text-[#16A34A]",
-    Pending: "text-[#EA580C]",
-    Inconsistent: "text-[#DC2626]",
+    Consistent: "text-primary",
+    Pending: "text-amber-600 dark:text-amber-400",
+    Inconsistent: "text-destructive",
   };
   return <span className={cn("text-sm font-medium", map[kpi])}>{t(kpi)}</span>;
 }
@@ -377,11 +413,9 @@ function EvidenceKpiText({ kpi }: { kpi: DocumentaryEvidenceRow["kpi"] }) {
 function EvidenceRecordStatusBadge({ status }: { status: DocumentaryEvidenceRow["recordStatus"] }) {
   const { t } = useTranslate();
   const map: Record<DocumentaryEvidenceRow["recordStatus"], string> = {
-    Success:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Pending:
-      "border-transparent bg-orange-500 text-white hover:bg-orange-500 shadow-none",
-    Fail: "border-transparent bg-red-600 text-white hover:bg-red-600 shadow-none",
+    Success: docStatusBadgeSuccess,
+    Pending: docStatusBadgeWarning,
+    Fail: docStatusBadgeDanger,
   };
   return (
     <Badge
@@ -411,14 +445,14 @@ function DisposalMethodBadge({ method }: { method: RecordsDisposalRow["disposalM
   const { t } = useTranslate();
   if (method === "Delete") {
     return (
-      <Badge className="gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 shadow-none hover:bg-red-50">
+      <Badge className="gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive shadow-none hover:bg-destructive/10">
         <Trash2 className="size-3.5" aria-hidden />
         {t("Delete")}
       </Badge>
     );
   }
   return (
-    <Badge className="gap-1 rounded-md border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 shadow-none hover:bg-slate-100">
+    <Badge className="gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted">
       <Scissors className="size-3.5" aria-hidden />
       {t("Shred")}
     </Badge>
@@ -456,12 +490,9 @@ function StorageMediaCell({ media }: { media: RecordsDisposalRow["storageMedia"]
 function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recordRank"] }) {
   const { t } = useTranslate();
   const map: Record<DocumentaryEvidenceRow["recordRank"], string> = {
-    Verified:
-      "border-transparent bg-emerald-600 text-white hover:bg-emerald-600 shadow-none",
-    Captured:
-      "border-transparent bg-amber-500 text-white hover:bg-amber-500 shadow-none",
-    Archived:
-      "border-transparent bg-slate-500 text-white hover:bg-slate-500 shadow-none",
+    Verified: docStatusBadgeSuccess,
+    Captured: docStatusBadgeWarning,
+    Archived: "border-transparent bg-muted-foreground text-primary-foreground shadow-none hover:bg-muted-foreground/90",
   };
   return (
     <Badge
@@ -477,14 +508,8 @@ function EvidenceRecordRankBadge({ rank }: { rank: DocumentaryEvidenceRow["recor
 
 function DocStatusBadge({ status }: { status: MasterDocumentRow["docStatus"] }) {
   const { t } = useTranslate();
-  const map: Record<MasterDocumentRow["docStatus"], string> = {
-    "In-Progress": "bg-sky-50 text-sky-700 border border-sky-200",
-    Success: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    Pending: "bg-amber-50 text-amber-800 border border-amber-200",
-    Fail: "bg-red-50 text-red-700 border border-red-200",
-  };
   return (
-    <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", map[status])}>
+    <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", docDocStatus[status])}>
       {t(status)}
     </span>
   );
@@ -492,24 +517,27 @@ function DocStatusBadge({ status }: { status: MasterDocumentRow["docStatus"] }) 
 
 function DocPositionBadge({ position }: { position: MasterDocumentRow["docPosition"] }) {
   const { t } = useTranslate();
+  const tone =
+    position === "Draft"
+      ? docPositionBadge.Draft
+      : position === "Review Pending"
+        ? docPositionBadge["Review Pending"]
+        : position === "Approval Pending"
+          ? docPositionBadge["Approval Pending"]
+          : position === "Needs Review Again"
+            ? docPositionBadge["Needs Review Again"]
+            : docPositionBadge.default;
   return (
-    <span
-      className={cn(
-        "inline-flex rounded-md px-2.5 py-1 text-xs font-semibold text-white",
-        position === "Draft"
-          ? "bg-orange-500"
-          : position === "Review Pending"
-            ? "bg-amber-600"
-            : position === "Approval Pending"
-              ? "bg-blue-600"
-              : position === "Needs Review Again"
-                ? "bg-red-600"
-            : "bg-neutral-700"
-      )}
-    >
+    <span className={cn("inline-flex rounded-md px-2.5 py-1 text-xs font-semibold", tone)}>
       {t(position)}
     </span>
   );
+}
+
+function complianceStatusTextClass(statusLabel: string): string {
+  if (statusLabel === "Success" || statusLabel === "In-Progress") return "text-primary-foreground";
+  if (statusLabel === "Fail") return "text-destructive-foreground";
+  return "text-primary-foreground";
 }
 
 function MasterDocumentRowActionsMenu({
@@ -601,7 +629,7 @@ function MasterDocumentRowActionsMenu({
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary outline-none focus:bg-accent focus:text-accent-foreground [&_svg]:text-primary"
             onClick={() => {
               void onShare(row, viewHref);
             }}
@@ -620,7 +648,7 @@ function MasterDocumentRowActionsMenu({
           {t("Download PDF")}
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]"
+          className={docMenuItemAccent}
           onSelect={() => onDownloadExcel(row)}
         >
           <FileSpreadsheet size={16} />
@@ -632,7 +660,7 @@ function MasterDocumentRowActionsMenu({
         </DropdownMenuLabel>
         <DropdownMenuItem
           asChild
-          className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+          className={docMenuItemPrimary}
         >
           <Link href={workflowHref}>
             <Send size={16} aria-hidden />
@@ -661,7 +689,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[200px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[200px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted focus:text-foreground">
           <Eye size={16} className="text-foreground" aria-hidden />
@@ -670,7 +698,7 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#2563EB] outline-none focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary outline-none focus:bg-accent focus:text-accent-foreground [&_svg]:text-primary"
             onClick={() => onShare()}
           >
             <Share2 size={16} aria-hidden />
@@ -681,8 +709,8 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
           <FileDown size={16} aria-hidden />
           {t("Download PDF")}
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} aria-hidden />
+        <DropdownMenuItem className={docMenuItemPrimary}>
+          <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -707,7 +735,7 @@ function DocumentaryEvidenceRowActionsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[220px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Eye size={16} className="text-foreground" aria-hidden />
@@ -717,19 +745,19 @@ function DocumentaryEvidenceRowActionsMenu() {
           <Pencil size={16} className="text-foreground" aria-hidden />
           {t("Edit")}
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#6366F1] focus:bg-[#EEF2FF] focus:text-[#6366F1] [&_svg]:text-[#6366F1]">
-          <Share2 size={16} aria-hidden />
+        <DropdownMenuItem className={docMenuItemPrimary}>
+          <Share2 size={16} />
           {t("Share")}
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <FileDown size={16} aria-hidden />
           {t("Download PDF")}
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} aria-hidden />
+        <DropdownMenuItem className={docMenuItemPrimary}>
+          <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-[#E5E7EB]" />
+        <DropdownMenuSeparator className="my-2 bg-border" />
         <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
           {t("Record lifecycle")}
         </DropdownMenuLabel>
@@ -759,22 +787,22 @@ function RecordsDisposalRowActionsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-[220px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
+        className={cn("w-[220px]", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
           <Eye size={16} className="text-foreground" aria-hidden />
           {t("View")}
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#2563EB] focus:bg-[#EFF6FF] focus:text-[#2563EB] [&_svg]:text-[#2563EB]">
-          <Share2 size={16} aria-hidden />
+        <DropdownMenuItem className={docMenuItemPrimary}>
+          <Share2 size={16} />
           {t("Share")}
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
           <FileDown size={16} aria-hidden />
           {t("Download PDF")}
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-[#16A34A] focus:bg-[#F0FDF4] focus:text-[#16A34A] [&_svg]:text-[#16A34A]">
-          <FileSpreadsheet size={16} aria-hidden />
+        <DropdownMenuItem className={docMenuItemPrimary}>
+          <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -784,7 +812,7 @@ function RecordsDisposalRowActionsMenu() {
 
 export default function DocumentsContent() {
   const params = useParams();
-  const { t } = useTranslate();
+  const { t, locale } = useTranslate();
   const orgId = (params?.orgId as string) || "";
   const createDocumentHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
   const createDocumentBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
@@ -845,15 +873,8 @@ export default function DocumentsContent() {
           ? (obsoleteJson.records as DocumentsApiRecord[])
           : [];
 
-        const formatDate = (value: string | null | undefined): string => {
-          if (!value) return "-";
-          const d = new Date(value);
-          if (Number.isNaN(d.getTime())) return "-";
-          const dd = String(d.getDate()).padStart(2, "0");
-          const mm = String(d.getMonth() + 1).padStart(2, "0");
-          const yyyy = d.getFullYear();
-          return `${dd}-${mm}-${yyyy}`;
-        };
+        const formatDate = (value: string | null | undefined): string =>
+          formatLocaleDate(value, locale);
 
         const resolveMasterDocNumber = buildDocNumberResolver(records);
         const resolveObsoleteDocNumber = buildDocNumberResolver(obsoleteRecords);
@@ -1011,7 +1032,7 @@ export default function DocumentsContent() {
     return () => {
       ignore = true;
     };
-  }, [orgId]);
+  }, [orgId, locale]);
 
   useEffect(() => {
     let ignore = false;
@@ -1427,15 +1448,14 @@ export default function DocumentsContent() {
           : "-";
         const captureBy = String(row.support_user_name ?? "").trim() || "-";
         const captureDate = captureDateObj
-          ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+          ? formatLocaleDate(captureDateObj, locale)
           : "-";
-        const verifyBy = String(row.designated_verifier_name ?? "").trim() || "—";
+        const verifyBy = String(row.designated_verifier_name ?? "").trim() || "-";
         const verifyDate = va.completedAt
-          ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
-          : "—";
-        const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
-        const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
-        const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
+          ? formatLocaleDate(String(va.completedAt), locale)
+          : "-";
+        const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
+        const { kpiLabel, statusLabel } = getComplianceKpiFromDays(daysSinceCapture);
         return [
           ref || "-",
           title,
@@ -1476,9 +1496,9 @@ export default function DocumentsContent() {
         const desc = String(cd.capturedData ?? "").trim().slice(0, 80) || "-";
         const disposedBy = String(row.designated_verifier_name ?? "").trim() || "-";
         const disposalDate = va.completedAt
-          ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+          ? formatLocaleDate(String(va.completedAt), locale)
           : row.updated_at
-            ? new Date(row.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+            ? formatLocaleDate(row.updated_at, locale)
             : "-";
         const retention = String(va.retentionPeriod ?? "").trim() || "3 Years";
         const storageRaw = String(va.archiveLocation ?? "").trim().toLowerCase();
@@ -1565,7 +1585,7 @@ export default function DocumentsContent() {
           <div className="w-full sm:w-auto">
             <p className="mb-2 text-xs text-muted-foreground">{t("Select Table")}</p>
             <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className="w-full sm:min-w-[340px] sm:max-w-[520px] border border-[#0000001A] rounded-xl bg-white px-3 py-2 text-sm">
+              <SelectTrigger className={cn(docSelectTrigger, "sm:min-w-[340px] sm:max-w-[520px]")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1592,10 +1612,10 @@ export default function DocumentsContent() {
         <CardContent className="space-y-4">
           {selectedTable === "Obsolete Document Register" ? (
             <div
-              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              className={cn(docAlertInfo, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">{t("Superseded versions and retention")}</p>
+              <p className={docAlertNoteTitle}>{t("Superseded versions and retention")}</p>
               <p className="mt-2 leading-relaxed">
                 {t("When a")}{" "}
                 <span className="font-medium">{t("new version")}</span>{" "}
@@ -1610,10 +1630,10 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Documentary Evidence" ? (
             <div
-              className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]"
+              className={cn(docAlertSuccess, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#15803D]">
+              <p className={docAlertNoteTitle}>
                 {t("Captured F-type evidence records — awaiting verification")}
               </p>
               <p className="mt-2 leading-relaxed">
@@ -1626,10 +1646,10 @@ export default function DocumentsContent() {
           ) : null}
           {selectedTable === "Records Disposal Log" ? (
             <div
-              className="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A5F]"
+              className={cn(docAlertInfo, "text-sm")}
               role="note"
             >
-              <p className="font-semibold text-[#1E40AF]">
+              <p className={docAlertNoteTitle}>
                 {t("Completed evidence records — verified & archived")}
               </p>
               <p className="mt-2 leading-relaxed">
@@ -1673,7 +1693,7 @@ export default function DocumentsContent() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 border-none bg-[#F3F3F5] w-[260px]"
+                  className={docSearchInput}
                   placeholder={t("Search...")}
                   aria-label={t("Search")}
                 />
@@ -1697,7 +1717,7 @@ export default function DocumentsContent() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#0000001A] overflow-x-auto">
+          <div className="rounded-lg border border-border overflow-x-auto">
             {selectedTable === "Master Document List" ? (
               <Table>
                 <TableHeader>
@@ -1754,22 +1774,36 @@ export default function DocumentsContent() {
                           {doc.documentRef}
                         </TableCell>
                         <TableCell className="text-sm text-foreground">{t(doc.natureOfDocument)}</TableCell>
-                        <TableCell className="text-sm text-foreground max-w-[200px]">{doc.title}</TableCell>
+                        <TableCell className="text-sm text-foreground max-w-[200px]">
+                          {displayCell(doc.title, t)}
+                        </TableCell>
                         <TableCell>
                           <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold text-foreground">
                             {doc.type}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm">{doc.site}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">{doc.process}</TableCell>
-                        <TableCell className="text-sm">{doc.standard}</TableCell>
-                        <TableCell className="text-sm max-w-[120px]">{doc.clause}</TableCell>
-                        <TableCell className="text-sm max-w-[160px]">{doc.subclause}</TableCell>
-                        <TableCell className="text-sm font-semibold text-foreground">{doc.docNumber}</TableCell>
-                        <TableCell className="text-sm font-semibold text-foreground">{doc.version}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">{doc.planDate}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">{doc.releaseDate}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">{doc.reviewDue}</TableCell>
+                        <TableCell className="text-sm">{displayCell(doc.site, t)}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {displayCell(doc.process, t)}
+                        </TableCell>
+                        <TableCell className="text-sm">{displayCell(doc.standard, t)}</TableCell>
+                        <TableCell className="text-sm max-w-[120px]">{displayCell(doc.clause, t)}</TableCell>
+                        <TableCell className="text-sm max-w-[160px]">{displayCell(doc.subclause, t)}</TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">
+                          {displayCell(doc.docNumber, t)}
+                        </TableCell>
+                        <TableCell className="text-sm font-semibold text-foreground">
+                          {displayCell(doc.version, t)}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {displayCell(doc.planDate, t)}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {displayCell(doc.releaseDate, t)}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {displayCell(doc.reviewDue, t)}
+                        </TableCell>
                         <TableCell className="text-sm">{t(doc.kpi)}</TableCell>
                         <TableCell>
                           <DocStatusBadge status={doc.docStatus} />
@@ -1945,41 +1979,65 @@ export default function DocumentsContent() {
                         : "-";
                       const captureBy = String(row.support_user_name ?? "").trim() || "-";
                       const captureDate = captureDateObj
-                        ? captureDateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        ? formatLocaleDate(captureDateObj, locale)
                         : "-";
-                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || t("—");
+                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || "-";
                       const verifyDate = va.completedAt
-                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
-                        : t("—");
-                      const daysSinceCapture = captureDateObj ? Math.floor((Date.now() - captureDateObj.getTime()) / 86400000) : 0;
-                      const kpiLabel = daysSinceCapture > 40 ? "Inconsistent" : daysSinceCapture > 30 ? "Pending" : "Consistent";
-                      const kpiColor = daysSinceCapture > 40 ? "text-red-600" : daysSinceCapture > 30 ? "text-amber-600" : "text-[#22B323]";
-                      const statusLabel = daysSinceCapture > 40 ? "Fail" : daysSinceCapture > 30 ? "Pending" : "Success";
-                      const statusBg = daysSinceCapture > 40 ? "bg-red-500" : daysSinceCapture > 30 ? "bg-amber-500" : "bg-[#22B323]";
+                        ? formatLocaleDate(String(va.completedAt), locale)
+                        : "-";
+                      const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
+                      const { kpiLabel, statusLabel, kpiColorClass: kpiColor, statusBadgeClass: statusBg } =
+                        getComplianceKpiFromDays(daysSinceCapture);
 
                       return (
                         <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
                           <TableCell className="px-3 py-2.5 text-sm font-medium text-foreground whitespace-nowrap">
-                            {ref || "-"}
+                            {displayCell(ref, t)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[180px]">
-                            {title}
+                            {displayCell(title, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{processOwner}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{batch}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{yearMonth}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{site}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">{docNum}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{version}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{captureBy}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{captureDate}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{verifyBy}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{verifyDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(processOwner, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(batch, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
+                            {displayCell(yearMonth, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(site, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">
+                            {displayCell(docNum, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(version, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(captureBy, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
+                            {displayCell(captureDate, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(verifyBy, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
+                            {displayCell(verifyDate, t)}
+                          </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
                             <span className={cn("text-sm font-semibold", kpiColor)}>{t(kpiLabel)}</span>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center">
-                            <span className={cn("inline-block rounded-md px-3 py-1 text-xs font-semibold text-white", statusBg)}>
+                            <span
+                              className={cn(
+                                "inline-block rounded-md px-3 py-1 text-xs font-semibold",
+                                statusBg,
+                                complianceStatusTextClass(statusLabel)
+                              )}
+                            >
                               {t(statusLabel)}
                             </span>
                           </TableCell>
@@ -2036,9 +2094,9 @@ export default function DocumentsContent() {
                       const desc = String(cd.capturedData ?? "").trim().slice(0, 80) || "-";
                       const disposedBy = String(row.designated_verifier_name ?? "").trim() || "-";
                       const disposalDate = va.completedAt
-                        ? new Date(String(va.completedAt)).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        ? formatLocaleDate(String(va.completedAt), locale)
                         : row.updated_at
-                          ? new Date(row.updated_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                          ? formatLocaleDate(row.updated_at, locale)
                           : "-";
                       const retention = String(va.retentionPeriod ?? "").trim() || "3 Years";
                       const storageRaw = String(va.archiveLocation ?? "").trim().toLowerCase();
@@ -2060,9 +2118,15 @@ export default function DocumentsContent() {
                       return (
                         <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
                           <TableCell className="px-3 py-2.5 text-sm font-semibold text-foreground">{shortId}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[220px]">{desc}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">{disposedBy}</TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">{disposalDate}</TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[220px]">
+                            {displayCell(desc, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(disposedBy, t)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
+                            {displayCell(disposalDate, t)}
+                          </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground">{t(retention)}</TableCell>
                           <TableCell className="px-3 py-2.5">
                             <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium", disposalMethodColor)}>
@@ -2159,22 +2223,22 @@ export default function DocumentsContent() {
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-foreground">{doc.documentRef}</TableCell>
                         <TableCell>{t(doc.natureOfDocument)}</TableCell>
-                        <TableCell>{doc.title}</TableCell>
+                        <TableCell>{displayCell(doc.title, t)}</TableCell>
                         <TableCell>
                           <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold">
                             {doc.type}
                           </span>
                         </TableCell>
-                        <TableCell>{doc.site}</TableCell>
-                        <TableCell>{doc.process}</TableCell>
-                        <TableCell>{doc.standard}</TableCell>
-                        <TableCell>{doc.clause}</TableCell>
-                        <TableCell>{doc.subclause}</TableCell>
-                        <TableCell className="font-semibold">{doc.docNumber}</TableCell>
-                        <TableCell className="font-semibold">{doc.version}</TableCell>
-                        <TableCell>{doc.planDate}</TableCell>
-                        <TableCell>{doc.releaseDate}</TableCell>
-                        <TableCell>{doc.reviewDue}</TableCell>
+                        <TableCell>{displayCell(doc.site, t)}</TableCell>
+                        <TableCell>{displayCell(doc.process, t)}</TableCell>
+                        <TableCell>{displayCell(doc.standard, t)}</TableCell>
+                        <TableCell>{displayCell(doc.clause, t)}</TableCell>
+                        <TableCell>{displayCell(doc.subclause, t)}</TableCell>
+                        <TableCell className="font-semibold">{displayCell(doc.docNumber, t)}</TableCell>
+                        <TableCell className="font-semibold">{displayCell(doc.version, t)}</TableCell>
+                        <TableCell>{displayCell(doc.planDate, t)}</TableCell>
+                        <TableCell>{displayCell(doc.releaseDate, t)}</TableCell>
+                        <TableCell>{displayCell(doc.reviewDue, t)}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -2193,31 +2257,7 @@ export default function DocumentsContent() {
         </CardContent>
       </Card>
 
-      {selectedTable === "Records Disposal Log" ? (
-        <Card>
-          <CardContent className="space-y-3 py-4">
-            <h2 className="text-base font-semibold text-foreground">{t("KPI Status Logic")}</h2>
-            <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-emerald-500" aria-hidden />
-                <span>{t("Success ≤30 days → Green (Consistent)")}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-amber-400" aria-hidden />
-                <span>{t("In-Progress <30 days → Yellow")}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-sm bg-red-500" aria-hidden />
-                <span>{t("Pending >30 days → Red")}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="size-3 shrink-0 rounded-full bg-red-600" aria-hidden />
-                <span>{t("Fail >40 days → Red (Inconsistent)")}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      {selectedTable === "Records Disposal Log" ? <KpiStatusLogicCard /> : null}
 
       {/* Document Classification */}
       <Card>
@@ -2230,7 +2270,7 @@ export default function DocumentsContent() {
             <div className="rounded-xl border border-border p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">
                 {t("Category 1 - Maintained Documents")}{" "}
-                <span className="text-[#22B323]">{t("(Type P)")}</span>
+                <span className="text-primary">{t("(Type P)")}</span>
               </h3>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <div>{t("Policy")}</div>
@@ -2247,7 +2287,7 @@ export default function DocumentsContent() {
             <div className="rounded-xl border border-border p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">
                 {t("Category 2 - Retained Records")}{" "}
-                <span className="text-[#0EA5E9]">{t("(Type F)")}</span>
+                <span className="text-primary">{t("(Type F)")}</span>
               </h3>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <div>{t("Templates")}</div>

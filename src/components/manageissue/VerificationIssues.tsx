@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, ReactNode, useRef, useEffect } from "react"
+import { useState, useMemo, ReactNode, useRef, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -37,6 +37,8 @@ import {
     Clock,
     Eye,
     MoreVertical,
+    Pencil,
+    Trash2,
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
@@ -51,9 +53,16 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -67,7 +76,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useOrgOptional } from "@/components/providers/org-provider"
 import { getSelectedSiteIdFromStorage } from "@/lib/selected-site"
+import {
+  calculateIssueKpiScore,
+  getComplianceKpiForIssue,
+  getDaysBetween,
+} from "@/lib/compliance-kpi"
+import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard"
 import { useTranslate } from "@/components/providers/translation-provider"
+
+const KNOWN_ISSUE_TAGS = [
+    "Quality Issue",
+    "Process Improvement",
+    "Risk Mitigation",
+    "Customer Concern",
+] as const
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
     "to-do": "To Do",
@@ -77,12 +99,14 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
     backlog: "Backlog",
 }
 
-const KNOWN_ISSUE_TAGS = [
-    "Quality Issue",
-    "Process Improvement",
-    "Risk Mitigation",
-    "Customer Concern",
-] as const
+const KPI_COMPLIANCE_LABELS = new Set([
+    "Consistent",
+    "Pending",
+    "Inconsistent",
+    "Success",
+    "Fail",
+    "In-Progress",
+])
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -94,14 +118,82 @@ interface Issue {
     tags?: string[]
     source?: string
     assignee?: string
+    issuer?: string | null
     priority?: string
     createdAt?: string
     updatedAt?: string
     processId?: string | null
+    deadline?: string | null
+    kpiScore?: number | null
+    closeOutDate?: string | null
+    verificationDate?: string | null
+    verificationStatus?: string | null
     // For display
     tag?: string
     tagVariant?: BadgeVariant
     kpi?: number
+    kpiLabel?: string
+    kpiColorClass?: string
+    complianceStatus?: string
+    statusBadgeClass?: string
+    planDate?: string
+    dueDate?: string
+    actualDate?: string
+    assigned?: string
+    due?: string
+    completed?: string
+}
+
+function isIssueCreator(issue: Issue, userId: string | null | undefined): boolean {
+    if (!userId || issue.issuer == null || issue.issuer === "") return false
+    return String(issue.issuer) === String(userId)
+}
+
+function formatIssueDate(d: string | null | undefined): string {
+    if (!d) return "—"
+    try {
+        return format(new Date(d), "dd/MM/yyyy")
+    } catch {
+        return "—"
+    }
+}
+
+function enrichIssue(issue: Issue, getTagVariant: (tagName: string) => BadgeVariant): Issue {
+    const compliance = getComplianceKpiForIssue({
+        status: issue.status,
+        createdAt: issue.createdAt,
+        deadline: issue.deadline,
+        kpiScore: issue.kpiScore,
+        closeOutDate: issue.closeOutDate,
+        verificationDate: issue.verificationDate,
+    })
+    const kpiNumeric =
+        issue.kpiScore != null && issue.kpiScore > 0
+            ? issue.kpiScore
+            : compliance.kpiLabel === "Consistent"
+              ? 3
+              : compliance.kpiLabel === "Pending"
+                ? 2
+                : 1
+    return {
+        ...issue,
+        tag: issue.tags?.[0] || "Unknown",
+        tagVariant: getTagVariant(issue.tags?.[0] || ""),
+        kpi: kpiNumeric,
+        kpiLabel: compliance.kpiLabel,
+        kpiColorClass: compliance.kpiColorClass,
+        complianceStatus: compliance.statusLabel,
+        statusBadgeClass: compliance.statusBadgeClass,
+        planDate: formatIssueDate(issue.createdAt),
+        dueDate: formatIssueDate(issue.deadline),
+        actualDate: formatIssueDate(issue.closeOutDate || issue.verificationDate),
+        assigned: formatIssueDate(issue.createdAt),
+        due: formatIssueDate(issue.deadline),
+        completed:
+            issue.status === "done"
+                ? formatIssueDate(issue.closeOutDate || issue.verificationDate)
+                : "—",
+    }
 }
 
 interface IssueReview {
@@ -141,9 +233,14 @@ export default function IssuesDashboard({
     }
 
     const formatStatus = (status?: string) => {
-        if (!status) return "—"
+        if (!status) return t("—")
         const label = STATUS_LABEL_KEYS[status]
         return label ? t(label) : status
+    }
+
+    const formatKpiLabel = (label?: string) => {
+        if (!label) return t("—")
+        return KPI_COMPLIANCE_LABELS.has(label) ? t(label) : label
     }
 
     const [siteIdForIssues, setSiteIdForIssues] = useState("")
@@ -167,6 +264,9 @@ export default function IssuesDashboard({
     const [issueReview, setIssueReview] = useState<IssueReview | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isLoadingReview, setIsLoadingReview] = useState(false)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
 
     // Filter/Sort state
     const [search, setSearch] = useState("")
@@ -205,8 +305,17 @@ export default function IssuesDashboard({
         fileInputRef.current?.click()
     }
 
-    // Fetch data on mount
     useEffect(() => {
+        fetch("/api/user/profile", { credentials: "include" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((profile) => {
+                const id = profile?.id != null ? String(profile.id) : null
+                setCurrentUserId(id)
+            })
+            .catch(() => setCurrentUserId(null))
+    }, [])
+
+    const fetchIssues = useCallback(async () => {
         if (!orgId) return
         if (!issuesWorkspaceForOrg && !routeProcessId) return
         if (issuesWorkspaceForOrg && !siteIdForIssues) {
@@ -217,45 +326,101 @@ export default function IssuesDashboard({
             return
         }
 
-        const fetchData = async () => {
-            try {
-                setIsLoading(true)
-                let issues: Issue[] = []
-                if (issuesWorkspaceForOrg && siteIdForIssues) {
-                    const [issuesRes, usersRes] = await Promise.all([
-                        apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues }),
-                        apiClient.getMembers(orgId),
-                    ])
-                    issues = issuesRes.issues || []
-                    setProcessUsers(
-                        (usersRes.teamMembers || []).map((m) => ({
-                            id: m.id,
-                            name: m.name || m.email || "User",
-                            email: m.email,
-                        }))
-                    )
-                } else if (routeProcessId) {
-                    const [issuesRes, usersRes] = await Promise.all([
-                        apiClient.getIssues(orgId, routeProcessId),
-                        apiClient.getProcessUsers(orgId, routeProcessId),
-                    ])
-                    issues = issuesRes.issues || []
-                    setProcessUsers(usersRes.users || [])
-                }
-
-                setAllIssues(issues)
-                const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
-                setPendingIssues(inReviewIssues)
-            } catch (error: any) {
-                console.error("Error fetching data:", error)
-                toast.error(t("Failed to load issues"))
-            } finally {
-                setIsLoading(false)
+        try {
+            setIsLoading(true)
+            let issues: Issue[] = []
+            if (issuesWorkspaceForOrg && siteIdForIssues) {
+                const [issuesRes, usersRes] = await Promise.all([
+                    apiClient.getOrgIssues(orgId, { siteId: siteIdForIssues }),
+                    apiClient.getMembers(orgId),
+                ])
+                issues = issuesRes.issues || []
+                setProcessUsers(
+                    (usersRes.teamMembers || []).map((m) => ({
+                        id: m.id,
+                        name: m.name || m.email || t("User"),
+                        email: m.email,
+                    }))
+                )
+            } else if (routeProcessId) {
+                const [issuesRes, usersRes] = await Promise.all([
+                    apiClient.getIssues(orgId, routeProcessId),
+                    apiClient.getProcessUsers(orgId, routeProcessId),
+                ])
+                issues = issuesRes.issues || []
+                setProcessUsers(usersRes.users || [])
             }
-        }
 
-        fetchData()
-    }, [orgId, routeProcessId, issuesWorkspaceForOrg, siteIdForIssues])
+            setAllIssues(issues)
+            const inReviewIssues = issues.filter((i: Issue) => i.status === "in-review")
+            setPendingIssues(inReviewIssues)
+        } catch (error: any) {
+            console.error("Error fetching data:", error)
+            toast.error(t("Failed to load issues"))
+        } finally {
+            setIsLoading(false)
+        }
+    }, [orgId, routeProcessId, issuesWorkspaceForOrg, siteIdForIssues, t])
+
+    useEffect(() => {
+        void fetchIssues()
+    }, [fetchIssues])
+
+    useEffect(() => {
+        const onIssueChanged = (event: Event) => {
+            const detail = (event as CustomEvent<{ orgId?: string }>).detail
+            if (detail?.orgId && detail.orgId !== orgId) return
+            void fetchIssues()
+        }
+        window.addEventListener("issueUpdated", onIssueChanged)
+        return () => window.removeEventListener("issueUpdated", onIssueChanged)
+    }, [orgId, fetchIssues])
+
+    const openEditIssue = (issue: Issue) => {
+        const pid = processIdForIssue(issue)
+        if (issuesWorkspaceForOrg && !pid) {
+            toast.error(t("Link this issue to a process before editing."))
+            return
+        }
+        window.dispatchEvent(
+            new CustomEvent("openIssueDialog", {
+                detail: {
+                    issueId: issue.id,
+                    orgId,
+                    processId: pid,
+                },
+            })
+        )
+    }
+
+    const handleConfirmDelete = async () => {
+        if (!issueToDelete || !orgId) return
+        const pid = processIdForIssue(issueToDelete)
+        try {
+            setIsDeleting(true)
+            if (issuesWorkspaceForOrg) {
+                await apiClient.deleteOrgIssue(orgId, issueToDelete.id)
+            } else if (pid) {
+                await apiClient.deleteIssue(orgId, pid, issueToDelete.id)
+            } else {
+                toast.error(t("This issue must be linked to a process before it can be deleted."))
+                return
+            }
+            setIssueToDelete(null)
+            toast.success(t("Issue deleted"))
+            await fetchIssues()
+            window.dispatchEvent(
+                new CustomEvent("issueUpdated", {
+                    detail: { orgId, processId: pid, issueId: issueToDelete.id },
+                })
+            )
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : t("Failed to delete issue")
+            toast.error(msg)
+        } finally {
+            setIsDeleting(false)
+        }
+    }
 
     // Fetch issue review data when opening review dialog
     const handleReviewClick = async (issue: Issue) => {
@@ -382,13 +547,19 @@ export default function IssuesDashboard({
                 filesCount: uploadedFiles.length,
             })
 
+            const kpiScore = calculateIssueKpiScore(
+                selectedIssue.createdAt,
+                selectedIssue.deadline,
+                closeOutDate.toISOString()
+            )
+
             const response = await apiClient.verifyIssue(orgId, pid, selectedIssue.id, {
                 verificationStatus: "effective",
                 closureComments,
                 verificationFiles: uploadedFiles,
                 closeOutDate: closeOutDate.toISOString(),
                 verificationDate: verificationDate.toISOString(),
-                kpiScore: 3, // Default KPI, can be calculated later
+                kpiScore,
             })
 
             console.log("[VerificationIssues] Verification submitted successfully:", response)
@@ -555,12 +726,30 @@ export default function IssuesDashboard({
         return "secondary"
     }
 
+    const avgKpiScore = useMemo(() => {
+        const scores = allIssues
+            .map((i) => enrichIssue(i, getTagVariant).kpi)
+            .filter((k): k is number => k != null && k > 0)
+        if (scores.length === 0) return null
+        return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
+    }, [allIssues])
+
+    const avgResolutionDays = useMemo(() => {
+        const closed = allIssues.filter((i) => i.status === "done" && i.createdAt)
+        const days = closed
+            .map((i) =>
+                getDaysBetween(
+                    i.createdAt,
+                    i.closeOutDate || i.verificationDate || i.updatedAt
+                )
+            )
+            .filter((d) => d > 0)
+        if (days.length === 0) return null
+        return Math.round(days.reduce((a, b) => a + b, 0) / days.length)
+    }, [allIssues])
+
     const filteredAll = useMemo(() => {
-        let data = allIssues.map(issue => ({
-            ...issue,
-            tag: issue.tags?.[0] || "Unknown",
-            tagVariant: getTagVariant(issue.tags?.[0] || ""),
-        }))
+        let data = allIssues.map((issue) => enrichIssue(issue, getTagVariant))
 
         if (search)
             data = data.filter(
@@ -579,11 +768,7 @@ export default function IssuesDashboard({
     }, [allIssues, search, tag, status, sortKey, sortDir])
 
     const filteredPending = useMemo(() => {
-        let data = pendingIssues.map(issue => ({
-            ...issue,
-            tag: issue.tags?.[0] || "Unknown",
-            tagVariant: getTagVariant(issue.tags?.[0] || ""),
-        }))
+        let data = pendingIssues.map((issue) => enrichIssue(issue, getTagVariant))
 
         if (search)
             data = data.filter(
@@ -794,7 +979,7 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Avg. KPI Score")}</p>
-                                        <p className="text-2xl font-bold mt-2">2.3</p>
+                                        <p className="text-2xl font-bold mt-2">{avgKpiScore ?? t("—")}</p>
                                     </div>
                                     <AlertCircle className="h-8 w-8 text-chart-4" />
                                 </div>
@@ -819,7 +1004,8 @@ export default function IssuesDashboard({
                                             <SortHeader field="actualDate">{t("Actual Date")}</SortHeader>
                                             <SortHeader field="dueDate">{t("Due Date")}</SortHeader>
                                             <SortHeader field="status">{t("Status")}</SortHeader>
-                                            <SortHeader field="kpi">{t("KPI")}</SortHeader>
+                                            <SortHeader field="kpiLabel">{t("KPI")}</SortHeader>
+                                            <SortHeader field="complianceStatus">{t("Compliance")}</SortHeader>
                                             <TableHead>{t("JIRA")}</TableHead>
                                             <TableHead className="text-right">{t("Actions")}</TableHead>
                                         </TableRow>
@@ -828,7 +1014,7 @@ export default function IssuesDashboard({
                                     <TableBody>
                                         {paginatedAll.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={13} className="text-center py-12 text-muted-foreground">
+                                                <TableCell colSpan={14} className="text-center py-12 text-muted-foreground">
                                                     {t("No issues found")}
                                                 </TableCell>
                                             </TableRow>
@@ -840,27 +1026,68 @@ export default function IssuesDashboard({
                                                     <TableCell>
                                                         <Badge variant={issue.tagVariant}>{formatTag(issue.tag)}</Badge>
                                                     </TableCell>
-                                                    <TableCell>{issue.source || "—"}</TableCell>
-                                                    <TableCell>—</TableCell> {/* Issuer not in DB */}
-                                                    <TableCell>{issue.assignee || "—"}</TableCell>
-                                                    <TableCell>—</TableCell> {/* Plan date not in DB */}
-                                                    <TableCell>—</TableCell> {/* Actual date not in DB */}
-                                                    <TableCell>—</TableCell> {/* Due date not in DB */}
+                                                    <TableCell>{issue.source || t("—")}</TableCell>
+                                                    <TableCell>{issue.issuer || t("—")}</TableCell>
+                                                    <TableCell>{issue.assignee || t("—")}</TableCell>
+                                                    <TableCell>{issue.planDate === "—" ? t("—") : issue.planDate}</TableCell>
+                                                    <TableCell>{issue.actualDate === "—" ? t("—") : issue.actualDate}</TableCell>
+                                                    <TableCell>{issue.dueDate === "—" ? t("—") : issue.dueDate}</TableCell>
                                                     <TableCell>
                                                         <Badge variant={issue.status === "done" ? "default" : issue.status === "in-review" ? "secondary" : "destructive"}>
                                                             {formatStatus(issue.status)}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell>{issue.kpi || 0}</TableCell>
+                                                    <TableCell>
+                                                        <span className={cn("text-sm font-semibold", issue.kpiColorClass)}>
+                                                            {formatKpiLabel(issue.kpiLabel)}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span
+                                                            className={cn(
+                                                                "inline-block rounded-md px-3 py-1 text-xs font-semibold text-white",
+                                                                issue.statusBadgeClass
+                                                            )}
+                                                        >
+                                                            {formatKpiLabel(issue.complianceStatus)}
+                                                        </span>
+                                                    </TableCell>
 
                                                     <TableCell>
-                                                        — {/* JIRA link not in DB */}
+                                                        {t("—")} {/* JIRA link not in DB */}
                                                     </TableCell>
 
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" aria-label={t("Open menu")}>
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
+                                                        {isIssueCreator(issue, currentUserId) ? (
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        aria-label={t("Issue actions")}
+                                                                    >
+                                                                        <MoreVertical className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => openEditIssue(issue)}
+                                                                    >
+                                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                                        {t("Edit")}
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        variant="destructive"
+                                                                        onClick={() => setIssueToDelete(issue)}
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                                        {t("Delete")}
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">{t("—")}</span>
+                                                        )}
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -872,6 +1099,8 @@ export default function IssuesDashboard({
                             <Pagination page={pageAll} total={filteredAll.length} setPage={setPageAll} />
                         </CardContent>
                     </Card>
+
+                    <KpiStatusLogicCard />
                 </TabsContent>
 
                 {/* ---------------- VERIFICATION TAB ---------------- */}
@@ -923,7 +1152,9 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Avg. Resolution Time")}</p>
-                                        <p className="text-2xl font-bold mt-2">{t("22 days")}</p>
+                                        <p className="text-2xl font-bold mt-2">
+                                            {avgResolutionDays != null ? `${avgResolutionDays} ${t("days")}` : t("—")}
+                                        </p>
                                     </div>
                                     <CheckCircle2 className="h-8 w-8 text-primary" />
                                 </div>
@@ -935,7 +1166,7 @@ export default function IssuesDashboard({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">{t("Expected KPI")}</p>
-                                        <p className="text-2xl font-bold mt-2">2.7</p>
+                                        <p className="text-2xl font-bold mt-2">{avgKpiScore ?? t("—")}</p>
                                     </div>
                                     <FileText className="h-8 w-8 text-chart-2" />
                                 </div>
@@ -981,19 +1212,14 @@ export default function IssuesDashboard({
                                                     </TableCell>
 
                                                     <TableCell>{issue.assignee}</TableCell>
-                                                    <TableCell>{issue.assigned}</TableCell>
-                                                    <TableCell>{issue.due}</TableCell>
-                                                    <TableCell>{issue.completed}</TableCell>
+                                                    <TableCell>{issue.assigned === "—" ? t("—") : issue.assigned}</TableCell>
+                                                    <TableCell>{issue.due === "—" ? t("—") : issue.due}</TableCell>
+                                                    <TableCell>{issue.completed === "—" ? t("—") : issue.completed}</TableCell>
 
                                                     <TableCell className="text-center">
-                                                        <div
-                                                            className={`inline-flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${(issue.kpi || 0) > 0
-                                                                ? "bg-primary/15 text-primary dark:bg-primary/25"
-                                                                : "bg-destructive/15 text-destructive dark:bg-destructive/25"
-                                                                }`}
-                                                        >
-                                                            {issue.kpi || 0}
-                                                        </div>
+                                                        <span className={cn("text-sm font-semibold", issue.kpiColorClass)}>
+                                                            {formatKpiLabel(issue.kpiLabel)}
+                                                        </span>
                                                     </TableCell>
 
                                                     <TableCell>
@@ -1046,20 +1272,20 @@ export default function IssuesDashboard({
                                 <div className="space-y-2 text-sm">
                                     <p>
                                         <span className="text-muted-foreground block">{t("Issue ID")}</span>
-                                        <span className="font-medium text-foreground">{selectedIssue?.id || "—"}</span>
+                                        <span className="font-medium text-foreground">{selectedIssue?.id || t("—")}</span>
                                     </p>
 
                                     <p>
                                         <span className="text-muted-foreground block">{t("Title")}</span>
                                         <span className="font-medium text-foreground">
-                                            {selectedIssue?.title || "—"}
+                                            {selectedIssue?.title || t("—")}
                                         </span>
                                     </p>
 
                                     <p>
                                         <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
-                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : "—"}
+                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : t("—")}
                                         </Badge>
                                     </p>
                                 </div>
@@ -1102,8 +1328,8 @@ export default function IssuesDashboard({
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
                                                         {t("Responsible:")} {plan.responsible} |{" "}
-                                                        {t("Planned:")} {plan.plannedDate || "—"} |{" "}
-                                                        {t("Actual:")} {plan.actualDate || "—"}
+                                                        {t("Planned:")} {plan.plannedDate || t("—")} |{" "}
+                                                        {t("Actual:")} {plan.actualDate || t("—")}
                                                     </p>
                                                 </div>
                                             ))}
@@ -1315,7 +1541,7 @@ export default function IssuesDashboard({
                                                     <tr key={idx} className="border-t">
                                                         <td className="px-3 py-2">{plan.action}</td>
                                                         <td className="px-3 py-2">{plan.responsible}</td>
-                                                        <td className="px-3 py-2">{plan.plannedDate ? format(new Date(plan.plannedDate), "MMMM do, yyyy") : "—"}</td>
+                                                        <td className="px-3 py-2">{plan.plannedDate ? format(new Date(plan.plannedDate), "MMMM do, yyyy") : t("—")}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -1518,18 +1744,18 @@ export default function IssuesDashboard({
                                 <div className="space-y-2 text-sm">
                                     <p>
                                         <span className="text-muted-foreground block">{t("Issue ID")}</span>
-                                        <span className="font-medium text-foreground">{selectedIssue?.id || "—"}</span>
+                                        <span className="font-medium text-foreground">{selectedIssue?.id || t("—")}</span>
                                     </p>
                                     <p>
                                         <span className="text-muted-foreground block">{t("Title")}</span>
                                         <span className="font-medium text-foreground">
-                                            {selectedIssue?.title || "—"}
+                                            {selectedIssue?.title || t("—")}
                                         </span>
                                     </p>
                                     <p>
                                         <span className="text-muted-foreground block mb-1">{t("Tag Category")}</span>
                                         <Badge variant={selectedIssue?.tagVariant || "default"}>
-                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : "—"}
+                                            {selectedIssue?.tag ? formatTag(selectedIssue.tag) : t("—")}
                                         </Badge>
                                     </p>
                                 </div>
@@ -1568,8 +1794,8 @@ export default function IssuesDashboard({
                                                     <p className="font-medium">{plan.action}</p>
                                                     <p className="text-xs text-muted-foreground">
                                                         {t("Responsible:")} {plan.responsible} |{" "}
-                                                        {t("Planned:")} {plan.plannedDate || "—"} |{" "}
-                                                        {t("Actual:")} {plan.actualDate || "—"}
+                                                        {t("Planned:")} {plan.plannedDate || t("—")} |{" "}
+                                                        {t("Actual:")} {plan.actualDate || t("—")}
                                                     </p>
                                                 </div>
                                             ))}
@@ -1737,7 +1963,7 @@ export default function IssuesDashboard({
                             {/* New Due Date */}
                             <div className="space-y-1">
                                 <Label className="text-sm font-medium text-foreground">
-                                    New Due Date <span className="text-destructive">*</span>
+                                    {t("New Due Date")} <span className="text-destructive">*</span>
                                 </Label>
 
                                 <Popover>
@@ -1819,6 +2045,34 @@ export default function IssuesDashboard({
                             </div>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!issueToDelete} onOpenChange={(open) => !open && setIssueToDelete(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t("Delete issue")}</DialogTitle>
+                        <DialogDescription>
+                            {t("Are you sure you want to delete")} &quot;{issueToDelete?.title}&quot;?{" "}
+                            {t("This action cannot be undone.")}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIssueToDelete(null)}
+                            disabled={isDeleting}
+                        >
+                            {t("Cancel")}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => void handleConfirmDelete()}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? t("Deleting...") : t("Delete")}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 

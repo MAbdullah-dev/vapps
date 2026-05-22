@@ -11,6 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, documentActorMatches } from "@/lib/utils";
+import {
+  docBadgeActive,
+  docCalloutInfo,
+  docCalloutSuccess,
+} from "@/lib/document-ui-classes";
 import { useTranslate } from "@/components/providers/translation-provider";
 
 type ApprovalDocumentStepProps = {
@@ -180,9 +185,7 @@ export default function ApprovalDocumentStep({
           <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border font-normal">
             {DOC_REF}
           </Badge>
-          <Badge className="bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
-            {t("Active")}
-          </Badge>
+          <Badge className={docBadgeActive}>{t("Active")}</Badge>
         </div>
 
         <div>
@@ -193,9 +196,7 @@ export default function ApprovalDocumentStep({
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-4 text-sm">
           <div>
             <p className="text-muted-foreground">{t("Type:")}</p>
-            <Badge className="mt-1 bg-[#DCFCE7] text-[#15803D] hover:bg-[#DCFCE7] border border-[#BBF7D0] font-medium">
-              {documentTypeLabel}
-            </Badge>
+            <Badge className={cn("mt-1", docBadgeActive)}>{documentTypeLabel}</Badge>
           </div>
           <div>
             <p className="text-muted-foreground">{t("Doc Owner:")}</p>
@@ -289,7 +290,7 @@ export default function ApprovalDocumentStep({
           <p className="mt-1 text-sm text-muted-foreground">{t("Making it official for use!")}</p>
         </div>
 
-        <div className="rounded-lg bg-[#F0FDF4] border-l-4 border-l-[#16A34A] pl-4 pr-4 py-4 text-sm">
+        <div className={docCalloutSuccess}>
           <ol className="list-decimal space-y-4 pl-5 text-foreground">
             <li>
               <span className="font-semibold">{t("Standards & Procedures Conformance")}</span>
@@ -324,7 +325,7 @@ export default function ApprovalDocumentStep({
           </ol>
         </div>
 
-        <div className="rounded-lg bg-[#F0F7FF] border-l-4 border-l-[#3B82F6] pl-4 pr-4 py-4 flex gap-3 items-start text-sm">
+        <div className={cn(docCalloutInfo, "flex gap-3 items-start")}>
           <Checkbox
             id="approval-ack"
             checked={approvalAcknowledged}
@@ -368,20 +369,22 @@ export default function ApprovalDocumentStep({
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
                 (!canPerformApproval || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "effective"
-                  ? "border-[#16A34A] bg-[#F0FDF4]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  ? "border-primary bg-primary/10 dark:bg-primary/15"
+                  : "border-border bg-card hover:bg-muted/50"
               )}
             >
               <span
                 className={cn(
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "effective"
-                    ? "border-[#16A34A] bg-[#16A34A]"
-                    : "border-[#D1D5DB] bg-white"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background"
                 )}
                 aria-hidden
               >
-                {verificationOutcome === "effective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
+                {verificationOutcome === "effective" ? (
+                  <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
+                ) : null}
               </span>
               <div className="min-w-0 space-y-1">
                 <p className="font-semibold text-foreground">{t("Effective - Close Document")}</p>
@@ -396,20 +399,22 @@ export default function ApprovalDocumentStep({
                 "flex gap-3 rounded-lg border-2 p-4 text-left transition-colors",
                 (!canPerformApproval || readOnlyObserver) && "cursor-not-allowed opacity-50",
                 verificationOutcome === "ineffective"
-                  ? "border-[#DC2626] bg-[#FEF2F2]"
-                  : "border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]"
+                  ? "border-destructive bg-destructive/10 dark:bg-destructive/15"
+                  : "border-border bg-card hover:bg-muted/50"
               )}
             >
               <span
                 className={cn(
                   "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2",
                   verificationOutcome === "ineffective"
-                    ? "border-[#DC2626] bg-[#DC2626]"
-                    : "border-[#D1D5DB] bg-white"
+                    ? "border-destructive bg-destructive text-destructive-foreground"
+                    : "border-border bg-background"
                 )}
                 aria-hidden
               >
-                {verificationOutcome === "ineffective" ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
+                {verificationOutcome === "ineffective" ? (
+                  <Check className="h-3 w-3 text-destructive-foreground" strokeWidth={3} />
+                ) : null}
               </span>
               <div className="min-w-0 space-y-1">
                 <p className="font-semibold text-foreground">{t("Ineffective - Re-open Document")}</p>
@@ -440,7 +445,7 @@ export default function ApprovalDocumentStep({
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-4 space-y-4">
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-8">
             <span className="shrink-0 text-sm font-bold text-foreground">
               {t("Reviewer Name & Identification#:")}

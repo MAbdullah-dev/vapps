@@ -25,7 +25,8 @@ async function ensureOrganizationInfoProfileColumns(client: PoolClient) {
 
 /**
  * GET /api/organization/[orgId]/organization-info
- * Get organization info from tenant database
+ * Read organization profile from tenant DB. Any org member may read (documents, sidebar).
+ * Updates remain restricted via PUT + requireOrgSettingsAccess.
  */
 export async function GET(
   req: NextRequest,
@@ -34,14 +35,10 @@ export async function GET(
   try {
     const { orgId } = await params;
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const settingsDenied = await requireOrgSettingsAccess(ctx);
-    if (settingsDenied) return settingsDenied;
 
     // Use tenant pool instead of new Client()
     const client = await getTenantClient(orgId);

@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  docAckBox,
+  docAckBoxBody,
+  docAckBoxTitle,
+  docBadgeActive,
+  docSectionNumber,
+} from "@/lib/document-ui-classes";
 import { toast } from "sonner";
 import {
   generateDocumentaryEvidencePdf,
@@ -75,13 +82,23 @@ export default function VerifyArchiveEvidenceStep({
     setRetentionPeriod(initialRetentionPeriod);
   }, [readOnly, initialVerificationComments, initialArchiveLocation, initialRetentionPeriod]);
 
+  const resolvedArchiveLocation = useMemo(
+    () => archiveLocation.trim() || "Cloud",
+    [archiveLocation]
+  );
+  const resolvedRetentionPeriod = useMemo(
+    () => retentionPeriod.trim() || "3 Years",
+    [retentionPeriod]
+  );
   const previewArchiveLocation = useMemo(
-    () => (archiveLocation.trim() ? archiveLocation.trim() : t("Cloud")),
-    [archiveLocation, t]
+    () =>
+      resolvedArchiveLocation === "Cloud" ? t("Cloud") : resolvedArchiveLocation,
+    [resolvedArchiveLocation, t]
   );
   const previewRetention = useMemo(
-    () => (retentionPeriod.trim() ? retentionPeriod.trim() : t("3 Years")),
-    [retentionPeriod, t]
+    () =>
+      resolvedRetentionPeriod === "3 Years" ? t("3 Years") : resolvedRetentionPeriod,
+    [resolvedRetentionPeriod, t]
   );
 
   const recordIdDisplay = useMemo(
@@ -109,10 +126,10 @@ export default function VerifyArchiveEvidenceStep({
     [now]
   );
   const retentionExpiryLabel = useMemo(() => {
-    const yrs = parseInt(retentionPeriod, 10);
+    const yrs = parseInt(resolvedRetentionPeriod, 10);
     const base = now.getFullYear();
     return String(Number.isFinite(yrs) && yrs > 0 ? base + yrs : base + 3);
-  }, [retentionPeriod, now]);
+  }, [resolvedRetentionPeriod, now]);
 
   const handlePreviewPdf = useCallback(() => {
     const stamp = (() => {
@@ -184,8 +201,8 @@ export default function VerifyArchiveEvidenceStep({
           evidenceRecordId,
           verifyArchivePayload: {
             verificationComments: verificationComments.trim(),
-            archiveLocation: archiveLocation.trim(),
-            retentionPeriod: retentionPeriod.trim(),
+            archiveLocation: resolvedArchiveLocation,
+            retentionPeriod: resolvedRetentionPeriod,
             capturedDataReview: capturedData.trim(),
           },
         }),
@@ -225,7 +242,7 @@ export default function VerifyArchiveEvidenceStep({
                     )}
               </p>
             </div>
-            <Badge className="bg-[#DCFCE7] text-[#16A34A] border border-[#BBF7D0] hover:bg-[#DCFCE7] shrink-0">
+            <Badge className={cn(docBadgeActive, "shrink-0")}>
               {readOnly ? t("Active") : t("Verify")}
             </Badge>
           </div>
@@ -236,7 +253,7 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">1.</span> {t("Record summary")}
+              <span className={docSectionNumber}>1.</span> {t("Record summary")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Template reference and context captured in the previous step")}
@@ -283,7 +300,7 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">2.</span> {t("Captured data")}
+              <span className={docSectionNumber}>2.</span> {t("Captured Data")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {readOnly
@@ -312,7 +329,7 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">3.</span> {t("Verification")}
+              <span className={docSectionNumber}>3.</span> {t("Verification")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Designated verifier was selected during capture (Top or Operational leadership).")}
@@ -353,9 +370,9 @@ export default function VerifyArchiveEvidenceStep({
             />
           </div>
 
-          <div className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3">
-            <p className="text-sm font-semibold text-[#15803D]">{t("Acknowledgement")}</p>
-            <ul className="mt-2 space-y-1.5 text-sm text-[#166534] list-disc pl-5">
+          <div className={docAckBox}>
+            <p className={docAckBoxTitle}>{t("Acknowledgement")}</p>
+            <ul className={docAckBoxBody}>
               <li>{t("Verify section completeness and SOP compliance")}</li>
               <li>{t("Confirm no unauthorized alterations")}</li>
               <li>{t("Archive below completes retention and PDF generation")}</li>
@@ -368,7 +385,7 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">4.</span> {t("Archive configuration")}
+              <span className={docSectionNumber}>4.</span> {t("Archive configuration")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Storage location and retention (minimum 3 years per policy)")}
@@ -379,18 +396,20 @@ export default function VerifyArchiveEvidenceStep({
             <div>
               <Label className="text-sm font-medium">{t("Archive location")}</Label>
               <Input
-                value={archiveLocation}
+                value={readOnly ? previewArchiveLocation : archiveLocation}
                 onChange={(e) => setArchiveLocation(e.target.value)}
                 readOnly={readOnly}
+                placeholder={readOnly ? undefined : t("Cloud")}
                 className="mt-1 h-10 border-border bg-background text-foreground"
               />
             </div>
             <div>
               <Label className="text-sm font-medium">{t("Retention period")}</Label>
               <Input
-                value={retentionPeriod}
+                value={readOnly ? previewRetention : retentionPeriod}
                 onChange={(e) => setRetentionPeriod(e.target.value)}
                 readOnly={readOnly}
+                placeholder={readOnly ? undefined : t("3 Years")}
                 className="mt-1 h-10 border-border bg-background text-foreground"
               />
             </div>
@@ -416,15 +435,15 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className="text-[#22B323]">5.</span> {t("PDF evidence")}
+              <span className={docSectionNumber}>5.</span> {t("PDF evidence")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Preview what will be included in the generated documentary evidence PDF")}
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#166534]">
+          <div className={cn(docAckBox, "p-4")}>
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
               <FileText className="h-4 w-4 shrink-0" />
               {t("PDF documentary evidence — preview")}
             </div>
@@ -442,7 +461,7 @@ export default function VerifyArchiveEvidenceStep({
             type="button"
             variant="outline"
             onClick={handlePreviewPdf}
-            className="w-full sm:w-auto gap-2 border-[#22B323] text-[#15803D] hover:bg-[#F0FDF4] hover:text-[#166534]"
+            className="w-full sm:w-auto gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
           >
             <Download className="h-4 w-4" />
             {t("Preview PDF")}
@@ -460,7 +479,7 @@ export default function VerifyArchiveEvidenceStep({
             type="button"
             disabled={!canComplete || isSaving}
             onClick={() => void saveVerifyArchiveToTenant()}
-            className="gap-2 bg-[#22B323] hover:bg-[#1a9825] text-white"
+            className="gap-2"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
             {isSaving ? t("Saving…") : t("Confirm verify & archive")}
@@ -482,7 +501,7 @@ function PdfRow({
 }) {
   return (
     <div className={cn("flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4", className)}>
-      <span className="font-medium text-[#15803D] shrink-0">{label}</span>
+      <span className="font-medium text-primary shrink-0">{label}</span>
       <span className="break-all text-right text-foreground">{value}</span>
     </div>
   );
