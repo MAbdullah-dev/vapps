@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import { prisma } from "@/lib/prisma";
-import { fetchOrgWideActivityFeed } from "@/lib/fetch-org-wide-activity-feed";
+import { fetchUserNotificationFeed } from "@/lib/fetch-user-notification-feed";
 
 /**
  * GET /api/organization/[orgId]/notifications
@@ -12,11 +12,12 @@ import { fetchOrgWideActivityFeed } from "@/lib/fetch-org-wide-activity-feed";
  * 1. AUTH
  *    - User must be logged in and a member of the organization (orgId).
  *
- * 2. ORG-WIDE ACTIVITY (same sources as dashboard "Recent Activity")
- *    - Process activity from activity_log (all processes in the org).
- *    - Audit plan status rows (all plans).
- *    - Document module workflow events from document_module_history (all records).
- *    - Merged, sorted by date (newest first), limited by `limit` (default 30, max 50).
+ * 2. USER-SCOPED ACTIVITY (same sources as dashboard, filtered by stakeholder)
+ *    - Issues: assignee, issuer, verifier (not all process members).
+ *    - Documents: creator, process owner (reviewer), approver per workflow action.
+ *    - Audits: lead auditor, assigned auditors, auditee per status transition.
+ *    - Sprints / other process events: users assigned to that process.
+ *    - The actor who performed an action is not notified for their own event.
  *
  * 3. DISMISSALS
  *    - UserNotificationDismissal (main DB) stores which activity IDs the user
@@ -41,7 +42,7 @@ export async function GET(
     const client = await getTenantClient(resolvedOrgId);
 
     try {
-      const activities = await fetchOrgWideActivityFeed(client, limit);
+      const activities = await fetchUserNotificationFeed(client, ctx.user.id, limit);
       const activityIds = activities.map((a) => a.id);
 
       const dismissals = await prisma.userNotificationDismissal.findMany({

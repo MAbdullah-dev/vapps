@@ -1228,7 +1228,7 @@ class ApiClient {
   }
 
   /**
-   * Get recent notifications (activity) for the current user across all accessible processes in the org.
+   * Get recent notifications for the current user (stakeholder-filtered: issues, documents, audits, process).
    * Returns activities and the list of activity IDs the user has dismissed (backend-persisted).
    */
   getNotifications(orgId: string, limit?: number) {
