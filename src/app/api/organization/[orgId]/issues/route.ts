@@ -10,6 +10,7 @@ import {
   getIssueVerificationsJoin,
   mapIssueRowWithVerification,
 } from "@/lib/tenant-issues-schema";
+import { logActivity } from "@/lib/activity-logger";
 
 const ISSUE_SCHEMA_ENSURE_TTL_MS = 10 * 60 * 1000;
 const issuesSchemaEnsuredAt = new Map<string, number>();
@@ -380,9 +381,25 @@ export async function POST(
       );
 
       const created = await client.query(`SELECT * FROM issues WHERE id = $1`, [issueId]);
+      const createdIssue = created.rows[0];
       client.release();
+
+      if (ctx.user?.id && resolvedProcessId) {
+        logActivity(resolvedOrgId, resolvedProcessId, ctx.user.id, {
+          action: "issue.created",
+          entityType: "issue",
+          entityId: createdIssue.id,
+          entityTitle: createdIssue.title,
+          details: {
+            priority: createdIssue.priority,
+            status: createdIssue.status,
+            sprintId: createdIssue.sprintId,
+          },
+        }).catch((err) => console.error("[Org Issue Create] Failed to log activity:", err));
+      }
+
       return NextResponse.json(
-        { message: "Issue created successfully", issue: created.rows[0] },
+        { message: "Issue created successfully", issue: createdIssue },
         { status: 201 }
       );
     } catch (dbError: any) {

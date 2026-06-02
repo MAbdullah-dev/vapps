@@ -39,11 +39,72 @@ function auditStatusLabel(status: string | null): string {
  * audit plan snapshots, document module workflow history, merged by date.
  * Used by dashboard "Recent Activity" and the topbar notifications feed (before per-user dismissals).
  */
+/**
+ * Issues created/updated via org-level APIs are not always in activity_log
+ * (no logging hook, or no processId for standalone issues). Synthesize feed rows
+ * for issues that have no activity_log entry yet.
+ */
+async function fetchIssueActivitiesFromTable(
+  client: PoolClient,
+  perSource: number,
+  loggedIssueIds: Set<string>
+): Promise<OrgActivityFeedItem[]> {
+  try {
+    const result = await client.query(
+      `SELECT i.id::text AS id,
+              i.title,
+              i.issuer,
+              i.status,
+              i."processId",
+              i."createdAt",
+              i."updatedAt",
+              p.name AS "processName"
+       FROM issues i
+       LEFT JOIN processes p ON p.id = i."processId"
+       ORDER BY i."updatedAt" DESC
+       LIMIT $1`,
+      [Math.min(25, perSource)]
+    );
+    const out: OrgActivityFeedItem[] = [];
+    for (const row of result.rows) {
+      const issueId = String(row.id);
+      if (loggedIssueIds.has(issueId)) continue;
+
+      const createdMs = new Date(row.createdAt as string).getTime();
+      const updatedMs = new Date(row.updatedAt as string).getTime();
+      const isCreate = Math.abs(updatedMs - createdMs) < 2000;
+      const action = isCreate ? "issue.created" : "issue.updated";
+      const details: Record<string, unknown> = {};
+      if (!isCreate) {
+        details.newStatus = row.status;
+      }
+
+      out.push({
+        id: `issue-${issueId}-${isCreate ? "created" : "updated"}`,
+        processId: row.processId != null ? String(row.processId) : null,
+        userId: row.issuer != null ? String(row.issuer) : null,
+        userName: "Someone",
+        userEmail: null,
+        action,
+        entityType: "issue",
+        entityId: issueId,
+        entityTitle: String(row.title ?? "Issue"),
+        details,
+        createdAt: (isCreate ? row.createdAt : row.updatedAt) as string,
+        processName: row.processName != null ? String(row.processName) : null,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchOrgWideActivityFeed(
   client: PoolClient,
   limit: number
 ): Promise<OrgActivityFeedItem[]> {
-  const cap = Math.min(Math.max(limit, 1), 50);
+  const cap = Math.min(Math.max(limit, 1), 100);
   const perSource = Math.min(cap * 2, 80);
 
   const activityResult = await client.query(
@@ -170,8 +231,22 @@ export async function fetchOrgWideActivityFeed(
     // ignore
   }
 
-  const merged = [...processActivities, ...auditActivities, ...documentActivities].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  const loggedIssueIds = new Set(
+    processActivities
+      .filter((a) => a.entityType === "issue" && a.entityId)
+      .map((a) => a.entityId as string)
   );
+  const issueActivities = await fetchIssueActivitiesFromTable(
+    client,
+    perSource,
+    loggedIssueIds
+  );
+
+  const merged = [
+    ...processActivities,
+    ...auditActivities,
+    ...documentActivities,
+    ...issueActivities,
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return merged.slice(0, cap);
 }

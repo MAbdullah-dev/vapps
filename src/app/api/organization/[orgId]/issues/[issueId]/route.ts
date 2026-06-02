@@ -11,6 +11,7 @@ import {
 } from "@/lib/issue-comment-permissions";
 import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
 import { cache, cacheKeys } from "@/lib/cache";
+import { logActivity } from "@/lib/activity-logger";
 
 /**
  * GET /api/organization/[orgId]/issues/[issueId]
@@ -68,7 +69,7 @@ export async function PUT(
     try {
       await ensureIssueCommentsColumn(client);
       const existing = await client.query(
-        `SELECT id, assignee, issuer, status FROM issues WHERE id = $1`,
+        `SELECT id, assignee, issuer, status, "processId" FROM issues WHERE id = $1`,
         [issueId]
       );
       if (!existing.rows.length) {
@@ -237,6 +238,36 @@ export async function PUT(
       }
       cache.clearPattern(`org:${tenantOrgId}:processes:*`);
       client.release();
+
+      const processIdForLog =
+        updatedRow.processId != null ? String(updatedRow.processId) : "";
+      if (ctx.user?.id && processIdForLog) {
+        const activityDetails: Record<string, unknown> = {};
+        if (body.status !== undefined) {
+          activityDetails.newStatus = body.status;
+          activityDetails.previousStatus = row.status ?? "unknown";
+        }
+        if (body.assignee !== undefined) {
+          activityDetails.assignee = body.assignee;
+        }
+
+        const action =
+          body.status !== undefined && body.status !== row.status
+            ? "issue.status_changed"
+            : body.assignee !== undefined
+              ? "issue.assigned"
+              : "issue.updated";
+
+        logActivity(tenantOrgId, processIdForLog, ctx.user.id, {
+          action,
+          entityType: "issue",
+          entityId: issueId,
+          entityTitle:
+            typeof updatedRow.title === "string" ? updatedRow.title : String(updatedRow.title ?? ""),
+          details: activityDetails,
+        }).catch((err) => console.error("[Org Issue Update] Failed to log activity:", err));
+      }
+
       return NextResponse.json({ message: "Issue updated successfully", issue: updatedRow });
     } catch (error: any) {
       client.release();
