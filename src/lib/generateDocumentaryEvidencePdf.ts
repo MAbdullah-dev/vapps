@@ -92,6 +92,8 @@ function isEditorWatermarkNoise(s: string): boolean {
   return (
     t.includes("powered by froala") ||
     t.includes("powered by tiptap") ||
+    t.includes("powered by hugerte") ||
+    t.includes("powered by tinymce") ||
     t.includes("trial license") ||
     t.includes("purchase a license") ||
     t.includes("pricing page") ||

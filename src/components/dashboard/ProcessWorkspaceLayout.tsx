@@ -883,20 +883,28 @@ export default function ProcessLayout({
               <Plus size={16} /> {t("New Issue")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-6xl! max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingIssue ? (isViewOnly ? t("View Issue") : t("Edit Issue")) : t("Create Issue")}</DialogTitle>
-              <DialogDescription>
-                {isViewOnly
-                  ? t("You are viewing this issue. Only the assignee or issue creator can edit it.")
-                  : editingIssue
-                  ? t("Update the issue details.")
-                  : t("Fill the details to create a new issue.")}
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent
+            richTextEditor
+            className="flex max-h-[90vh] max-w-6xl! flex-col gap-0 overflow-hidden p-0"
+          >
+            <div className="shrink-0 px-6 pt-6">
+              <DialogHeader>
+                <DialogTitle>{editingIssue ? (isViewOnly ? t("View Issue") : t("Edit Issue")) : t("Create Issue")}</DialogTitle>
+                <DialogDescription>
+                  {isViewOnly
+                    ? t("You are viewing this issue. Only the assignee or issue creator can edit it.")
+                    : editingIssue
+                    ? t("Update the issue details.")
+                    : t("Fill the details to create a new issue.")}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
 
-            {/* FORM */}
-            <form onSubmit={handleCreateIssue} className="space-y-4">
+            {/* FORM — scroll inside dialog so HugeRTE floating UI stays on body */}
+            <form
+              onSubmit={handleCreateIssue}
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6"
+            >
 
               {/* Title */}
               <div className="space-y-1">
@@ -1467,14 +1475,17 @@ export default function ProcessLayout({
 
               <div>
                 <Label className="mb-2">{t("Description")}</Label>
-                <RichTextEditor
-                  value={editorContent}
-                  onChange={setEditorContent}
-                  readOnly={isViewOnly}
-                  placeholder={t("Enter issue description...")}
-                  minHeight={200}
-                  showToolbar={!isViewOnly}
-                />
+                {isCreateDialogOpen && (
+                  <RichTextEditor
+                    instanceKey={`issue-${editingIssue?.id ?? "new"}-${isViewOnly ? "ro" : "rw"}`}
+                    value={editorContent}
+                    onChange={setEditorContent}
+                    readOnly={isViewOnly}
+                    placeholder={t("Enter issue description...")}
+                    minHeight={200}
+                    showToolbar={!isViewOnly}
+                  />
+                )}
               </div>
 
               {editingIssue && (

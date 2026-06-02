@@ -46,14 +46,58 @@ function DialogOverlay({
   )
 }
 
+/** HugeRTE uses `.tox-hugerte-aux` (not TinyMCE's `.tox-tinymce-aux`) for body-mounted menus. */
+const HUGERTE_FLOATING_SELECTOR =
+  ".tox-hugerte-aux, .tox-tinymce-aux, .tox-dialog-wrap, .tox-dialog, .tox-menu, .tox-collection, .tox-pop, .tox-toolbar__overflow, .tox-swatches, .tox-insert-table-picker";
+
+/** HugeRTE menus/dialogs mount on document.body; keep Radix from treating them as "outside" clicks. */
+function isHugeRTEOverlayTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(HUGERTE_FLOATING_SELECTOR);
+}
+
+/** Radix modal sets body pointer-events:none and aria-hidden on siblings — unblock HugeRTE layers. */
+function useHugeRTEFloatingLayers(enabled: boolean) {
+  React.useEffect(() => {
+    if (!enabled) return;
+
+    const unlock = () => {
+      document.querySelectorAll(HUGERTE_FLOATING_SELECTOR).forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        node.removeAttribute("inert");
+        node.removeAttribute("aria-hidden");
+        node.style.pointerEvents = "auto";
+      });
+    };
+
+    unlock();
+    const observer = new MutationObserver(unlock);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["inert", "aria-hidden"],
+    });
+    return () => observer.disconnect();
+  }, [enabled]);
+}
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  richTextEditor = false,
+  onPointerDownOutside,
+  onInteractOutside,
+  onFocusOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Set when this dialog contains HugeRTE (menus render on body outside the dialog node). */
+  richTextEditor?: boolean
 }) {
+  useHugeRTEFloatingLayers(richTextEditor);
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -63,6 +107,24 @@ function DialogContent({
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
           className
         )}
+        onPointerDownOutside={(event) => {
+          if (isHugeRTEOverlayTarget(event.target)) {
+            event.preventDefault();
+          }
+          onPointerDownOutside?.(event);
+        }}
+        onInteractOutside={(event) => {
+          if (isHugeRTEOverlayTarget(event.target)) {
+            event.preventDefault();
+          }
+          onInteractOutside?.(event);
+        }}
+        onFocusOutside={(event) => {
+          if (isHugeRTEOverlayTarget(event.target)) {
+            event.preventDefault();
+          }
+          onFocusOutside?.(event);
+        }}
         {...props}
       >
         {children}

@@ -306,24 +306,76 @@ html.dark [data-brand-logo="dark-mode"] {
    Map legacy green/emerald/lime utility classes to theme tokens so the app
    follows one brand palette in both light and dark mode. */
 
-.rich-text-editor-root .tiptap {
-  color: var(--foreground);
+/* HugeRTE editor: align chrome with app theme */
+.rich-text-editor-root .tox-hugerte,
+.rich-text-editor-root .tox-tinymce {
+  border: none !important;
+  border-radius: 0;
 }
 
-.rich-text-editor-root .tiptap :where(p, li, blockquote) {
-  color: inherit;
+.rich-text-editor-root .tox .tox-editor-header {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
 }
 
-.rich-text-editor-root .tiptap :where(h1, h2, h3, h4, h5, h6) {
-  color: var(--foreground);
+.rich-text-editor-root .tox .tox-edit-area__iframe {
+  background: var(--background);
 }
 
-.rich-text-editor-root .tiptap p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  color: var(--muted-foreground);
-  float: left;
-  height: 0;
-  pointer-events: none;
+/* Dropdowns, table picker, and dialogs render on body — above Radix z-50 modals.
+   pointer-events: auto is required: Radix modal sets body { pointer-events: none }.
+   `.tox-hugerte-aux` must be included so Radix `inert` is cleared on the menu root. */
+.tox-hugerte-aux,
+.tox-tinymce-aux,
+.tox-dialog-wrap,
+.tox-dialog,
+.tox-menu,
+.tox-collection,
+.tox-pop,
+.tox-toolbar__overflow,
+.tox-dialog-wrap__backdrop,
+.tox-dialog,
+.tox-swatches {
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+}
+
+/* Body-mounted HugeRTE UI: keep oxide selection/hover colors visible inside dark app shell */
+.tox-hugerte-aux,
+.tox-tinymce-aux {
+  color-scheme: light;
+}
+
+.tox-hugerte-aux .tox-insert-table-picker .tox-insert-table-picker__selected,
+.tox-tinymce-aux .tox-insert-table-picker .tox-insert-table-picker__selected {
+  background-color: #006ce7 !important;
+  border-color: #006ce7 !important;
+}
+
+.tox-hugerte-aux .tox-collection--list .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-tinymce-aux .tox-collection--list .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-dialog .tox-collection--list .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-dialog .tox-collection--list .tox-collection__item:not(.tox-collection__item--state-disabled):hover {
+  background-color: #006ce7 !important;
+  color: #fff !important;
+}
+
+.tox-hugerte-aux .tox-collection--grid .tox-collection__item--enabled,
+.tox-hugerte-aux .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-tinymce-aux .tox-collection--grid .tox-collection__item--enabled,
+.tox-tinymce-aux .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-dialog .tox-collection--grid .tox-collection__item--enabled,
+.tox-dialog .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled),
+.tox-dialog .tox-collection--grid .tox-collection__item:not(.tox-collection__item--state-disabled):hover {
+  background-color: #a6ccf7 !important;
+  color: #222f3e !important;
+}
+
+.tox-hugerte-aux .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled):focus::after,
+.tox-tinymce-aux .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled):focus::after,
+.tox-dialog .tox-collection--grid .tox-collection__item--active:not(.tox-collection__item--state-disabled):focus::after,
+.tox-dialog .tox-collection--grid .tox-collection__item:not(.tox-collection__item--state-disabled):hover::after {
+  box-shadow: 0 0 0 2px #006ce7 inset !important;
 }
 
 @import "../styles/Auth.css";
