@@ -177,7 +177,7 @@ export default function Step1Form() {
 
   return (
     <div className="bg-background text-foreground">
-      <h1 className="text-2xl font-bold mb-2">Company Information</h1>
+      <h1 className="text-2xl font-bold mb-2 text-foreground">Company Information</h1>
       <p className="text-muted-foreground mb-8">Configure your company information settings</p>
 
       <Form {...form}>
@@ -354,7 +354,7 @@ export default function Step1Form() {
             </div>
 
             <div className="md:col-span-2 space-y-3 border-t pt-8">
-              <h2 className="text-lg font-semibold">Site details</h2>
+              <h2 className="text-lg font-semibold text-foreground">Site details</h2>
               <p className="text-xs text-muted-foreground">
                 Enter your first site, then add custom processes under it. You can manage more sites later in Settings.
               </p>
@@ -380,7 +380,7 @@ export default function Step1Form() {
 
             <div className="md:col-span-2 space-y-4 pt4">
               <div>
-                <h2 className="text-lg font-semibold">Processes under this site</h2>
+                <h2 className="text-lg font-semibold text-foreground">Processes under this site</h2>
                 <p className="text-xs text-muted-foreground mt-1">
                   Add a process and it will appear as a capsule below. Use Edit to update it, or click the
                   cross icon to remove it.

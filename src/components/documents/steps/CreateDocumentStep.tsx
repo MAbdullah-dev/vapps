@@ -42,6 +42,11 @@ import { cn, documentActorMatches } from "@/lib/utils";
 import { docAlertInfo, docSelectionActive, docSelectionIdle } from "@/lib/document-ui-classes";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { useTranslate } from "@/components/providers/translation-provider";
+import {
+  bumpVersionInRef,
+  DRAFT_DOC_NUMBER,
+  parseDocNumberSegment,
+} from "@/lib/documentRef";
 
 function managementStandardLabel(value: string, t: (text: string) => string): string {
   switch (value) {
@@ -81,26 +86,6 @@ function extractProcessCode(raw: string): string {
   const match = raw.match(/\b(P\d+)\b/i);
   if (match?.[1]) return match[1].toUpperCase();
   return raw.trim() ? raw.trim().slice(0, 4).toUpperCase() : "P1";
-}
-
-/** First path segment like D1, D12 (not P/F). */
-function parseDocNumberSegment(documentRef: string): string | null {
-  const parts = documentRef.split("/").filter(Boolean);
-  for (const seg of parts) {
-    const m = /^D(\d+)$/i.exec(String(seg).trim());
-    if (m) return `D${m[1]}`;
-  }
-  return null;
-}
-
-function maxDocNumberAcrossRef(ref: string): number {
-  const parts = ref.split("/").filter(Boolean);
-  let max = 0;
-  for (const seg of parts) {
-    const m = /^D(\d+)$/i.exec(String(seg).trim());
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  return max;
 }
 
 type ProcessOwnerMemberOption = {
@@ -167,6 +152,8 @@ type CreateDocumentStepProps = {
   initialPreviewDocRef?: string;
   /** Present when editing an existing record — skips allocating a new D#. */
   recordId?: string;
+  /** When false, user already has another draft — publish is allowed but save-as-draft is not. */
+  canSaveDraft?: boolean;
   onSubmitProceed: (payload: DocumentSavePayload) => void | Promise<void>;
   onSaveDraft: (payload: DocumentSavePayload) => void | Promise<void>;
 };
@@ -223,11 +210,12 @@ export default function CreateDocumentStep({
   initialWizard,
   initialPreviewDocRef,
   recordId,
+  canSaveDraft = true,
   onSubmitProceed,
   onSaveDraft,
 }: CreateDocumentStepProps) {
   const { t } = useTranslate();
-  const [pathDocNumber, setPathDocNumber] = useState("D1");
+  const [pathDocNumber, setPathDocNumber] = useState(DRAFT_DOC_NUMBER);
   const [previousRefNumber, setPreviousRefNumber] = useState("");
   const [priorityLevel, setPriorityLevel] = useState<"high" | "low">("high");
   const [documentClassification, setDocumentClassification] = useState<"P" | "F" | "EXT">("P");
@@ -580,39 +568,9 @@ export default function CreateDocumentStep({
     if (parsed) setPathDocNumber(parsed);
   }, [initialPreviewDocRef]);
 
-  useEffect(() => {
-    if (!orgId || recordId) return;
-    let ignore = false;
-    async function allocateNext() {
-      try {
-        const [activeRes, obsoleteRes] = await Promise.all([
-          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, { credentials: "include" }),
-          fetch(`/api/organization/${orgId}/documents?lifecycle=obsolete`, { credentials: "include" }),
-        ]);
-        const activeJson = activeRes.ok ? await activeRes.json() : { records: [] };
-        const obsoleteJson = obsoleteRes.ok ? await obsoleteRes.json() : { records: [] };
-        const rows = [
-          ...(Array.isArray(activeJson?.records) ? activeJson.records : []),
-          ...(Array.isArray(obsoleteJson?.records) ? obsoleteJson.records : []),
-        ] as Array<{ preview_doc_ref?: string }>;
-        let max = 0;
-        for (const row of rows) {
-          max = Math.max(max, maxDocNumberAcrossRef(String(row.preview_doc_ref ?? "")));
-        }
-        if (!ignore) setPathDocNumber(`D${max + 1}`);
-      } catch {
-        if (!ignore) setPathDocNumber("D1");
-      }
-    }
-    void allocateNext();
-    return () => {
-      ignore = true;
-    };
-  }, [orgId, recordId]);
-
   const previewDocRef = useMemo(() => {
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
-      return `${searchCurrentDocumentRef.trim()} → v2`;
+      return bumpVersionInRef(searchCurrentDocumentRef.trim());
     }
     if (isReviseTransfer) {
       const y = new Date().getFullYear();
@@ -887,7 +845,7 @@ export default function CreateDocumentStep({
 
             <div className="space-y-3">
               <h5 className="text-lg font-semibold text-foreground">{t("Process Area")}</h5>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-process">
                     {t("Process / Area *")}{" "}
@@ -939,6 +897,14 @@ export default function CreateDocumentStep({
                     placeholder={t("Auto-filled")}
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border" />
+
+            <div className="space-y-3">
+              <h5 className="text-lg font-semibold text-foreground">{t("Process Owner & Approver")}</h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="process-owner">{t("Process Owner / Responsible Person *")}</Label>
                   <Select
@@ -977,46 +943,46 @@ export default function CreateDocumentStep({
                     {t("Top/middle tier only. The person creating this document cannot be Process Owner.")}
                   </p>
                 </div>
-              </div>
-              <div className="space-y-2 max-w-xl">
-                <Label htmlFor="doc-approver">{t("Approver *")}</Label>
-                <Select
-                  value={approverName || undefined}
-                  onValueChange={handleApproverChange}
-                  disabled={isViewMode || isLoadingProcessOwners}
-                >
-                  <SelectTrigger id="doc-approver" className="w-full">
-                    <SelectValue
-                      placeholder={
-                        isLoadingProcessOwners ? t("Loading users...") : t("Select approver (top tier)")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {approverName.trim() &&
-                    !approverOptions.some((m) => m.name === approverName) ? (
-                      <SelectItem key="__current-approver" value={approverName}>
-                        {approverName}
-                      </SelectItem>
-                    ) : null}
-                    {approverOptions.length > 0 ? (
-                      approverOptions.map((member) => (
-                        <SelectItem key={member.id} value={member.name}>
-                          {member.name}
+                <div className="space-y-2">
+                  <Label htmlFor="doc-approver">{t("Approver *")}</Label>
+                  <Select
+                    value={approverName || undefined}
+                    onValueChange={handleApproverChange}
+                    disabled={isViewMode || isLoadingProcessOwners}
+                  >
+                    <SelectTrigger id="doc-approver" className="w-full">
+                      <SelectValue
+                        placeholder={
+                          isLoadingProcessOwners ? t("Loading users...") : t("Select approver (top tier)")
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approverName.trim() &&
+                      !approverOptions.some((m) => m.name === approverName) ? (
+                        <SelectItem key="__current-approver" value={approverName}>
+                          {approverName}
                         </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        {t("No eligible top-tier approvers available")}
-                      </div>
+                      ) : null}
+                      {approverOptions.length > 0 ? (
+                        approverOptions.map((member) => (
+                          <SelectItem key={member.id} value={member.name}>
+                            {member.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          {t("No eligible top-tier approvers available")}
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
                     )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t(
-                    "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
-                  )}
-                </p>
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -2034,7 +2000,7 @@ export default function CreateDocumentStep({
       </Card>
 
       {/* Thirteenth card under Step 1: Document Dates */}
-      <Card className="py-4">
+      {/* <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("13. Document Dates")}</h4>
@@ -2126,13 +2092,13 @@ export default function CreateDocumentStep({
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Fourteenth card under Step 1: Output Preview */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("14. Document Output Preview")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("13. Document Output Preview")}</h4>
             <p className="text-sm text-muted-foreground">{t("Preview how the final document will appear")}</p>
           </div>
 
@@ -2186,7 +2152,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("15. Submit Actions")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("14. Submit Actions")}</h4>
             <p className="text-sm text-muted-foreground">
               {t(
                 "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."
@@ -2200,7 +2166,7 @@ export default function CreateDocumentStep({
               type="button"
               className="gap-2"
               onClick={handleSaveDraftClick}
-              disabled={isViewMode || isSaving || isLoadingContext}
+              disabled={isViewMode || isSaving || isLoadingContext || !canSaveDraft}
             >
               <Save size={14} />
               {t("Save as Draft")}
@@ -2225,6 +2191,13 @@ export default function CreateDocumentStep({
           {!canProceed ? (
             <p className="text-xs text-muted-foreground">
               {t("Select a site and process to proceed to review.")}
+            </p>
+          ) : null}
+          {!canSaveDraft ? (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "You already have a document draft. You can submit this document for review, but only one draft is allowed at a time."
+              )}
             </p>
           ) : null}
         </CardContent>

@@ -843,6 +843,31 @@ export default function DocumentsContent() {
   };
   const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
+  const [myDraftId, setMyDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadMyDraft() {
+      if (!orgId) {
+        setMyDraftId(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documents?myDraft=1`, {
+          credentials: "include",
+        });
+        if (!res.ok || ignore) return;
+        const json = (await res.json()) as { draft?: { id?: string } | null };
+        setMyDraftId(String(json?.draft?.id ?? "").trim() || null);
+      } catch {
+        if (!ignore) setMyDraftId(null);
+      }
+    }
+    void loadMyDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   useEffect(() => {
     let ignore = false;
@@ -1569,6 +1594,20 @@ export default function DocumentsContent() {
                   {t("Documentary Evidence Records")}
                 </Link>
               </Button>
+              {myDraftId ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Link
+                    href={`${createDocumentBaseHref}?recordId=${encodeURIComponent(myDraftId)}&mode=edit`}
+                  >
+                    <FileText size={16} />
+                    {t("Continue Draft")}
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="default" className="flex items-center gap-2">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
@@ -2249,12 +2288,12 @@ export default function DocumentsContent() {
           </div>
 
           {/* Action strip (purely visual until backend exists) */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+          {/* <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
             <Button variant="outline" className="flex items-center gap-2">
               <Upload size={16} />
               {t("Upload")}
             </Button>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
 

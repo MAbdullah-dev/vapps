@@ -214,6 +214,7 @@ export default function DocumentsCreateContent() {
   /** Prevent re-applying profile defaults after the user changes site/process manually. */
   const siteAutoFilledRef = useRef(false);
   const processAutoFilledRef = useRef(false);
+  const [myDraftId, setMyDraftId] = useState<string | null>(null);
 
   const steps = useMemo(
     () => [
@@ -225,6 +226,7 @@ export default function DocumentsCreateContent() {
   );
 
   const listHref = orgId ? getDashboardPath(orgId, "documents") : "/";
+  const createBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "/";
   const canProceedStep1 = Boolean(
     formData.site && formData.processName && formData.processOwner.trim() && formData.approverName.trim()
   );
@@ -687,6 +689,35 @@ export default function DocumentsCreateContent() {
   }, [orgId, formData.managementStandard, formData.clause]);
 
   useEffect(() => {
+    if (!orgId) {
+      setMyDraftId(null);
+      return;
+    }
+    let ignore = false;
+    async function loadMyDraft() {
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documents?myDraft=1`, {
+          credentials: "include",
+        });
+        if (!res.ok || ignore) return;
+        const json = (await res.json()) as { draft?: { id?: string } | null };
+        setMyDraftId(String(json?.draft?.id ?? "").trim() || null);
+      } catch {
+        if (!ignore) setMyDraftId(null);
+      }
+    }
+    void loadMyDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
+
+  const editingOwnDraft = Boolean(
+    myDraftId && (recordId === myDraftId || activeRecordId === myDraftId)
+  );
+  const canSaveDraft = !myDraftId || editingOwnDraft;
+
+  useEffect(() => {
     if (!recordId) {
       setReviewReturnNotice(null);
       setApprovalReturnNotice(null);
@@ -944,8 +975,11 @@ export default function DocumentsCreateContent() {
   };
 
   const handleSaveDraft = async (payload: DocumentSavePayload) => {
+    if (!orgId) {
+      toast.error("Missing organization context.");
+      return;
+    }
     try {
-      if (!orgId) throw new Error("Missing orgId");
       const res = await fetch(`/api/organization/${orgId}/documents`, {
         method: "POST",
         credentials: "include",
@@ -957,11 +991,28 @@ export default function DocumentsCreateContent() {
           payload,
         }),
       });
-      if (!res.ok) throw new Error("Failed to save draft document");
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        existingDraftId?: string;
+      };
+      if (!res.ok) {
+        const message =
+          typeof json.error === "string" && json.error.trim()
+            ? json.error
+            : "Failed to save draft document";
+        toast.error(message);
+        if (json.code === "DRAFT_LIMIT_REACHED" && json.existingDraftId) {
+          router.push(
+            `${createBaseHref}?recordId=${encodeURIComponent(json.existingDraftId)}&mode=edit`
+          );
+        }
+        return;
+      }
+      redirectToDocuments();
     } catch {
-      appendDocumentRecord(orgId || "tenant", "draft", payload);
+      toast.error("Network error while saving draft.");
     }
-    redirectToDocuments();
   };
 
   const handleReviewSubmit = async (payload: { comments: string; decision: "effective" | "ineffective" | null }) => {
@@ -1368,6 +1419,7 @@ export default function DocumentsCreateContent() {
               initialWizard={initialWizardData ?? undefined}
               initialPreviewDocRef={previewDocRefFromRecord ?? undefined}
               recordId={recordId || undefined}
+              canSaveDraft={canSaveDraft}
               onSubmitProceed={handleSubmitProceed}
               onSaveDraft={handleSaveDraft}
             />
