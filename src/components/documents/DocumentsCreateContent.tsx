@@ -237,7 +237,12 @@ export default function DocumentsCreateContent() {
   const listHref = orgId ? getDashboardPath(orgId, "documents") : "/";
   const createBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "/";
   const canProceedStep1 = Boolean(
-    formData.site && formData.processName && formData.processOwner.trim() && formData.approverName.trim()
+    formData.site &&
+    formData.processName &&
+    formData.processOwner.trim() &&
+    formData.approverName.trim() &&
+    formData.title.trim() &&
+    formData.managementStandard
   );
 
   const canAccessReviewStep = useMemo(

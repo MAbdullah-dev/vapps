@@ -19,6 +19,7 @@ import {
 } from "@/lib/document-ui-classes";
 import type { DocumentWorkflowPosition } from "@/lib/documentRef";
 import { useTranslate } from "@/components/providers/translation-provider";
+import { toast } from "sonner";
 
 type ApprovalDocumentStepProps = {
   listHref: string;
@@ -85,6 +86,7 @@ export default function ApprovalDocumentStep({
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [verificationOutcome, setVerificationOutcome] = useState<"effective" | "ineffective" | null>(null);
   const [verificationComments, setVerificationComments] = useState("");
+  const [approvalErrors, setApprovalErrors] = useState<Record<string, boolean>>({});
 
   const reviewDateDisplay = useMemo(
     () =>
@@ -443,15 +445,25 @@ export default function ApprovalDocumentStep({
           <Textarea
             id="approval-comments"
             value={verificationComments}
-            onChange={(e) => setVerificationComments(e.target.value)}
+            onChange={(e) => {
+              setVerificationComments(e.target.value);
+              if (approvalErrors.comments) setApprovalErrors((p) => ({ ...p, comments: false }));
+            }}
             readOnly={!canPerformApproval || readOnlyObserver}
             required={canPerformApproval && !readOnlyObserver}
             aria-required={canPerformApproval && !readOnlyObserver}
             placeholder={t("Enter your approval comments here (required)…")}
-            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
+            className={cn(
+              "min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground",
+              approvalErrors.comments && "border-destructive focus-visible:ring-destructive"
+            )}
           />
-          {canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
-            <p className="text-xs text-amber-800" role="status">
+          {approvalErrors.comments ? (
+            <p className="text-xs text-destructive" role="status">
+              {t("This field is required")}
+            </p>
+          ) : canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
+            <p className="text-xs text-muted-foreground" role="status">
               {t("Comments are required before you can submit approval.")}
             </p>
           ) : null}
@@ -478,22 +490,25 @@ export default function ApprovalDocumentStep({
         <Button variant="outline" onClick={onBack}>
           {t("Back")}
         </Button>
-        {approvalAcknowledged &&
-        verificationOutcome &&
-        canPerformApproval &&
-        !readOnlyObserver &&
-        verificationComments.trim() ? (
-          <Button
-            type="button"
-            onClick={() => onApprove({ comments: verificationComments, decision: verificationOutcome })}
-          >
-            {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
-          </Button>
-        ) : (
-          <Button type="button" disabled>
-            {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
-          </Button>
-        )}
+        <Button
+          type="button"
+          onClick={() => {
+            const errors: Record<string, boolean> = {};
+            if (!approvalAcknowledged) errors.acknowledged = true;
+            if (!verificationOutcome) errors.outcome = true;
+            if (!verificationComments.trim()) errors.comments = true;
+            if (Object.values(errors).some(Boolean)) {
+              setApprovalErrors(errors);
+              toast.error(t("Please fill in all required fields."));
+              return;
+            }
+            setApprovalErrors({});
+            onApprove({ comments: verificationComments, decision: verificationOutcome });
+          }}
+          disabled={readOnlyObserver || !canPerformApproval}
+        >
+          {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
+        </Button>
       </div>
     </div>
   );
