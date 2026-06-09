@@ -15,8 +15,11 @@ import {
   docBadgeActive,
   docCalloutInfo,
   docCalloutSuccess,
+  docPositionBadge,
 } from "@/lib/document-ui-classes";
+import type { DocumentWorkflowPosition } from "@/lib/documentRef";
 import { useTranslate } from "@/components/providers/translation-provider";
+import { toast } from "sonner";
 
 type ApprovalDocumentStepProps = {
   listHref: string;
@@ -34,7 +37,10 @@ type ApprovalDocumentStepProps = {
   managementStandard?: string;
   clause?: string;
   subClause?: string;
-  processId?: string;
+  previewDocRef?: string;
+  documentNumber?: string;
+  version?: string;
+  positionLabel?: DocumentWorkflowPosition;
   /** Author or reviewer viewing Approval read-only; only the approver may submit. */
   readOnlyObserver?: boolean;
   onBack: () => void;
@@ -51,8 +57,6 @@ type MemberOption = {
   status?: "Active" | "Invited";
 };
 
-const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
-
 export default function ApprovalDocumentStep({
   listHref,
   title,
@@ -67,7 +71,10 @@ export default function ApprovalDocumentStep({
   managementStandard,
   clause,
   subClause,
-  processId,
+  previewDocRef,
+  documentNumber,
+  version,
+  positionLabel = "Approval Pending",
   readOnlyObserver = false,
   onBack,
   onApprove,
@@ -79,6 +86,7 @@ export default function ApprovalDocumentStep({
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false);
   const [verificationOutcome, setVerificationOutcome] = useState<"effective" | "ineffective" | null>(null);
   const [verificationComments, setVerificationComments] = useState("");
+  const [approvalErrors, setApprovalErrors] = useState<Record<string, boolean>>({});
 
   const reviewDateDisplay = useMemo(
     () =>
@@ -183,9 +191,15 @@ export default function ApprovalDocumentStep({
       <div className="rounded-xl border border-border bg-background p-5 space-y-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border font-normal">
-            {DOC_REF}
+            {previewDocRef?.trim() || t("—")}
           </Badge>
-          <Badge className={docBadgeActive}>{t("Active")}</Badge>
+          <Badge
+            className={cn(
+              docPositionBadge[positionLabel] ?? docPositionBadge.default
+            )}
+          >
+            {t(positionLabel)}
+          </Badge>
         </div>
 
         <div>
@@ -224,11 +238,11 @@ export default function ApprovalDocumentStep({
           </div>
           <div>
             <p className="text-muted-foreground">{t("Doc#:")}</p>
-            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
+            <p className="font-semibold text-foreground">{documentNumber?.trim() || t("—")}</p>
           </div>
           <div>
             <p className="text-muted-foreground">{t("Version:")}</p>
-            <p className="font-semibold text-foreground">{t("v3")}</p>
+            <p className="font-semibold text-foreground">{version?.trim() || t("—")}</p>
           </div>
         </div>
 
@@ -253,7 +267,7 @@ export default function ApprovalDocumentStep({
           {t("Master Document List")}
         </Link>
         <span className="text-muted-foreground">&gt;</span>
-        <span className="font-medium text-foreground">{DOC_REF}</span>
+        <span className="font-medium text-foreground">{previewDocRef?.trim() || t("—")}</span>
       </nav>
 
       <div className="rounded-xl border border-border bg-background p-5">
@@ -431,15 +445,25 @@ export default function ApprovalDocumentStep({
           <Textarea
             id="approval-comments"
             value={verificationComments}
-            onChange={(e) => setVerificationComments(e.target.value)}
+            onChange={(e) => {
+              setVerificationComments(e.target.value);
+              if (approvalErrors.comments) setApprovalErrors((p) => ({ ...p, comments: false }));
+            }}
             readOnly={!canPerformApproval || readOnlyObserver}
             required={canPerformApproval && !readOnlyObserver}
             aria-required={canPerformApproval && !readOnlyObserver}
             placeholder={t("Enter your approval comments here (required)…")}
-            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
+            className={cn(
+              "min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground",
+              approvalErrors.comments && "border-destructive focus-visible:ring-destructive"
+            )}
           />
-          {canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
-            <p className="text-xs text-amber-800" role="status">
+          {approvalErrors.comments ? (
+            <p className="text-xs text-destructive" role="status">
+              {t("This field is required")}
+            </p>
+          ) : canPerformApproval && !readOnlyObserver && !verificationComments.trim() ? (
+            <p className="text-xs text-muted-foreground" role="status">
               {t("Comments are required before you can submit approval.")}
             </p>
           ) : null}
@@ -466,22 +490,25 @@ export default function ApprovalDocumentStep({
         <Button variant="outline" onClick={onBack}>
           {t("Back")}
         </Button>
-        {approvalAcknowledged &&
-        verificationOutcome &&
-        canPerformApproval &&
-        !readOnlyObserver &&
-        verificationComments.trim() ? (
-          <Button
-            type="button"
-            onClick={() => onApprove({ comments: verificationComments, decision: verificationOutcome })}
-          >
-            {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
-          </Button>
-        ) : (
-          <Button type="button" disabled>
-            {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
-          </Button>
-        )}
+        <Button
+          type="button"
+          onClick={() => {
+            const errors: Record<string, boolean> = {};
+            if (!approvalAcknowledged) errors.acknowledged = true;
+            if (!verificationOutcome) errors.outcome = true;
+            if (!verificationComments.trim()) errors.comments = true;
+            if (Object.values(errors).some(Boolean)) {
+              setApprovalErrors(errors);
+              toast.error(t("Please fill in all required fields."));
+              return;
+            }
+            setApprovalErrors({});
+            onApprove({ comments: verificationComments, decision: verificationOutcome });
+          }}
+          disabled={readOnlyObserver || !canPerformApproval}
+        >
+          {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
+        </Button>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -111,6 +111,35 @@ function commentTimeLabel(isoOrPhrase: string, tr: (s: string) => string): strin
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return t;
   return formatDistanceToNow(d, { addSuffix: true });
+}
+
+function isRequiredValueFilled(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function requiredInputClass(hasError: boolean): string {
+  return cn(hasError && "border-destructive focus-visible:ring-destructive");
+}
+
+function IssueFieldError({
+  show,
+  t,
+  message,
+}: {
+  show: boolean;
+  t: (text: string) => string;
+  message?: string;
+}) {
+  if (!show) return null;
+  return <p className="text-xs text-destructive">{message ?? t("This field is required")}</p>;
+}
+
+function IssueRequiredLabel({ htmlFor, children, className }: { htmlFor?: string; children: ReactNode; className?: string }) {
+  return (
+    <Label htmlFor={htmlFor} className={className}>
+      {children} <span className="text-destructive" aria-hidden>*</span>
+    </Label>
+  );
 }
 
 type WorkspaceSegment = "processes" | "issues";
@@ -263,6 +292,7 @@ export default function ProcessLayout({
       // Open in create mode when no issueId (e.g. from timeline "add")
       if (!issueId) {
         setEditingIssue(null);
+        setIssueFormErrors({});
         setTitle("");
         setTag("");
         setSource("");
@@ -343,6 +373,7 @@ export default function ProcessLayout({
     if (!open) {
       // Reset form when dialog closes
       setEditingIssue(null);
+      setIssueFormErrors({});
       setTitle("");
       setTag("");
       setSource("");
@@ -441,6 +472,34 @@ export default function ProcessLayout({
   const [editingIssue, setEditingIssue] = useState<any>(null); // Issue being edited
   const [isLoadingIssue, setIsLoadingIssue] = useState(false);
   const [isUpdatingIssue, setIsUpdatingIssue] = useState(false);
+  const [issueFormErrors, setIssueFormErrors] = useState<Record<string, boolean>>({});
+
+  const validateIssueForm = (): boolean => {
+    const errors: Record<string, boolean> = {
+      title: !isRequiredValueFilled(title),
+      tag: !isRequiredValueFilled(tag),
+      source: !isRequiredValueFilled(source),
+      assignee: !selectedAssignees || selectedAssignees.length === 0,
+    };
+    if (workspaceSegment === "issues") {
+      errors.site = !selectedIssueSiteId;
+      if (
+        selectedSprint &&
+        selectedSprint !== "__backlog__" &&
+        (!selectedIssueProcessId || selectedIssueProcessId === "__none__")
+      ) {
+        errors.sprintProcess = true;
+      }
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setIssueFormErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return false;
+    }
+    setIssueFormErrors({});
+    return true;
+  };
+
   const selectedSiteProcesses =
     sitesForIssue.find((site) => site.id === selectedIssueSiteId)?.processes || [];
 
@@ -583,41 +642,7 @@ export default function ProcessLayout({
     e.preventDefault();
     if (isViewOnly) return;
 
-    // Validate mandatory fields
-    if (!title || !title.trim()) {
-      toast.error(t("Title is required"));
-      return;
-    }
-
-    if (!tag || !tag.trim()) {
-      toast.error(t("Tag is required"));
-      return;
-    }
-
-    if (!source || !source.trim()) {
-      toast.error(t("Source is required"));
-      return;
-    }
-
-    // Validate assignee is mandatory
-    if (!selectedAssignees || selectedAssignees.length === 0) {
-      toast.error(t("At least one assignee is required"));
-      return;
-    }
-
-    if (workspaceSegment === "issues" && !selectedIssueSiteId) {
-      toast.error(t("Site is required"));
-      return;
-    }
-    if (
-      workspaceSegment === "issues" &&
-      selectedSprint &&
-      selectedSprint !== "__backlog__" &&
-      (!selectedIssueProcessId || selectedIssueProcessId === "__none__")
-    ) {
-      toast.error(t("Sprint can only be used when a process is linked"));
-      return;
-    }
+    if (!validateIssueForm()) return;
 
     // If editing, update the issue
     if (editingIssue) {
@@ -908,15 +933,18 @@ export default function ProcessLayout({
 
               {/* Title */}
               <div className="space-y-1">
-                <Label className="mb-2">{t("Title")}*</Label>
+                <IssueRequiredLabel className="mb-2">{t("Title")}</IssueRequiredLabel>
 
                 {customTitleMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
                       placeholder={t("Enter custom title")}
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full"
+                      onChange={(e) => {
+                        setTitle(e.target.value);
+                        if (issueFormErrors.title) setIssueFormErrors((p) => ({ ...p, title: false }));
+                      }}
+                      className={cn("w-full", requiredInputClass(!!issueFormErrors.title))}
                       disabled={isViewOnly}
                     />
 
@@ -933,8 +961,9 @@ export default function ProcessLayout({
                             prev.includes(value) ? prev : [...prev, value]
                           );
 
-                          setTitle(value); // ✅ auto-select
+                          setTitle(value);
                           setCustomTitleMode(false);
+                          if (issueFormErrors.title) setIssueFormErrors((p) => ({ ...p, title: false }));
 
                           toast.success(t("Title added successfully"));
                         } catch (error: any) {
@@ -957,12 +986,14 @@ export default function ProcessLayout({
                   <div className="flex items-center gap-2 w-full">
                     <Select
                       value={title}
-                      onValueChange={setTitle}
-                      required
+                      onValueChange={(v) => {
+                        setTitle(v);
+                        if (issueFormErrors.title) setIssueFormErrors((p) => ({ ...p, title: false }));
+                      }}
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={isLoadingMetadata ? t("Loading titles...") : t("Select a title *")} />
+                      <SelectTrigger className={cn("w-full", requiredInputClass(!!issueFormErrors.title))}>
+                        <SelectValue placeholder={isLoadingMetadata ? t("Loading titles...") : t("Select a title")} />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -993,19 +1024,23 @@ export default function ProcessLayout({
                     </Button>
                   </div>
                 )}
+                <IssueFieldError show={!!issueFormErrors.title} t={t} />
               </div>
 
               {/* Tag */}
               <div className="space-y-1">
-                <Label className="mb-2">{t("Tag")}*</Label>
+                <IssueRequiredLabel className="mb-2">{t("Tag")}</IssueRequiredLabel>
 
                 {customTagMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
                       placeholder={t("Enter custom tag")}
                       value={tag}
-                      onChange={(e) => setTag(e.target.value)}
-                      className="w-full"
+                      onChange={(e) => {
+                        setTag(e.target.value);
+                        if (issueFormErrors.tag) setIssueFormErrors((p) => ({ ...p, tag: false }));
+                      }}
+                      className={cn("w-full", requiredInputClass(!!issueFormErrors.tag))}
                       disabled={isViewOnly}
                     />
 
@@ -1022,8 +1057,9 @@ export default function ProcessLayout({
                             prev.includes(value) ? prev : [...prev, value]
                           );
 
-                          setTag(value); // ✅ auto-select
+                          setTag(value);
                           setCustomTagMode(false);
+                          if (issueFormErrors.tag) setIssueFormErrors((p) => ({ ...p, tag: false }));
 
                           toast.success(t("Tag added successfully"));
                         } catch (error: any) {
@@ -1044,9 +1080,16 @@ export default function ProcessLayout({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 w-full">
-                    <Select value={tag} onValueChange={setTag} disabled={isViewOnly}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("Select a tag *")} />
+                    <Select
+                      value={tag}
+                      onValueChange={(v) => {
+                        setTag(v);
+                        if (issueFormErrors.tag) setIssueFormErrors((p) => ({ ...p, tag: false }));
+                      }}
+                      disabled={isViewOnly}
+                    >
+                      <SelectTrigger className={cn("w-full", requiredInputClass(!!issueFormErrors.tag))}>
+                        <SelectValue placeholder={t("Select a tag")} />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -1077,19 +1120,23 @@ export default function ProcessLayout({
                     </Button>
                   </div>
                 )}
+                <IssueFieldError show={!!issueFormErrors.tag} t={t} />
               </div>
 
               {/* Source */}
               <div className="space-y-1">
-                <Label className="mb-2">{t("Source")}*</Label>
+                <IssueRequiredLabel className="mb-2">{t("Source")}</IssueRequiredLabel>
 
                 {customSourceMode ? (
                   <div className="flex items-center gap-2 w-full">
                     <Input
                       placeholder={t("Enter custom source")}
                       value={source}
-                      onChange={(e) => setSource(e.target.value)}
-                      className="w-full"
+                      onChange={(e) => {
+                        setSource(e.target.value);
+                        if (issueFormErrors.source) setIssueFormErrors((p) => ({ ...p, source: false }));
+                      }}
+                      className={cn("w-full", requiredInputClass(!!issueFormErrors.source))}
                       disabled={isViewOnly}
                     />
 
@@ -1106,8 +1153,9 @@ export default function ProcessLayout({
                             prev.includes(value) ? prev : [...prev, value]
                           );
 
-                          setSource(value); // ✅ auto-select
+                          setSource(value);
                           setCustomSourceMode(false);
+                          if (issueFormErrors.source) setIssueFormErrors((p) => ({ ...p, source: false }));
 
                           toast.success(t("Source added successfully"));
                         } catch (error: any) {
@@ -1130,12 +1178,14 @@ export default function ProcessLayout({
                   <div className="flex items-center gap-2 w-full">
                     <Select
                       value={source}
-                      onValueChange={setSource}
-                      required
+                      onValueChange={(v) => {
+                        setSource(v);
+                        if (issueFormErrors.source) setIssueFormErrors((p) => ({ ...p, source: false }));
+                      }}
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingIssue || isLoadingMetadata}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={isLoadingMetadata ? t("Loading sources...") : t("Select a source *")} />
+                      <SelectTrigger className={cn("w-full", requiredInputClass(!!issueFormErrors.source))}>
+                        <SelectValue placeholder={isLoadingMetadata ? t("Loading sources...") : t("Select a source")} />
                       </SelectTrigger>
 
                       <SelectContent>
@@ -1166,22 +1216,24 @@ export default function ProcessLayout({
                     </Button>
                   </div>
                 )}
+                <IssueFieldError show={!!issueFormErrors.source} t={t} />
               </div>
 
               {workspaceSegment === "issues" && (
                 <div className="flex items-center gap-4">
                   <div className="w-1/2">
-                    <Label className="mb-2">{t("Site")}*</Label>
+                    <IssueRequiredLabel className="mb-2">{t("Site")}</IssueRequiredLabel>
                     <Select
                       value={selectedIssueSiteId}
                       onValueChange={(value) => {
                         setSelectedIssueSiteId(value);
                         setSelectedIssueProcessId("__none__");
                         setSelectedSprint("__backlog__");
+                        if (issueFormErrors.site) setIssueFormErrors((p) => ({ ...p, site: false }));
                       }}
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingMetadata}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className={cn("w-full", requiredInputClass(!!issueFormErrors.site))}>
                         <SelectValue placeholder={t("Select site")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1192,6 +1244,7 @@ export default function ProcessLayout({
                         ))}
                       </SelectContent>
                     </Select>
+                    <IssueFieldError show={!!issueFormErrors.site} t={t} />
                   </div>
                   <div className="w-1/2">
                     <Label className="mb-2">{t("Link to Process (Optional)")}</Label>
@@ -1200,6 +1253,7 @@ export default function ProcessLayout({
                       onValueChange={async (value) => {
                         setSelectedIssueProcessId(value);
                         setSelectedSprint("__backlog__");
+                        if (issueFormErrors.sprintProcess) setIssueFormErrors((p) => ({ ...p, sprintProcess: false }));
                         if (value && value !== "__none__") {
                           try {
                             setIsLoadingUsers(true);
@@ -1234,7 +1288,7 @@ export default function ProcessLayout({
                       }}
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingMetadata}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className={cn("w-full", requiredInputClass(!!issueFormErrors.sprintProcess))}>
                         <SelectValue placeholder={t("No process link")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1246,6 +1300,11 @@ export default function ProcessLayout({
                         ))}
                       </SelectContent>
                     </Select>
+                    <IssueFieldError
+                      show={!!issueFormErrors.sprintProcess}
+                      message={t("Sprint can only be used when a process is linked")}
+                      t={t}
+                    />
                   </div>
                 </div>
               )}
@@ -1314,7 +1373,7 @@ export default function ProcessLayout({
               {/* Assignee & Sprint */}
               <div className="flex items-center gap-4">
                 <div className="w-1/2 space-y-2">
-                  <Label>{t("Assignee")}*</Label>
+                  <IssueRequiredLabel>{t("Assignee")}</IssueRequiredLabel>
 
                   {/* Selected Pills */}
                   {selectedAssignees.length > 0 && (
@@ -1332,11 +1391,13 @@ export default function ProcessLayout({
                             {user.name}
                             <button
                               type="button"
-                              onClick={() =>
-                                setSelectedAssignees((prev) =>
-                                  prev.filter((v) => v !== id)
-                                )
-                              }
+                              onClick={() => {
+                                const next = selectedAssignees.filter((v) => v !== id);
+                                setSelectedAssignees(next);
+                                if (next.length > 0 && issueFormErrors.assignee) {
+                                  setIssueFormErrors((p) => ({ ...p, assignee: false }));
+                                }
+                              }}
                               className="ml-1 rounded-full hover:bg-muted p-0.5"
                             >
                               <X className="h-3 w-3 text-red-500" />
@@ -1356,7 +1417,8 @@ export default function ProcessLayout({
                         disabled={isViewOnly || isCreatingIssue || isLoadingUsers || processUsers.length === 0}
                         className={cn(
                           "w-full justify-between",
-                          selectedAssignees.length === 0 && "text-muted-foreground"
+                          selectedAssignees.length === 0 && "text-muted-foreground",
+                          requiredInputClass(!!issueFormErrors.assignee)
                         )}
                       >
                         {isLoadingUsers
@@ -1376,11 +1438,15 @@ export default function ProcessLayout({
                             <CommandItem
                               key={user.id}
                               onSelect={() => {
-                                setSelectedAssignees((prev) =>
-                                  prev.includes(user.id)
+                                setSelectedAssignees((prev) => {
+                                  const next = prev.includes(user.id)
                                     ? prev.filter((id) => id !== user.id)
-                                    : [...prev, user.id]
-                                )
+                                    : [...prev, user.id];
+                                  if (next.length > 0 && issueFormErrors.assignee) {
+                                    setIssueFormErrors((p) => ({ ...p, assignee: false }));
+                                  }
+                                  return next;
+                                });
                               }}
                             >
                               <Check
@@ -1405,6 +1471,7 @@ export default function ProcessLayout({
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  <IssueFieldError show={!!issueFormErrors.assignee} t={t} />
                 </div>
 
 
@@ -1418,6 +1485,7 @@ export default function ProcessLayout({
                       } else {
                         setSelectedStatus("to-do");
                       }
+                      if (issueFormErrors.sprintProcess) setIssueFormErrors((p) => ({ ...p, sprintProcess: false }));
                     }}
                     value={selectedSprint}
                     disabled={

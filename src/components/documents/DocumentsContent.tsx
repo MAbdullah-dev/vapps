@@ -66,6 +66,15 @@ import { toast } from "sonner";
 import { getComplianceKpiFromDays, getDaysSince } from "@/lib/compliance-kpi";
 import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
 import { useTranslate } from "@/components/providers/translation-provider";
+import {
+  applyDraftPlaceholderRef,
+  DRAFT_DOC_NUMBER,
+  isDraftPlaceholderRef,
+} from "@/lib/documentRef";
+import {
+  buildManagementStandardNameMap,
+  resolveManagementStandardLabel,
+} from "@/lib/management-standard-label";
 
 function displayCell(value: string, t: (text: string) => string): string {
   if (!value || value === "-") return t("—");
@@ -843,6 +852,31 @@ export default function DocumentsContent() {
   };
   const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
+  const [myDraftId, setMyDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadMyDraft() {
+      if (!orgId) {
+        setMyDraftId(null);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documents?myDraft=1`, {
+          credentials: "include",
+        });
+        if (!res.ok || ignore) return;
+        const json = (await res.json()) as { draft?: { id?: string } | null };
+        setMyDraftId(String(json?.draft?.id ?? "").trim() || null);
+      } catch {
+        if (!ignore) setMyDraftId(null);
+      }
+    }
+    void loadMyDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   useEffect(() => {
     let ignore = false;
@@ -855,17 +889,29 @@ export default function DocumentsContent() {
       }
       setDocumentsLoaded(false);
       try {
-        const [activeRes, obsoleteRes] = await Promise.all([
+        const [activeRes, obsoleteRes, checklistsRes] = await Promise.all([
           fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
             credentials: "include",
           }),
           fetch(`/api/organization/${orgId}/documents?lifecycle=obsolete`, {
             credentials: "include",
           }),
+          fetch(`/api/organization/${orgId}/audit-checklists`, {
+            credentials: "include",
+          }),
         ]);
         const activeJson = activeRes.ok ? await activeRes.json() : { records: [] };
         const obsoleteJson = obsoleteRes.ok ? await obsoleteRes.json() : { records: [] };
+        const checklistsJson = checklistsRes.ok
+          ? await checklistsRes.json()
+          : { checklists: [] };
         if (ignore) return;
+
+        const standardNameById = buildManagementStandardNameMap(
+          Array.isArray(checklistsJson?.checklists) ? checklistsJson.checklists : []
+        );
+        const resolveStandard = (raw: unknown) =>
+          resolveManagementStandardLabel(String(raw ?? ""), standardNameById);
 
         const records = Array.isArray(activeJson?.records)
           ? (activeJson.records as DocumentsApiRecord[])
@@ -890,7 +936,7 @@ export default function DocumentsContent() {
           const formData = (row.form_data ?? {}) as Record<string, unknown>;
           const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
 
-          const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+          let documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
           const actionType = String(wizard.actionType ?? "").toLowerCase();
           const natureOfDocument =
             actionType === "revise"
@@ -899,8 +945,7 @@ export default function DocumentsContent() {
                 ? "Obsolete"
                 : "New Document";
 
-          const standardRaw = String(formData.managementStandard ?? "").trim();
-          const standard = standardRaw || "-";
+          const standard = resolveStandard(formData.managementStandard);
 
           const reviewedAtRaw = String((row as { reviewed_at?: string | null }).reviewed_at ?? "").trim();
           const reviewedAtDate = reviewedAtRaw ? new Date(reviewedAtRaw) : null;
@@ -949,6 +994,13 @@ export default function DocumentsContent() {
                 : workflowStatus === "in_review"
                 ? "Review Pending"
                 : "Draft";
+          if (
+            workflowStatus === "draft" &&
+            documentRef !== "-" &&
+            !isDraftPlaceholderRef(documentRef)
+          ) {
+            documentRef = applyDraftPlaceholderRef(documentRef);
+          }
           return {
             id: row.id,
             documentRef,
@@ -960,7 +1012,10 @@ export default function DocumentsContent() {
             standard,
             clause: String(formData.clause ?? "").trim() || "-",
             subclause: String(formData.subClause ?? "").trim() || "-",
-            docNumber: resolveMasterDocNumber(row),
+            docNumber:
+              workflowStatus === "draft" || isDraftPlaceholderRef(documentRef)
+                ? DRAFT_DOC_NUMBER
+                : resolveMasterDocNumber(row),
             version: pickVersion(documentRef),
             planDate: String(wizard.planDate ?? "").trim() ? formatDate(String(wizard.planDate)) : "-",
             releaseDate: row.status === "submitted" ? formatDate(row.updated_at || row.created_at) : "-",
@@ -1006,7 +1061,7 @@ export default function DocumentsContent() {
             title: String(formData.title ?? "").trim() || "-",
             type,
             processOwner: String(formData.processName ?? formData.processId ?? "-"),
-            standard: String(formData.managementStandard ?? "-"),
+            standard: resolveStandard(formData.managementStandard),
             site: String(formData.siteId ?? formData.site ?? "-"),
             docNumber,
             version,
@@ -1569,6 +1624,20 @@ export default function DocumentsContent() {
                   {t("Documentary Evidence Records")}
                 </Link>
               </Button>
+              {myDraftId ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Link
+                    href={`${createDocumentBaseHref}?recordId=${encodeURIComponent(myDraftId)}&mode=edit`}
+                  >
+                    <FileText size={16} />
+                    {t("Continue Draft")}
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="default" className="flex items-center gap-2">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
@@ -2249,12 +2318,12 @@ export default function DocumentsContent() {
           </div>
 
           {/* Action strip (purely visual until backend exists) */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+          {/* <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
             <Button variant="outline" className="flex items-center gap-2">
               <Upload size={16} />
               {t("Upload")}
             </Button>
-          </div>
+          </div> */}
         </CardContent>
       </Card>
 

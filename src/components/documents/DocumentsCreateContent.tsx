@@ -9,6 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Check, CheckCircle, FileText, Loader2, Save, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
+import { resolveManagementStandardLabel } from "@/lib/management-standard-label";
+import {
+  applyDraftPlaceholderRef,
+  DRAFT_DOC_NUMBER,
+  documentWorkflowPositionLabel,
+  isDraftPlaceholderRef,
+  parseDocNumberSegment,
+  parseVersionSegment,
+} from "@/lib/documentRef";
 import { cn, documentActorMatches } from "@/lib/utils";
 import {
   docAlertDestructive,
@@ -214,6 +223,7 @@ export default function DocumentsCreateContent() {
   /** Prevent re-applying profile defaults after the user changes site/process manually. */
   const siteAutoFilledRef = useRef(false);
   const processAutoFilledRef = useRef(false);
+  const [myDraftId, setMyDraftId] = useState<string | null>(null);
 
   const steps = useMemo(
     () => [
@@ -225,8 +235,14 @@ export default function DocumentsCreateContent() {
   );
 
   const listHref = orgId ? getDashboardPath(orgId, "documents") : "/";
+  const createBaseHref = orgId ? getDashboardPath(orgId, "documents/create") : "/";
   const canProceedStep1 = Boolean(
-    formData.site && formData.processName && formData.processOwner.trim() && formData.approverName.trim()
+    formData.site &&
+    formData.processName &&
+    formData.processOwner.trim() &&
+    formData.approverName.trim() &&
+    formData.title.trim() &&
+    formData.managementStandard
   );
 
   const canAccessReviewStep = useMemo(
@@ -687,6 +703,35 @@ export default function DocumentsCreateContent() {
   }, [orgId, formData.managementStandard, formData.clause]);
 
   useEffect(() => {
+    if (!orgId) {
+      setMyDraftId(null);
+      return;
+    }
+    let ignore = false;
+    async function loadMyDraft() {
+      try {
+        const res = await fetch(`/api/organization/${orgId}/documents?myDraft=1`, {
+          credentials: "include",
+        });
+        if (!res.ok || ignore) return;
+        const json = (await res.json()) as { draft?: { id?: string } | null };
+        setMyDraftId(String(json?.draft?.id ?? "").trim() || null);
+      } catch {
+        if (!ignore) setMyDraftId(null);
+      }
+    }
+    void loadMyDraft();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
+
+  const editingOwnDraft = Boolean(
+    myDraftId && (recordId === myDraftId || activeRecordId === myDraftId)
+  );
+  const canSaveDraft = !myDraftId || editingOwnDraft;
+
+  useEffect(() => {
     if (!recordId) {
       setReviewReturnNotice(null);
       setApprovalReturnNotice(null);
@@ -757,6 +802,39 @@ export default function DocumentsCreateContent() {
     () => !isViewMode && !isOrgOwner && Boolean(formData.processId),
     [isViewMode, isOrgOwner, formData.processId]
   );
+
+  const managementStandardDisplayLabel = useMemo(
+    () =>
+      resolveManagementStandardLabel(
+        formData.managementStandard,
+        Object.fromEntries(standards.map((standard) => [standard.id, standard.name]))
+      ),
+    [formData.managementStandard, standards]
+  );
+
+  const documentHeaderMeta = useMemo(() => {
+    const rawRef = previewDocRefFromRecord?.trim() || "";
+    const isDraft = wf === "draft" || wf === "";
+    const previewDocRef =
+      isDraft && rawRef
+        ? isDraftPlaceholderRef(rawRef)
+          ? rawRef
+          : applyDraftPlaceholderRef(rawRef)
+        : rawRef;
+    const documentNumber = isDraft
+      ? DRAFT_DOC_NUMBER
+      : String(initialWizardData?.documentNumberSegment ?? "").trim() ||
+        (previewDocRef ? parseDocNumberSegment(previewDocRef) : null) ||
+        "";
+    const version =
+      (previewDocRef ? parseVersionSegment(previewDocRef) : null) || "";
+    return {
+      previewDocRef,
+      documentNumber,
+      version,
+      positionLabel: documentWorkflowPositionLabel(wf),
+    };
+  }, [previewDocRefFromRecord, initialWizardData?.documentNumberSegment, wf]);
 
   const showWorkflowPinWall =
     hasPersistedRecord &&
@@ -932,6 +1010,9 @@ export default function DocumentsCreateContent() {
       if (!res.ok) throw new Error("Failed to save submitted document");
       const json = await res.json();
       createdId = String(json?.id ?? "");
+      if (payload.previewDocRef?.trim()) {
+        setPreviewDocRefFromRecord(payload.previewDocRef.trim());
+      }
       setReviewReturnNotice(null);
       setApprovalReturnNotice(null);
       submittedOk = true;
@@ -944,8 +1025,11 @@ export default function DocumentsCreateContent() {
   };
 
   const handleSaveDraft = async (payload: DocumentSavePayload) => {
+    if (!orgId) {
+      toast.error("Missing organization context.");
+      return;
+    }
     try {
-      if (!orgId) throw new Error("Missing orgId");
       const res = await fetch(`/api/organization/${orgId}/documents`, {
         method: "POST",
         credentials: "include",
@@ -957,11 +1041,34 @@ export default function DocumentsCreateContent() {
           payload,
         }),
       });
-      if (!res.ok) throw new Error("Failed to save draft document");
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        existingDraftId?: string;
+        id?: string;
+      };
+      if (!res.ok) {
+        const message =
+          typeof json.error === "string" && json.error.trim()
+            ? json.error
+            : "Failed to save draft document";
+        toast.error(message);
+        if (json.code === "DRAFT_LIMIT_REACHED" && json.existingDraftId) {
+          router.push(
+            `${createBaseHref}?recordId=${encodeURIComponent(json.existingDraftId)}&mode=edit`
+          );
+        }
+        return;
+      }
+      if (payload.previewDocRef?.trim()) {
+        setPreviewDocRefFromRecord(applyDraftPlaceholderRef(payload.previewDocRef.trim()));
+      }
+      if (json.id) setActiveRecordId(String(json.id));
+      setRecordWorkflowStatus("draft");
+      redirectToDocuments();
     } catch {
-      appendDocumentRecord(orgId || "tenant", "draft", payload);
+      toast.error("Network error while saving draft.");
     }
-    redirectToDocuments();
   };
 
   const handleReviewSubmit = async (payload: { comments: string; decision: "effective" | "ineffective" | null }) => {
@@ -1367,7 +1474,9 @@ export default function DocumentsCreateContent() {
               isViewMode={isViewMode || createStepReadOnly}
               initialWizard={initialWizardData ?? undefined}
               initialPreviewDocRef={previewDocRefFromRecord ?? undefined}
+              isDraftRecord={wf === "draft" || wf === ""}
               recordId={recordId || undefined}
+              canSaveDraft={canSaveDraft}
               onSubmitProceed={handleSubmitProceed}
               onSaveDraft={handleSaveDraft}
             />
@@ -1396,10 +1505,13 @@ export default function DocumentsCreateContent() {
                 processOwnerUserId={formData.processOwnerUserId}
                 loginUserName={formData.loginUserName}
                 loginUserId={formData.loginUserId}
-                managementStandard={formData.managementStandard}
+                managementStandard={managementStandardDisplayLabel}
                 clause={formData.clause}
                 subClause={formData.subClause}
-                processId={formData.processId}
+                previewDocRef={documentHeaderMeta.previewDocRef}
+                documentNumber={documentHeaderMeta.documentNumber}
+                version={documentHeaderMeta.version}
+                positionLabel={documentHeaderMeta.positionLabel}
                 readOnlyObserver={reviewReadOnlyObserver}
                 onBack={() => setStep(1)}
                 onNext={handleReviewSubmit}
@@ -1430,10 +1542,13 @@ export default function DocumentsCreateContent() {
                 designatedApproverUserId={formData.approverUserId}
                 loginUserName={formData.loginUserName}
                 loginUserId={formData.loginUserId}
-                managementStandard={formData.managementStandard}
+                managementStandard={managementStandardDisplayLabel}
                 clause={formData.clause}
                 subClause={formData.subClause}
-                processId={formData.processId}
+                previewDocRef={documentHeaderMeta.previewDocRef}
+                documentNumber={documentHeaderMeta.documentNumber}
+                version={documentHeaderMeta.version}
+                positionLabel={documentHeaderMeta.positionLabel}
                 readOnlyObserver={approvalReadOnlyObserver}
                 onBack={() => setStep(2)}
                 onApprove={handleApproveFinish}

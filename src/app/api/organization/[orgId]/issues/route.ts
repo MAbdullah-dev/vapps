@@ -77,8 +77,6 @@ async function getAccessScope(orgId: string, userId: string) {
   return {
     isOwner,
     leadershipTier,
-    isTopLeadership: leadershipTier === "Top" || isOwner,
-    isOperationalLeadership: leadershipTier === "Operational",
     isSupportLeadership: leadershipTier === "Support",
   };
 }
@@ -110,18 +108,7 @@ export async function GET(
     try {
       await ensureIssuesColumnsForSelectCached(client, resolvedOrgId);
 
-      if (access.isOperationalLeadership && !access.isTopLeadership) {
-        const siteRows = await client.query(
-          `SELECT site_id::text AS id FROM site_users WHERE user_id = $1`,
-          [ctx.user.id]
-        );
-        if (siteRows.rows.length === 0) {
-          client.release();
-          return NextResponse.json({ issues: [] });
-        }
-      }
-
-      if (access.isSupportLeadership && processId) {
+      if (!access.isOwner && processId) {
         const processAccessResult = await client.query(
           `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
           [ctx.user.id, processId]
@@ -133,11 +120,6 @@ export async function GET(
             { status: 403 }
           );
         }
-      } else if (access.isSupportLeadership && !processId) {
-        // Support can only view process-linked issues from their assigned processes.
-      } else if (!access.isTopLeadership && !access.isOperationalLeadership && !access.isSupportLeadership) {
-        client.release();
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
       const { join: verificationJoin, select: verificationSelect } =
@@ -184,11 +166,7 @@ export async function GET(
         args.push(sprintId);
       }
 
-      if (access.isOperationalLeadership && !access.isTopLeadership) {
-        query += ` AND i."siteId" IN (SELECT site_id::text FROM site_users WHERE user_id = $${idx++})`;
-        args.push(ctx.user.id);
-      }
-      if (access.isSupportLeadership && !access.isTopLeadership) {
+      if (!access.isOwner) {
         query += ` AND i."processId" IN (SELECT process_id::text FROM process_users WHERE user_id = $${idx++})`;
         args.push(ctx.user.id);
       }
@@ -307,15 +285,15 @@ export async function POST(
         );
       }
 
-      if (access.isOperationalLeadership && !access.isTopLeadership) {
-        const siteAccessResult = await client.query(
-          `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-          [ctx.user.id, resolvedSiteId]
+      if (!access.isOwner && resolvedProcessId) {
+        const processAccessResult = await client.query(
+          `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
+          [ctx.user.id, resolvedProcessId]
         );
-        if (!siteAccessResult.rows.length) {
+        if (!processAccessResult.rows.length) {
           client.release();
           return NextResponse.json(
-            { error: "You can only create issues for sites you are assigned to." },
+            { error: "You can only create issues for your assigned process." },
             { status: 403 }
           );
         }

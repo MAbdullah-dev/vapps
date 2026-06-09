@@ -10,6 +10,16 @@ import {
   workflowPinMatches,
 } from "@/lib/documentWorkflowPin";
 import { documentActorMatches } from "@/lib/utils";
+import {
+  applyDraftPlaceholderRef,
+  assignPublishedDocNumber,
+  bumpVersionInRef,
+  DRAFT_DOC_NUMBER,
+  isDraftPlaceholderRef,
+  nextPublishedDocNumber,
+  normalizeWizardDocSegment,
+  parseDocNumberSegment,
+} from "@/lib/documentRef";
 
 type RequestUser = { id: string; name: string | null };
 
@@ -43,6 +53,46 @@ function mergeFormDataCorrection(
       : {};
   base.correctionPhase = phase;
   return base;
+}
+
+type UserActiveDraft = { id: string; preview_doc_ref: string };
+
+async function findUserActiveDraft(
+  client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: UserActiveDraft[] }> },
+  userId: string,
+  excludeRecordId?: string
+): Promise<UserActiveDraft | null> {
+  const params: string[] = [userId];
+  let excludeClause = "";
+  if (excludeRecordId) {
+    params.push(excludeRecordId);
+    excludeClause = " AND id::text <> $2::text";
+  }
+  const result = await client.query<UserActiveDraft>(
+    `SELECT id::text, preview_doc_ref
+     FROM document_module_records
+     WHERE created_by_user_id = $1
+       AND workflow_status = 'draft'
+       AND lifecycle_status = 'active'
+       ${excludeClause}
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    params
+  );
+  return result.rows[0] ?? null;
+}
+
+function draftLimitReachedResponse(existing: UserActiveDraft): NextResponse {
+  return NextResponse.json(
+    {
+      error:
+        "You already have a document draft. Open your existing draft to continue, or submit it before starting a new one.",
+      code: "DRAFT_LIMIT_REACHED",
+      existingDraftId: existing.id,
+      existingDraftRef: existing.preview_doc_ref,
+    },
+    { status: 409 }
+  );
 }
 
 type SaveDocumentBody = {
@@ -86,6 +136,19 @@ export async function GET(
     const connectionString = context.tenant.connectionString;
     if (!connectionString) {
       return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
+    }
+
+    if (req.nextUrl.searchParams.get("myDraft") === "1") {
+      let draft: UserActiveDraft | null = null;
+      await withTenantConnection(connectionString, async (client) => {
+        const tableCheck = await client.query(
+          `SELECT 1 FROM information_schema.tables
+           WHERE table_schema = 'public' AND table_name = 'document_module_records'`
+        );
+        if (tableCheck.rows.length === 0) return;
+        draft = await findUserActiveDraft(client, context.user.id);
+      });
+      return NextResponse.json({ draft }, { status: 200 });
     }
 
     const requestedId = req.nextUrl.searchParams.get("id");
@@ -390,13 +453,16 @@ export async function POST(
     const sourceRecordId = String(body.recordId ?? "").trim();
     const payload = body.payload ?? {};
 
-    const previewDocRef = String(payload.previewDocRef ?? "").trim();
+    let previewDocRef = String(payload.previewDocRef ?? "").trim();
     if (!previewDocRef) {
       return NextResponse.json({ error: "previewDocRef is required" }, { status: 400 });
     }
 
     const formData = payload.formData ?? {};
-    const wizard = payload.wizard ?? {};
+    let wizardData: Record<string, unknown> =
+      typeof payload.wizard === "object" && payload.wizard !== null && !Array.isArray(payload.wizard)
+        ? { ...(payload.wizard as Record<string, unknown>) }
+        : {};
 
     let savedRecordId = "";
     let lifecycleStatus: "active" | "obsolete" = "active";
@@ -450,7 +516,8 @@ export async function POST(
         const existingRow = await client.query<{
           form_data: unknown;
           created_by_user_id: string;
-        }>(`SELECT form_data, created_by_user_id FROM document_module_records WHERE id::text = $1::text`, [
+          preview_doc_ref: string;
+        }>(`SELECT form_data, created_by_user_id, preview_doc_ref FROM document_module_records WHERE id::text = $1::text`, [
           sourceRecordId,
         ]);
         if (existingRow.rows.length === 0) {
@@ -489,6 +556,9 @@ export async function POST(
             return;
           }
         }
+        let draftRef = applyDraftPlaceholderRef(previewDocRef);
+        let draftWizard = normalizeWizardDocSegment(wizardData, DRAFT_DOC_NUMBER);
+
         const updated = await client.query<{
           id: string;
           lifecycle_status: "active" | "obsolete";
@@ -509,9 +579,9 @@ export async function POST(
           [
             sourceRecordId,
             "draft",
-            previewDocRef,
+            draftRef,
             JSON.stringify(merged),
-            JSON.stringify(wizard),
+            JSON.stringify(draftWizard),
             context.user.id,
             context.user.name,
           ]
@@ -534,7 +604,8 @@ export async function POST(
         const existingRow = await client.query<{
           form_data: unknown;
           created_by_user_id: string;
-        }>(`SELECT form_data, created_by_user_id FROM document_module_records WHERE id::text = $1::text`, [
+          preview_doc_ref: string;
+        }>(`SELECT form_data, created_by_user_id, preview_doc_ref FROM document_module_records WHERE id::text = $1::text`, [
           sourceRecordId,
         ]);
         if (existingRow.rows.length === 0) {
@@ -574,6 +645,15 @@ export async function POST(
             return;
           }
         }
+
+        const storedRef = String(existingRow.rows[0]?.preview_doc_ref ?? "").trim();
+        let publishRef = previewDocRef;
+        if (isDraftPlaceholderRef(storedRef) || isDraftPlaceholderRef(previewDocRef)) {
+          const nextD = await nextPublishedDocNumber(client);
+          publishRef = assignPublishedDocNumber(previewDocRef, nextD);
+          wizardData = normalizeWizardDocSegment(wizardData, `D${nextD}`);
+        }
+
         const updated = await client.query<{
           id: string;
           lifecycle_status: "active" | "obsolete";
@@ -593,9 +673,9 @@ export async function POST(
            RETURNING id::text, lifecycle_status, workflow_status`,
           [
             sourceRecordId,
-            previewDocRef,
+            publishRef,
             JSON.stringify(merged),
-            JSON.stringify(wizard),
+            JSON.stringify(wizardData),
             context.user.id,
             context.user.name,
           ]
@@ -619,11 +699,23 @@ export async function POST(
       }
 
       if ((saveMode === "revision" || saveMode === "revision-draft") && sourceRecordId) {
-        const versionMatch = previewDocRef.match(/\/v(\d+)$/i);
-        const nextVersion = versionMatch ? Number(versionMatch[1]) + 1 : 2;
-        const nextPreviewDocRef = versionMatch
-          ? previewDocRef.replace(/\/v\d+$/i, `/v${nextVersion}`)
-          : `${previewDocRef}/v${nextVersion}`;
+        if (saveMode === "revision-draft") {
+          const existingDraft = await findUserActiveDraft(client, context.user.id);
+          if (existingDraft) {
+            postForbidden = draftLimitReachedResponse(existingDraft);
+            return;
+          }
+        }
+
+        const sourceRow = await client.query<{ preview_doc_ref: string }>(
+          `SELECT preview_doc_ref FROM document_module_records WHERE id::text = $1::text`,
+          [sourceRecordId]
+        );
+        const sourceRef =
+          String(sourceRow.rows[0]?.preview_doc_ref ?? "").trim() || previewDocRef;
+        const nextPreviewDocRef = bumpVersionInRef(sourceRef);
+        const sourceDocSeg = parseDocNumberSegment(sourceRef) ?? "D1";
+        const revisionWizard = normalizeWizardDocSegment(wizardData, sourceDocSeg);
 
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO document_module_records (
@@ -643,7 +735,7 @@ export async function POST(
             saveMode === "revision" ? "submitted" : "draft",
             nextPreviewDocRef,
             JSON.stringify(formData),
-            JSON.stringify(wizard),
+            JSON.stringify(revisionWizard),
             sourceRecordId,
             context.user.id,
             context.user.name,
@@ -677,9 +769,27 @@ export async function POST(
         return;
       }
 
+      if (saveMode === "create" && status === "draft") {
+        const existingDraft = await findUserActiveDraft(client, context.user.id);
+        if (existingDraft) {
+          postForbidden = draftLimitReachedResponse(existingDraft);
+          return;
+        }
+      }
+
       const normalizedInsert = normalizeDocumentFormData(formData, context.user, {
         clearCorrectionOnSubmit: status === "submitted",
       });
+
+      let insertRef = previewDocRef;
+      if (status === "draft") {
+        insertRef = applyDraftPlaceholderRef(previewDocRef);
+        wizardData = normalizeWizardDocSegment(wizardData, DRAFT_DOC_NUMBER);
+      } else {
+        const nextD = await nextPublishedDocNumber(client);
+        insertRef = assignPublishedDocNumber(previewDocRef, nextD);
+        wizardData = normalizeWizardDocSegment(wizardData, `D${nextD}`);
+      }
 
       const result = await client.query<{
         id: string;
@@ -701,9 +811,9 @@ export async function POST(
         RETURNING id::text, lifecycle_status, workflow_status`,
         [
           status,
-          previewDocRef,
+          insertRef,
           JSON.stringify(normalizedInsert),
-          JSON.stringify(wizard),
+          JSON.stringify(wizardData),
           status === "submitted" ? "in_review" : "draft",
           context.user.id,
           context.user.name,

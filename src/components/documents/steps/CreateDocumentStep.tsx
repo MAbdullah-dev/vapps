@@ -42,20 +42,25 @@ import { cn, documentActorMatches } from "@/lib/utils";
 import { docAlertInfo, docSelectionActive, docSelectionIdle } from "@/lib/document-ui-classes";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { useTranslate } from "@/components/providers/translation-provider";
+import {
+  applyDraftPlaceholderRef,
+  bumpVersionInRef,
+  DRAFT_DOC_NUMBER,
+  isDraftPlaceholderRef,
+  parseDocNumberSegment,
+} from "@/lib/documentRef";
+import { resolveManagementStandardLabel } from "@/lib/management-standard-label";
+import { toast } from "sonner";
 
-function managementStandardLabel(value: string, t: (text: string) => string): string {
-  switch (value) {
-    case "iso-9001":
-      return t("ISO 9001");
-    case "iso-14001":
-      return t("ISO 14001");
-    case "iso-45001":
-      return t("ISO 45001");
-    case "integrated":
-      return t("Integrated Management System");
-    default:
-      return t("ISO 9001");
-  }
+function managementStandardLabel(
+  value: string,
+  t: (text: string) => string,
+  standards: StandardOption[]
+): string {
+  const nameById = Object.fromEntries(standards.map((s) => [s.id, s.name]));
+  const resolved = resolveManagementStandardLabel(value, nameById);
+  if (resolved !== "-") return t(resolved);
+  return t("—");
 }
 
 function classificationTypeLabel(c: "P" | "F" | "EXT", t: (text: string) => string): string {
@@ -76,31 +81,32 @@ function countWords(text: string): number {
   return t.split(/\s+/).filter(Boolean).length;
 }
 
+function isRequiredValueFilled(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function requiredInputClass(hasError: boolean): string {
+  return cn(hasError && "border-destructive focus-visible:ring-destructive");
+}
+
+function DocFieldError({
+  show,
+  t,
+  message,
+}: {
+  show: boolean;
+  t: (text: string) => string;
+  message?: string;
+}) {
+  if (!show) return null;
+  return <p className="text-xs text-destructive">{message ?? t("This field is required")}</p>;
+}
+
 function extractProcessCode(raw: string): string {
   // Attempts to extract process segment codes like "P1", "P2", ... from process names.
   const match = raw.match(/\b(P\d+)\b/i);
   if (match?.[1]) return match[1].toUpperCase();
   return raw.trim() ? raw.trim().slice(0, 4).toUpperCase() : "P1";
-}
-
-/** First path segment like D1, D12 (not P/F). */
-function parseDocNumberSegment(documentRef: string): string | null {
-  const parts = documentRef.split("/").filter(Boolean);
-  for (const seg of parts) {
-    const m = /^D(\d+)$/i.exec(String(seg).trim());
-    if (m) return `D${m[1]}`;
-  }
-  return null;
-}
-
-function maxDocNumberAcrossRef(ref: string): number {
-  const parts = ref.split("/").filter(Boolean);
-  let max = 0;
-  for (const seg of parts) {
-    const m = /^D(\d+)$/i.exec(String(seg).trim());
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  return max;
 }
 
 type ProcessOwnerMemberOption = {
@@ -165,8 +171,12 @@ type CreateDocumentStepProps = {
   initialWizard?: Partial<DocumentWizardSnapshot>;
   /** When editing, used to keep Doc# in sync with saved preview_doc_ref. */
   initialPreviewDocRef?: string;
+  /** True while workflow_status is still draft (Doc# stays D0). */
+  isDraftRecord?: boolean;
   /** Present when editing an existing record — skips allocating a new D#. */
   recordId?: string;
+  /** When false, user already has another draft — publish is allowed but save-as-draft is not. */
+  canSaveDraft?: boolean;
   onSubmitProceed: (payload: DocumentSavePayload) => void | Promise<void>;
   onSaveDraft: (payload: DocumentSavePayload) => void | Promise<void>;
 };
@@ -222,12 +232,14 @@ export default function CreateDocumentStep({
   isViewMode = false,
   initialWizard,
   initialPreviewDocRef,
+  isDraftRecord = false,
   recordId,
+  canSaveDraft = true,
   onSubmitProceed,
   onSaveDraft,
 }: CreateDocumentStepProps) {
   const { t } = useTranslate();
-  const [pathDocNumber, setPathDocNumber] = useState("D1");
+  const [pathDocNumber, setPathDocNumber] = useState(DRAFT_DOC_NUMBER);
   const [previousRefNumber, setPreviousRefNumber] = useState("");
   const [priorityLevel, setPriorityLevel] = useState<"high" | "low">("high");
   const [documentClassification, setDocumentClassification] = useState<"P" | "F" | "EXT">("P");
@@ -282,6 +294,7 @@ export default function CreateDocumentStep({
   const [transferInitiatorRequest, setTransferInitiatorRequest] = useState("");
   const [originatorConsent, setOriginatorConsent] = useState<"accepted" | "declined" | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
   const [processOwnerOptions, setProcessOwnerOptions] = useState<ProcessOwnerMemberOption[]>([]);
   const [approverOptions, setApproverOptions] = useState<ProcessOwnerMemberOption[]>([]);
   const [isLoadingProcessOwners, setIsLoadingProcessOwners] = useState(false);
@@ -399,12 +412,14 @@ export default function CreateDocumentStep({
     setProcessOwner(name);
     const m = processOwnerOptions.find((x) => x.name === name);
     setProcessOwnerUserId(m?.id ?? "");
+    if (formErrors.processOwner) setFormErrors((p) => ({ ...p, processOwner: false }));
   };
 
   const handleApproverChange = (name: string) => {
     setApproverName(name);
     const m = approverOptions.find((x) => x.name === name);
     setApproverUserId(m?.id ?? "");
+    if (formErrors.approver) setFormErrors((p) => ({ ...p, approver: false }));
   };
 
   useEffect(() => {
@@ -449,11 +464,15 @@ export default function CreateDocumentStep({
     if (initialWizard.transferDocumentClass === "P" || initialWizard.transferDocumentClass === "F" || initialWizard.transferDocumentClass === "EXT") setTransferDocumentClass(initialWizard.transferDocumentClass);
     if (typeof initialWizard.transferInitiatorRequest === "string") setTransferInitiatorRequest(initialWizard.transferInitiatorRequest);
     if (initialWizard.originatorConsent === "accepted" || initialWizard.originatorConsent === "declined" || initialWizard.originatorConsent === null) setOriginatorConsent(initialWizard.originatorConsent);
-    if (typeof initialWizard.documentNumberSegment === "string") {
+    if (
+      typeof initialWizard.documentNumberSegment === "string" &&
+      !isDraftRecord &&
+      !isDraftPlaceholderRef(initialPreviewDocRef ?? "")
+    ) {
       const m = /^D(\d+)$/i.exec(initialWizard.documentNumberSegment.trim());
       if (m) setPathDocNumber(`D${m[1]}`);
     }
-  }, [initialWizard]);
+  }, [initialWizard, isDraftRecord, initialPreviewDocRef]);
 
   const reasonOptions = [
     "4M Change",
@@ -469,9 +488,11 @@ export default function CreateDocumentStep({
   ];
 
   const toggleReason = (reason: string) => {
-    setReasons((prev) =>
-      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
-    );
+    setReasons((prev) => {
+      const next = prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason];
+      if (next.length > 0 && formErrors.reasons) setFormErrors((p) => ({ ...p, reasons: false }));
+      return next;
+    });
   };
 
   const isReviseUpdate = actionType === "revise" && reviseSubAction === "update";
@@ -576,43 +597,17 @@ export default function CreateDocumentStep({
   useEffect(() => {
     const ref = initialPreviewDocRef?.trim();
     if (!ref) return;
+    if (isDraftRecord || isDraftPlaceholderRef(ref)) {
+      setPathDocNumber(DRAFT_DOC_NUMBER);
+      return;
+    }
     const parsed = parseDocNumberSegment(ref);
     if (parsed) setPathDocNumber(parsed);
-  }, [initialPreviewDocRef]);
-
-  useEffect(() => {
-    if (!orgId || recordId) return;
-    let ignore = false;
-    async function allocateNext() {
-      try {
-        const [activeRes, obsoleteRes] = await Promise.all([
-          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, { credentials: "include" }),
-          fetch(`/api/organization/${orgId}/documents?lifecycle=obsolete`, { credentials: "include" }),
-        ]);
-        const activeJson = activeRes.ok ? await activeRes.json() : { records: [] };
-        const obsoleteJson = obsoleteRes.ok ? await obsoleteRes.json() : { records: [] };
-        const rows = [
-          ...(Array.isArray(activeJson?.records) ? activeJson.records : []),
-          ...(Array.isArray(obsoleteJson?.records) ? obsoleteJson.records : []),
-        ] as Array<{ preview_doc_ref?: string }>;
-        let max = 0;
-        for (const row of rows) {
-          max = Math.max(max, maxDocNumberAcrossRef(String(row.preview_doc_ref ?? "")));
-        }
-        if (!ignore) setPathDocNumber(`D${max + 1}`);
-      } catch {
-        if (!ignore) setPathDocNumber("D1");
-      }
-    }
-    void allocateNext();
-    return () => {
-      ignore = true;
-    };
-  }, [orgId, recordId]);
+  }, [initialPreviewDocRef, isDraftRecord]);
 
   const previewDocRef = useMemo(() => {
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
-      return `${searchCurrentDocumentRef.trim()} → v2`;
+      return bumpVersionInRef(searchCurrentDocumentRef.trim());
     }
     if (isReviseTransfer) {
       const y = new Date().getFullYear();
@@ -620,7 +615,11 @@ export default function CreateDocumentStep({
       const docSeg = cls === "EXT" ? "EXT" : pathDocNumber;
       return `Doc/${y}/${transferTargetSite}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
     }
-    return `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
+    const base = `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
+    if (isDraftRecord || (recordId && isDraftPlaceholderRef(initialPreviewDocRef ?? ""))) {
+      return applyDraftPlaceholderRef(base);
+    }
+    return base;
   }, [
     isReviseUpdate,
     isReviseTransfer,
@@ -632,6 +631,9 @@ export default function CreateDocumentStep({
     siteId,
     currentProcessCode,
     documentClassification,
+    isDraftRecord,
+    recordId,
+    initialPreviewDocRef,
   ]);
 
   const buildSavePayload = (): DocumentSavePayload => ({
@@ -679,26 +681,6 @@ export default function CreateDocumentStep({
     },
   });
 
-  const handleSaveDraftClick = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    try {
-      await onSaveDraft(buildSavePayload());
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSubmitProceedClick = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    try {
-      await onSubmitProceed(buildSavePayload());
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const flowTitle =
     actionType === "create" ? t("Create") : actionType === "revise" ? t("Revise") : t("Obsolete");
 
@@ -721,6 +703,74 @@ export default function CreateDocumentStep({
 
   const reviseSubmitGuardsSatisfied =
     bypassReviseSubmitGuards || (isReviseUpdateReady && isReviseTransferReady);
+
+  const validateDocumentForm = (): boolean => {
+    if (isViewMode) return true;
+    const errors: Record<string, boolean> = {
+      site: !site?.trim(),
+      process: !processId?.trim(),
+      processOwner: !isRequiredValueFilled(processOwner),
+      approver: !isRequiredValueFilled(approverName),
+      title: !isRequiredValueFilled(title),
+      managementStandard: !isRequiredValueFilled(managementStandard),
+    };
+
+    if (!bypassReviseSubmitGuards) {
+      if (isReviseUpdate) {
+        errors.searchCurrentDocumentRef = !searchCurrentDocumentRef.trim();
+        errors.reasons = reasons.length === 0;
+      }
+      if (isReviseTransfer) {
+        errors.transferSearchRef = !transferSearchRef.trim();
+        errors.originatorConsent = originatorConsent === null;
+        errors.transferTargetProcess =
+          !transferTargetProcess.trim() ||
+          !transferProcessOptions.some((p) => p.code === transferTargetProcess);
+      }
+    }
+
+    if (restriction === "locked" && !filePin) {
+      errors.documentPin = true;
+    }
+
+    if (documentClassification === "EXT" && !externalDocumentFileName.trim()) {
+      errors.externalFile = true;
+    }
+
+    if (Object.values(errors).some(Boolean)) {
+      setFormErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return false;
+    }
+    setFormErrors({});
+    return true;
+  };
+
+  const handleSaveDraftClick = async () => {
+    if (isSaving || isViewMode) return;
+    if (!validateDocumentForm()) return;
+    setIsSaving(true);
+    try {
+      await onSaveDraft(buildSavePayload());
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmitProceedClick = async () => {
+    if (isSaving || isViewMode) return;
+    if (!validateDocumentForm()) return;
+    if (!reviseSubmitGuardsSatisfied) {
+      toast.error(t("Please complete all required revision or transfer fields."));
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onSubmitProceed(buildSavePayload());
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const previewTypeSubtitle =
     documentClassification === "P"
@@ -758,6 +808,7 @@ export default function CreateDocumentStep({
     }
     setRestriction("locked");
     setIsPinDialogOpen(false);
+    if (formErrors.documentPin) setFormErrors((p) => ({ ...p, documentPin: false }));
   };
 
   return (
@@ -836,12 +887,15 @@ export default function CreateDocumentStep({
                   </Label>
                   <Select
                     value={site}
-                    onValueChange={setSite}
+                    onValueChange={(v) => {
+                      setSite(v);
+                      if (formErrors.site) setFormErrors((p) => ({ ...p, site: false }));
+                    }}
                     disabled={
                       isViewMode || siteSelectionLocked || isLoadingContext || isLoadingSites
                     }
                   >
-                    <SelectTrigger id="doc-site" className="w-full">
+                    <SelectTrigger id="doc-site" className={cn("w-full", requiredInputClass(!!formErrors.site))}>
                       <SelectValue
                         placeholder={
                           isLoadingSites
@@ -860,6 +914,7 @@ export default function CreateDocumentStep({
                       ))}
                     </SelectContent>
                   </Select>
+                  <DocFieldError show={!!formErrors.site} t={t} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="site-id">{t("Site ID")}</Label>
@@ -887,7 +942,7 @@ export default function CreateDocumentStep({
 
             <div className="space-y-3">
               <h5 className="text-lg font-semibold text-foreground">{t("Process Area")}</h5>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-process">
                     {t("Process / Area *")}{" "}
@@ -899,7 +954,10 @@ export default function CreateDocumentStep({
                   </Label>
                   <Select
                     value={processId}
-                    onValueChange={setProcessName}
+                    onValueChange={(v) => {
+                      setProcessName(v);
+                      if (formErrors.process) setFormErrors((p) => ({ ...p, process: false }));
+                    }}
                     disabled={
                       isViewMode ||
                       processSelectionLocked ||
@@ -907,7 +965,7 @@ export default function CreateDocumentStep({
                       isLoadingProcesses
                     }
                   >
-                    <SelectTrigger id="doc-process" className="w-full">
+                    <SelectTrigger id="doc-process" className={cn("w-full", requiredInputClass(!!formErrors.process))}>
                       <SelectValue
                         placeholder={
                           processSelectionLocked
@@ -928,6 +986,7 @@ export default function CreateDocumentStep({
                       ))}
                     </SelectContent>
                   </Select>
+                  <DocFieldError show={!!formErrors.process} t={t} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="process-id">{t("Process ID")}</Label>
@@ -939,6 +998,14 @@ export default function CreateDocumentStep({
                     placeholder={t("Auto-filled")}
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border" />
+
+            <div className="space-y-3">
+              <h5 className="text-lg font-semibold text-foreground">{t("Process Owner & Approver")}</h5>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="process-owner">{t("Process Owner / Responsible Person *")}</Label>
                   <Select
@@ -946,7 +1013,7 @@ export default function CreateDocumentStep({
                     onValueChange={handleProcessOwnerChange}
                     disabled={isViewMode || isLoadingProcessOwners}
                   >
-                    <SelectTrigger id="process-owner" className="w-full">
+                    <SelectTrigger id="process-owner" className={cn("w-full", requiredInputClass(!!formErrors.processOwner))}>
                       <SelectValue
                         placeholder={
                           isLoadingProcessOwners ? t("Loading users...") : t("Select process owner")
@@ -973,50 +1040,52 @@ export default function CreateDocumentStep({
                       )}
                     </SelectContent>
                   </Select>
+                  <DocFieldError show={!!formErrors.processOwner} t={t} />
                   <p className="text-xs text-muted-foreground">
                     {t("Top/middle tier only. The person creating this document cannot be Process Owner.")}
                   </p>
                 </div>
-              </div>
-              <div className="space-y-2 max-w-xl">
-                <Label htmlFor="doc-approver">{t("Approver *")}</Label>
-                <Select
-                  value={approverName || undefined}
-                  onValueChange={handleApproverChange}
-                  disabled={isViewMode || isLoadingProcessOwners}
-                >
-                  <SelectTrigger id="doc-approver" className="w-full">
-                    <SelectValue
-                      placeholder={
-                        isLoadingProcessOwners ? t("Loading users...") : t("Select approver (top tier)")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {approverName.trim() &&
-                    !approverOptions.some((m) => m.name === approverName) ? (
-                      <SelectItem key="__current-approver" value={approverName}>
-                        {approverName}
-                      </SelectItem>
-                    ) : null}
-                    {approverOptions.length > 0 ? (
-                      approverOptions.map((member) => (
-                        <SelectItem key={member.id} value={member.name}>
-                          {member.name}
+                <div className="space-y-2">
+                  <Label htmlFor="doc-approver">{t("Approver *")}</Label>
+                  <Select
+                    value={approverName || undefined}
+                    onValueChange={handleApproverChange}
+                    disabled={isViewMode || isLoadingProcessOwners}
+                  >
+                    <SelectTrigger id="doc-approver" className={cn("w-full", requiredInputClass(!!formErrors.approver))}>
+                      <SelectValue
+                        placeholder={
+                          isLoadingProcessOwners ? t("Loading users...") : t("Select approver (top tier)")
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approverName.trim() &&
+                      !approverOptions.some((m) => m.name === approverName) ? (
+                        <SelectItem key="__current-approver" value={approverName}>
+                          {approverName}
                         </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        {t("No eligible top-tier approvers available")}
-                      </div>
+                      ) : null}
+                      {approverOptions.length > 0 ? (
+                        approverOptions.map((member) => (
+                          <SelectItem key={member.id} value={member.name}>
+                            {member.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          {t("No eligible top-tier approvers available")}
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <DocFieldError show={!!formErrors.approver} t={t} />
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
                     )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t(
-                    "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
-                  )}
-                </p>
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1270,11 +1339,15 @@ export default function CreateDocumentStep({
                 <Input
                   id="search-current-doc"
                   value={searchCurrentDocumentRef}
-                  onChange={(e) => setSearchCurrentDocumentRef(e.target.value)}
-                  className="pl-9"
+                  onChange={(e) => {
+                    setSearchCurrentDocumentRef(e.target.value);
+                    if (formErrors.searchCurrentDocumentRef) setFormErrors((p) => ({ ...p, searchCurrentDocumentRef: false }));
+                  }}
+                  className={cn("pl-9", requiredInputClass(!!formErrors.searchCurrentDocumentRef))}
                   placeholder={t("e.g. Doc/2025/S1/P1/P/D1/v1")}
                 />
               </div>
+              <DocFieldError show={!!formErrors.searchCurrentDocumentRef} t={t} />
               <p className="text-xs text-muted-foreground">
                 {t("Enter the existing document reference number to revise")}
               </p>
@@ -1285,7 +1358,7 @@ export default function CreateDocumentStep({
               <p className="text-xs text-muted-foreground">
                 {t("Select all applicable reasons (multiple selections allowed)")}
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className={cn("flex flex-wrap gap-2 rounded-lg", formErrors.reasons && "ring-1 ring-destructive p-1")}>
                 {reasonOptions.map((reason) => {
                   const isOn = reasons.includes(reason);
                   return (
@@ -1304,6 +1377,7 @@ export default function CreateDocumentStep({
                   );
                 })}
               </div>
+              <DocFieldError show={!!formErrors.reasons} t={t} />
             </div>
 
             <div className="space-y-2">
@@ -1366,11 +1440,15 @@ export default function CreateDocumentStep({
                 <Input
                   id="transfer-doc-search"
                   value={transferSearchRef}
-                  onChange={(e) => setTransferSearchRef(e.target.value)}
-                  className="pl-9"
+                  onChange={(e) => {
+                    setTransferSearchRef(e.target.value);
+                    if (formErrors.transferSearchRef) setFormErrors((p) => ({ ...p, transferSearchRef: false }));
+                  }}
+                  className={cn("pl-9", requiredInputClass(!!formErrors.transferSearchRef))}
                   placeholder={t("e.g. Doc/2025/S1/P2/F/D1/v1")}
                 />
               </div>
+              <DocFieldError show={!!formErrors.transferSearchRef} t={t} />
               <p className="text-xs text-muted-foreground">
                 {t("Enter the reference of the document to transfer")}
               </p>
@@ -1443,6 +1521,7 @@ export default function CreateDocumentStep({
                             onClick={() => {
                               setTransferTargetProcess(p.code);
                               setTransferTargetProcessId(p.id);
+                              if (formErrors.transferTargetProcess) setFormErrors((p) => ({ ...p, transferTargetProcess: false }));
                             }}
                             className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                               on
@@ -1456,6 +1535,7 @@ export default function CreateDocumentStep({
                       })
                     )}
                   </div>
+                  <DocFieldError show={!!formErrors.transferTargetProcess} t={t} />
                 </div>
               </div>
             </div>
@@ -1467,7 +1547,7 @@ export default function CreateDocumentStep({
                   <span className="text-xs text-muted-foreground">{t("Current Standard")}</span>
                   <Input
                     readOnly
-                    value={managementStandardLabel(managementStandard, t)}
+                    value={managementStandardLabel(managementStandard, t, standards)}
                     className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
@@ -1549,10 +1629,13 @@ export default function CreateDocumentStep({
 
             <div className="space-y-2">
               <Label>{t("Originator Consent (if different)")}</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg", formErrors.originatorConsent && "ring-1 ring-destructive p-1")}>
                 <button
                   type="button"
-                  onClick={() => setOriginatorConsent("accepted")}
+                  onClick={() => {
+                    setOriginatorConsent("accepted");
+                    if (formErrors.originatorConsent) setFormErrors((p) => ({ ...p, originatorConsent: false }));
+                  }}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "accepted"
                       ? "border-primary bg-primary text-primary-foreground"
@@ -1563,7 +1646,10 @@ export default function CreateDocumentStep({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setOriginatorConsent("declined")}
+                  onClick={() => {
+                    setOriginatorConsent("declined");
+                    if (formErrors.originatorConsent) setFormErrors((p) => ({ ...p, originatorConsent: false }));
+                  }}
                   className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                     originatorConsent === "declined"
                       ? "border-destructive bg-destructive text-destructive-foreground"
@@ -1573,6 +1659,7 @@ export default function CreateDocumentStep({
                   {t("✕ Declined")}
                 </button>
               </div>
+              <DocFieldError show={!!formErrors.originatorConsent} t={t} />
               <p className="text-xs text-muted-foreground">
                 {t(
                   "Originator consent is mandatory before any transfer. If process owner initiates, no consent required."
@@ -1596,9 +1683,14 @@ export default function CreateDocumentStep({
             <Input
               id="doc-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value.slice(0, 30))}
+              onChange={(e) => {
+                setTitle(e.target.value.slice(0, 30));
+                if (formErrors.title) setFormErrors((p) => ({ ...p, title: false }));
+              }}
+              className={requiredInputClass(!!formErrors.title)}
               placeholder={t("e.g., Machine Maintenance SOP")}
             />
+            <DocFieldError show={!!formErrors.title} t={t} />
             <p className="text-xs text-muted-foreground text-right">
               {title.length}/30 {t("characters")}
             </p>
@@ -1616,8 +1708,14 @@ export default function CreateDocumentStep({
 
           <div className="space-y-2">
             <Label>{t("Management System Standard *")}</Label>
-            <Select value={managementStandard} onValueChange={setManagementStandard}>
-              <SelectTrigger className="w-full">
+            <Select
+              value={managementStandard}
+              onValueChange={(v) => {
+                setManagementStandard(v);
+                if (formErrors.managementStandard) setFormErrors((p) => ({ ...p, managementStandard: false }));
+              }}
+            >
+              <SelectTrigger className={cn("w-full", requiredInputClass(!!formErrors.managementStandard))}>
                 <SelectValue
                   placeholder={isLoadingStandards ? t("Loading standards...") : t("Select standard")}
                 />
@@ -1630,6 +1728,7 @@ export default function CreateDocumentStep({
                 ))}
               </SelectContent>
             </Select>
+            <DocFieldError show={!!formErrors.managementStandard} t={t} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1725,6 +1824,9 @@ export default function CreateDocumentStep({
                   <Lock size={14} /> {t("Locked")}
                 </button>
               </div>
+              {formErrors.documentPin ? (
+                <DocFieldError show message={t("Please set a PIN before submitting a locked document")} t={t} />
+              ) : null}
               {restriction === "locked" && filePin ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted px-3 py-2">
                   <p className="text-xs text-muted-foreground">
@@ -1999,7 +2101,7 @@ export default function CreateDocumentStep({
             )}
           </div>
           {documentClassification === "EXT" ? (
-            <div className="relative min-h-[220px] rounded-lg border border-border bg-muted">
+            <div className={cn("relative min-h-[220px] rounded-lg border border-border bg-muted", formErrors.externalFile && "ring-1 ring-destructive")}>
               {externalDocumentFileName ? (
                 <p className="break-all p-4 pr-48 text-sm text-foreground">{externalDocumentFileName}</p>
               ) : null}
@@ -2010,6 +2112,7 @@ export default function CreateDocumentStep({
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   setExternalDocumentFileName(f?.name ?? "");
+                  if (f?.name && formErrors.externalFile) setFormErrors((p) => ({ ...p, externalFile: false }));
                 }}
               />
               <label
@@ -2020,7 +2123,11 @@ export default function CreateDocumentStep({
                 {t("UPLOAD FILE")}
               </label>
             </div>
-          ) : (
+          ) : null}
+          {documentClassification === "EXT" ? (
+            <DocFieldError show={!!formErrors.externalFile} message={t("Please upload an external document file")} t={t} />
+          ) : null}
+          {documentClassification !== "EXT" ? (
             <div id="document-editor-main" className="overflow-hidden rounded-lg border border-border bg-muted">
               <RichTextEditor
                 value={documentEditorContent}
@@ -2029,12 +2136,12 @@ export default function CreateDocumentStep({
                 minHeight={220}
               />
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
       {/* Thirteenth card under Step 1: Document Dates */}
-      <Card className="py-4">
+      {/* <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("13. Document Dates")}</h4>
@@ -2126,13 +2233,13 @@ export default function CreateDocumentStep({
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Fourteenth card under Step 1: Output Preview */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("14. Document Output Preview")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("13. Document Output Preview")}</h4>
             <p className="text-sm text-muted-foreground">{t("Preview how the final document will appear")}</p>
           </div>
 
@@ -2156,7 +2263,7 @@ export default function CreateDocumentStep({
               <p>
                 <span className="text-muted-foreground">{t("Standard:")}</span>{" "}
                 <span className="ml-2 font-medium">
-                  {managementStandardLabel(managementStandard || "iso-9001", t)}
+                  {managementStandardLabel(managementStandard, t, standards)}
                 </span>
               </p>
               <p>
@@ -2186,7 +2293,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("15. Submit Actions")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("14. Submit Actions")}</h4>
             <p className="text-sm text-muted-foreground">
               {t(
                 "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."
@@ -2198,25 +2305,19 @@ export default function CreateDocumentStep({
             <Button
               variant="outline"
               type="button"
-              className="gap-2"
+              className={cn("gap-2", !canProceed && !isViewMode && "opacity-60")}
               onClick={handleSaveDraftClick}
-              disabled={isViewMode || isSaving || isLoadingContext}
+              disabled={isViewMode || isSaving || isLoadingContext || !canSaveDraft}
             >
               <Save size={14} />
               {t("Save as Draft")}
             </Button>
             <Button
               type="button"
-              variant="default"
-              className="gap-2"
+              variant={canProceed && reviseSubmitGuardsSatisfied ? "default" : "outline"}
+              className={cn("gap-2", (!canProceed || !reviseSubmitGuardsSatisfied) && !isViewMode && "opacity-60")}
               onClick={handleSubmitProceedClick}
-              disabled={
-                isSaving ||
-                isViewMode ||
-                !canProceed ||
-                isLoadingContext ||
-                !reviseSubmitGuardsSatisfied
-              }
+              disabled={isSaving || isViewMode || isLoadingContext}
             >
               <Send size={14} />
               {t("Submit & Proceed")}
@@ -2224,7 +2325,14 @@ export default function CreateDocumentStep({
           </div>
           {!canProceed ? (
             <p className="text-xs text-muted-foreground">
-              {t("Select a site and process to proceed to review.")}
+              {t("Complete all required fields (site, process, owner, approver, title, and standard) to proceed.")}
+            </p>
+          ) : null}
+          {!canSaveDraft ? (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "You already have a document draft. You can submit this document for review, but only one draft is allowed at a time."
+              )}
             </p>
           ) : null}
         </CardContent>

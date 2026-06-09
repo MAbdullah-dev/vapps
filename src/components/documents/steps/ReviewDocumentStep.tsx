@@ -10,14 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, documentActorMatches } from "@/lib/utils";
 import {
-  docBadgeActive,
   docCalloutInfo,
   docCalloutWarning,
+  docPositionBadge,
 } from "@/lib/document-ui-classes";
+import type { DocumentWorkflowPosition } from "@/lib/documentRef";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslate } from "@/components/providers/translation-provider";
-
-const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
+import { toast } from "sonner";
 
 type ReviewDocumentStepProps = {
   title: string;
@@ -30,7 +30,10 @@ type ReviewDocumentStepProps = {
   managementStandard?: string;
   clause?: string;
   subClause?: string;
-  processId?: string;
+  previewDocRef?: string;
+  documentNumber?: string;
+  version?: string;
+  positionLabel?: DocumentWorkflowPosition;
   /** Logged-in user display name — must match Process Owner to submit review. */
   loginUserName?: string;
   loginUserId?: string;
@@ -61,7 +64,10 @@ export default function ReviewDocumentStep({
   managementStandard,
   clause,
   subClause,
-  processId,
+  previewDocRef,
+  documentNumber,
+  version,
+  positionLabel = "Review Pending",
   loginUserName,
   loginUserId,
   readOnlyObserver = false,
@@ -75,6 +81,7 @@ export default function ReviewDocumentStep({
   const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
   const [verificationOutcome, setVerificationOutcome] = useState<"effective" | "ineffective" | null>(null);
   const [reviewComments, setReviewComments] = useState("");
+  const [reviewErrors, setReviewErrors] = useState<Record<string, boolean>>({});
 
   const reviewDateDisplay = useMemo(
     () =>
@@ -173,9 +180,15 @@ export default function ReviewDocumentStep({
       <div className="space-y-5 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="border-border bg-muted font-normal text-muted-foreground">
-            {DOC_REF}
+            {previewDocRef?.trim() || t("—")}
           </Badge>
-          <Badge className={docBadgeActive}>{t("Active")}</Badge>
+          <Badge
+            className={cn(
+              docPositionBadge[positionLabel] ?? docPositionBadge.default
+            )}
+          >
+            {t(positionLabel)}
+          </Badge>
         </div>
 
         <div>
@@ -214,11 +227,11 @@ export default function ReviewDocumentStep({
           </div>
           <div>
             <p className="text-muted-foreground">{t("Doc#:")}</p>
-            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
+            <p className="font-semibold text-foreground">{documentNumber?.trim() || t("—")}</p>
           </div>
           <div>
             <p className="text-muted-foreground">{t("Version:")}</p>
-            <p className="font-semibold text-foreground">{t("v3")}</p>
+            <p className="font-semibold text-foreground">{version?.trim() || t("—")}</p>
           </div>
         </div>
 
@@ -486,15 +499,25 @@ export default function ReviewDocumentStep({
           <Textarea
             id="review-comments"
             value={reviewComments}
-            onChange={(e) => setReviewComments(e.target.value)}
+            onChange={(e) => {
+              setReviewComments(e.target.value);
+              if (reviewErrors.comments) setReviewErrors((p) => ({ ...p, comments: false }));
+            }}
             readOnly={!canPerformReview || readOnlyObserver}
             required={canPerformReview && !readOnlyObserver}
             aria-required={canPerformReview && !readOnlyObserver}
             placeholder={t("Enter your review comments here (required)…")}
-            className="min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground"
+            className={cn(
+              "min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground",
+              reviewErrors.comments && "border-destructive focus-visible:ring-destructive"
+            )}
           />
-          {canPerformReview && !readOnlyObserver && !reviewComments.trim() ? (
-            <p className="text-xs text-amber-800" role="status">
+          {reviewErrors.comments ? (
+            <p className="text-xs text-destructive" role="status">
+              {t("This field is required")}
+            </p>
+          ) : canPerformReview && !readOnlyObserver && !reviewComments.trim() ? (
+            <p className="text-xs text-muted-foreground" role="status">
               {t("Comments are required before you can submit this review.")}
             </p>
           ) : null}
@@ -522,14 +545,20 @@ export default function ReviewDocumentStep({
           {t("Back")}
         </Button>
         <Button
-          onClick={() => onNext({ comments: reviewComments, decision: verificationOutcome })}
-          disabled={
-            readOnlyObserver ||
-            !canPerformReview ||
-            !reviewAcknowledged ||
-            !verificationOutcome ||
-            !reviewComments.trim()
-          }
+          onClick={() => {
+            const errors: Record<string, boolean> = {};
+            if (!reviewAcknowledged) errors.acknowledged = true;
+            if (!verificationOutcome) errors.outcome = true;
+            if (!reviewComments.trim()) errors.comments = true;
+            if (Object.values(errors).some(Boolean)) {
+              setReviewErrors(errors);
+              toast.error(t("Please fill in all required fields."));
+              return;
+            }
+            setReviewErrors({});
+            onNext({ comments: reviewComments, decision: verificationOutcome });
+          }}
+          disabled={readOnlyObserver || !canPerformReview}
         >
           {verificationOutcome === "ineffective" ? t("Send to Review") : t("Send to Approval")}
         </Button>

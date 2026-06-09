@@ -113,7 +113,11 @@ export default function ProcessesListPage() {
         setCanManageProcesses(
           permissionsRes?.currentUserPermissions?.manage_processes ?? false
         );
-        setIsOrgOwner(membership.isOwner ?? false);
+        const owner = membership.isOwner ?? false;
+        setIsOrgOwner(owner);
+        if (owner) {
+          router.replace(getDashboardPath(orgSlug, "settings/sites-departments"));
+        }
       } catch (e: unknown) {
         console.error("Failed to fetch process access:", e);
         setCanManageProcesses(false);
@@ -121,7 +125,7 @@ export default function ProcessesListPage() {
       }
     };
     fetchAccess();
-  }, [orgId]);
+  }, [orgId, orgSlug, router]);
 
   useEffect(() => {
     let isMounted = true;

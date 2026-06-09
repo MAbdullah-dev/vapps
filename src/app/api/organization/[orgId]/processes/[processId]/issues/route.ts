@@ -4,6 +4,11 @@ import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import { logActivity } from "@/lib/activity-logger";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
+import {
+  PROCESS_ACCESS_DENIED_MESSAGE,
+  resolveOrgOwner,
+  userHasProcessAccess,
+} from "@/lib/process-access";
 import crypto from "crypto";
 import {
   getIssueVerificationsJoin,
@@ -50,59 +55,16 @@ export async function GET(
         );
       }
 
-      const processSiteId = processResult.rows[0].siteId;
-
-      const org = await prisma.organization.findUnique({
-        where: { id: resolvedOrgId },
-        select: { ownerId: true },
-      });
-      const userOrg = await prisma.userOrganization.findUnique({
-        where: {
-          userId_organizationId: {
-            userId: ctx.user.id,
-            organizationId: resolvedOrgId,
-          },
-        },
-        select: { role: true, leadershipTier: true },
-      });
-      const isOwner = org?.ownerId === ctx.user.id;
-      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
-      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
-      const isTopLeadership = leadershipTier === "Top" || isOwner;
-      const isOperationalLeadership = leadershipTier === "Operational";
-      const isSupportLeadership = leadershipTier === "Support";
-
-      if (isTopLeadership) {
-        // Top: access to all issues, processes, and sites — no further check
-      } else if (isOperationalLeadership) {
-        const siteAccessResult = await client.query(
-          `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-          [ctx.user.id, processSiteId]
-        );
-        if (siteAccessResult.rows.length === 0) {
-          client.release();
-          return NextResponse.json(
-            { error: "You can only view and manage issues for sites you are assigned to." },
-            { status: 403 }
-          );
-        }
-      } else if (isSupportLeadership) {
-        // For Support, check if they have access to this process
-        // processes.id is TEXT, process_users.process_id is UUID - cast UUID to TEXT for comparison
-        const processAccessResult = await client.query(
-          `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
-          [ctx.user.id, processId]
-        );
-        if (processAccessResult.rows.length === 0) {
-          client.release();
-          return NextResponse.json(
-            { error: "You can only view and manage issues for the process you are assigned to." },
-            { status: 403 }
-          );
-        }
-      } else {
+      const isOwner = await resolveOrgOwner(resolvedOrgId, ctx.user.id);
+      const hasAccess = await userHasProcessAccess(
+        client,
+        ctx.user.id,
+        processId,
+        isOwner
+      );
+      if (!hasAccess) {
         client.release();
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return NextResponse.json({ error: PROCESS_ACCESS_DENIED_MESSAGE }, { status: 403 });
       }
 
       const { join: verificationJoin, select: verificationSelect } =
@@ -318,20 +280,15 @@ export async function POST(
 
       const processSiteId = processResult.rows[0].siteId;
 
-      // Operational leadership: verify they have access to this site
-      if (isOperationalLeadership) {
-        const siteAccessResult = await client.query(
-          `SELECT user_id FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-          [ctx.user.id, processSiteId]
-        );
-
-        if (siteAccessResult.rows.length === 0) {
-          client.release();
-          return NextResponse.json(
-            { error: "You can only create issues for sites you are assigned to." },
-            { status: 403 }
-          );
-        }
+      const hasAccess = await userHasProcessAccess(
+        client,
+        ctx.user.id,
+        processId,
+        isOwner
+      );
+      if (!hasAccess) {
+        client.release();
+        return NextResponse.json({ error: PROCESS_ACCESS_DENIED_MESSAGE }, { status: 403 });
       }
 
       // Apply business rules for status and sprint assignment

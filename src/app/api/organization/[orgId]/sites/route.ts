@@ -5,11 +5,12 @@ import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
+import { getUserAssignedProcessIds } from "@/lib/process-access";
 import crypto from "crypto";
 
 /**
  * GET /api/organization/[orgId]/sites
- * Get sites and their processes. Top = all; Operational = their site(s); Support = site(s) containing their process(es).
+ * Get sites and their processes. Owner = all (for Settings); others = only assigned process(es).
  */
 export async function GET(
   req: NextRequest,
@@ -42,48 +43,10 @@ export async function GET(
     });
     const isOwner = org?.ownerId === ctx.user.id;
     const userRoleFromOrg = isOwner ? "owner" : (userOrg?.role || "member");
-    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRoleFromOrg);
-    const isSupportLeadership = leadershipTier === "Support" && !isOwner;
 
     const client = await getTenantClient(resolvedOrgId);
 
     try {
-      let allowedSiteIds: string[] | null = null;
-      let allowedProcessIds: string[] | null = null;
-
-      if (isOwner) {
-        // Owner may switch active site in settings; API returns all sites for that UI.
-      } else {
-        const siteRows = await client.query<{ site_id: string }>(
-          `SELECT site_id::text as site_id FROM site_users WHERE user_id = $1`,
-          [ctx.user.id]
-        );
-        allowedSiteIds = siteRows.rows.map((r) => r.site_id);
-
-        if (allowedSiteIds.length === 0 && isSupportLeadership) {
-          const processRows = await client.query<{ process_id: string }>(
-            `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
-            [ctx.user.id]
-          );
-          allowedProcessIds = processRows.rows.map((r) => r.process_id);
-        }
-
-        if (
-          allowedSiteIds.length === 0 &&
-          (!allowedProcessIds || allowedProcessIds.length === 0)
-        ) {
-          client.release();
-          const response = {
-            sites: [],
-            userRole: userRoleFromOrg,
-            isOwner,
-            organization: { id: tenant.orgId, name: tenant.orgName },
-          };
-          cache.set(cacheKey, response, 60 * 1000);
-          return NextResponse.json(response);
-        }
-      }
-
       let rows: any[];
 
       if (isOwner) {
@@ -95,19 +58,21 @@ export async function GET(
           ORDER BY s."createdAt" ASC, p.name ASC
         `);
         rows = result.rows;
-      } else if (allowedSiteIds && allowedSiteIds.length > 0) {
-        const placeholders = allowedSiteIds.map((_, i) => `$${i + 1}`).join(", ");
-        const result = await client.query(
-          `SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
-                 p.id as "processId", p.name as "processName", p."createdAt" as "processCreatedAt"
-          FROM sites s
-          LEFT JOIN processes p ON p."siteId" = s.id
-          WHERE s.id IN (${placeholders})
-          ORDER BY s."createdAt" ASC, p.name ASC`,
-          allowedSiteIds
-        );
-        rows = result.rows;
-      } else if (allowedProcessIds && allowedProcessIds.length > 0) {
+      } else {
+        const allowedProcessIds = await getUserAssignedProcessIds(client, ctx.user.id);
+
+        if (allowedProcessIds.length === 0) {
+          client.release();
+          const response = {
+            sites: [],
+            userRole: userRoleFromOrg,
+            isOwner,
+            organization: { id: tenant.orgId, name: tenant.orgName },
+          };
+          cache.set(cacheKey, response, 60 * 1000);
+          return NextResponse.json(response);
+        }
+
         const placeholders = allowedProcessIds.map((_, i) => `$${i + 1}`).join(", ");
         const result = await client.query(
           `SELECT s.id, s.name, s.code, s.location, s."createdAt", s."updatedAt",
@@ -118,8 +83,6 @@ export async function GET(
           allowedProcessIds
         );
         rows = result.rows;
-      } else {
-        rows = [];
       }
 
       client.release();

@@ -88,6 +88,10 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   const isOrgOwner = orgMembership?.isOwner ?? false;
 
   const link = (path: string) => getDashboardPath(slug, path);
+  const sidebarProcesses = selectedSite?.processes ?? [];
+  const processesNavHref = isOrgOwner
+    ? link("settings/sites-departments")
+    : link("processes");
 
   const pathNoQuery = pathname.split("?")[0];
   const isStandaloneIssuesActive =
@@ -232,9 +236,10 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
           }`}
         >
           <Link
-            href={link("processes")}
+            href={processesNavHref}
             className={`flex items-center gap-3 ${
-              pathname.includes("/processes")
+              pathname.includes("/processes") ||
+              (isOrgOwner && pathname.includes("/settings/sites-departments"))
                 ? "font-medium text-primary"
                 : "text-muted-foreground"
             }`}
@@ -259,16 +264,33 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
 
         <Collapsible open={processOpen} onOpenChange={setProcessOpen}>
           <CollapsibleContent className="pt-1 pl-2 space-y-1">
-            {selectedSite && selectedSite.processes.length > 0 ? (
-              selectedSite.processes.map((process) => {
+            {sidebarProcesses.length > 0 ? (
+              sidebarProcesses.map((process) => {
                 const processHref = `processes/${process.id}`;
+                const isActive = pathname.includes(processHref);
+
+                if (isOrgOwner) {
+                  return (
+                    <span
+                      key={process.id}
+                      className={`block px-3 py-2 text-sm rounded-lg ${
+                        isActive
+                          ? "bg-muted font-medium text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                      title={t("Open from Settings → Sites & Processes")}
+                    >
+                      {process.name}
+                    </span>
+                  );
+                }
 
                 return (
                   <Link
                     key={process.id}
                     href={link(processHref)}
                     className={`block px-3 py-2 text-sm rounded-lg transition ${
-                      pathname.includes(processHref)
+                      isActive
                         ? "bg-muted font-medium text-foreground"
                         : "text-muted-foreground hover:bg-muted/60"
                     }`}
@@ -279,7 +301,11 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
               })
             ) : (
               <div className="px-3 py-2 text-sm text-muted-foreground">
-                {selectedSite ? t("No processes available") : t("No site assigned")}
+                {selectedSite
+                  ? isOrgOwner
+                    ? t("No processes available")
+                    : t("No process assigned")
+                  : t("No site assigned")}
               </div>
             )}
           </CollapsibleContent>
