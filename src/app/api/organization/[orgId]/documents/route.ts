@@ -556,13 +556,8 @@ export async function POST(
             return;
           }
         }
-        const storedDraftRef = String(existingRow.rows[0]?.preview_doc_ref ?? "").trim();
-        let draftRef = previewDocRef;
-        let draftWizard = wizardData;
-        if (isDraftPlaceholderRef(storedDraftRef) || isDraftPlaceholderRef(previewDocRef)) {
-          draftRef = applyDraftPlaceholderRef(previewDocRef);
-          draftWizard = normalizeWizardDocSegment(wizardData, DRAFT_DOC_NUMBER);
-        }
+        let draftRef = applyDraftPlaceholderRef(previewDocRef);
+        let draftWizard = normalizeWizardDocSegment(wizardData, DRAFT_DOC_NUMBER);
 
         const updated = await client.query<{
           id: string;

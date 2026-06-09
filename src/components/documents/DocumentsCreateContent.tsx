@@ -9,6 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Check, CheckCircle, FileText, Loader2, Save, Search } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { isAnnualReviewOverdue } from "@/lib/documentAnnualReview";
+import { resolveManagementStandardLabel } from "@/lib/management-standard-label";
+import {
+  applyDraftPlaceholderRef,
+  DRAFT_DOC_NUMBER,
+  documentWorkflowPositionLabel,
+  isDraftPlaceholderRef,
+  parseDocNumberSegment,
+  parseVersionSegment,
+} from "@/lib/documentRef";
 import { cn, documentActorMatches } from "@/lib/utils";
 import {
   docAlertDestructive,
@@ -789,6 +798,39 @@ export default function DocumentsCreateContent() {
     [isViewMode, isOrgOwner, formData.processId]
   );
 
+  const managementStandardDisplayLabel = useMemo(
+    () =>
+      resolveManagementStandardLabel(
+        formData.managementStandard,
+        Object.fromEntries(standards.map((standard) => [standard.id, standard.name]))
+      ),
+    [formData.managementStandard, standards]
+  );
+
+  const documentHeaderMeta = useMemo(() => {
+    const rawRef = previewDocRefFromRecord?.trim() || "";
+    const isDraft = wf === "draft" || wf === "";
+    const previewDocRef =
+      isDraft && rawRef
+        ? isDraftPlaceholderRef(rawRef)
+          ? rawRef
+          : applyDraftPlaceholderRef(rawRef)
+        : rawRef;
+    const documentNumber = isDraft
+      ? DRAFT_DOC_NUMBER
+      : String(initialWizardData?.documentNumberSegment ?? "").trim() ||
+        (previewDocRef ? parseDocNumberSegment(previewDocRef) : null) ||
+        "";
+    const version =
+      (previewDocRef ? parseVersionSegment(previewDocRef) : null) || "";
+    return {
+      previewDocRef,
+      documentNumber,
+      version,
+      positionLabel: documentWorkflowPositionLabel(wf),
+    };
+  }, [previewDocRefFromRecord, initialWizardData?.documentNumberSegment, wf]);
+
   const showWorkflowPinWall =
     hasPersistedRecord &&
     workflowPinGateRequired &&
@@ -963,6 +1005,9 @@ export default function DocumentsCreateContent() {
       if (!res.ok) throw new Error("Failed to save submitted document");
       const json = await res.json();
       createdId = String(json?.id ?? "");
+      if (payload.previewDocRef?.trim()) {
+        setPreviewDocRefFromRecord(payload.previewDocRef.trim());
+      }
       setReviewReturnNotice(null);
       setApprovalReturnNotice(null);
       submittedOk = true;
@@ -995,6 +1040,7 @@ export default function DocumentsCreateContent() {
         error?: string;
         code?: string;
         existingDraftId?: string;
+        id?: string;
       };
       if (!res.ok) {
         const message =
@@ -1009,6 +1055,11 @@ export default function DocumentsCreateContent() {
         }
         return;
       }
+      if (payload.previewDocRef?.trim()) {
+        setPreviewDocRefFromRecord(applyDraftPlaceholderRef(payload.previewDocRef.trim()));
+      }
+      if (json.id) setActiveRecordId(String(json.id));
+      setRecordWorkflowStatus("draft");
       redirectToDocuments();
     } catch {
       toast.error("Network error while saving draft.");
@@ -1418,6 +1469,7 @@ export default function DocumentsCreateContent() {
               isViewMode={isViewMode || createStepReadOnly}
               initialWizard={initialWizardData ?? undefined}
               initialPreviewDocRef={previewDocRefFromRecord ?? undefined}
+              isDraftRecord={wf === "draft" || wf === ""}
               recordId={recordId || undefined}
               canSaveDraft={canSaveDraft}
               onSubmitProceed={handleSubmitProceed}
@@ -1448,10 +1500,13 @@ export default function DocumentsCreateContent() {
                 processOwnerUserId={formData.processOwnerUserId}
                 loginUserName={formData.loginUserName}
                 loginUserId={formData.loginUserId}
-                managementStandard={formData.managementStandard}
+                managementStandard={managementStandardDisplayLabel}
                 clause={formData.clause}
                 subClause={formData.subClause}
-                processId={formData.processId}
+                previewDocRef={documentHeaderMeta.previewDocRef}
+                documentNumber={documentHeaderMeta.documentNumber}
+                version={documentHeaderMeta.version}
+                positionLabel={documentHeaderMeta.positionLabel}
                 readOnlyObserver={reviewReadOnlyObserver}
                 onBack={() => setStep(1)}
                 onNext={handleReviewSubmit}
@@ -1482,10 +1537,13 @@ export default function DocumentsCreateContent() {
                 designatedApproverUserId={formData.approverUserId}
                 loginUserName={formData.loginUserName}
                 loginUserId={formData.loginUserId}
-                managementStandard={formData.managementStandard}
+                managementStandard={managementStandardDisplayLabel}
                 clause={formData.clause}
                 subClause={formData.subClause}
-                processId={formData.processId}
+                previewDocRef={documentHeaderMeta.previewDocRef}
+                documentNumber={documentHeaderMeta.documentNumber}
+                version={documentHeaderMeta.version}
+                positionLabel={documentHeaderMeta.positionLabel}
                 readOnlyObserver={approvalReadOnlyObserver}
                 onBack={() => setStep(2)}
                 onApprove={handleApproveFinish}

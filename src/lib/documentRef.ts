@@ -1,5 +1,13 @@
 export const DRAFT_DOC_NUMBER = "D0";
 
+/** Trailing version segment like v1, v12. */
+export function parseVersionSegment(documentRef: string): string | null {
+  const m = String(documentRef ?? "")
+    .trim()
+    .match(/\/(v\d+)$/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 /** First path segment like D1, D12 (not P/F). */
 export function parseDocNumberSegment(documentRef: string): string | null {
   const parts = documentRef.split("/").filter(Boolean);
@@ -72,6 +80,22 @@ export function normalizeWizardDocSegment(
 
 export function applyDraftPlaceholderRef(ref: string): string {
   return withDocNumberSegment(ref, DRAFT_DOC_NUMBER);
+}
+
+export type DocumentWorkflowPosition =
+  | "Draft"
+  | "Review Pending"
+  | "Approval Pending"
+  | "Active";
+
+export function documentWorkflowPositionLabel(
+  workflowStatus: string | null | undefined
+): DocumentWorkflowPosition {
+  const wf = String(workflowStatus ?? "").toLowerCase().trim();
+  if (wf === "in_review") return "Review Pending";
+  if (wf === "in_approval") return "Approval Pending";
+  if (wf === "approved") return "Active";
+  return "Draft";
 }
 
 type RefRow = { preview_doc_ref: string; wizard_data: unknown };

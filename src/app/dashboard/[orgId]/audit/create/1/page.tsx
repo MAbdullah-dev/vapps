@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -68,6 +68,27 @@ function getProgramIdFromWindow(): string | null {
   return new URLSearchParams(window.location.search).get("programId");
 }
 
+function isRequiredValueFilled(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function requiredInputClass(hasError: boolean): string {
+  return cn(hasError && "border-destructive focus-visible:ring-destructive");
+}
+
+function RequiredLabel({ htmlFor, children, className }: { htmlFor?: string; children: ReactNode; className?: string }) {
+  return (
+    <Label htmlFor={htmlFor} className={className}>
+      {children} <span className="text-destructive" aria-hidden>*</span>
+    </Label>
+  );
+}
+
+function FieldError({ show, t }: { show: boolean; t: (text: string) => string }) {
+  if (!show) return null;
+  return <p className="text-xs text-destructive">{t("This field is required")}</p>;
+}
+
 export default function CreateAuditStep1Page() {
   const params = useParams();
   const router = useRouter();
@@ -121,6 +142,42 @@ export default function CreateAuditStep1Page() {
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [auditType, setAuditType] = useState<string | null>(null);
   const [auditCriteria, setAuditCriteria] = useState<string | null>(null);
+  const [baseFormErrors, setBaseFormErrors] = useState<Record<string, boolean>>({});
+
+  const canAddTableRows = useMemo(
+    () =>
+      !!startPeriod &&
+      !!endPeriod &&
+      !!auditScope &&
+      selectedSiteIds.length > 0 &&
+      !!auditType &&
+      !!processId &&
+      !!programOwnerUserId &&
+      !!programPurpose &&
+      !!auditCriteria,
+    [startPeriod, endPeriod, auditScope, selectedSiteIds, auditType, processId, programOwnerUserId, programPurpose, auditCriteria]
+  );
+
+  const validateBaseForm = (): boolean => {
+    const errors = {
+      startPeriod: !startPeriod,
+      endPeriod: !endPeriod,
+      auditScope: !auditScope,
+      site: selectedSiteIds.length === 0,
+      auditType: !auditType,
+      processId: !processId,
+      programOwnerUserId: !programOwnerUserId,
+      programPurpose: !programPurpose,
+      auditCriteria: !auditCriteria,
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setBaseFormErrors(errors);
+      toast.error(t("Please complete all required fields above before adding risks, schedule rows, KPIs, or reviews."));
+      return false;
+    }
+    setBaseFormErrors({});
+    return true;
+  };
 
   const [risks, setRisks] = useState<{ id: string; rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }[]>([]);
 
@@ -130,18 +187,36 @@ export default function CreateAuditStep1Page() {
 
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const [riskForm, setRiskForm] = useState<{ rop: string; category: string; description: string; impact: string; impactClass: "gray" | "orange" | "green"; frequency: string; priority: string; priorityClass: "gray" | "red" | "green" }>({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
+  const [riskErrors, setRiskErrors] = useState<Record<string, boolean>>({});
   const [editingRiskId, setEditingRiskId] = useState<string | null>(null);
   const addRisk = () => {
+    if (!validateBaseForm()) return;
     setEditingRiskId(null);
     setRiskForm({ rop: "", category: "", description: "", impact: "", impactClass: "gray", frequency: "", priority: "", priorityClass: "gray" });
+    setRiskErrors({});
     setRiskDialogOpen(true);
   };
   const editRisk = (r: typeof risks[0]) => {
     setEditingRiskId(r.id);
     setRiskForm({ rop: r.rop, category: r.category, description: r.description, impact: r.impact, impactClass: r.impactClass, frequency: r.frequency, priority: r.priority, priorityClass: r.priorityClass });
+    setRiskErrors({});
     setRiskDialogOpen(true);
   };
   const submitRisk = () => {
+    const errors = {
+      rop: !isRequiredValueFilled(riskForm.rop),
+      category: !isRequiredValueFilled(riskForm.category),
+      description: !isRequiredValueFilled(riskForm.description),
+      impact: !isRequiredValueFilled(riskForm.impact),
+      frequency: !isRequiredValueFilled(riskForm.frequency),
+      priority: !isRequiredValueFilled(riskForm.priority),
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setRiskErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return;
+    }
+    setRiskErrors({});
     if (editingRiskId) {
       setRisks((prev) => prev.map((r) => (r.id === editingRiskId ? { ...r, ...riskForm } : r)));
       setEditingRiskId(null);
@@ -154,18 +229,36 @@ export default function CreateAuditStep1Page() {
 
   const [kpiDialogOpen, setKpiDialogOpen] = useState(false);
   const [kpiForm, setKpiForm] = useState({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
+  const [kpiErrors, setKpiErrors] = useState<Record<string, boolean>>({});
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const addKpi = () => {
+    if (!validateBaseForm()) return;
     setEditingKpiId(null);
     setKpiForm({ kpi: "", description: "", impact: "", score: "", priority: "", comments: "" });
+    setKpiErrors({});
     setKpiDialogOpen(true);
   };
   const editKpi = (k: typeof kpis[0]) => {
     setEditingKpiId(k.id);
     setKpiForm({ kpi: k.kpi, description: k.description, impact: k.impact, score: k.score, priority: k.priority, comments: k.comments });
+    setKpiErrors({});
     setKpiDialogOpen(true);
   };
   const submitKpi = () => {
+    const errors = {
+      kpi: !isRequiredValueFilled(kpiForm.kpi),
+      description: !isRequiredValueFilled(kpiForm.description),
+      impact: !isRequiredValueFilled(kpiForm.impact),
+      score: !isRequiredValueFilled(kpiForm.score),
+      priority: !isRequiredValueFilled(kpiForm.priority),
+      comments: !isRequiredValueFilled(kpiForm.comments),
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setKpiErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return;
+    }
+    setKpiErrors({});
     if (editingKpiId) {
       setKpis((prev) => prev.map((k) => (k.id === editingKpiId ? { ...k, ...kpiForm } : k)));
       setEditingKpiId(null);
@@ -179,17 +272,35 @@ export default function CreateAuditStep1Page() {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleEditIndex, setScheduleEditIndex] = useState<number | null>(null);
   const [scheduleEditForm, setScheduleEditForm] = useState<{ audit: string; type: string; focus: string; frequency: string; months: string; lead: string }>({ audit: "", type: "", focus: "", frequency: "", months: "", lead: "" });
+  const [scheduleErrors, setScheduleErrors] = useState<Record<string, boolean>>({});
   const addScheduleRow = () => {
+    if (!validateBaseForm()) return;
     setScheduleEditIndex(null);
     setScheduleEditForm({ audit: "", type: "", focus: "", frequency: "", months: "", lead: "" });
+    setScheduleErrors({});
     setScheduleDialogOpen(true);
   };
   const editScheduleRow = (index: number) => {
     setScheduleEditIndex(index);
     setScheduleEditForm({ ...scheduleRows[index] });
+    setScheduleErrors({});
     setScheduleDialogOpen(true);
   };
   const submitScheduleEdit = () => {
+    const errors = {
+      audit: !isRequiredValueFilled(scheduleEditForm.audit),
+      type: !isRequiredValueFilled(scheduleEditForm.type),
+      focus: !isRequiredValueFilled(scheduleEditForm.focus),
+      frequency: !isRequiredValueFilled(scheduleEditForm.frequency),
+      months: !isRequiredValueFilled(scheduleEditForm.months),
+      lead: !isRequiredValueFilled(scheduleEditForm.lead),
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setScheduleErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return;
+    }
+    setScheduleErrors({});
     if (scheduleEditIndex !== null) {
       setScheduleRows((prev) => prev.map((row, i) => (i === scheduleEditIndex ? scheduleEditForm : row)));
     } else {
@@ -210,17 +321,34 @@ export default function CreateAuditStep1Page() {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState<{ pri: string; type: string; comments: string; priority: string; priorityClass: "gray" | "red"; action: string }>({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
+  const [reviewErrors, setReviewErrors] = useState<Record<string, boolean>>({});
   const addReview = () => {
+    if (!validateBaseForm()) return;
     setEditingReviewId(null);
     setReviewForm({ pri: "", type: "", comments: "", priority: "", priorityClass: "gray", action: "" });
+    setReviewErrors({});
     setReviewDialogOpen(true);
   };
   const editReview = (r: typeof reviewRows[0]) => {
     setEditingReviewId(r.id);
     setReviewForm({ pri: r.pri, type: r.type, comments: r.comments, priority: r.priority, priorityClass: r.priorityClass, action: r.action });
+    setReviewErrors({});
     setReviewDialogOpen(true);
   };
   const submitReview = () => {
+    const errors = {
+      pri: !isRequiredValueFilled(reviewForm.pri),
+      type: !isRequiredValueFilled(reviewForm.type),
+      comments: !isRequiredValueFilled(reviewForm.comments),
+      priority: !isRequiredValueFilled(reviewForm.priority),
+      action: !isRequiredValueFilled(reviewForm.action),
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setReviewErrors(errors);
+      toast.error(t("Please fill in all required fields."));
+      return;
+    }
+    setReviewErrors({});
     if (editingReviewId) {
       setReviewRows((prev) => prev.map((row) => (row.id === editingReviewId ? { ...row, ...reviewForm } : row)));
       setEditingReviewId(null);
@@ -552,16 +680,17 @@ export default function CreateAuditStep1Page() {
           <h2 className="mb-6 text-xl font-bold text-foreground">{t("PERIOD COVERED")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("START PERIOD (MM-DD-YYYY)")}
-              </Label>
+              </RequiredLabel>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !startPeriod && "text-muted-foreground"
+                      !startPeriod && "text-muted-foreground",
+                      requiredInputClass(!!baseFormErrors.startPeriod)
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -572,23 +701,28 @@ export default function CreateAuditStep1Page() {
                   <Calendar
                     mode="single"
                     selected={startPeriod}
-                    onSelect={setStartPeriod}
+                    onSelect={(date) => {
+                      setStartPeriod(date);
+                      if (baseFormErrors.startPeriod) setBaseFormErrors((p) => ({ ...p, startPeriod: false }));
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
+              <FieldError show={!!baseFormErrors.startPeriod} t={t} />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("END PERIOD (MM-DD-YYYY)")}
-              </Label>
+              </RequiredLabel>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !endPeriod && "text-muted-foreground"
+                      !endPeriod && "text-muted-foreground",
+                      requiredInputClass(!!baseFormErrors.endPeriod)
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -599,11 +733,15 @@ export default function CreateAuditStep1Page() {
                   <Calendar
                     mode="single"
                     selected={endPeriod}
-                    onSelect={setEndPeriod}
+                    onSelect={(date) => {
+                      setEndPeriod(date);
+                      if (baseFormErrors.endPeriod) setBaseFormErrors((p) => ({ ...p, endPeriod: false }));
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
+              <FieldError show={!!baseFormErrors.endPeriod} t={t} />
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -631,9 +769,9 @@ export default function CreateAuditStep1Page() {
             {/* Left half: Scope of Audit Program */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-                {t("SCOPE OF AUDIT PROGRAM (SELECT ONE)")}
+                {t("SCOPE OF AUDIT PROGRAM (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={cn("grid grid-cols-2 gap-4 rounded-lg", baseFormErrors.auditScope && "ring-1 ring-destructive")}>
                 {auditScopeOptions.map((opt) => (
                   <Label
                     key={opt.id}
@@ -641,32 +779,35 @@ export default function CreateAuditStep1Page() {
                       "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
                       auditScope === opt.id
                         ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                        : "border-border bg-card hover:border-border"
+                        : "border-border bg-card hover:border-border",
+                      baseFormErrors.auditScope && auditScope !== opt.id && "border-destructive/50"
                     )}
                   >
                     <Checkbox
                       checked={auditScope === opt.id}
-                      onCheckedChange={(checked) =>
-                        setAuditScope(checked ? opt.id : null)
-                      }
+                      onCheckedChange={(checked) => {
+                        setAuditScope(checked ? opt.id : null);
+                        if (baseFormErrors.auditScope) setBaseFormErrors((p) => ({ ...p, auditScope: false }));
+                      }}
                       className="shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                     />
                     <span className="font-medium text-foreground">{t(opt.label)}</span>
                   </Label>
                 ))}
               </div>
+              <FieldError show={!!baseFormErrors.auditScope} t={t} />
             </div>
             {/* Right half: Organizational Sites / Units (current org only) */}
             <div>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-                {t("ORGANIZATIONAL SITES / UNITS (SELECT ONE)")}
+                {t("ORGANIZATIONAL SITES / UNITS (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
               </h3>
               {sites.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {t("No sites for this organization. Add sites in Settings.")}
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className={cn("flex flex-wrap gap-2 rounded-lg", baseFormErrors.site && "ring-1 ring-destructive p-1")}>
                   {sites.map((site) => (
                     (() => {
                       const isSelected = selectedSiteIds.includes(site.id);
@@ -676,10 +817,14 @@ export default function CreateAuditStep1Page() {
                       type="button"
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
-                      onClick={() => selectSite(site.id)}
+                      onClick={() => {
+                        selectSite(site.id);
+                        if (baseFormErrors.site) setBaseFormErrors((p) => ({ ...p, site: false }));
+                      }}
                       className={cn(
                         "min-w-[100px] rounded-md py-4 transition-colors",
-                        !isSelected && "border-border text-foreground hover:border-border hover:bg-muted/40"
+                        !isSelected && "border-border text-foreground hover:border-border hover:bg-muted/40",
+                        baseFormErrors.site && !isSelected && "border-destructive"
                       )}
                     >
                       {site.code || site.name}
@@ -689,15 +834,16 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </div>
               )}
+              <FieldError show={!!baseFormErrors.site} t={t} />
             </div>
           </div>
      
           {/* Types of Audits */}
           <div>
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
-              {t("TYPES OF AUDITS (SELECT ONE)")}
+              {t("TYPES OF AUDITS (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
             </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-lg", baseFormErrors.auditType && "ring-1 ring-destructive")}>
               {auditTypeOptions.map((opt) => (
                 <Label
                   key={opt.id}
@@ -705,14 +851,16 @@ export default function CreateAuditStep1Page() {
                     "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
                     auditType === opt.id
                       ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                      : "border-border bg-card hover:border-border"
+                      : "border-border bg-card hover:border-border",
+                    baseFormErrors.auditType && auditType !== opt.id && "border-destructive/50"
                   )}
                 >
                   <Checkbox
                     checked={auditType === opt.id}
-                    onCheckedChange={(checked) =>
-                      setAuditType(checked ? opt.id : null)
-                    }
+                    onCheckedChange={(checked) => {
+                      setAuditType(checked ? opt.id : null);
+                      if (baseFormErrors.auditType) setBaseFormErrors((p) => ({ ...p, auditType: false }));
+                    }}
                     className="mt-0.5 shrink-0 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                   />
                   <div>
@@ -722,6 +870,7 @@ export default function CreateAuditStep1Page() {
                 </Label>
               ))}
             </div>
+            <FieldError show={!!baseFormErrors.auditType} t={t} />
           </div>
         </div>
 
@@ -740,15 +889,19 @@ export default function CreateAuditStep1Page() {
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("PROCESS / DEPARTMENT")}
-              </Label>
+              </RequiredLabel>
               <Select
                 value={processId ?? ""}
-                onValueChange={(v) => { setProcessId(v || null); setProgramOwnerUserId(null); }}
+                onValueChange={(v) => {
+                  setProcessId(v || null);
+                  setProgramOwnerUserId(null);
+                  if (baseFormErrors.processId) setBaseFormErrors((p) => ({ ...p, processId: false }));
+                }}
                 disabled={selectedSiteIds.length === 0}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.processId))}>
                   <SelectValue placeholder={selectedSiteIds.length === 0 ? t("Select a site first") : t("Select process")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -757,14 +910,22 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError show={!!baseFormErrors.processId} t={t} />
               <p className="text-xs text-muted-foreground">{t("Only processes you are not assigned to are shown (no self-audit).")}</p>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("RESPONSIBLE OWNER (AUDITEE)")}
-              </Label>
-              <Select value={programOwnerUserId ?? ""} onValueChange={(v) => setProgramOwnerUserId(v || null)} disabled={!processId}>
-                <SelectTrigger className="w-full">
+              </RequiredLabel>
+              <Select
+                value={programOwnerUserId ?? ""}
+                onValueChange={(v) => {
+                  setProgramOwnerUserId(v || null);
+                  if (baseFormErrors.programOwnerUserId) setBaseFormErrors((p) => ({ ...p, programOwnerUserId: false }));
+                }}
+                disabled={!processId}
+              >
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programOwnerUserId))}>
                   <SelectValue placeholder={t("Select responsible person")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -773,6 +934,7 @@ export default function CreateAuditStep1Page() {
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError show={!!baseFormErrors.programOwnerUserId} t={t} />
               <p className="text-xs text-muted-foreground">{t("Determined by selected site and process (person responsible for that process).")}</p>
             </div>
           </div>
@@ -800,9 +962,9 @@ export default function CreateAuditStep1Page() {
         {/* Program Purpose & Objectives */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
-            {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")}
+            {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-lg", baseFormErrors.programPurpose && "ring-1 ring-destructive")}>
             {programPurposeOptions.map((opt) => (
               <Label
                 key={opt.id}
@@ -810,14 +972,16 @@ export default function CreateAuditStep1Page() {
                   "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
                   programPurpose === opt.id
                     ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                    : "border-border bg-card hover:border-border"
+                    : "border-border bg-card hover:border-border",
+                  baseFormErrors.programPurpose && programPurpose !== opt.id && "border-destructive/50"
                 )}
               >
                 <Checkbox
                   checked={programPurpose === opt.id}
-                  onCheckedChange={(checked) =>
-                    setProgramPurpose(checked ? opt.id : null)
-                  }
+                  onCheckedChange={(checked) => {
+                    setProgramPurpose(checked ? opt.id : null);
+                    if (baseFormErrors.programPurpose) setBaseFormErrors((p) => ({ ...p, programPurpose: false }));
+                  }}
                   className="mt-0.5 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <div>
@@ -827,14 +991,15 @@ export default function CreateAuditStep1Page() {
               </Label>
             ))}
           </div>
+          <FieldError show={!!baseFormErrors.programPurpose} t={t} />
         </div>
 
         {/* Audit Program Criteria */}
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
-            {t("AUDIT PROGRAM CRITERIA (SELECT ONE)")}
+            {t("AUDIT PROGRAM CRITERIA (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-lg", baseFormErrors.auditCriteria && "ring-1 ring-destructive")}>
             {auditCriteriaOptions.map((opt) => (
               <Label
                 key={opt.id}
@@ -842,20 +1007,23 @@ export default function CreateAuditStep1Page() {
                   "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
                   auditCriteria === opt.id
                     ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                    : "border-border bg-card hover:border-border"
+                    : "border-border bg-card hover:border-border",
+                  baseFormErrors.auditCriteria && auditCriteria !== opt.id && "border-destructive/50"
                 )}
               >
                 <Checkbox
                   checked={auditCriteria === opt.id}
-                  onCheckedChange={(checked) =>
-                    setAuditCriteria(checked ? opt.id : null)
-                  }
+                  onCheckedChange={(checked) => {
+                    setAuditCriteria(checked ? opt.id : null);
+                    if (baseFormErrors.auditCriteria) setBaseFormErrors((p) => ({ ...p, auditCriteria: false }));
+                  }}
                   className="border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
                 <span className="font-medium text-foreground">{t(opt.label)}</span>
               </Label>
             ))}
           </div>
+          <FieldError show={!!baseFormErrors.auditCriteria} t={t} />
           <div className="mt-4 flex items-start gap-3 rounded-lg border border-border bg-muted px-4 py-3">
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500 text-primary-foreground">
               <Info className="h-4 w-4" />
@@ -865,13 +1033,21 @@ export default function CreateAuditStep1Page() {
             </p>
           </div>
         </div>
+        {!canAddTableRows && (
+          <div className="mx-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/40">
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              {t("Complete all required fields above (period, scope, site, audit type, process, responsible owner, purpose, and criteria) before adding risks, schedule rows, KPIs, or reviews.")}
+            </p>
+          </div>
+        )}
         {/* Audit Program Risks & Opportunities */}
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">
               {t("AUDIT PROGRAM RISKS & OPPORTUNITIES")}
             </h2>
-            <Button onClick={addRisk} size="sm">
+            <Button onClick={addRisk} size="sm" variant={canAddTableRows ? "default" : "outline"} className={cn(!canAddTableRows && "opacity-60")}>
               {t("+ ADD RISK")}
             </Button>
           </div>
@@ -945,7 +1121,7 @@ export default function CreateAuditStep1Page() {
             <h2 className="text-xl font-bold text-foreground">
               {t("AUDIT PROGRAM STRUCTURE & SCHEDULE")}
             </h2>
-            <Button onClick={addScheduleRow} size="sm">
+            <Button onClick={addScheduleRow} size="sm" variant={canAddTableRows ? "default" : "outline"} className={cn(!canAddTableRows && "opacity-60")}>
               {t("+ ADD ROW")}
             </Button>
           </div>
@@ -993,7 +1169,7 @@ export default function CreateAuditStep1Page() {
             <h2 className="text-xl font-bold text-foreground">
               {t("MONITORING & MEASUREMENT (KPIS)")}
             </h2>
-            <Button onClick={addKpi} size="sm">
+            <Button onClick={addKpi} size="sm" variant={canAddTableRows ? "default" : "outline"} className={cn(!canAddTableRows && "opacity-60")}>
               {t("+ ADD KPI")}
             </Button>
           </div>
@@ -1048,7 +1224,7 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">{t("PROGRAM REVIEW & IMPROVEMENT")}</h2>
-            <Button onClick={addReview} size="sm" className="gap-1.5">
+            <Button onClick={addReview} size="sm" className={cn("gap-1.5", !canAddTableRows && "opacity-60")} variant={canAddTableRows ? "default" : "outline"}>
               <Plus className="h-4 w-4" />
               {t("ADD REVIEW")}
             </Button>
@@ -1137,9 +1313,9 @@ export default function CreateAuditStep1Page() {
           size="lg"
           variant="outline"
           className="gap-2 border-border text-foreground hover:bg-muted/40"
-          disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
+          disabled={isSaving || !currentUserId || !canAddTableRows}
           onClick={async () => {
-            if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;
+            if (!currentUserId || !validateBaseForm()) return;
             setIsSaving(true);
             try {
               const payload = {
@@ -1178,9 +1354,9 @@ export default function CreateAuditStep1Page() {
         <Button
           size="lg"
           className="gap-2"
-          disabled={isSaving || !currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0}
+          disabled={isSaving || !currentUserId || !canAddTableRows}
           onClick={async () => {
-            if (!currentUserId || !startPeriod || !endPeriod || !processId || !programOwnerUserId || selectedSiteIds.length === 0) return;
+            if (!currentUserId || !validateBaseForm()) return;
             setIsSaving(true);
             try {
               const payload = {
@@ -1221,7 +1397,7 @@ export default function CreateAuditStep1Page() {
       </div>
 
       {/* Add Risk Dialog */}
-      <Dialog open={riskDialogOpen} onOpenChange={(open) => { setRiskDialogOpen(open); if (!open) setEditingRiskId(null); }}>
+      <Dialog open={riskDialogOpen} onOpenChange={(open) => { setRiskDialogOpen(open); if (!open) { setEditingRiskId(null); setRiskErrors({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-primary">{editingRiskId ? t("Edit Risk") : t("Add Risk")}</DialogTitle>
@@ -1230,23 +1406,26 @@ export default function CreateAuditStep1Page() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="risk-rop">{t("ROP#")}</Label>
-                <Input id="risk-rop" value={riskForm.rop} onChange={(e) => setRiskForm((f) => ({ ...f, rop: e.target.value }))} placeholder={t("e.g. R-001")} />
+                <RequiredLabel htmlFor="risk-rop">{t("ROP#")}</RequiredLabel>
+                <Input id="risk-rop" value={riskForm.rop} onChange={(e) => { setRiskForm((f) => ({ ...f, rop: e.target.value })); if (riskErrors.rop) setRiskErrors((p) => ({ ...p, rop: false })); }} className={requiredInputClass(!!riskErrors.rop)} placeholder={t("e.g. R-001")} />
+                <FieldError show={!!riskErrors.rop} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="risk-category">{t("Category")}</Label>
-                <Input id="risk-category" value={riskForm.category} onChange={(e) => setRiskForm((f) => ({ ...f, category: e.target.value }))} placeholder={t("e.g. Resource Availability")} />
+                <RequiredLabel htmlFor="risk-category">{t("Category")}</RequiredLabel>
+                <Input id="risk-category" value={riskForm.category} onChange={(e) => { setRiskForm((f) => ({ ...f, category: e.target.value })); if (riskErrors.category) setRiskErrors((p) => ({ ...p, category: false })); }} className={requiredInputClass(!!riskErrors.category)} placeholder={t("e.g. Resource Availability")} />
+                <FieldError show={!!riskErrors.category} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="risk-description">{t("Description")}</Label>
-              <Textarea id="risk-description" value={riskForm.description} onChange={(e) => setRiskForm((f) => ({ ...f, description: e.target.value }))} placeholder={t("Enter description")} rows={2} />
+              <RequiredLabel htmlFor="risk-description">{t("Description")}</RequiredLabel>
+              <Textarea id="risk-description" value={riskForm.description} onChange={(e) => { setRiskForm((f) => ({ ...f, description: e.target.value })); if (riskErrors.description) setRiskErrors((p) => ({ ...p, description: false })); }} className={requiredInputClass(!!riskErrors.description)} placeholder={t("Enter description")} rows={2} />
+              <FieldError show={!!riskErrors.description} t={t} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{t("Impact (1-5)")}</Label>
-                <Select value={riskForm.impact} onValueChange={(v) => setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" }))}>
-                  <SelectTrigger className="w-full">
+                <RequiredLabel>{t("Impact (1-5)")}</RequiredLabel>
+                <Select value={riskForm.impact} onValueChange={(v) => { setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" })); if (riskErrors.impact) setRiskErrors((p) => ({ ...p, impact: false })); }}>
+                  <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.impact))}>
                     <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1257,16 +1436,18 @@ export default function CreateAuditStep1Page() {
                     <SelectItem value="05 (V.High)">{t("05 (V.High)")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <FieldError show={!!riskErrors.impact} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="risk-frequency">{t("Frequency")}</Label>
-                <Input id="risk-frequency" value={riskForm.frequency} onChange={(e) => setRiskForm((f) => ({ ...f, frequency: e.target.value }))} placeholder={t("e.g. Annual, Ongoing")} />
+                <RequiredLabel htmlFor="risk-frequency">{t("Frequency")}</RequiredLabel>
+                <Input id="risk-frequency" value={riskForm.frequency} onChange={(e) => { setRiskForm((f) => ({ ...f, frequency: e.target.value })); if (riskErrors.frequency) setRiskErrors((p) => ({ ...p, frequency: false })); }} className={requiredInputClass(!!riskErrors.frequency)} placeholder={t("e.g. Annual, Ongoing")} />
+                <FieldError show={!!riskErrors.frequency} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t("Priority")}</Label>
-              <Select value={riskForm.priority} onValueChange={(v) => setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" }))}>
-                <SelectTrigger className="w-full">
+              <RequiredLabel>{t("Priority")}</RequiredLabel>
+              <Select value={riskForm.priority} onValueChange={(v) => { setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" })); if (riskErrors.priority) setRiskErrors((p) => ({ ...p, priority: false })); }}>
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.priority))}>
                   <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -1277,6 +1458,7 @@ export default function CreateAuditStep1Page() {
                   <SelectItem value="Low">{t("Low")}</SelectItem>
                 </SelectContent>
               </Select>
+              <FieldError show={!!riskErrors.priority} t={t} />
             </div>
           </div>
           <DialogFooter>
@@ -1287,7 +1469,7 @@ export default function CreateAuditStep1Page() {
       </Dialog>
 
       {/* Add KPI Dialog */}
-      <Dialog open={kpiDialogOpen} onOpenChange={(open) => { setKpiDialogOpen(open); if (!open) setEditingKpiId(null); }}>
+      <Dialog open={kpiDialogOpen} onOpenChange={(open) => { setKpiDialogOpen(open); if (!open) { setEditingKpiId(null); setKpiErrors({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-primary">{editingKpiId ? t("Edit KPI") : t("Add KPI")}</DialogTitle>
@@ -1296,13 +1478,14 @@ export default function CreateAuditStep1Page() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="kpi-num">{t("KPI#")}</Label>
-                <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => setKpiForm((f) => ({ ...f, kpi: e.target.value }))} placeholder={t("e.g. 001")} />
+                <RequiredLabel htmlFor="kpi-num">{t("KPI#")}</RequiredLabel>
+                <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => { setKpiForm((f) => ({ ...f, kpi: e.target.value })); if (kpiErrors.kpi) setKpiErrors((p) => ({ ...p, kpi: false })); }} className={requiredInputClass(!!kpiErrors.kpi)} placeholder={t("e.g. 001")} />
+                <FieldError show={!!kpiErrors.kpi} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="kpi-impact">{t("Impact")}</Label>
-                <Select value={kpiForm.impact} onValueChange={(v) => setKpiForm((f) => ({ ...f, impact: v }))}>
-                  <SelectTrigger className="w-full">
+                <RequiredLabel>{t("Impact")}</RequiredLabel>
+                <Select value={kpiForm.impact} onValueChange={(v) => { setKpiForm((f) => ({ ...f, impact: v })); if (kpiErrors.impact) setKpiErrors((p) => ({ ...p, impact: false })); }}>
+                  <SelectTrigger className={cn("w-full", requiredInputClass(!!kpiErrors.impact))}>
                     <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1311,25 +1494,30 @@ export default function CreateAuditStep1Page() {
                     <SelectItem value="Low">{t("Low")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <FieldError show={!!kpiErrors.impact} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="kpi-description">{t("Description")}</Label>
-              <Textarea id="kpi-description" value={kpiForm.description} onChange={(e) => setKpiForm((f) => ({ ...f, description: e.target.value }))} placeholder={t("e.g. % audit completed vs planned")} rows={2} />
+              <RequiredLabel htmlFor="kpi-description">{t("Description")}</RequiredLabel>
+              <Textarea id="kpi-description" value={kpiForm.description} onChange={(e) => { setKpiForm((f) => ({ ...f, description: e.target.value })); if (kpiErrors.description) setKpiErrors((p) => ({ ...p, description: false })); }} className={requiredInputClass(!!kpiErrors.description)} placeholder={t("e.g. % audit completed vs planned")} rows={2} />
+              <FieldError show={!!kpiErrors.description} t={t} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="kpi-score">{t("Score")}</Label>
-                <Input id="kpi-score" value={kpiForm.score} onChange={(e) => setKpiForm((f) => ({ ...f, score: e.target.value }))} placeholder={t("e.g. 1-5")} />
+                <RequiredLabel htmlFor="kpi-score">{t("Score")}</RequiredLabel>
+                <Input id="kpi-score" value={kpiForm.score} onChange={(e) => { setKpiForm((f) => ({ ...f, score: e.target.value })); if (kpiErrors.score) setKpiErrors((p) => ({ ...p, score: false })); }} className={requiredInputClass(!!kpiErrors.score)} placeholder={t("e.g. 1-5")} />
+                <FieldError show={!!kpiErrors.score} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="kpi-priority">{t("Priority")}</Label>
-                <Input id="kpi-priority" value={kpiForm.priority} onChange={(e) => setKpiForm((f) => ({ ...f, priority: e.target.value }))} placeholder={t("e.g. 1, 2, 3")} />
+                <RequiredLabel htmlFor="kpi-priority">{t("Priority")}</RequiredLabel>
+                <Input id="kpi-priority" value={kpiForm.priority} onChange={(e) => { setKpiForm((f) => ({ ...f, priority: e.target.value })); if (kpiErrors.priority) setKpiErrors((p) => ({ ...p, priority: false })); }} className={requiredInputClass(!!kpiErrors.priority)} placeholder={t("e.g. 1, 2, 3")} />
+                <FieldError show={!!kpiErrors.priority} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="kpi-comments">{t("Comments")}</Label>
-              <Textarea id="kpi-comments" value={kpiForm.comments} onChange={(e) => setKpiForm((f) => ({ ...f, comments: e.target.value }))} placeholder={t("Optional comments")} rows={2} />
+              <RequiredLabel htmlFor="kpi-comments">{t("Comments")}</RequiredLabel>
+              <Textarea id="kpi-comments" value={kpiForm.comments} onChange={(e) => { setKpiForm((f) => ({ ...f, comments: e.target.value })); if (kpiErrors.comments) setKpiErrors((p) => ({ ...p, comments: false })); }} className={requiredInputClass(!!kpiErrors.comments)} placeholder={t("Enter comments")} rows={2} />
+              <FieldError show={!!kpiErrors.comments} t={t} />
             </div>
           </div>
           <DialogFooter>
@@ -1340,7 +1528,7 @@ export default function CreateAuditStep1Page() {
       </Dialog>
 
       {/* Add / Edit Schedule Row Dialog */}
-      <Dialog open={scheduleDialogOpen} onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) setScheduleEditIndex(null); }}>
+      <Dialog open={scheduleDialogOpen} onOpenChange={(open) => { setScheduleDialogOpen(open); if (!open) { setScheduleEditIndex(null); setScheduleErrors({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-primary">{scheduleEditIndex !== null ? t("Edit Schedule Row") : t("Add Schedule Row")}</DialogTitle>
@@ -1349,31 +1537,37 @@ export default function CreateAuditStep1Page() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="schedule-audit">{t("Audit#")}</Label>
-                <Input id="schedule-audit" value={scheduleEditForm.audit} onChange={(e) => setScheduleEditForm((f) => ({ ...f, audit: e.target.value }))} placeholder={t("e.g. 1")} />
+                <RequiredLabel htmlFor="schedule-audit">{t("Audit#")}</RequiredLabel>
+                <Input id="schedule-audit" value={scheduleEditForm.audit} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, audit: e.target.value })); if (scheduleErrors.audit) setScheduleErrors((p) => ({ ...p, audit: false })); }} className={requiredInputClass(!!scheduleErrors.audit)} placeholder={t("e.g. 1")} />
+                <FieldError show={!!scheduleErrors.audit} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-type">{t("Audit Type")}</Label>
-                <Input id="schedule-type" value={scheduleEditForm.type} onChange={(e) => setScheduleEditForm((f) => ({ ...f, type: e.target.value }))} placeholder={t("e.g. Internal")} />
+                <RequiredLabel htmlFor="schedule-type">{t("Audit Type")}</RequiredLabel>
+                <Input id="schedule-type" value={scheduleEditForm.type} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, type: e.target.value })); if (scheduleErrors.type) setScheduleErrors((p) => ({ ...p, type: false })); }} className={requiredInputClass(!!scheduleErrors.type)} placeholder={t("e.g. Internal")} />
+                <FieldError show={!!scheduleErrors.type} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schedule-focus">{t("System / ESG Focus")}</Label>
-              <Input id="schedule-focus" value={scheduleEditForm.focus} onChange={(e) => setScheduleEditForm((f) => ({ ...f, focus: e.target.value }))} placeholder={t("e.g. QMS, EMS")} />
+              <RequiredLabel htmlFor="schedule-focus">{t("System / ESG Focus")}</RequiredLabel>
+              <Input id="schedule-focus" value={scheduleEditForm.focus} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, focus: e.target.value })); if (scheduleErrors.focus) setScheduleErrors((p) => ({ ...p, focus: false })); }} className={requiredInputClass(!!scheduleErrors.focus)} placeholder={t("e.g. QMS, EMS")} />
+              <FieldError show={!!scheduleErrors.focus} t={t} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="schedule-frequency">{t("Frequency")}</Label>
-                <Input id="schedule-frequency" value={scheduleEditForm.frequency} onChange={(e) => setScheduleEditForm((f) => ({ ...f, frequency: e.target.value }))} placeholder={t("e.g. Annual")} />
+                <RequiredLabel htmlFor="schedule-frequency">{t("Frequency")}</RequiredLabel>
+                <Input id="schedule-frequency" value={scheduleEditForm.frequency} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, frequency: e.target.value })); if (scheduleErrors.frequency) setScheduleErrors((p) => ({ ...p, frequency: false })); }} className={requiredInputClass(!!scheduleErrors.frequency)} placeholder={t("e.g. Annual")} />
+                <FieldError show={!!scheduleErrors.frequency} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="schedule-months">{t("Target Months")}</Label>
-                <Input id="schedule-months" value={scheduleEditForm.months} onChange={(e) => setScheduleEditForm((f) => ({ ...f, months: e.target.value }))} placeholder={t("e.g. Q1, Q2")} />
+                <RequiredLabel htmlFor="schedule-months">{t("Target Months")}</RequiredLabel>
+                <Input id="schedule-months" value={scheduleEditForm.months} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, months: e.target.value })); if (scheduleErrors.months) setScheduleErrors((p) => ({ ...p, months: false })); }} className={requiredInputClass(!!scheduleErrors.months)} placeholder={t("e.g. Q1, Q2")} />
+                <FieldError show={!!scheduleErrors.months} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schedule-lead">{t("Lead Auditor")}</Label>
-              <Input id="schedule-lead" value={scheduleEditForm.lead} onChange={(e) => setScheduleEditForm((f) => ({ ...f, lead: e.target.value }))} placeholder={t("Lead auditor name")} />
+              <RequiredLabel htmlFor="schedule-lead">{t("Lead Auditor")}</RequiredLabel>
+              <Input id="schedule-lead" value={scheduleEditForm.lead} onChange={(e) => { setScheduleEditForm((f) => ({ ...f, lead: e.target.value })); if (scheduleErrors.lead) setScheduleErrors((p) => ({ ...p, lead: false })); }} className={requiredInputClass(!!scheduleErrors.lead)} placeholder={t("Lead auditor name")} />
+              <FieldError show={!!scheduleErrors.lead} t={t} />
             </div>
           </div>
           <DialogFooter>
@@ -1384,7 +1578,7 @@ export default function CreateAuditStep1Page() {
       </Dialog>
 
       {/* Add / Edit Review Dialog */}
-      <Dialog open={reviewDialogOpen} onOpenChange={(open) => { setReviewDialogOpen(open); if (!open) setEditingReviewId(null); }}>
+      <Dialog open={reviewDialogOpen} onOpenChange={(open) => { setReviewDialogOpen(open); if (!open) { setEditingReviewId(null); setReviewErrors({}); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-primary">{editingReviewId ? t("Edit Review") : t("Add Review")}</DialogTitle>
@@ -1393,13 +1587,14 @@ export default function CreateAuditStep1Page() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="review-pri">{t("PRI#")}</Label>
-                <Input id="review-pri" value={reviewForm.pri} onChange={(e) => setReviewForm((f) => ({ ...f, pri: e.target.value }))} placeholder={t("e.g. PRI-01")} />
+                <RequiredLabel htmlFor="review-pri">{t("PRI#")}</RequiredLabel>
+                <Input id="review-pri" value={reviewForm.pri} onChange={(e) => { setReviewForm((f) => ({ ...f, pri: e.target.value })); if (reviewErrors.pri) setReviewErrors((p) => ({ ...p, pri: false })); }} className={requiredInputClass(!!reviewErrors.pri)} placeholder={t("e.g. PRI-01")} />
+                <FieldError show={!!reviewErrors.pri} t={t} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="review-type">{t("Review Type")}</Label>
-                <Select value={reviewForm.type} onValueChange={(v) => setReviewForm((f) => ({ ...f, type: v }))}>
-                  <SelectTrigger className="w-full">
+                <RequiredLabel>{t("Review Type")}</RequiredLabel>
+                <Select value={reviewForm.type} onValueChange={(v) => { setReviewForm((f) => ({ ...f, type: v })); if (reviewErrors.type) setReviewErrors((p) => ({ ...p, type: false })); }}>
+                  <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.type))}>
                     <SelectValue placeholder={t("Select type")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1409,16 +1604,18 @@ export default function CreateAuditStep1Page() {
                     <SelectItem value="Other">{t("Other")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <FieldError show={!!reviewErrors.type} t={t} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="review-comments">{t("Program Leader Comments")}</Label>
-              <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => setReviewForm((f) => ({ ...f, comments: e.target.value }))} placeholder={t("Enter comments")} rows={3} />
+              <RequiredLabel htmlFor="review-comments">{t("Program Leader Comments")}</RequiredLabel>
+              <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => { setReviewForm((f) => ({ ...f, comments: e.target.value })); if (reviewErrors.comments) setReviewErrors((p) => ({ ...p, comments: false })); }} className={requiredInputClass(!!reviewErrors.comments)} placeholder={t("Enter comments")} rows={3} />
+              <FieldError show={!!reviewErrors.comments} t={t} />
             </div>
             <div className="space-y-2">
-              <Label>{t("Priority")}</Label>
-              <Select value={reviewForm.priority} onValueChange={(v) => setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" }))}>
-                <SelectTrigger className="w-full">
+              <RequiredLabel>{t("Priority")}</RequiredLabel>
+              <Select value={reviewForm.priority} onValueChange={(v) => { setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" })); if (reviewErrors.priority) setReviewErrors((p) => ({ ...p, priority: false })); }}>
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.priority))}>
                   <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -1427,10 +1624,12 @@ export default function CreateAuditStep1Page() {
                   <SelectItem value="Low">{t("Low")}</SelectItem>
                 </SelectContent>
               </Select>
+              <FieldError show={!!reviewErrors.priority} t={t} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="review-action">{t("Action for Improvement")}</Label>
-              <Input id="review-action" value={reviewForm.action} onChange={(e) => setReviewForm((f) => ({ ...f, action: e.target.value }))} placeholder={t("e.g. Update site list for S2 expansion")} />
+              <RequiredLabel htmlFor="review-action">{t("Action for Improvement")}</RequiredLabel>
+              <Input id="review-action" value={reviewForm.action} onChange={(e) => { setReviewForm((f) => ({ ...f, action: e.target.value })); if (reviewErrors.action) setReviewErrors((p) => ({ ...p, action: false })); }} className={requiredInputClass(!!reviewErrors.action)} placeholder={t("e.g. Update site list for S2 expansion")} />
+              <FieldError show={!!reviewErrors.action} t={t} />
             </div>
           </div>
           <DialogFooter>

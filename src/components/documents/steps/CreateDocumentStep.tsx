@@ -43,24 +43,23 @@ import { docAlertInfo, docSelectionActive, docSelectionIdle } from "@/lib/docume
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { useTranslate } from "@/components/providers/translation-provider";
 import {
+  applyDraftPlaceholderRef,
   bumpVersionInRef,
   DRAFT_DOC_NUMBER,
+  isDraftPlaceholderRef,
   parseDocNumberSegment,
 } from "@/lib/documentRef";
+import { resolveManagementStandardLabel } from "@/lib/management-standard-label";
 
-function managementStandardLabel(value: string, t: (text: string) => string): string {
-  switch (value) {
-    case "iso-9001":
-      return t("ISO 9001");
-    case "iso-14001":
-      return t("ISO 14001");
-    case "iso-45001":
-      return t("ISO 45001");
-    case "integrated":
-      return t("Integrated Management System");
-    default:
-      return t("ISO 9001");
-  }
+function managementStandardLabel(
+  value: string,
+  t: (text: string) => string,
+  standards: StandardOption[]
+): string {
+  const nameById = Object.fromEntries(standards.map((s) => [s.id, s.name]));
+  const resolved = resolveManagementStandardLabel(value, nameById);
+  if (resolved !== "-") return t(resolved);
+  return t("—");
 }
 
 function classificationTypeLabel(c: "P" | "F" | "EXT", t: (text: string) => string): string {
@@ -150,6 +149,8 @@ type CreateDocumentStepProps = {
   initialWizard?: Partial<DocumentWizardSnapshot>;
   /** When editing, used to keep Doc# in sync with saved preview_doc_ref. */
   initialPreviewDocRef?: string;
+  /** True while workflow_status is still draft (Doc# stays D0). */
+  isDraftRecord?: boolean;
   /** Present when editing an existing record — skips allocating a new D#. */
   recordId?: string;
   /** When false, user already has another draft — publish is allowed but save-as-draft is not. */
@@ -209,6 +210,7 @@ export default function CreateDocumentStep({
   isViewMode = false,
   initialWizard,
   initialPreviewDocRef,
+  isDraftRecord = false,
   recordId,
   canSaveDraft = true,
   onSubmitProceed,
@@ -437,11 +439,15 @@ export default function CreateDocumentStep({
     if (initialWizard.transferDocumentClass === "P" || initialWizard.transferDocumentClass === "F" || initialWizard.transferDocumentClass === "EXT") setTransferDocumentClass(initialWizard.transferDocumentClass);
     if (typeof initialWizard.transferInitiatorRequest === "string") setTransferInitiatorRequest(initialWizard.transferInitiatorRequest);
     if (initialWizard.originatorConsent === "accepted" || initialWizard.originatorConsent === "declined" || initialWizard.originatorConsent === null) setOriginatorConsent(initialWizard.originatorConsent);
-    if (typeof initialWizard.documentNumberSegment === "string") {
+    if (
+      typeof initialWizard.documentNumberSegment === "string" &&
+      !isDraftRecord &&
+      !isDraftPlaceholderRef(initialPreviewDocRef ?? "")
+    ) {
       const m = /^D(\d+)$/i.exec(initialWizard.documentNumberSegment.trim());
       if (m) setPathDocNumber(`D${m[1]}`);
     }
-  }, [initialWizard]);
+  }, [initialWizard, isDraftRecord, initialPreviewDocRef]);
 
   const reasonOptions = [
     "4M Change",
@@ -564,9 +570,13 @@ export default function CreateDocumentStep({
   useEffect(() => {
     const ref = initialPreviewDocRef?.trim();
     if (!ref) return;
+    if (isDraftRecord || isDraftPlaceholderRef(ref)) {
+      setPathDocNumber(DRAFT_DOC_NUMBER);
+      return;
+    }
     const parsed = parseDocNumberSegment(ref);
     if (parsed) setPathDocNumber(parsed);
-  }, [initialPreviewDocRef]);
+  }, [initialPreviewDocRef, isDraftRecord]);
 
   const previewDocRef = useMemo(() => {
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
@@ -578,7 +588,11 @@ export default function CreateDocumentStep({
       const docSeg = cls === "EXT" ? "EXT" : pathDocNumber;
       return `Doc/${y}/${transferTargetSite}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
     }
-    return `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
+    const base = `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
+    if (isDraftRecord || (recordId && isDraftPlaceholderRef(initialPreviewDocRef ?? ""))) {
+      return applyDraftPlaceholderRef(base);
+    }
+    return base;
   }, [
     isReviseUpdate,
     isReviseTransfer,
@@ -590,6 +604,9 @@ export default function CreateDocumentStep({
     siteId,
     currentProcessCode,
     documentClassification,
+    isDraftRecord,
+    recordId,
+    initialPreviewDocRef,
   ]);
 
   const buildSavePayload = (): DocumentSavePayload => ({
@@ -1433,7 +1450,7 @@ export default function CreateDocumentStep({
                   <span className="text-xs text-muted-foreground">{t("Current Standard")}</span>
                   <Input
                     readOnly
-                    value={managementStandardLabel(managementStandard, t)}
+                    value={managementStandardLabel(managementStandard, t, standards)}
                     className="bg-muted/30 text-muted-foreground"
                   />
                 </div>
@@ -2122,7 +2139,7 @@ export default function CreateDocumentStep({
               <p>
                 <span className="text-muted-foreground">{t("Standard:")}</span>{" "}
                 <span className="ml-2 font-medium">
-                  {managementStandardLabel(managementStandard || "iso-9001", t)}
+                  {managementStandardLabel(managementStandard, t, standards)}
                 </span>
               </p>
               <p>

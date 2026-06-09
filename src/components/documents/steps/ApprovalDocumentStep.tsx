@@ -15,7 +15,9 @@ import {
   docBadgeActive,
   docCalloutInfo,
   docCalloutSuccess,
+  docPositionBadge,
 } from "@/lib/document-ui-classes";
+import type { DocumentWorkflowPosition } from "@/lib/documentRef";
 import { useTranslate } from "@/components/providers/translation-provider";
 
 type ApprovalDocumentStepProps = {
@@ -34,7 +36,10 @@ type ApprovalDocumentStepProps = {
   managementStandard?: string;
   clause?: string;
   subClause?: string;
-  processId?: string;
+  previewDocRef?: string;
+  documentNumber?: string;
+  version?: string;
+  positionLabel?: DocumentWorkflowPosition;
   /** Author or reviewer viewing Approval read-only; only the approver may submit. */
   readOnlyObserver?: boolean;
   onBack: () => void;
@@ -51,8 +56,6 @@ type MemberOption = {
   status?: "Active" | "Invited";
 };
 
-const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
-
 export default function ApprovalDocumentStep({
   listHref,
   title,
@@ -67,7 +70,10 @@ export default function ApprovalDocumentStep({
   managementStandard,
   clause,
   subClause,
-  processId,
+  previewDocRef,
+  documentNumber,
+  version,
+  positionLabel = "Approval Pending",
   readOnlyObserver = false,
   onBack,
   onApprove,
@@ -183,9 +189,15 @@ export default function ApprovalDocumentStep({
       <div className="rounded-xl border border-border bg-background p-5 space-y-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-muted/30 text-muted-foreground border-border font-normal">
-            {DOC_REF}
+            {previewDocRef?.trim() || t("—")}
           </Badge>
-          <Badge className={docBadgeActive}>{t("Active")}</Badge>
+          <Badge
+            className={cn(
+              docPositionBadge[positionLabel] ?? docPositionBadge.default
+            )}
+          >
+            {t(positionLabel)}
+          </Badge>
         </div>
 
         <div>
@@ -224,11 +236,11 @@ export default function ApprovalDocumentStep({
           </div>
           <div>
             <p className="text-muted-foreground">{t("Doc#:")}</p>
-            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
+            <p className="font-semibold text-foreground">{documentNumber?.trim() || t("—")}</p>
           </div>
           <div>
             <p className="text-muted-foreground">{t("Version:")}</p>
-            <p className="font-semibold text-foreground">{t("v3")}</p>
+            <p className="font-semibold text-foreground">{version?.trim() || t("—")}</p>
           </div>
         </div>
 
@@ -253,7 +265,7 @@ export default function ApprovalDocumentStep({
           {t("Master Document List")}
         </Link>
         <span className="text-muted-foreground">&gt;</span>
-        <span className="font-medium text-foreground">{DOC_REF}</span>
+        <span className="font-medium text-foreground">{previewDocRef?.trim() || t("—")}</span>
       </nav>
 
       <div className="rounded-xl border border-border bg-background p-5">

@@ -19,6 +19,10 @@ import {
 import { useTranslate } from "@/components/providers/translation-provider";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
+  buildManagementStandardNameMap,
+  resolveManagementStandardLabel,
+} from "@/lib/management-standard-label";
+import {
   canPerformSupportLeadershipCapture,
   canViewDocumentaryEvidenceWorkflow,
   isSupportLeadershipTier,
@@ -69,7 +73,10 @@ function isFTypeDocument(row: DocumentsApiRecord): boolean {
   return t === "F";
 }
 
-function mapRecordToTemplate(row: DocumentsApiRecord): FRecordTemplate {
+function mapRecordToTemplate(
+  row: DocumentsApiRecord,
+  standardNameById: Record<string, string>
+): FRecordTemplate {
   const formData = (row.form_data ?? {}) as Record<string, unknown>;
   const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
   return {
@@ -78,7 +85,10 @@ function mapRecordToTemplate(row: DocumentsApiRecord): FRecordTemplate {
     formTitle: String(formData.title ?? "").trim() || "-",
     site: String(formData.siteId ?? formData.site ?? "").trim() || "-",
     process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
-    standard: String(formData.managementStandard ?? "").trim() || "-",
+    standard: resolveManagementStandardLabel(
+      String(formData.managementStandard ?? ""),
+      standardNameById
+    ),
     clause: String(formData.clause ?? "").trim() || "-",
     subclause: String(formData.subClause ?? "").trim() || "-",
     version: pickVersion(documentRef),
@@ -163,14 +173,25 @@ export default function DocumentaryEvidenceTemplatesContent() {
       }
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
-          credentials: "include",
-        });
-        const json = res.ok ? await res.json() : { records: [] };
+        const [docsRes, checklistsRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, {
+            credentials: "include",
+          }),
+          fetch(`/api/organization/${orgId}/audit-checklists`, {
+            credentials: "include",
+          }),
+        ]);
+        const json = docsRes.ok ? await docsRes.json() : { records: [] };
+        const checklistsJson = checklistsRes.ok
+          ? await checklistsRes.json()
+          : { checklists: [] };
         if (ignore) return;
+        const standardNameById = buildManagementStandardNameMap(
+          Array.isArray(checklistsJson?.checklists) ? checklistsJson.checklists : []
+        );
         const records = Array.isArray(json?.records) ? (json.records as DocumentsApiRecord[]) : [];
         const fOnly = records.filter((r) => isFTypeDocument(r));
-        setTemplates(fOnly.map(mapRecordToTemplate));
+        setTemplates(fOnly.map((row) => mapRecordToTemplate(row, standardNameById)));
       } catch {
         if (!ignore) setTemplates([]);
       } finally {

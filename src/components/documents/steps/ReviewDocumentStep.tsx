@@ -10,14 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, documentActorMatches } from "@/lib/utils";
 import {
-  docBadgeActive,
   docCalloutInfo,
   docCalloutWarning,
+  docPositionBadge,
 } from "@/lib/document-ui-classes";
+import type { DocumentWorkflowPosition } from "@/lib/documentRef";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTranslate } from "@/components/providers/translation-provider";
-
-const DOC_REF = "Doc/2025/S1/P1/P/D1/v1";
 
 type ReviewDocumentStepProps = {
   title: string;
@@ -30,7 +29,10 @@ type ReviewDocumentStepProps = {
   managementStandard?: string;
   clause?: string;
   subClause?: string;
-  processId?: string;
+  previewDocRef?: string;
+  documentNumber?: string;
+  version?: string;
+  positionLabel?: DocumentWorkflowPosition;
   /** Logged-in user display name — must match Process Owner to submit review. */
   loginUserName?: string;
   loginUserId?: string;
@@ -61,7 +63,10 @@ export default function ReviewDocumentStep({
   managementStandard,
   clause,
   subClause,
-  processId,
+  previewDocRef,
+  documentNumber,
+  version,
+  positionLabel = "Review Pending",
   loginUserName,
   loginUserId,
   readOnlyObserver = false,
@@ -173,9 +178,15 @@ export default function ReviewDocumentStep({
       <div className="space-y-5 rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="border-border bg-muted font-normal text-muted-foreground">
-            {DOC_REF}
+            {previewDocRef?.trim() || t("—")}
           </Badge>
-          <Badge className={docBadgeActive}>{t("Active")}</Badge>
+          <Badge
+            className={cn(
+              docPositionBadge[positionLabel] ?? docPositionBadge.default
+            )}
+          >
+            {t(positionLabel)}
+          </Badge>
         </div>
 
         <div>
@@ -214,11 +225,11 @@ export default function ReviewDocumentStep({
           </div>
           <div>
             <p className="text-muted-foreground">{t("Doc#:")}</p>
-            <p className="font-semibold text-foreground">{processId || t("D6")}</p>
+            <p className="font-semibold text-foreground">{documentNumber?.trim() || t("—")}</p>
           </div>
           <div>
             <p className="text-muted-foreground">{t("Version:")}</p>
-            <p className="font-semibold text-foreground">{t("v3")}</p>
+            <p className="font-semibold text-foreground">{version?.trim() || t("—")}</p>
           </div>
         </div>
 

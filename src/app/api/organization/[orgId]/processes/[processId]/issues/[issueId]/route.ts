@@ -5,6 +5,11 @@ import { cache, cacheKeys } from "@/lib/cache";
 import { logActivity } from "@/lib/activity-logger";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier } from "@/lib/roles";
+import {
+  PROCESS_ACCESS_DENIED_MESSAGE,
+  resolveOrgOwner,
+  userHasProcessAccess,
+} from "@/lib/process-access";
 import { ensureIssueCommentsColumn } from "@/lib/tenant-issues-schema";
 import {
   isIssueCommentsOnlyPatch,
@@ -43,55 +48,16 @@ export async function GET(
         accessClient.release();
         return NextResponse.json({ error: "Process not found" }, { status: 404 });
       }
-      const processSiteId = processResult.rows[0].siteId;
-      const org = await prisma.organization.findUnique({
-        where: { id: resolvedOrgId },
-        select: { ownerId: true },
-      });
-      const userOrg = await prisma.userOrganization.findUnique({
-        where: {
-          userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
-        },
-        select: { role: true, leadershipTier: true },
-      });
-      const isOwner = org?.ownerId === ctx.user.id;
-      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
-      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
-      const isTopLeadership = leadershipTier === "Top" || isOwner;
-      const isOperationalLeadership = leadershipTier === "Operational";
-      const isSupportLeadership = leadershipTier === "Support";
-
-      if (!isTopLeadership) {
-        if (isOperationalLeadership) {
-          const siteAccess = await accessClient.query(
-            `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-            [ctx.user.id, processSiteId]
-          );
-          if (siteAccess.rows.length === 0) {
-            accessClient.release();
-            return NextResponse.json(
-              { error: "You can only view and manage issues for sites you are assigned to." },
-              { status: 403 }
-            );
-          }
-        } else if (isSupportLeadership) {
-          // For Support, check if they have access to this process
-          // processes.id is TEXT, process_users.process_id is UUID - cast UUID to TEXT for comparison
-          const processAccess = await accessClient.query(
-            `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
-            [ctx.user.id, processId]
-          );
-          if (processAccess.rows.length === 0) {
-            accessClient.release();
-            return NextResponse.json(
-              { error: "You can only view and manage issues for the process you are assigned to." },
-              { status: 403 }
-            );
-          }
-        } else {
-          accessClient.release();
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+      const isOwner = await resolveOrgOwner(resolvedOrgId, ctx.user.id);
+      const hasAccess = await userHasProcessAccess(
+        accessClient,
+        ctx.user.id,
+        processId,
+        isOwner
+      );
+      if (!hasAccess) {
+        accessClient.release();
+        return NextResponse.json({ error: PROCESS_ACCESS_DENIED_MESSAGE }, { status: 403 });
       }
       accessClient.release();
     } catch (e) {
@@ -261,9 +227,6 @@ export async function PUT(
       const currentStatus = String(issueRow.status ?? "to-do");
       const role = { isAssignee, isIssuer };
 
-      // Access control: Top = all; Operational = assigned site(s); Support = assigned process only
-      const { prisma } = await import("@/lib/prisma");
-      const { roleToLeadershipTier } = await import("@/lib/roles");
       const processRow = await client.query(
         `SELECT "siteId" FROM processes WHERE id = $1`,
         [processId]
@@ -272,55 +235,16 @@ export async function PUT(
         client.release();
         return NextResponse.json({ error: "Process not found" }, { status: 404 });
       }
-      const processSiteId = processRow.rows[0].siteId;
-      const org = await prisma.organization.findUnique({
-        where: { id: resolvedOrgId },
-        select: { ownerId: true },
-      });
-      const userOrg = await prisma.userOrganization.findUnique({
-        where: {
-          userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
-        },
-        select: { role: true, leadershipTier: true },
-      });
-      const isOwner = org?.ownerId === ctx.user.id;
-      const userRole = isOwner ? "owner" : (userOrg?.role || "member");
-      const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
-      const isTopLeadership = leadershipTier === "Top" || isOwner;
-      const isOperationalLeadership = leadershipTier === "Operational";
-      const isSupportLeadership = leadershipTier === "Support";
-
-      if (!isTopLeadership) {
-        if (isOperationalLeadership) {
-          const siteAccess = await client.query(
-            `SELECT 1 FROM site_users WHERE user_id = $1 AND site_id = $2::text::uuid`,
-            [ctx.user.id, processSiteId]
-          );
-          if (siteAccess.rows.length === 0) {
-            client.release();
-            return NextResponse.json(
-              { error: "You can only view and manage issues for sites you are assigned to." },
-              { status: 403 }
-            );
-          }
-        } else if (isSupportLeadership) {
-          // For Support, check if they have access to this process
-          // processes.id is TEXT, process_users.process_id is UUID - cast UUID to TEXT for comparison
-          const processAccess = await client.query(
-            `SELECT 1 FROM process_users WHERE user_id = $1 AND process_id::text = $2`,
-            [ctx.user.id, processId]
-          );
-          if (processAccess.rows.length === 0) {
-            client.release();
-            return NextResponse.json(
-              { error: "You can only view and manage issues for the process you are assigned to." },
-              { status: 403 }
-            );
-          }
-        } else {
-          client.release();
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+      const isOwner = await resolveOrgOwner(resolvedOrgId, ctx.user.id);
+      const hasAccess = await userHasProcessAccess(
+        client,
+        ctx.user.id,
+        processId,
+        isOwner
+      );
+      if (!hasAccess) {
+        client.release();
+        return NextResponse.json({ error: PROCESS_ACCESS_DENIED_MESSAGE }, { status: 403 });
       }
 
       if (commentsOnly) {

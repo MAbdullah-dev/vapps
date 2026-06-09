@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Building2, Users, ChevronRight, Edit, Trash2, Plus, FolderKanban } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { getDashboardPath } from "@/lib/subdomain";
 import {
   Select,
   SelectContent,
@@ -477,13 +478,19 @@ export default function SitesDepartmentsPage() {
                           </p>
                           <div className="space-y-2">
                             {site.processes.map((process) => (
-                              <div
+                              <button
                                 key={process.id}
-                                className="flex items-center gap-2 rounded-md bg-muted/50 p-2 transition-colors hover:bg-muted"
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    getDashboardPath(orgSlug, `processes/${process.id}`)
+                                  )
+                                }
+                                className="flex w-full items-center gap-2 rounded-md bg-muted/50 p-2 text-left transition-colors hover:bg-muted"
                               >
                                 <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <span className="text-sm text-foreground">{process.name}</span>
-                              </div>
+                              </button>
                             ))}
                           </div>
                         </div>

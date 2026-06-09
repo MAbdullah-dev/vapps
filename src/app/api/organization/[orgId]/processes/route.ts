@@ -3,14 +3,15 @@ import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantPool, getTenantClient } from "@/lib/db/tenant-pool";
 import { cache, cacheKeys, invalidateOrgSitesListCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
-import { roleToLeadershipTier, type Role } from "@/lib/roles";
+import { type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
+import { getUserAssignedProcessIds } from "@/lib/process-access";
 import crypto from "crypto";
 
 /**
  * GET /api/organization/[orgId]/processes?siteId=xxx
  * Get processes for an organization.
- * Access: Top = all; Operational = only processes in their assigned site(s); Support = only their assigned process(es).
+ * Access: Owner = all; others = only assigned process(es).
  */
 export async function GET(
   req: NextRequest,
@@ -38,43 +39,15 @@ export async function GET(
       where: { id: resolvedOrgId },
       select: { ownerId: true },
     });
-    const userOrg = await prisma.userOrganization.findUnique({
-      where: {
-        userId_organizationId: { userId: ctx.user.id, organizationId: resolvedOrgId },
-      },
-      select: { role: true, leadershipTier: true },
-    });
     const isOwner = org?.ownerId === ctx.user.id;
-    const userRole = isOwner ? "owner" : (userOrg?.role || "member");
-    const leadershipTier = userOrg?.leadershipTier || roleToLeadershipTier(userRole);
-    const isTopLeadership = leadershipTier === "Top" || isOwner;
-    const isOperationalLeadership = leadershipTier === "Operational";
-    const isSupportLeadership = leadershipTier === "Support";
 
     const client = await getTenantClient(resolvedOrgId);
 
     try {
-      let allowedSiteIds: string[] | null = null;
       let allowedProcessIds: string[] | null = null;
 
-      if (isOperationalLeadership) {
-        const siteRows = await client.query<{ site_id: string }>(
-          `SELECT site_id::text as site_id FROM site_users WHERE user_id = $1`,
-          [ctx.user.id]
-        );
-        allowedSiteIds = siteRows.rows.map((r) => r.site_id);
-        if (allowedSiteIds.length === 0) {
-          client.release();
-          const response = { processes: [] };
-          cache.set(cacheKey, response, 60 * 1000);
-          return NextResponse.json(response);
-        }
-      } else if (isSupportLeadership) {
-        const processRows = await client.query<{ process_id: string }>(
-          `SELECT process_id::text as process_id FROM process_users WHERE user_id = $1`,
-          [ctx.user.id]
-        );
-        allowedProcessIds = processRows.rows.map((r) => r.process_id);
+      if (!isOwner) {
+        allowedProcessIds = await getUserAssignedProcessIds(client, ctx.user.id);
         if (allowedProcessIds.length === 0) {
           client.release();
           const response = { processes: [] };
@@ -101,7 +74,7 @@ export async function GET(
 
       let processes: any[];
 
-      if (isTopLeadership) {
+      if (isOwner) {
         if (siteId) {
           const result = await client.query(
             `${baseQuery} WHERE p."siteId" = $1 ${orderClause}`,
@@ -112,21 +85,16 @@ export async function GET(
           const result = await client.query(`${baseQuery} ${orderClause}`);
           processes = result.rows;
         }
-      } else if (allowedSiteIds && allowedSiteIds.length > 0) {
-        const siteIdFilter = siteId && allowedSiteIds.includes(siteId)
-          ? [siteId]
-          : allowedSiteIds;
-        const placeholders = siteIdFilter.map((_, i) => `$${i + 1}`).join(", ");
-        const result = await client.query(
-          `${baseQuery} WHERE p."siteId"::text IN (${placeholders}) ${orderClause}`,
-          siteIdFilter
-        );
-        processes = result.rows;
       } else if (allowedProcessIds && allowedProcessIds.length > 0) {
         const placeholders = allowedProcessIds.map((_, i) => `$${i + 1}`).join(", ");
+        const siteFilter =
+          siteId && allowedProcessIds.length > 0
+            ? ` AND p."siteId" = $${allowedProcessIds.length + 1}`
+            : "";
+        const args = siteId ? [...allowedProcessIds, siteId] : allowedProcessIds;
         const result = await client.query(
-          `${baseQuery} WHERE p.id::text IN (${placeholders}) ${orderClause}`,
-          allowedProcessIds
+          `${baseQuery} WHERE p.id::text IN (${placeholders})${siteFilter} ${orderClause}`,
+          args
         );
         processes = result.rows;
       } else {
