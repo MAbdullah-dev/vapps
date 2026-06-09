@@ -7,7 +7,6 @@ import { registerSchema } from "@/schemas/auth/auth.schema";
 import { sendVerificationEmail } from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
 import { clientIpFromRequest, verifyTurnstileResponse } from "@/lib/turnstile";
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

@@ -1,3 +1,7 @@
+import { RESERVED_SUBDOMAINS } from "@/lib/app-hosts";
+
+export { getAdminAppUrl, getMainAppUrl, getPlatformAdminDashboardUrl } from "@/lib/app-hosts";
+
 /**
  * Build the URL to an organization's dashboard.
  * When subdomain mode is enabled:
@@ -19,7 +23,7 @@ export function getOrgDashboardUrl(slug: string): string {
   return `/${slug}`;
 }
 
-const RESERVED_SUBDOMAINS = ["app", "www", "localhost"];
+const CLIENT_RESERVED = Array.from(RESERVED_SUBDOMAINS);
 
 /**
  * Whether the current origin is a tenant subdomain (e.g. stellixsoft.vie.click or stellixsoft.lvh.me).
@@ -39,7 +43,7 @@ function isTenantSubdomain(): boolean {
 
   const parts = hostname.split(".");
   const sub = parts.length >= 2 ? parts[0] : null;
-  return !!sub && !RESERVED_SUBDOMAINS.includes(sub);
+  return !!sub && !CLIENT_RESERVED.includes(sub);
 }
 
 /**

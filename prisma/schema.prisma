@@ -41,6 +41,8 @@ model User {
   adminActions               AdminActionLog[]             @relation("AdminActor")
   /** BCP 47 language code from Topbar/language switcher (e.g. en, es). */
   preferredLocale            String?
+  /** Platform-wide role: user (default) | super_admin (admin dashboard). */
+  platformRole               String                       @default("user")
 }
 
 model TranslationCache {

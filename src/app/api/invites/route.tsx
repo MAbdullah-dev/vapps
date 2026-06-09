@@ -9,6 +9,8 @@ import { normalizeRole, isRoleHigher, type Role } from "@/lib/roles";
 import { sendInvitationEmail } from "@/helpers/mailer";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import { filterAdditionalRoleIdsExcludingAuditorForMember } from "@/lib/filter-auditor-additional-roles-for-member";
+import { INVITE_SUPER_ADMIN_FORBIDDEN } from "@/lib/super-admin-policy";
+import { isSuperAdminEmail } from "@/lib/super-admin-policy.server";
 
 export async function POST(req: NextRequest) {
   let bodyData: { orgId?: string; email?: string } = {};
@@ -68,6 +70,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Invalid email format" },
         { status: 400 }
+      );
+    }
+
+    if (await isSuperAdminEmail(email)) {
+      return NextResponse.json(
+        { error: INVITE_SUPER_ADMIN_FORBIDDEN },
+        { status: 403 }
       );
     }
 

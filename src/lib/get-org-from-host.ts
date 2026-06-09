@@ -4,9 +4,12 @@
  */
 
 import type { NextRequest } from "next/server";
+import {
+  getSubdomainFromHost,
+  RESERVED_SUBDOMAINS,
+} from "@/lib/app-hosts";
 
-/** Subdomains that are NOT tenant orgs (main app, login, org list). */
-export const RESERVED_SUBDOMAINS = new Set(["app", "www", "localhost"]);
+export { RESERVED_SUBDOMAINS };
 
 /**
  * Get the host from the request (respects x-forwarded-host when behind a reverse proxy).
@@ -21,41 +24,11 @@ export function getHost(req: NextRequest): string {
   return host ?? req.nextUrl.host;
 }
 
-/**
- * Extract the tenant subdomain from the host.
- * - Apex domain (e.g. vie.click) or www.vie.click → null (main app).
- * - Tenant subdomain (e.g. stellixsoft.vie.click) → "stellixsoft".
- * - Dev: app.lvh.me → "app", stellixsoft.lvh.me → "stellixsoft".
- */
-export function getSubdomainFromHost(host: string): string | null {
-  const hostname = (host.split(":")[0] ?? "").toLowerCase();
-  if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
-    return null;
-  }
-
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.toLowerCase()?.trim();
-  if (rootDomain) {
-    if (hostname === rootDomain || hostname === `www.${rootDomain}`) return null;
-    if (hostname.endsWith(`.${rootDomain}`)) return hostname.slice(0, -(rootDomain.length + 1));
-  }
-
-  const parts = hostname.split(".");
-  if (parts.length < 2) return null;
-  const sub = parts[0];
-  if (!sub) return null;
-  return sub;
-}
+export { getSubdomainFromHost };
 
 /**
  * Get the organization slug from the request host when the request is on a tenant subdomain.
- * Returns null when on root domain, app, www, or localhost (no tenant context).
- *
- * Use in API routes to:
- * - Resolve org from host instead of trusting path/query
- * - Enforce that the request's org (from host) matches the path param when on subdomain
- *
- * @param req - NextRequest (e.g. from route handler)
- * @returns Tenant org slug (e.g. "stellixsoft") or null
+ * Returns null when on root domain, app, admin, www, or localhost (no tenant context).
  */
 export function getOrgSlugFromHost(req: NextRequest): string | null {
   const host = getHost(req);
@@ -67,7 +40,7 @@ export function getOrgSlugFromHost(req: NextRequest): string | null {
 }
 
 /**
- * Check if the request is from a tenant subdomain (not app/www/localhost).
+ * Check if the request is from a tenant subdomain (not app/admin/www/localhost).
  */
 export function isTenantHost(req: NextRequest): boolean {
   const slug = getOrgSlugFromHost(req);

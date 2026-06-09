@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn } from "next-auth/react";
+import { getSession, signIn, signOut } from "next-auth/react";
 import { toast } from "sonner";
 import Link from "next/link";
 import Image from "next/image";
@@ -19,6 +19,14 @@ import { Turnstile } from "@marsidev/react-turnstile";
 
 import { loginSchema, LoginInput } from "@/schemas/auth/auth.schema";
 import { apiClient } from "@/lib/api-client";
+import {
+  getAdminPortalLoginUrl,
+  getClientHost,
+  getPostLoginPath,
+  hasAdminPlatformAccess,
+  isSuperAdminBlockedOnAppHost,
+} from "@/lib/domain-auth";
+import { SUPER_ADMIN_APP_LOGIN_FORBIDDEN } from "@/lib/super-admin-policy";
 import { useTranslate } from "@/components/providers/translation-provider";
 
 const TURNSTILE_SITE_KEY =
@@ -28,11 +36,27 @@ type LoginProps = {
   onSwitch: () => void;
   inviteToken?: string;
   inviteEmail?: string;
+  callbackUrl?: string;
+  adminOnly?: boolean;
 };
 
-const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
+function safeRelativeCallbackUrl(callbackUrl?: string) {
+  if (!callbackUrl?.startsWith("/") || callbackUrl.startsWith("//")) {
+    return null;
+  }
+  return callbackUrl;
+}
+
+const Login = ({
+  onSwitch,
+  inviteToken,
+  inviteEmail,
+  callbackUrl,
+  adminOnly = false,
+}: LoginProps) => {
   const { t } = useTranslate();
   const router = useRouter();
+  const safeCallbackUrl = safeRelativeCallbackUrl(callbackUrl);
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -72,6 +96,26 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
           : {}),
       });
 
+      const host = getClientHost();
+      const session = await getSession();
+
+      if (adminOnly && !hasAdminPlatformAccess(session?.user?.platformRole, host)) {
+        await signOut({ redirect: false });
+        toast.error(t("This login is only for platform super admins."));
+        router.refresh();
+        return;
+      }
+
+      if (
+        !adminOnly &&
+        isSuperAdminBlockedOnAppHost(session?.user?.platformRole, host)
+      ) {
+        await signOut({ redirect: false });
+        toast.error(t(SUPER_ADMIN_APP_LOGIN_FORBIDDEN));
+        window.location.href = getAdminPortalLoginUrl();
+        return;
+      }
+
       toast.success(t("Logged in successfully"));
 
       // ✅ Redirect based on invite token
@@ -79,8 +123,13 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         // If there's an invite token, redirect to invite page to auto-accept
         router.push(`/auth/invite?token=${inviteToken}`);
       } else {
-        // Normal login flow
-        router.push("/");
+        router.push(
+          getPostLoginPath({
+            host,
+            platformRole: session?.user?.platformRole,
+            callbackUrl: safeCallbackUrl,
+          })
+        );
       }
       router.refresh(); // optional but recommended for auth state update
     } catch (error: unknown) {
@@ -112,9 +161,13 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
   ) => {
     try {
       // Preserve invite token in callback URL if present
-      const callbackUrl = inviteToken 
+      const host = getClientHost();
+      const callbackUrl = inviteToken
         ? `/auth/invite?token=${inviteToken}`
-        : "/";
+        : getPostLoginPath({
+            host,
+            callbackUrl: safeCallbackUrl,
+          });
       
       await signIn(provider, {
         callbackUrl,
@@ -129,7 +182,11 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
       {/* Heading */}
       <div className="text-center mb-8">
         <h1 className="text-xl mb-2">{t("Welcome Back")}</h1>
-        {inviteToken ? (
+        {adminOnly ? (
+          <p className="text-base text-muted-foreground">
+            {t("Platform super admin access only")}
+          </p>
+        ) : inviteToken ? (
           <p className="text-base text-muted-foreground">{t("Log in to accept your invitation")}</p>
         ) : (
           <p className="text-base text-muted-foreground">{t("Login to your account")}</p>
@@ -240,42 +297,45 @@ const Login = ({ onSwitch, inviteToken, inviteEmail }: LoginProps) => {
         </Button>
       </form>
 
-      {/* Divider */}
-      <div className="flex items-center gap-4 my-6">
-        <Separator className="flex-1" />
-        <span className="text-sm text-muted-foreground">{t("or continue with")}</span>
-        <Separator className="flex-1" />
-      </div>
+      {!adminOnly && (
+        <>
+          <div className="flex items-center gap-4 my-6">
+            <Separator className="flex-1" />
+            <span className="text-sm text-muted-foreground">{t("or continue with")}</span>
+            <Separator className="flex-1" />
+          </div>
 
-      {/* ✅ SSO */}
-      <div className="grid grid-cols-4 gap-2">
-        <Button variant="outline" onClick={() => handleSSO("google")}>
-          <Chrome size={16} />
-        </Button>
+          <div className="grid grid-cols-4 gap-2">
+            <Button variant="outline" onClick={() => handleSSO("google")}>
+              <Chrome size={16} />
+            </Button>
 
-        <Button variant="outline" onClick={() => handleSSO("atlassian")}>
-          <Image src="/svgs/atlassian.svg" alt={t("Atlassian")} width={16} height={16} />
-        </Button>
+            <Button variant="outline" onClick={() => handleSSO("atlassian")}>
+              <Image src="/svgs/atlassian.svg" alt={t("Atlassian")} width={16} height={16} />
+            </Button>
 
-        <Button variant="outline" onClick={() => handleSSO("github")}>
-          <Github size={16} />
-        </Button>
+            <Button variant="outline" onClick={() => handleSSO("github")}>
+              <Github size={16} />
+            </Button>
 
-        <Button variant="outline" onClick={() => handleSSO("apple")}>
-          <Apple size={16} />
-        </Button>
-      </div>
+            <Button variant="outline" onClick={() => handleSSO("apple")}>
+              <Apple size={16} />
+            </Button>
+          </div>
+        </>
+      )}
 
-      {/* Switch */}
-      <div className="text-center mt-6 text-sm text-muted-foreground">
-        {t("Don't have an account?")}{" "}
-        <button
-          onClick={onSwitch}
-          className="text-primary hover:underline"
-        >
-          {t("Sign Up")}
-        </button>
-      </div>
+      {!adminOnly && (
+        <div className="text-center mt-6 text-sm text-muted-foreground">
+          {t("Don't have an account?")}{" "}
+          <button
+            onClick={onSwitch}
+            className="text-primary hover:underline"
+          >
+            {t("Sign Up")}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

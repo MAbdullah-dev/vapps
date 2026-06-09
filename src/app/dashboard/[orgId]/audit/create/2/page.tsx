@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
+import { getAdminPortalDashboardUrl } from "@/lib/super-admin-policy";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -126,7 +127,7 @@ const AUDIT_TYPES = [
   },
 ] as const;
 
-/** Audit criteria options are now loaded from org checklists (Settings > Audit Checklist). */
+/** Audit criteria options are loaded from org checklists (managed in platform admin). */
 
 const CORE_AUDITOR_COMPETENCIES = [
   "Knowledge of audit principles & methods",
@@ -1845,9 +1846,12 @@ export default function CreateAuditStep2Page() {
               <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-4">
                 <p className="text-sm text-amber-800">
                   <span className="font-semibold">{t("No audit checklists yet.")}</span>{" "}
-                  {t("Create checklists and add questions in")}{" "}
-                  <Link href={`/dashboard/${orgId}/settings/audit-checklist`} className="underline font-medium text-amber-900 hover:text-amber-700">
-                    {t("Settings → Audit Checklist")}
+                  {t("Ask your platform administrator to create checklists in")}{" "}
+                  <Link
+                    href={`${getAdminPortalDashboardUrl()}?tab=audit-checklists`}
+                    className="underline font-medium text-amber-900 hover:text-amber-700"
+                  >
+                    {t("Admin portal → Audit Checklists")}
                   </Link>
                   . {t("Criteria selection drives the checklist questions in Step 3.")}
                 </p>

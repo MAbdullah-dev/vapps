@@ -4,8 +4,13 @@ import ThemeToggle from "@/components/common/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { getClientHost, getLogoutCallbackUrl } from "@/lib/domain-auth";
 
 export default function AdminTopbar() {
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: getLogoutCallbackUrl(getClientHost()) });
+  };
+
   return (
     <header className="h-14 border-b border-border bg-background px-4 flex items-center justify-between">
       <div>
@@ -18,7 +23,7 @@ export default function AdminTopbar() {
           variant="outline"
           size="sm"
           className="gap-2"
-          onClick={() => signOut({ callbackUrl: "/auth" })}
+          onClick={handleLogout}
         >
           <LogOut size={14} />
           Logout

@@ -7,13 +7,14 @@ import BrandLogo from './BrandLogo'
 import { Button } from '@/components/ui/button'
 import { LogOut } from 'lucide-react'
 import { signOut } from 'next-auth/react'
+import { getClientHost, getLogoutCallbackUrl } from '@/lib/domain-auth'
 import { useTranslate } from '@/components/providers/translation-provider'
 
 const Header = () => {
   const { t } = useTranslate()
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: "/auth" })
+    await signOut({ callbackUrl: getLogoutCallbackUrl(getClientHost()) })
   }
 
   return (

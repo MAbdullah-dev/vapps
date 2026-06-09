@@ -1,24 +1,25 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
+import { prisma } from "@/lib/prisma";
+import { isPlatformSuperAdmin } from "@/lib/platform-roles";
 
-function parseAdminEmails() {
-  const raw = process.env.ADMIN_DASHBOARD_EMAILS ?? "";
-  return raw
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+export async function isSuperAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { platformRole: true, isBlocked: true },
+  });
+  if (!user || user.isBlocked) return false;
+  return isPlatformSuperAdmin(user.platformRole);
 }
 
-export function isAdminEmail(email?: string | null) {
-  if (!email) return false;
-  const allowedEmails = parseAdminEmails();
-  return allowedEmails.includes(email.toLowerCase());
+/** @deprecated Use isSuperAdmin(userId) — checks DB platformRole, not .env emails. */
+export async function isAdminEmail(_email?: string | null): Promise<boolean> {
+  return false;
 }
 
 export async function getAdminUser(req: NextRequest) {
   const user = await getCurrentUser(req);
-  if (!user?.email) return null;
-  if (!isAdminEmail(user.email)) return null;
-
+  if (!user?.id) return null;
+  if (!(await isSuperAdmin(user.id))) return null;
   return user;
 }

@@ -13,7 +13,6 @@ import {
   CreditCard,
   BarChart,
   UserCog,
-  FileCheck,
   Wallet,
   Package,
   UsersRound,
@@ -37,7 +36,6 @@ const SETTINGS_MENU = [
   { title: "Billing & Subscription", subtitle: "Plans and payments", icon: CreditCard, path: "settings/billing-subscription" },
   { title: "Notifications", subtitle: "Email and alerts", icon: Shield, path: "settings/notifications" },
   { title: "KPI & Reports", subtitle: "Metrics and dashboards", icon: BarChart, path: "settings/kpi-reports" },
-  { title: "Audit Checklist", subtitle: "Question management", icon: FileCheck, path: "settings/audit-checklist" },
 ] as const;
 
 const SettingSidebar = () => {

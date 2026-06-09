@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
 import { normalizeRole, isRoleHigher, roleToLeadershipTier } from "@/lib/roles";
+import { SUPER_ADMIN_ORG_FORBIDDEN } from "@/lib/super-admin-policy";
+import { isSuperAdminEmail } from "@/lib/super-admin-policy.server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -106,6 +108,10 @@ export async function POST(req: NextRequest) {
       role: inviteRole,
       email: tenantInvite.email,
     });
+
+    if (await isSuperAdminEmail(masterInvite.email)) {
+      return NextResponse.json({ error: SUPER_ADMIN_ORG_FORBIDDEN }, { status: 403 });
+    }
 
     // 2️⃣ Check if user exists
     const existingUser = await prisma.user.findUnique({

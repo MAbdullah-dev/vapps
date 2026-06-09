@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
 import { normalizeRole, isRoleHigher, getHigherRole, roleToLeadershipTier, type Role } from "@/lib/roles";
+import { getOrgTiesBlockReasonForSuperAdmin } from "@/lib/super-admin-policy.server";
 
 export async function POST(req: NextRequest) {
   let token: string | undefined;
@@ -13,6 +14,11 @@ export async function POST(req: NextRequest) {
     user = await getCurrentUser();
     if (!user || !user.id || !user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const superAdminBlock = await getOrgTiesBlockReasonForSuperAdmin(user.id);
+    if (superAdminBlock) {
+      return NextResponse.json({ error: superAdminBlock }, { status: 403 });
     }
 
     const body = await req.json();

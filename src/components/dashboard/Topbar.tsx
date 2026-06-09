@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useOrg } from "@/components/providers/org-provider";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { getClientHost, getLogoutCallbackUrl } from "@/lib/domain-auth";
 import { apiClient } from "@/lib/api-client";
 import { getDashboardPath } from "@/lib/subdomain";
 import ThemeToggle from "@/components/common/ThemeToggle";
@@ -208,7 +209,7 @@ export default function Topbar() {
   };
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: "/auth" });
+    await signOut({ callbackUrl: getLogoutCallbackUrl(getClientHost()) });
   };
 
   return (

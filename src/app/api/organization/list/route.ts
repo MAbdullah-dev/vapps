@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
+import { isUserSuperAdmin } from "@/lib/super-admin-policy.server";
 
 /**
  * GET /api/organization/list
@@ -20,6 +21,10 @@ export async function GET(req: NextRequest) {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    if (await isUserSuperAdmin(user.id)) {
+      return NextResponse.json({ organizations: [] }, { status: 200 });
     }
 
     // OPTIMIZED: Use _count instead of include to reduce payload size

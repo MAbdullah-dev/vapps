@@ -198,9 +198,8 @@ if (process.env.NODE_ENV !== "production") {
   global.__prisma = basePrisma;
 }
 
-// Test database connection on startup
+// Dev-only: log DB connection latency (seeding runs via `prisma db seed` / npm run db:seed)
 if (process.env.NODE_ENV === "development") {
-  // Test connection asynchronously (don't block startup)
   (async () => {
     try {
       const testStart = Date.now();

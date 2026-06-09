@@ -8,11 +8,19 @@ declare module "next-auth" {  interface Session {
       emailVerified?: Date | null;
       /** App UI language (`src/i18n/locales.ts`). Synced via TranslationProvider PATCH /api/user/profile. */
       preferredLocale?: string | null;
+      /** Platform role: user | super_admin (admin dashboard access). */
+      platformRole?: string;
     } & DefaultSession["user"];
   }
 
   interface User {
     id: string;
     emailVerified?: Date | null;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    platformRole?: string;
   }
 }

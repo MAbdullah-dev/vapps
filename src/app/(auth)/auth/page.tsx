@@ -5,6 +5,7 @@ import Login from "@/components/Auth/Login";
 import Register from "@/components/Auth/Register";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { isAdminHostFromHost } from "@/lib/app-hosts";
 import { useTranslate } from "@/components/providers/translation-provider";
 
 function AuthSuspenseFallback() {
@@ -22,26 +23,31 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
   const inviteEmail = searchParams.get("email");
+  const callbackUrl = searchParams.get("callbackUrl");
+  const isAdminHost =
+    typeof window !== "undefined" && isAdminHostFromHost(window.location.host);
+  const isAdminLogin =
+    isAdminHost || (callbackUrl?.startsWith("/admin") ?? false);
+  const resolvedCallbackUrl =
+    isAdminHost && !callbackUrl ? "/admin" : callbackUrl || undefined;
+  const showLogin = inviteToken || isAdminLogin ? true : isLogin;
 
   useEffect(() => {
     const verified = searchParams.get("verified");
     if (verified === "true") {
       toast.success(t("Email verified successfully!"));
     }
-    
-    // If there's an invite token, show login form (not register)
-    if (inviteToken) {
-      setIsLogin(true);
-    }
-  }, [searchParams, inviteToken]);
+  }, [searchParams, t]);
 
   return (
     <div>
-      {isLogin ? (
+      {showLogin ? (
         <Login 
-          onSwitch={() => setIsLogin(false)} 
+          onSwitch={() => setIsLogin(false)}
           inviteToken={inviteToken || undefined}
           inviteEmail={inviteEmail || undefined}
+          callbackUrl={resolvedCallbackUrl}
+          adminOnly={isAdminLogin}
         />
       ) : (
         <Register onSwitch={() => setIsLogin(true)} />

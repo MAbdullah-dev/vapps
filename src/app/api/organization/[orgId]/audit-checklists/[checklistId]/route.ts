@@ -76,91 +76,19 @@ export async function GET(
   }
 }
 
+const CHECKLIST_ADMIN_ONLY =
+  "Audit checklist management is only available in the platform admin portal.";
+
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ orgId: string; checklistId: string }> }
+  _req: NextRequest,
+  _ctx: { params: Promise<{ orgId: string; checklistId: string }> }
 ) {
-  try {
-    const { orgId, checklistId } = await params;
-    const ctx = await getRequestContext(req, orgId);
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const connectionString = ctx.tenant.connectionString;
-    if (!connectionString) {
-      return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const name = (body.name ?? body.title ?? "").trim();
-    if (!name) {
-      return NextResponse.json(
-        { error: "name is required" },
-        { status: 400 }
-      );
-    }
-
-    await withTenantConnection(connectionString, async (client) => {
-      const result = await client.query(
-        `UPDATE audit_checklists SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, name`,
-        [name, checklistId]
-      );
-      if (result.rowCount === 0) {
-        throw new Error("Checklist not found");
-      }
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to update audit checklist";
-    if (message === "Checklist not found") {
-      return NextResponse.json({ error: message }, { status: 404 });
-    }
-    console.error("Error updating audit checklist:", error);
-    return NextResponse.json(
-      { error: "Failed to update audit checklist" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ error: CHECKLIST_ADMIN_ONLY }, { status: 403 });
 }
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ orgId: string; checklistId: string }> }
+  _ctx: { params: Promise<{ orgId: string; checklistId: string }> }
 ) {
-  try {
-    const { orgId, checklistId } = await params;
-    const ctx = await getRequestContext(_req, orgId);
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const connectionString = ctx.tenant.connectionString;
-    if (!connectionString) {
-      return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
-    }
-
-    await withTenantConnection(connectionString, async (client) => {
-      const result = await client.query(
-        `DELETE FROM audit_checklists WHERE id = $1 RETURNING id`,
-        [checklistId]
-      );
-      if (result.rowCount === 0) {
-        throw new Error("Checklist not found");
-      }
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to delete audit checklist";
-    if (message === "Checklist not found") {
-      return NextResponse.json({ error: message }, { status: 404 });
-    }
-    console.error("Error deleting audit checklist:", error);
-    return NextResponse.json(
-      { error: "Failed to delete audit checklist" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ error: CHECKLIST_ADMIN_ONLY }, { status: 403 });
 }

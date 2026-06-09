@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Building2, LayoutDashboard, Shield, Users } from "lucide-react";
+import { Building2, FileCheck, LayoutDashboard, Shield, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { tab: "overview", label: "Overview", icon: LayoutDashboard },
   { tab: "organizations", label: "Orgs", icon: Building2 },
   { tab: "users", label: "Users", icon: Users },
-  { tab: "audit", label: "Audit", icon: Shield },
+  { tab: "audit-checklists", label: "Checklists", icon: FileCheck },
+  { tab: "audit", label: "Logs", icon: Shield },
 ] as const;
 
 export default function AdminMobileNav() {

@@ -9,6 +9,8 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import BrandLogo from "@/components/common/BrandLogo";
 import { getOrgDashboardUrl } from "@/lib/subdomain";
+import { isPlatformSuperAdmin } from "@/lib/platform-roles";
+import { getAdminPortalDashboardUrl } from "@/lib/super-admin-policy";
 import { useTranslate } from "@/components/providers/translation-provider";
 
 interface Organization {
@@ -52,9 +54,14 @@ export default function ResolvePage() {
     }
 
     if (status === "authenticated") {
+      if (isPlatformSuperAdmin(session?.user?.platformRole)) {
+        setIsRedirecting(true);
+        window.location.href = getAdminPortalDashboardUrl();
+        return;
+      }
       fetchOrganizations();
     }
-  }, [status, router]);
+  }, [status, session?.user?.platformRole, router]);
 
   // Handle auto-redirect when only one organization
   useEffect(() => {

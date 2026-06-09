@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { prisma } from "@/lib/prisma";
+import { getOrgTiesBlockReasonForSuperAdmin } from "@/lib/super-admin-policy.server";
 import { createTenantDatabase, runTenantMigrations } from "@/lib/db-creator";
 import { storeTenantData } from "@/lib/store-tenant-data";
 import { OnboardingData } from "@/store/onboardingStore";
@@ -185,6 +186,11 @@ export async function POST(req: NextRequest) {
         { error: "Unauthorized. Please log in to create an organization." },
         { status: 401 }
       );
+    }
+
+    const superAdminBlock = await getOrgTiesBlockReasonForSuperAdmin(user.id);
+    if (superAdminBlock) {
+      return NextResponse.json({ error: superAdminBlock }, { status: 403 });
     }
 
     // 2. Parse and validate request body

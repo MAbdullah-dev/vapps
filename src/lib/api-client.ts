@@ -177,6 +177,7 @@ class ApiClient {
         id: string;
         name: string;
         email: string;
+        platformRole: string;
         isBlocked: boolean;
         blockedAt: string | null;
         blockReason: string | null;
@@ -210,6 +211,111 @@ class ApiClient {
         blockReason: string | null;
       };
     }>(`/admin/users/${userId}/status`, { isBlocked, reason });
+  }
+
+  updateAdminUserPlatformRole(userId: string, platformRole: "user" | "super_admin") {
+    return this.patch<{
+      user: {
+        id: string;
+        name: string | null;
+        email: string | null;
+        platformRole: string;
+      };
+    }>(`/admin/users/${userId}/platform-role`, { platformRole });
+  }
+
+  getAdminAuditChecklists(orgId: string) {
+    return this.get<{ checklists: Array<{ id: string; name: string; questionCount: number; createdAt: string }> }>(
+      `/admin/organizations/${orgId}/audit-checklists`
+    );
+  }
+
+  createAdminAuditChecklist(orgId: string, data: { name: string }) {
+    return this.post<{ checklist: { id: string; name: string } }>(
+      `/admin/organizations/${orgId}/audit-checklists`,
+      data
+    );
+  }
+
+  getAdminAuditChecklist(orgId: string, checklistId: string) {
+    return this.get<{
+      checklist: {
+        id: string;
+        name: string;
+        questions: Array<{
+          id: string;
+          clause: string;
+          subclause: string;
+          requirement: string;
+          question: string;
+          evidenceExample: string;
+          sortOrder: number;
+        }>;
+      };
+    }>(`/admin/organizations/${orgId}/audit-checklists/${checklistId}`);
+  }
+
+  updateAdminAuditChecklist(orgId: string, checklistId: string, data: { name: string }) {
+    return this.patch<{ success: boolean }>(
+      `/admin/organizations/${orgId}/audit-checklists/${checklistId}`,
+      data
+    );
+  }
+
+  deleteAdminAuditChecklist(orgId: string, checklistId: string) {
+    return this.delete<{ success: boolean }>(
+      `/admin/organizations/${orgId}/audit-checklists/${checklistId}`
+    );
+  }
+
+  createAdminChecklistQuestion(
+    orgId: string,
+    checklistId: string,
+    data: {
+      clause?: string;
+      subclause?: string;
+      requirement?: string;
+      question?: string;
+      evidenceExample?: string;
+      sortOrder?: number;
+    }
+  ) {
+    return this.post<{
+      question: {
+        id: string;
+        clause: string;
+        subclause: string;
+        requirement: string;
+        question: string;
+        evidenceExample: string;
+        sortOrder: number;
+      };
+    }>(`/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions`, data);
+  }
+
+  updateAdminChecklistQuestion(
+    orgId: string,
+    checklistId: string,
+    questionId: string,
+    data: {
+      clause?: string;
+      subclause?: string;
+      requirement?: string;
+      question?: string;
+      evidenceExample?: string;
+      sortOrder?: number;
+    }
+  ) {
+    return this.patch<{ success: boolean }>(
+      `/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`,
+      data
+    );
+  }
+
+  deleteAdminChecklistQuestion(orgId: string, checklistId: string, questionId: string) {
+    return this.delete<{ success: boolean }>(
+      `/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`
+    );
   }
 
   getAdminAuditLogs() {

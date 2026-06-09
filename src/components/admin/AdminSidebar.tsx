@@ -3,7 +3,7 @@
 import BrandLogo from "@/components/common/BrandLogo";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Building2, LayoutDashboard, Shield, Users } from "lucide-react";
+import { Building2, FileCheck, LayoutDashboard, Shield, Users } from "lucide-react";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -55,6 +55,18 @@ export default function AdminSidebar() {
         >
           <Users size={16} />
           Users
+        </Link>
+
+        <Link
+          href="/admin?tab=audit-checklists"
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+            isActive("audit-checklists")
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted/60"
+          }`}
+        >
+          <FileCheck size={16} />
+          Audit Checklists
         </Link>
 
         <Link

@@ -18,7 +18,6 @@ import {
   parseStoredRecoveryCodes,
   verifyAndConsumeRecoveryCode,
 } from "./two-factor-recovery";
-
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
@@ -187,6 +186,21 @@ export const authOptions: NextAuthOptions = {
           }
         }
       }
+
+      if (token.sub) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { platformRole: true },
+          });
+          if (dbUser) {
+            token.platformRole = dbUser.platformRole;
+          }
+        } catch {
+          // Keep existing token.platformRole if DB read fails
+        }
+      }
+
       return token;
     },
 
@@ -203,6 +217,7 @@ export const authOptions: NextAuthOptions = {
               image: true,
               isBlocked: true,
               preferredLocale: true,
+              platformRole: true,
             },
           });
           if (dbUser) {
@@ -211,6 +226,7 @@ export const authOptions: NextAuthOptions = {
             session.user.image = dbUser.image ?? session.user.image ?? null;
             session.user.isBlocked = dbUser.isBlocked;
             session.user.preferredLocale = dbUser.preferredLocale ?? null;
+            session.user.platformRole = dbUser.platformRole;
           }
         } catch {
           // Keep existing session values if DB read fails
