@@ -2,16 +2,17 @@ import { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { buildAuthOptions } from "@/lib/auth";
+import { getRequestHost } from "@/lib/auth-cookies";
 import { isSuperAdmin } from "@/lib/admin-access";
 import { getAdminAppUrl, getMainAppUrl, isAdminHostFromHost } from "@/lib/app-hosts";
 import { getLoginUrlForHost } from "@/lib/domain-auth";
 import AdminShell from "@/components/admin/AdminShell";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const session = await getServerSession(authOptions);
-  const host = (await headers()).get("host") ?? "";
+  const host = getRequestHost(await headers());
   const onAdminHost = isAdminHostFromHost(host);
+  const session = await getServerSession(buildAuthOptions(host));
 
   if (!session?.user?.email) {
     redirect(onAdminHost ? "/auth?callbackUrl=/admin" : `${getAdminAppUrl()}/auth?callbackUrl=/admin`);

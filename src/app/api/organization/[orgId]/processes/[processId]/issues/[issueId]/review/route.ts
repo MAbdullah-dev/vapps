@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
+import { requireProcessAccess } from "@/lib/require-org-role";
 
 export async function POST(
   req: NextRequest,
@@ -32,6 +33,12 @@ export async function POST(
     const { containmentText, rootCauseText, containmentFiles, rootCauseFiles, actionPlans } = body;
 
     client = await getTenantClient(resolvedOrgId);
+
+    const accessDenied = await requireProcessAccess(client, ctx, processId);
+    if (accessDenied) {
+      client.release();
+      return accessDenied;
+    }
 
     // Insert or update review data (upsert)
     await client.query(

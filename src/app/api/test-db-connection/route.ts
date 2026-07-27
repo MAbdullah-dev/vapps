@@ -1,28 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminUser } from "@/lib/admin-access";
 import { Pool } from "pg";
 import { getSSLConfig } from "@/lib/db/ssl-config";
 
 /**
- * Test endpoint to check database connection health
+ * Super-admin-only database connectivity check.
  * GET /api/test-db-connection
+ * Disabled entirely outside development unless the caller is a platform super admin.
  */
 export async function GET(req: NextRequest) {
+  const admin = await getAdminUser(req);
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const start = Date.now();
-  const connectionString = process.env.DATABASE_URL!;
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    return NextResponse.json(
+      { success: false, error: "DATABASE_URL is not configured" },
+      { status: 500 }
+    );
+  }
 
   try {
-    // Create a test pool connection; SSL derived from connection string (local vs AWS)
     const testPool = new Pool({
       connectionString,
       ssl: getSSLConfig(connectionString),
       max: 1,
-      connectionTimeoutMillis: 10000, // 10 seconds
+      connectionTimeoutMillis: 10000,
     });
 
     const client = await testPool.connect();
-    
+
     try {
-      // Run a simple query
       const queryStart = Date.now();
       const result = await client.query("SELECT 1 as test, NOW() as current_time");
       const queryTime = Date.now() - queryStart;
@@ -34,36 +45,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         success: true,
         connectionTime: totalTime,
-        queryTime: queryTime,
+        queryTime,
         result: result.rows[0],
-        message: queryTime > 5000 
-          ? `⚠️ Database is very slow (${queryTime}ms). This may cause login timeouts.`
-          : `✅ Database connection is healthy (${queryTime}ms)`,
+        message:
+          queryTime > 5000
+            ? `Database is slow (${queryTime}ms).`
+            : `Database connection is healthy (${queryTime}ms)`,
       });
-    } catch (queryError: any) {
+    } catch (queryError) {
       await client.release();
       await testPool.end();
       throw queryError;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     const totalTime = Date.now() - start;
-      return NextResponse.json(
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
       {
         success: false,
         connectionTime: totalTime,
-        error: error.message,
-        code: error.code,
-        message: `❌ Database connection failed after ${totalTime}ms: ${error.message}`,
-        troubleshooting: {
-          note: "If you see timeouts around 20-25 seconds, check:",
-          checks: [
-            "AWS IAM credentials are valid and not expired",
-            "AWS RDS instance is running (check AWS Console)",
-            "Security groups allow connections from your IP",
-            "Network connectivity to AWS RDS endpoint",
-            "DATABASE_URL credentials are correct"
-          ]
-        }
+        error: message,
+        message: `Database connection failed after ${totalTime}ms`,
       },
       { status: 500 }
     );

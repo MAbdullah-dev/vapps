@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
-import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
+import { getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
+import { requireProcessAccess } from "@/lib/require-org-role";
 
 /**
  * GET /api/organization/[orgId]/processes/[processId]/tasks?sprintId=xxx
@@ -40,6 +41,12 @@ export async function GET(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
       }
 
       // Build query based on sprintId filter
@@ -154,6 +161,12 @@ export async function POST(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
       }
 
       // If sprintId is provided, verify sprint exists

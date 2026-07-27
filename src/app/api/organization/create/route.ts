@@ -6,6 +6,7 @@ import { createTenantDatabase, runTenantMigrations } from "@/lib/db-creator";
 import { storeTenantData } from "@/lib/store-tenant-data";
 import { OnboardingData } from "@/store/onboardingStore";
 import { z } from "zod";
+import { encryptTenantDatabaseFields } from "@/lib/tenant-secrets";
 
 /**
  * Validation schema for organization creation
@@ -297,16 +298,20 @@ export async function POST(req: NextRequest) {
             throw new Error(`Failed to create tenant database: ${dbError.message}`);
           }
 
-          // Store database instance information
+          // Store database instance information (credentials encrypted at rest)
+          const encrypted = encryptTenantDatabaseFields({
+            dbPassword: tenantDb.dbPassword,
+            connectionString: tenantDb.connectionString,
+          });
           const dbInst = await tx.orgDatabaseInstance.create({
             data: {
               organizationId: org.id,
               dbHost: tenantDb.dbHost,
               dbPort: tenantDb.dbPort,
               dbUser: tenantDb.dbUser,
-              dbPassword: tenantDb.dbPassword,
+              dbPassword: encrypted.dbPassword,
               dbName: tenantDb.dbName,
-              connectionString: tenantDb.connectionString,
+              connectionString: encrypted.connectionString,
             },
           });
 

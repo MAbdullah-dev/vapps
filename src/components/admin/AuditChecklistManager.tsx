@@ -37,11 +37,7 @@ type Question = {
   sortOrder: number;
 };
 
-type AuditChecklistManagerProps = {
-  orgId: string;
-};
-
-export default function AuditChecklistManager({ orgId }: AuditChecklistManagerProps) {
+export default function AuditChecklistManager() {
   const [checklists, setChecklists] = useState<ChecklistSummary[]>([]);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string | null>(null);
   const [selectedChecklistName, setSelectedChecklistName] = useState<string>("");
@@ -73,10 +69,9 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadChecklists = useCallback(async () => {
-    if (!orgId) return;
     try {
       setIsLoadingList(true);
-      const res = await apiClient.getAdminAuditChecklists(orgId);
+      const res = await apiClient.getAdminAuditChecklists();
       setChecklists(res.checklists ?? []);
     } catch {
       toast.error("Failed to load checklists");
@@ -84,28 +79,24 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
     } finally {
       setIsLoadingList(false);
     }
-  }, [orgId]);
+  }, []);
 
-  const loadChecklistDetail = useCallback(
-    async (checklistId: string) => {
-      if (!orgId) return;
-      try {
-        setIsLoadingDetail(true);
-        const res = await apiClient.getAdminAuditChecklist(orgId, checklistId);
-        const c = res.checklist;
-        if (c) {
-          setSelectedChecklistName(c.name);
-          setQuestions(c.questions ?? []);
-        }
-      } catch {
-        toast.error("Failed to load checklist");
-        setQuestions([]);
-      } finally {
-        setIsLoadingDetail(false);
+  const loadChecklistDetail = useCallback(async (checklistId: string) => {
+    try {
+      setIsLoadingDetail(true);
+      const res = await apiClient.getAdminAuditChecklist(checklistId);
+      const c = res.checklist;
+      if (c) {
+        setSelectedChecklistName(c.name);
+        setQuestions(c.questions ?? []);
       }
-    },
-    [orgId]
-  );
+    } catch {
+      toast.error("Failed to load checklist");
+      setQuestions([]);
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  }, []);
 
   useEffect(() => {
     setSelectedChecklistId(null);
@@ -129,7 +120,7 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
     }
     try {
       setIsCreatingChecklist(true);
-      const res = await apiClient.createAdminAuditChecklist(orgId, { name });
+      const res = await apiClient.createAdminAuditChecklist({ name });
       if (res.checklist) {
         toast.success("Checklist created");
         setNewChecklistName("");
@@ -149,7 +140,7 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
     if (!selectedChecklistId || !name) return;
     try {
       setIsSavingChecklist(true);
-      await apiClient.updateAdminAuditChecklist(orgId, selectedChecklistId, { name });
+      await apiClient.updateAdminAuditChecklist(selectedChecklistId, { name });
       toast.success("Checklist updated");
       setSelectedChecklistName(name);
       setIsEditChecklistOpen(false);
@@ -164,7 +155,7 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
   const handleDeleteChecklist = async (id: string) => {
     try {
       setIsDeleting(true);
-      await apiClient.deleteAdminAuditChecklist(orgId, id);
+      await apiClient.deleteAdminAuditChecklist(id);
       toast.success("Checklist deleted");
       setDeleteChecklistId(null);
       if (selectedChecklistId === id) {
@@ -202,7 +193,6 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
       setIsSavingQuestion(true);
       if (editingQuestion) {
         await apiClient.updateAdminChecklistQuestion(
-          orgId,
           selectedChecklistId,
           editingQuestion.id,
           questionForm
@@ -213,7 +203,6 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
         );
       } else {
         const res = await apiClient.createAdminChecklistQuestion(
-          orgId,
           selectedChecklistId,
           questionForm
         );
@@ -235,7 +224,7 @@ export default function AuditChecklistManager({ orgId }: AuditChecklistManagerPr
     if (!selectedChecklistId) return;
     try {
       setIsDeleting(true);
-      await apiClient.deleteAdminChecklistQuestion(orgId, selectedChecklistId, questionId);
+      await apiClient.deleteAdminChecklistQuestion(selectedChecklistId, questionId);
       toast.success("Question deleted");
       setDeleteQuestionId(null);
       setQuestions((prev) => prev.filter((q) => q.id !== questionId));

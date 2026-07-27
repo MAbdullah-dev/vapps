@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from "pg";
 import { getSSLConfig } from "@/lib/db/ssl-config";
+import { revealTenantConnectionString } from "@/lib/tenant-secrets";
 
 const tenantPools = new Map<string, Pool>();
 const MAX_POOL_SIZE = 3;
@@ -23,12 +24,14 @@ function getTenantPool(connectionString: string): Pool {
 /**
  * Execute a function with a tenant DB connection. Uses a small pool per connection
  * string so connections are reused instead of opening a new one every time.
+ * Accepts encrypted or plaintext connection strings from the master DB.
  */
 export async function withTenantConnection<T>(
   connectionString: string,
   fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  const pool = getTenantPool(connectionString);
+  const revealed = revealTenantConnectionString(connectionString);
+  const pool = getTenantPool(revealed);
   const raw = await pool.connect();
   const client = raw as PoolClient;
   try {
@@ -37,4 +40,3 @@ export async function withTenantConnection<T>(
     client.release();
   }
 }
-

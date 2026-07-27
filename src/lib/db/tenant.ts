@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { prisma } from "@/lib/prisma";
 import { getSSLConfig } from "@/lib/db/ssl-config";
+import { revealTenantConnectionString } from "@/lib/tenant-secrets";
 
 /**
  * Get a PostgreSQL client connected to a tenant database
@@ -17,12 +18,15 @@ export async function getTenantClient(orgId: string): Promise<Client> {
     throw new Error(`Tenant database not found for organization ${orgId}`);
   }
 
+  const connectionString = revealTenantConnectionString(
+    org.database.connectionString
+  );
+
   const client = new Client({
-    connectionString: org.database.connectionString,
-    ssl: getSSLConfig(org.database.connectionString),
+    connectionString,
+    ssl: getSSLConfig(connectionString),
   });
 
   await client.connect();
   return client;
 }
-

@@ -7,6 +7,7 @@ import {
   resolveOrgOwner,
   userHasProcessAccess,
 } from "@/lib/process-access";
+import { requireProcessAccess } from "@/lib/require-org-role";
 import crypto from "crypto";
 
 /**
@@ -174,6 +175,12 @@ export async function POST(
           { error: "Process not found" },
           { status: 404 }
         );
+      }
+
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
       }
 
       // Insert new sprint

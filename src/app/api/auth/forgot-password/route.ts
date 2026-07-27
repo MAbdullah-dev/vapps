@@ -8,12 +8,26 @@ import {
   sendPasswordResetEmail,
 } from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
+import { clientIpFromRequest } from "@/lib/turnstile";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const GENERIC_MESSAGE =
   "If an account exists for that email, we sent password reset instructions.";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIpFromRequest(req) ?? "unknown";
+    const limit = checkRateLimit(`auth:forgot:${ip}`, 5, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await req.json();
     const parsed = forgotPasswordSchema.safeParse(body);
     if (!parsed.success) {
@@ -31,6 +45,15 @@ export async function POST(req: NextRequest) {
     });
 
     if (user?.password && user.email) {
+      const perEmail = checkRateLimit(
+        `auth:forgot-email:${emailKey}`,
+        3,
+        60 * 60 * 1000
+      );
+      if (!perEmail.allowed) {
+        return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
+      }
+
       const token = crypto.randomUUID();
       const expires = new Date(Date.now() + 60 * 60 * 1000);
 

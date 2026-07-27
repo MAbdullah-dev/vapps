@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 
+function canManageAudits(role: string): boolean {
+  return role === "owner" || role === "admin" || role === "manager";
+}
+
 /**
  * GET /api/organization/[orgId]/audit/programs
  * List audit programs. Query: ?latest=1 to return only the most recent one.
@@ -117,6 +121,13 @@ export async function POST(
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!canManageAudits(ctx.tenant.userRole)) {
+      return NextResponse.json(
+        { error: "Forbidden: insufficient permissions to create audit programs" },
+        { status: 403 }
+      );
     }
 
     const connectionString = ctx.tenant.connectionString;

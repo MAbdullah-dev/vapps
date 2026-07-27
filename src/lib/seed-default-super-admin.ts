@@ -4,7 +4,7 @@ import { PLATFORM_ROLES } from "@/lib/platform-roles";
 
 export type SeedDefaultSuperAdminResult = "created" | "promoted" | "exists" | "skipped";
 
-const DEFAULT_EMAIL = "superadmin@vapps.com";
+const DEFAULT_EMAIL = "superadmin@vietech.pro";
 const DEFAULT_NAME = "Super Admin";
 /** Dev-only fallback; override with SEED_SUPER_ADMIN_PASSWORD in .env */
 const DEV_DEFAULT_PASSWORD = "SuperAdmin123!";

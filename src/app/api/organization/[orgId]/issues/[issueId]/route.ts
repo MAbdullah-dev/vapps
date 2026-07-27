@@ -12,6 +12,11 @@ import {
 import { normalizeIssueCommentsOnRow } from "@/lib/issue-comments-normalize";
 import { cache, cacheKeys } from "@/lib/cache";
 import { logActivity } from "@/lib/activity-logger";
+import {
+  PROCESS_ACCESS_DENIED_MESSAGE,
+  resolveOrgOwner,
+  userHasProcessAccess,
+} from "@/lib/process-access";
 
 /**
  * GET /api/organization/[orgId]/issues/[issueId]
@@ -28,12 +33,33 @@ export async function GET(
     const client = await getTenantClient(ctx.tenant.orgId);
     try {
       await ensureIssueCommentsColumn(client);
-      const result = await client.query(`SELECT * FROM issues WHERE id = $1`, [issueId]);
-      client.release();
+      const result = await client.query(
+        `SELECT * FROM issues WHERE id = $1`,
+        [issueId]
+      );
       if (!result.rows.length) {
+        client.release();
         return NextResponse.json({ error: "Issue not found" }, { status: 404 });
       }
       const issue = result.rows[0] as Record<string, unknown>;
+      const processId = String(issue.processId ?? issue.process_id ?? "");
+      if (processId) {
+        const isOwner = await resolveOrgOwner(ctx.tenant.orgId, ctx.user.id);
+        const allowed = await userHasProcessAccess(
+          client,
+          ctx.user.id,
+          processId,
+          isOwner || ctx.tenant.userRole === "admin"
+        );
+        if (!allowed) {
+          client.release();
+          return NextResponse.json(
+            { error: PROCESS_ACCESS_DENIED_MESSAGE },
+            { status: 403 }
+          );
+        }
+      }
+      client.release();
       normalizeIssueCommentsOnRow(issue);
       return NextResponse.json({ issue });
     } catch (error: any) {

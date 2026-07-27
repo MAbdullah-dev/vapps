@@ -20,7 +20,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       const lineChart: { month: string; created: number; completed: number }[] = [];

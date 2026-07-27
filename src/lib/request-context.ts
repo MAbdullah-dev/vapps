@@ -21,8 +21,9 @@ const requestCache = new WeakMap<NextRequest, Map<string, RequestContext>>();
 
 /**
  * Resolve which org slug/id to use for this request.
- * On tenant subdomain: use host-derived slug (source of truth; path param must match or is ignored).
+ * On tenant subdomain: use host-derived slug (source of truth).
  * Otherwise: use pathOrgSlugOrId from URL.
+ * When both are present and disagree, refuse (prevents cross-tenant path abuse).
  */
 function resolveOrgSlugOrId(req: NextRequest, pathOrgSlugOrId: string): string {
   const hostSlug = getOrgSlugFromHost(req);
@@ -30,6 +31,32 @@ function resolveOrgSlugOrId(req: NextRequest, pathOrgSlugOrId: string): string {
     return hostSlug;
   }
   return pathOrgSlugOrId;
+}
+
+/**
+ * When on a tenant host, verify the path org (if provided) matches the host org.
+ * Returns an error response when they conflict.
+ */
+export async function assertPathOrgMatchesHost(
+  req: NextRequest,
+  pathOrgSlugOrId: string,
+  resolvedOrgId: string
+): Promise<Response | null> {
+  const hostSlug = getOrgSlugFromHost(req);
+  if (!hostSlug || !pathOrgSlugOrId) return null;
+
+  // Resolve path to canonical id for comparison
+  const { getOrgBySlugOrId } = await import("@/lib/org-utils");
+  const pathOrg = await getOrgBySlugOrId(pathOrgSlugOrId);
+  if (!pathOrg) return null;
+
+  if (pathOrg.id !== resolvedOrgId) {
+    return NextResponse.json(
+      { error: "Organization mismatch" },
+      { status: 403 }
+    );
+  }
+  return null;
 }
 
 /**
@@ -92,6 +119,12 @@ async function getRequestContextWithStatus(
 
   const tenant = await getTenantContext(orgSlugOrId, user.id);
   if (!tenant) return { context: null, status: "forbidden" };
+
+  // On subdomain hosts, reject when path orgId points at a different org
+  const mismatch = await assertPathOrgMatchesHost(req, pathOrgSlugOrId, tenant.orgId);
+  if (mismatch) {
+    return { context: null, status: "forbidden" };
+  }
 
   const context: RequestContext = {
     user: {

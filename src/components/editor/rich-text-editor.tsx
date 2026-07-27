@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
 export {
@@ -22,6 +21,8 @@ export type RichTextEditorProps = {
   showToolbar?: boolean;
   /** POST target for multipart field `file` (must return JSON with `link` or `url`) */
   imageUploadUrl?: string;
+  /** Organization slug/id for tenant-scoped image uploads */
+  orgId?: string;
   /** Change to remount the editor (e.g. when opening a different record in a dialog). */
   instanceKey?: string;
 };
@@ -31,13 +32,10 @@ const HugerteEditorInner = dynamic(
     import("@/components/editor/hugerte-editor-inner").then((m) => m.HugerteEditorInner),
   {
     ssr: false,
-    loading: ({ className, minHeight = 160 }: RichTextEditorProps) => (
+    loading: () => (
       <div
-        className={cn(
-          "rounded-md border border-border bg-muted animate-pulse",
-          className
-        )}
-        style={{ minHeight }}
+        className="rounded-md border border-border bg-muted animate-pulse"
+        style={{ minHeight: 160 }}
         aria-hidden
       />
     ),

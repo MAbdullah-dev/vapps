@@ -213,31 +213,20 @@ class ApiClient {
     }>(`/admin/users/${userId}/status`, { isBlocked, reason });
   }
 
-  updateAdminUserPlatformRole(userId: string, platformRole: "user" | "super_admin") {
-    return this.patch<{
-      user: {
-        id: string;
-        name: string | null;
-        email: string | null;
-        platformRole: string;
-      };
-    }>(`/admin/users/${userId}/platform-role`, { platformRole });
-  }
-
-  getAdminAuditChecklists(orgId: string) {
+  getAdminAuditChecklists() {
     return this.get<{ checklists: Array<{ id: string; name: string; questionCount: number; createdAt: string }> }>(
-      `/admin/organizations/${orgId}/audit-checklists`
+      `/admin/audit-checklists`
     );
   }
 
-  createAdminAuditChecklist(orgId: string, data: { name: string }) {
+  createAdminAuditChecklist(data: { name: string }) {
     return this.post<{ checklist: { id: string; name: string } }>(
-      `/admin/organizations/${orgId}/audit-checklists`,
+      `/admin/audit-checklists`,
       data
     );
   }
 
-  getAdminAuditChecklist(orgId: string, checklistId: string) {
+  getAdminAuditChecklist(checklistId: string) {
     return this.get<{
       checklist: {
         id: string;
@@ -252,24 +241,23 @@ class ApiClient {
           sortOrder: number;
         }>;
       };
-    }>(`/admin/organizations/${orgId}/audit-checklists/${checklistId}`);
+    }>(`/admin/audit-checklists/${checklistId}`);
   }
 
-  updateAdminAuditChecklist(orgId: string, checklistId: string, data: { name: string }) {
+  updateAdminAuditChecklist(checklistId: string, data: { name: string }) {
     return this.patch<{ success: boolean }>(
-      `/admin/organizations/${orgId}/audit-checklists/${checklistId}`,
+      `/admin/audit-checklists/${checklistId}`,
       data
     );
   }
 
-  deleteAdminAuditChecklist(orgId: string, checklistId: string) {
+  deleteAdminAuditChecklist(checklistId: string) {
     return this.delete<{ success: boolean }>(
-      `/admin/organizations/${orgId}/audit-checklists/${checklistId}`
+      `/admin/audit-checklists/${checklistId}`
     );
   }
 
   createAdminChecklistQuestion(
-    orgId: string,
     checklistId: string,
     data: {
       clause?: string;
@@ -290,11 +278,10 @@ class ApiClient {
         evidenceExample: string;
         sortOrder: number;
       };
-    }>(`/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions`, data);
+    }>(`/admin/audit-checklists/${checklistId}/questions`, data);
   }
 
   updateAdminChecklistQuestion(
-    orgId: string,
     checklistId: string,
     questionId: string,
     data: {
@@ -307,14 +294,14 @@ class ApiClient {
     }
   ) {
     return this.patch<{ success: boolean }>(
-      `/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`,
+      `/admin/audit-checklists/${checklistId}/questions/${questionId}`,
       data
     );
   }
 
-  deleteAdminChecklistQuestion(orgId: string, checklistId: string, questionId: string) {
+  deleteAdminChecklistQuestion(checklistId: string, questionId: string) {
     return this.delete<{ success: boolean }>(
-      `/admin/organizations/${orgId}/audit-checklists/${checklistId}/questions/${questionId}`
+      `/admin/audit-checklists/${checklistId}/questions/${questionId}`
     );
   }
 

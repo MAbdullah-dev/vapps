@@ -21,8 +21,8 @@ export async function GET(
 
     const { tenant } = ctx;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    // Always use resolved tenant orgId — never trust path orgId for DB access
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
 
@@ -75,20 +75,17 @@ export async function GET(
 
       return NextResponse.json({
         organization: {
-          id: orgId,
+          id: tenant.orgId,
           name: tenant.orgName,
           createdAt: null,
         },
         database: {
           name: tenant.dbName,
-          host: tenant.dbHost,
-          port: tenant.dbPort,
-          user: tenant.dbUser,
+          // Host/user omitted — avoid leaking infrastructure details to clients
           size: dbSizeResult.rows[0]?.size || "0 bytes",
           activeConnections: parseInt(connectionCountResult.rows[0]?.connections || "0"),
         },
         tables: tableCounts,
-        connectionString: tenant.connectionString, // For reference, but be careful in production
       });
     } catch (dbError: any) {
       client.release();

@@ -29,7 +29,7 @@ export async function PUT(
 
     // Org owner can do anything; otherwise require manage_sites
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: ctx.tenant.orgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -53,8 +53,7 @@ export async function PUT(
       );
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       // Verify site exists
@@ -141,7 +140,7 @@ export async function DELETE(
 
     // Org owner can do anything; otherwise require manage_sites
     const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+      where: { id: ctx.tenant.orgId },
       select: { ownerId: true, permissions: true },
     });
     if (!org) {
@@ -158,8 +157,7 @@ export async function DELETE(
       }
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       // Verify site exists

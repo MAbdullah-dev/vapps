@@ -68,7 +68,7 @@ async function findUserActiveDraft(
     params.push(excludeRecordId);
     excludeClause = " AND id::text <> $2::text";
   }
-  const result = await client.query<UserActiveDraft>(
+  const result = await client.query(
     `SELECT id::text, preview_doc_ref
      FROM document_module_records
      WHERE created_by_user_id = $1
@@ -79,7 +79,7 @@ async function findUserActiveDraft(
      LIMIT 1`,
     params
   );
-  return result.rows[0] ?? null;
+  return (result.rows[0] as UserActiveDraft | undefined) ?? null;
 }
 
 function draftLimitReachedResponse(existing: UserActiveDraft): NextResponse {

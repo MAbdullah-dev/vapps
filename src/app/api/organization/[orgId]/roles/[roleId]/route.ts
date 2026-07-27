@@ -52,7 +52,7 @@ export async function PUT(
     const data = validationResult.data;
 
     try {
-      const pool = await getTenantPool(orgId);
+      const pool = await getTenantPool(ctx.tenant.orgId);
       const client = await pool.connect();
 
       try {
@@ -151,7 +151,7 @@ export async function PUT(
         );
 
         // Clear cache after mutation
-        const cacheKey = cacheKeys.orgRoles(orgId);
+        const cacheKey = cacheKeys.orgRoles(ctx.tenant.orgId);
         cache.delete(cacheKey);
 
         return NextResponse.json({
@@ -197,7 +197,7 @@ export async function DELETE(
     if (settingsDenied) return settingsDenied;
 
     try {
-      const pool = await getTenantPool(orgId);
+      const pool = await getTenantPool(ctx.tenant.orgId);
       const client = await pool.connect();
 
       try {
@@ -224,7 +224,7 @@ export async function DELETE(
         await client.query(`DELETE FROM roles WHERE id = $1`, [roleId]);
 
         // Clear cache after mutation
-        const cacheKey = cacheKeys.orgRoles(orgId);
+        const cacheKey = cacheKeys.orgRoles(ctx.tenant.orgId);
         cache.delete(cacheKey);
 
         return NextResponse.json({

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { queryTenant, getTenantClient } from "@/lib/db/tenant-pool";
 import crypto from "crypto";
+import {
+  ORG_CONFIG_ROLES,
+  requireOrgRoles,
+} from "@/lib/require-org-role";
 
 /**
  * GET /api/organization/[orgId]/metadata?type=titles|tags|sources
@@ -32,7 +36,7 @@ export async function GET(
     try {
       const tableName = `issue_${type}`;
       const result = await queryTenant(
-        orgId,
+        ctx.tenant.orgId,
         `SELECT id, name, "createdAt" FROM ${tableName} ORDER BY name ASC`
       );
 
@@ -75,6 +79,13 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const denied = requireOrgRoles(
+      ctx,
+      ORG_CONFIG_ROLES,
+      "Only owners, admins, and managers can add metadata."
+    );
+    if (denied) return denied;
+
     if (!type || !["titles", "tags", "sources"].includes(type)) {
       return NextResponse.json(
         { error: "Invalid type. Must be 'titles', 'tags', or 'sources'" },
@@ -89,8 +100,8 @@ export async function POST(
       );
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    // Always use resolved tenant orgId — never trust path orgId for DB access
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       const tableName = `issue_${type}`;

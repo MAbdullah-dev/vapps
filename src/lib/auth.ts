@@ -18,6 +18,9 @@ import {
   parseStoredRecoveryCodes,
   verifyAndConsumeRecoveryCode,
 } from "./two-factor-recovery";
+import { isAdminHostFromHost } from "./app-hosts";
+import { ADMIN_SESSION_COOKIE, APP_SESSION_COOKIE, getAuthSecret } from "./auth-cookies";
+import { checkRateLimit } from "./rate-limit";
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
@@ -58,6 +61,16 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) {
           throw new Error("Email and password are required");
+        }
+
+        const emailKey = String(credentials.email).trim().toLowerCase();
+        const loginLimit = checkRateLimit(
+          `auth:login:${emailKey}`,
+          10,
+          15 * 60 * 1000
+        );
+        if (!loginLimit.allowed) {
+          throw new Error("Too many login attempts. Please try again later.");
         }
 
         const turnstileToken =
@@ -152,10 +165,7 @@ export const authOptions: NextAuthOptions = {
    */
   cookies: {
     sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
+      name: APP_SESSION_COOKIE,
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -322,5 +332,35 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV !== "production",
 };
+
+/**
+ * Host-aware auth options. On the admin portal host (admin.*) the session uses a
+ * separate, host-only cookie so the admin session is independent from the app
+ * session. On app/tenant hosts it keeps the shared (NEXTAUTH_COOKIE_DOMAIN) cookie.
+ */
+export function buildAuthOptions(host?: string | null): NextAuthOptions {
+  const onAdminHost = !!host && isAdminHostFromHost(host);
+  if (!onAdminHost) return authOptions;
+
+  return {
+    ...authOptions,
+    // Optional separate signing key for the admin portal (falls back to NEXTAUTH_SECRET).
+    secret: getAuthSecret(host),
+    cookies: {
+      ...authOptions.cookies,
+      sessionToken: {
+        name: ADMIN_SESSION_COOKIE,
+        options: {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          // Host-only cookie: scoped to admin.* so it never reaches the app domain.
+          domain: undefined,
+        },
+      },
+    },
+  };
+}
 
 export default NextAuth(authOptions);

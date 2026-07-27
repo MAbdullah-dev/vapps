@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
-import { withTenantConnection } from "@/lib/db/connection-helper";
+import { getGlobalChecklistQuestionsByChecklistId } from "@/lib/global-audit-checklists";
 import { CRITERIA_TO_CHECKLIST_KEY, PROGRAM_CRITERIA_TO_CHECKLIST_KEY } from "@/lib/audit-checklists";
 import iso9001Questions from "@/lib/audit-checklists/iso-9001.json";
 import iso14001Questions from "@/lib/audit-checklists/iso-14001.json";
@@ -27,7 +27,7 @@ const CHECKLIST_BY_KEY: Record<string, ChecklistItem[]> = {
 /**
  * GET /api/organization/[orgId]/audit/checklist-questions
  * Query: ?checklistId=uuid  (from DB)  OR  ?criteria=...  OR  ?programCriteria=...
- * When checklistId is provided, returns questions from org's audit_checklist_questions.
+ * When checklistId is provided, returns questions from the platform-wide checklist catalog.
  * Otherwise uses legacy criteria/programCriteria -> static JSON.
  */
 export async function GET(
@@ -47,33 +47,14 @@ export async function GET(
     const programCriteria = searchParams.get("programCriteria")?.trim();
 
     if (checklistId) {
-      const connectionString = ctx.tenant.connectionString;
-      if (!connectionString) {
-        return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
-      }
-      const questions: ChecklistItem[] = [];
-      await withTenantConnection(connectionString, async (client) => {
-        const tableCheck = await client.query(
-          `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_checklist_questions'`
-        );
-        if (tableCheck.rows.length === 0) return;
-        const result = await client.query(
-          `SELECT clause, subclause, requirement, question, evidence_example
-           FROM audit_checklist_questions
-           WHERE audit_checklist_id = $1
-           ORDER BY sort_order, clause, subclause`,
-          [checklistId]
-        );
-        for (const r of result.rows) {
-          questions.push({
-            clause: r.clause ?? "",
-            subclause: r.subclause ?? "",
-            requirement: r.requirement ?? "",
-            question: r.question ?? "",
-            evidenceExample: r.evidence_example ?? "",
-          });
-        }
-      });
+      const rows = await getGlobalChecklistQuestionsByChecklistId(checklistId);
+      const questions: ChecklistItem[] = rows.map((r) => ({
+        clause: r.clause,
+        subclause: r.subclause,
+        requirement: r.requirement,
+        question: r.question,
+        evidenceExample: r.evidenceExample,
+      }));
       return NextResponse.json({
         questions,
         checklistId,

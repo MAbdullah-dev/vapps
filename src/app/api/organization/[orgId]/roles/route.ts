@@ -44,7 +44,7 @@ export async function GET(
     if (settingsDenied) return settingsDenied;
 
     // Check cache first (60s TTL)
-    const cacheKey = cacheKeys.orgRoles(orgId);
+    const cacheKey = cacheKeys.orgRoles(ctx.tenant.orgId);
     const cached = cache.get<any[]>(cacheKey);
     if (cached) {
       return NextResponse.json({ roles: cached });
@@ -52,7 +52,7 @@ export async function GET(
 
     try {
       const roles = await queryTenant<any>(
-        orgId,
+        ctx.tenant.orgId,
         `SELECT 
           id,
           "roleName",
@@ -139,7 +139,7 @@ export async function POST(
     }
 
     try {
-      const pool = await getTenantPool(orgId);
+      const pool = await getTenantPool(ctx.tenant.orgId);
       const client = await pool.connect();
 
       try {
@@ -164,7 +164,7 @@ export async function POST(
         );
 
         // Clear cache after mutation
-        const cacheKey = cacheKeys.orgRoles(orgId);
+        const cacheKey = cacheKeys.orgRoles(ctx.tenant.orgId);
         cache.delete(cacheKey);
 
         return NextResponse.json(

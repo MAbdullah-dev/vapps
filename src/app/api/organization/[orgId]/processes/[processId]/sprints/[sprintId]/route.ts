@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
+import { requireProcessAccess } from "@/lib/require-org-role";
 
 /**
  * PUT /api/organization/[orgId]/processes/[processId]/sprints/[sprintId]
@@ -15,7 +16,6 @@ export async function PUT(
     const body = await req.json();
     const { name, startDate, endDate } = body;
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,6 +25,11 @@ export async function PUT(
     const client = await getTenantClient(resolvedOrgId);
 
     try {
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
+      }
 
       // Verify sprint exists and belongs to this process
       const sprintResult = await client.query(
@@ -137,6 +142,11 @@ export async function DELETE(
     const client = await getTenantClient(resolvedOrgId);
 
     try {
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
+      }
 
       // Verify sprint exists and belongs to this process
       const sprintResult = await client.query(

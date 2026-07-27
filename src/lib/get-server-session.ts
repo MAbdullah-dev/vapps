@@ -1,18 +1,17 @@
 import { getServerSession } from "next-auth/next";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
-import { authOptions } from "./auth";
+import { headers } from "next/headers";
+import { authOptions, buildAuthOptions } from "./auth";
+import { getAuthSecret, getRequestHost, getSessionCookieName } from "./auth-cookies";
 import { prisma } from "./prisma";
-
-/** Session cookie name – must match authOptions.cookies.sessionToken.name in auth.ts */
-const SESSION_COOKIE_NAME =
-  process.env.NODE_ENV === "production"
-    ? "__Secure-next-auth.session-token"
-    : "next-auth.session-token";
 
 /**
  * Get the current authenticated user on the server.
  * In Route Handlers, always pass the request so the session is read from the incoming request.
+ *
+ * The session cookie name is chosen per host so the admin portal (admin.*) and the
+ * customer app read their own independent sessions.
  *
  * @param req - NextRequest (required in API route handlers to read cookies from the request)
  * @returns User from session or null
@@ -20,15 +19,17 @@ const SESSION_COOKIE_NAME =
 export async function getCurrentUser(req?: NextRequest) {
   try {
     if (req) {
-      const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? authOptions.secret;
+      const host = getRequestHost(req.headers);
+      const secret = getAuthSecret(host) ?? authOptions.secret;
+      const cookieName = getSessionCookieName(host);
       const token = await getToken({
         req,
         secret: secret ?? undefined,
-        cookieName: SESSION_COOKIE_NAME,
+        cookieName,
         secureCookie: process.env.NODE_ENV === "production",
       });
       if (process.env.NODE_ENV === "development" && !token) {
-        console.log("[getCurrentUser] getToken returned null – cookie name:", SESSION_COOKIE_NAME, "secret set:", !!secret);
+        console.log("[getCurrentUser] getToken returned null – cookie name:", cookieName, "secret set:", !!secret);
       }
       if (!token?.sub) return null;
       const dbUser = await prisma.user.findUnique({
@@ -42,7 +43,8 @@ export async function getCurrentUser(req?: NextRequest) {
         email: (token.email as string) ?? null,
       };
     }
-    const session = await getServerSession(authOptions);
+    const host = getRequestHost(await headers());
+    const session = await getServerSession(buildAuthOptions(host));
     return session?.user ?? null;
   } catch (error) {
     console.error("Error getting server session:", error);

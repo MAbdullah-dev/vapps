@@ -40,8 +40,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       // Get organization info
@@ -97,8 +96,7 @@ export async function PUT(
     const settingsDenied = await requireOrgSettingsAccess(ctx);
     if (settingsDenied) return settingsDenied;
 
-    // Use tenant pool instead of new Client()
-    const client = await getTenantClient(orgId);
+    const client = await getTenantClient(ctx.tenant.orgId);
 
     try {
       await ensureOrganizationInfoProfileColumns(client);

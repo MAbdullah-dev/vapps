@@ -10,12 +10,7 @@ import {
 } from "@/lib/app-hosts";
 import { isPlatformSuperAdmin } from "@/lib/platform-roles";
 import { getAdminPortalDashboardUrl } from "@/lib/super-admin-policy";
-
-/** Session cookie name – must match authOptions.cookies.sessionToken.name in auth.ts */
-const SESSION_COOKIE_NAME =
-  process.env.NODE_ENV === "production"
-    ? "__Secure-next-auth.session-token"
-    : "next-auth.session-token";
+import { getAuthSecret, getSessionCookieName } from "@/lib/auth-cookies";
 
 /**
  * Paths that are public and do NOT require authentication.
@@ -112,11 +107,11 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!isPublicPath(pathname)) {
-    const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+    const secret = getAuthSecret(host);
     const token = await getToken({
       req: request,
       secret: secret ?? undefined,
-      cookieName: SESSION_COOKIE_NAME,
+      cookieName: getSessionCookieName(host),
       secureCookie: process.env.NODE_ENV === "production",
     });
     if (!token?.sub) {

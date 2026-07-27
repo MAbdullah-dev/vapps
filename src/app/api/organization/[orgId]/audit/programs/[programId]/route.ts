@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
+import {
+  AUDIT_MANAGER_ROLES,
+  requireOrgRoles,
+} from "@/lib/require-org-role";
 
 /**
  * GET /api/organization/[orgId]/audit/programs/[programId]
@@ -166,6 +170,13 @@ export async function PUT(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const denied = requireOrgRoles(
+      ctx,
+      AUDIT_MANAGER_ROLES,
+      "Only owners, admins, and managers can update audit programs."
+    );
+    if (denied) return denied;
 
     const connectionString = ctx.tenant.connectionString;
     if (!connectionString) {

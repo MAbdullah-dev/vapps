@@ -7,9 +7,23 @@ import {
   parseEmailFromPasswordResetIdentifier,
 } from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
+import { clientIpFromRequest } from "@/lib/turnstile";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIpFromRequest(req) ?? "unknown";
+    const limit = checkRateLimit(`auth:reset:${ip}`, 10, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await req.json();
     const parsed = resetPasswordSchema.safeParse(body);
     if (!parsed.success) {

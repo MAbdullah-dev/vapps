@@ -11,6 +11,7 @@ import { Pool, PoolClient } from "pg";
 import { prisma } from "@/lib/prisma";
 import { getSSLConfig } from "@/lib/db/ssl-config";
 import { getOrgBySlugOrId } from "@/lib/org-utils";
+import { revealTenantConnectionString } from "@/lib/tenant-secrets";
 
 // In-memory cache of connection pools per organization
 const tenantPools = new Map<string, Pool>();
@@ -166,7 +167,7 @@ export async function getTenantPool(orgSlugOrId: string): Promise<Pool> {
       throw new Error(`Tenant database not found for organization ${orgId}`);
     }
 
-    connectionString = org.database.connectionString;
+    connectionString = revealTenantConnectionString(org.database.connectionString);
     
     // Cache for 10 minutes
     connectionStringCache.set(connCacheKey, {

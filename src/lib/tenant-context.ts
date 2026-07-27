@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { cache } from "@/lib/cache";
 import { getOrgBySlugOrId } from "@/lib/org-utils";
+import { revealTenantConnectionString } from "@/lib/tenant-secrets";
 
 export interface TenantInfo {
   orgId: string;
@@ -81,7 +82,7 @@ export async function getTenantContext(
   const tenantInfo: TenantInfo = {
     orgId: org.id,
     orgName: org.name,
-    connectionString: org.database.connectionString,
+    connectionString: revealTenantConnectionString(org.database.connectionString),
     dbName: org.database.dbName,
     dbHost: org.database.dbHost,
     dbPort: org.database.dbPort,

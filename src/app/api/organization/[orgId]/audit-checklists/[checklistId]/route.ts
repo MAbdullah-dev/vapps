@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
-import { withTenantConnection } from "@/lib/db/connection-helper";
+import { getGlobalAuditChecklist } from "@/lib/global-audit-checklists";
 
 export async function GET(
   _req: NextRequest,
@@ -13,59 +13,11 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const connectionString = ctx.tenant.connectionString;
-    if (!connectionString) {
-      return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
-    }
-
-    let checklist: {
-      id: string;
-      name: string;
-      questions: Array<{
-        id: string;
-        clause: string;
-        subclause: string;
-        requirement: string;
-        question: string;
-        evidenceExample: string;
-        sortOrder: number;
-      }>;
-    } | null = null;
-
-    await withTenantConnection(connectionString, async (client) => {
-      const listCheck = await client.query(
-        `SELECT id, name FROM audit_checklists WHERE id = $1`,
-        [checklistId]
-      );
-      const row = listCheck.rows[0];
-      if (!row) return;
-
-      const questionsResult = await client.query(
-        `SELECT id, clause, subclause, requirement, question, evidence_example, sort_order
-         FROM audit_checklist_questions
-         WHERE audit_checklist_id = $1
-         ORDER BY sort_order, clause, subclause`,
-        [checklistId]
-      );
-
-      checklist = {
-        id: row.id,
-        name: row.name ?? "",
-        questions: questionsResult.rows.map((q) => ({
-          id: q.id,
-          clause: q.clause ?? "",
-          subclause: q.subclause ?? "",
-          requirement: q.requirement ?? "",
-          question: q.question ?? "",
-          evidenceExample: q.evidence_example ?? "",
-          sortOrder: q.sort_order ?? 0,
-        })),
-      };
-    });
-
+    const checklist = await getGlobalAuditChecklist(checklistId);
     if (!checklist) {
       return NextResponse.json({ error: "Checklist not found" }, { status: 404 });
     }
+
     return NextResponse.json({ checklist });
   } catch (error) {
     console.error("Error fetching audit checklist:", error);

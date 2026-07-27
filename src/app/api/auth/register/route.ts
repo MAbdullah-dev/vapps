@@ -7,8 +7,22 @@ import { registerSchema } from "@/schemas/auth/auth.schema";
 import { sendVerificationEmail } from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
 import { clientIpFromRequest, verifyTurnstileResponse } from "@/lib/turnstile";
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function POST(req: NextRequest) {
   try {
+    const ip = clientIpFromRequest(req) ?? "unknown";
+    const limit = checkRateLimit(`auth:register:${ip}`, 10, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many registration attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await req.json();
 
     const parsed = registerSchema.safeParse(body);
@@ -37,9 +51,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (exists) {
+      // Avoid account enumeration — same message as success path for existing emails
       return NextResponse.json(
-        { error: "Email already registered" },
-        { status: 409 }
+        {
+          message:
+            "If this email is eligible, you will receive next steps shortly. If you already have an account, sign in instead.",
+        },
+        { status: 200 }
       );
     }
 

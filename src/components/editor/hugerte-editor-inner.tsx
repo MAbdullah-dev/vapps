@@ -15,6 +15,7 @@ import "@/lib/hugerte-bundle";
 import { cn } from "@/lib/utils";
 import { Editor } from "@hugerte/hugerte-react";
 import type { Editor as HugeRTEEditorInstance } from "hugerte";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -69,8 +70,14 @@ export function HugerteEditorInner({
   className,
   showToolbar = true,
   imageUploadUrl = DEFAULT_EDITOR_IMAGE_UPLOAD_URL,
+  orgId: orgIdProp,
   instanceKey,
 }: RichTextEditorProps) {
+  const params = useParams();
+  const orgId =
+    orgIdProp?.trim() ||
+    (typeof params?.orgId === "string" ? params.orgId : "") ||
+    "";
   const editorId = useId().replace(/:/g, "");
   const [initialValue] = useState(() => (value?.trim() ? value : "<p></p>"));
   const lastEmittedHtml = useRef(value);
@@ -130,8 +137,8 @@ export function HugerteEditorInner({
   }, []);
 
   const uploadHandler = useMemo(
-    () => createHandleImageUpload(imageUploadUrl),
-    [imageUploadUrl]
+    () => createHandleImageUpload({ uploadUrl: imageUploadUrl, orgId }),
+    [imageUploadUrl, orgId]
   );
 
   const handleEditorChange = useCallback(

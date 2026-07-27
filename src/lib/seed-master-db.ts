@@ -3,9 +3,10 @@ import {
   getSeedSuperAdminEmail,
   seedDefaultSuperAdmin,
 } from "@/lib/seed-default-super-admin";
+import { seedDefaultAuditChecklists } from "@/lib/seed-default-audit-checklists";
 
 /**
- * Master DB seed: single default super admin (SEED_SUPER_ADMIN_*).
+ * Master DB seed: default super admin + global audit checklists.
  * Safe to run repeatedly (idempotent). Does not promote other users.
  */
 export async function runMasterDbSeed(db: PrismaClient): Promise<void> {
@@ -25,4 +26,6 @@ export async function runMasterDbSeed(db: PrismaClient): Promise<void> {
     case "skipped":
       break;
   }
+
+  await seedDefaultAuditChecklists(db);
 }

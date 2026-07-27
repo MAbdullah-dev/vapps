@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { translatePlainTexts, isGoogleTranslateConfigured } from "@/lib/google-translate";
 import { translationSourceHash } from "@/lib/translation-hash";
+import { getCurrentUser } from "@/lib/get-server-session";
+import { clientIpFromRequest } from "@/lib/turnstile";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const DEFAULT_SOURCE_LANG = "en";
 
@@ -19,6 +22,23 @@ type BodyShape = {
  */
 export async function POST(req: NextRequest) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const ip = clientIpFromRequest(req) ?? user.id;
+    const limit = checkRateLimit(`translate:${ip}`, 60, 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many translation requests. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSec) },
+        }
+      );
+    }
+
     const body = (await req.json()) as BodyShape;
     const targetLang =
       typeof body.targetLang === "string" ? body.targetLang.trim().toLowerCase() : "";

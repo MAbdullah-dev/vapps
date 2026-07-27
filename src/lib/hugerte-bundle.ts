@@ -40,7 +40,7 @@ import "hugerte/plugins/help";
 import "hugerte/plugins/help/js/i18n/keynav/en.js";
 
 if (typeof window !== "undefined") {
-  window.hugerte = hugerte;
+  (window as Window & { hugerte?: typeof hugerte }).hugerte = hugerte;
 }
 
 export { hugerte };

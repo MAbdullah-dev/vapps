@@ -30,7 +30,6 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Building2,
   ChevronRight,
-  FileCheck,
   RefreshCw,
   Search,
   Shield,
@@ -39,7 +38,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { isPlatformSuperAdmin, PLATFORM_ROLES } from "@/lib/platform-roles";
+import { isPlatformSuperAdmin } from "@/lib/platform-roles";
 import AuditChecklistManager from "@/components/admin/AuditChecklistManager";
 
 const TAB_VALUES = new Set(["overview", "organizations", "users", "audit-checklists", "audit"]);
@@ -57,8 +56,6 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
-  const [checklistOrgId, setChecklistOrgId] = useState<string>("");
-  const [checklistOrgSearch, setChecklistOrgSearch] = useState("");
   const [orgSearch, setOrgSearch] = useState("");
   const [orgUserSearch, setOrgUserSearch] = useState("");
   const [globalUserSearch, setGlobalUserSearch] = useState("");
@@ -93,13 +90,6 @@ export default function AdminDashboard() {
     }
     setActiveTab("overview");
   }, [queryString, searchParams]);
-
-  useEffect(() => {
-    const orgIdFromUrl = searchParams.get("orgId");
-    if (orgIdFromUrl) {
-      setChecklistOrgId(orgIdFromUrl);
-    }
-  }, [searchParams]);
 
   /** Keep shareable URLs: default to ?tab=overview when missing (once). */
   useEffect(() => {
@@ -137,28 +127,6 @@ export default function AdminDashboard() {
         (org.ownerEmail ?? "").toLowerCase().includes(q)
     );
   }, [orgSearch, organizations]);
-
-  const filteredChecklistOrganizations = useMemo(() => {
-    if (!checklistOrgSearch.trim()) return organizations;
-    const q = checklistOrgSearch.toLowerCase();
-    return organizations.filter(
-      (org) =>
-        org.name.toLowerCase().includes(q) ||
-        org.slug.toLowerCase().includes(q) ||
-        (org.ownerEmail ?? "").toLowerCase().includes(q)
-    );
-  }, [checklistOrgSearch, organizations]);
-
-  const selectedChecklistOrganization =
-    organizations.find((org) => org.id === checklistOrgId) ?? null;
-
-  const selectChecklistOrganization = (orgId: string) => {
-    setChecklistOrgId(orgId);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "audit-checklists");
-    params.set("orgId", orgId);
-    router.replace(`/admin?${params.toString()}`, { scroll: false });
-  };
 
   const { data: orgUsersData, isLoading: isLoadingOrgUsers } = useQuery({
     queryKey: ["admin-organization-users", selectedOrgId, orgUserSearch],
@@ -245,24 +213,6 @@ export default function AdminDashboard() {
       await invalidateAdminData();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to update user status.";
-      toast.error(message);
-    } finally {
-      setIsSubmittingAction(false);
-    }
-  };
-
-  const toggleSuperAdmin = async (userId: string, grant: boolean) => {
-    setIsSubmittingAction(true);
-    try {
-      await apiClient.updateAdminUserPlatformRole(
-        userId,
-        grant ? PLATFORM_ROLES.SUPER_ADMIN : PLATFORM_ROLES.USER
-      );
-      toast.success(grant ? "Super admin access granted." : "Super admin access removed.");
-      await invalidateAdminData();
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Failed to update platform role.";
       toast.error(message);
     } finally {
       setIsSubmittingAction(false);
@@ -691,35 +641,6 @@ export default function AdminDashboard() {
                         <TableCell>{formatDate(user.lastActive)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap justify-end gap-2">
-                            {isPlatformSuperAdmin(user.platformRole) ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={isSubmittingAction}
-                                onClick={() => toggleSuperAdmin(user.id, false)}
-                              >
-                                Revoke admin
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  isSubmittingAction ||
-                                  user.isBlocked ||
-                                  user.organizations.length > 0
-                                }
-                                title={
-                                  user.organizations.length > 0
-                                    ? "Remove organization memberships before granting super admin access."
-                                    : undefined
-                                }
-                                onClick={() => toggleSuperAdmin(user.id, true)}
-                              >
-                                <Shield className="h-4 w-4 mr-1" />
-                                Make super admin
-                              </Button>
-                            )}
                             {user.isBlocked ? (
                               <Button
                                 size="sm"
@@ -774,84 +695,11 @@ export default function AdminDashboard() {
           <div>
             <h3 className="text-lg font-semibold text-foreground">Audit checklists</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage ISO audit checklists and questions per organization. Org users can use these in the audit flow but cannot edit them here.
+              Manage the platform-wide ISO audit checklist catalog. All organizations use these checklists in audits and documents.
             </p>
           </div>
 
-          <Card>
-            <CardHeader className="space-y-3">
-              <CardTitle className="text-base">Select organization</CardTitle>
-              <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search organizations..."
-                  value={checklistOrgSearch}
-                  onChange={(event) => setChecklistOrgSearch(event.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Slug</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoadingOrgs ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        Loading organizations...
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredChecklistOrganizations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        No organizations found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredChecklistOrganizations.map((org) => (
-                      <TableRow key={org.id}>
-                        <TableCell className="font-medium">{org.name}</TableCell>
-                        <TableCell>{org.slug}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{org.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant={checklistOrgId === org.id ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => selectChecklistOrganization(org.id)}
-                          >
-                            <FileCheck className="h-4 w-4 mr-1" />
-                            Manage
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {checklistOrgId ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                {selectedChecklistOrganization?.name ?? "Organization"} — checklist management
-              </p>
-              <AuditChecklistManager orgId={checklistOrgId} />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Select an organization above to manage its audit checklists.
-            </p>
-          )}
+          <AuditChecklistManager />
         </TabsContent>
 
         <TabsContent value="audit" className="space-y-4">

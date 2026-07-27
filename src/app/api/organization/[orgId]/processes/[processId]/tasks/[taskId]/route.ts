@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
+import { requireProcessAccess } from "@/lib/require-org-role";
 
 /**
  * PUT /api/organization/[orgId]/processes/[processId]/tasks/[taskId]
@@ -25,7 +26,6 @@ export async function PUT(
       endDate,
     } = body;
 
-    // Get request context (user + tenant) - single call, cached
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,6 +35,11 @@ export async function PUT(
     const client = await getTenantClient(resolvedOrgId);
 
     try {
+      const accessDenied = await requireProcessAccess(client, ctx, processId);
+      if (accessDenied) {
+        client.release();
+        return accessDenied;
+      }
 
       // Verify task exists and belongs to the process
       const taskResult = await client.query(

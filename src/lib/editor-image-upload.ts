@@ -9,13 +9,26 @@ export type ImageUploadHandler = (
   abortSignal?: AbortSignal
 ) => Promise<string>;
 
+export type CreateImageUploadOptions = {
+  uploadUrl?: string;
+  /** Required for tenant-scoped S3 keys and authorization */
+  orgId?: string;
+};
+
 /**
  * Builds an image upload handler POSTing `multipart/form-data` field `file` to the given URL.
  * Responses must include `link` or `url` with a path or absolute URL for `<img src>`.
  */
 export function createHandleImageUpload(
-  uploadUrl: string = DEFAULT_EDITOR_IMAGE_UPLOAD_URL
+  uploadUrlOrOptions: string | CreateImageUploadOptions = DEFAULT_EDITOR_IMAGE_UPLOAD_URL
 ): ImageUploadHandler {
+  const options: CreateImageUploadOptions =
+    typeof uploadUrlOrOptions === "string"
+      ? { uploadUrl: uploadUrlOrOptions }
+      : uploadUrlOrOptions;
+  const uploadUrl = options.uploadUrl ?? DEFAULT_EDITOR_IMAGE_UPLOAD_URL;
+  const orgId = options.orgId?.trim() || "";
+
   return async (file, onProgress, abortSignal) => {
     if (!file) {
       throw new Error("No file provided");
@@ -28,9 +41,13 @@ export function createHandleImageUpload(
         `File size exceeds maximum allowed (${MAX_FILE_SIZE / (1024 * 1024)}MB)`
       );
     }
+    if (!orgId) {
+      throw new Error("Organization context is required for image upload");
+    }
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("orgId", orgId);
     onProgress?.({ progress: 0 });
 
     const res = await fetch(uploadUrl, {
@@ -62,4 +79,5 @@ export function createHandleImageUpload(
   };
 }
 
+/** @deprecated Prefer createHandleImageUpload({ orgId }) so uploads are tenant-scoped. */
 export const handleImageUpload = createHandleImageUpload();

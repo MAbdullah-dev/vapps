@@ -205,3 +205,32 @@ model AdminActionLog {
   @@index([adminUserId])
   @@index([organizationId])
 }
+
+/** Platform-wide audit checklists (managed in admin portal, shared by all orgs). */
+model AuditChecklist {
+  id        String                   @id @default(uuid())
+  name      String
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  questions AuditChecklistQuestion[]
+
+  @@index([name])
+  @@map("audit_checklists")
+}
+
+model AuditChecklistQuestion {
+  id               String         @id @default(uuid())
+  auditChecklistId String         @map("audit_checklist_id")
+  clause           String         @default("")
+  subclause        String         @default("")
+  requirement      String         @default("")
+  question         String         @default("")
+  evidenceExample  String         @default("") @map("evidence_example")
+  sortOrder        Int            @default(0) @map("sort_order")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  checklist        AuditChecklist @relation(fields: [auditChecklistId], references: [id], onDelete: Cascade)
+
+  @@index([auditChecklistId])
+  @@map("audit_checklist_questions")
+}

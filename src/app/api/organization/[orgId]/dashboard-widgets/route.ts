@@ -8,6 +8,10 @@ import {
 } from "@/lib/dashboard-widgets";
 import crypto from "crypto";
 import type { PoolClient } from "pg";
+import {
+  ORG_CONFIG_ROLES,
+  requireOrgRoles,
+} from "@/lib/require-org-role";
 
 const WIDGET_COLUMNS = [
   "tasksCompleted",
@@ -106,6 +110,13 @@ export async function PATCH(
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const denied = requireOrgRoles(
+      ctx,
+      ORG_CONFIG_ROLES,
+      "Only owners, admins, and managers can update dashboard widgets."
+    );
+    if (denied) return denied;
 
     const body = await req.json();
     const incoming = body?.widgets as Partial<DashboardWidgetsConfig> | undefined;
