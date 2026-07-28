@@ -60,6 +60,9 @@ const Login = ({
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
@@ -146,12 +149,49 @@ const Login = ({
       }
 
       toast.error(message);
+      if (
+        message.toLowerCase().includes("verify your email") ||
+        message.toLowerCase().includes("verification link")
+      ) {
+        setShowResendVerification(true);
+        setPendingEmail(data.email);
+      }
       if (turnstileEnabled) {
         setTurnstileToken(null);
         setTurnstileKey((k) => k + 1);
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!pendingEmail) return;
+    try {
+      if (turnstileEnabled && !turnstileToken) {
+        toast.error(t("Please complete the security check"));
+        return;
+      }
+      setResending(true);
+      const result = await apiClient.resendVerification({
+        email: pendingEmail,
+        ...(turnstileEnabled && turnstileToken ? { turnstileToken } : {}),
+      });
+      toast.success(t(result.message || "If an unverified account exists, we sent a new link."));
+      if (turnstileEnabled) {
+        setTurnstileToken(null);
+        setTurnstileKey((k) => k + 1);
+      }
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : t("Could not resend verification email");
+      toast.error(message);
+      if (turnstileEnabled) {
+        setTurnstileToken(null);
+        setTurnstileKey((k) => k + 1);
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -295,6 +335,20 @@ const Login = ({
               ? t("Verify and login")
               : t("Login")}
         </Button>
+
+        {showResendVerification && !adminOnly && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full mt-3"
+            disabled={resending || (turnstileEnabled && !turnstileToken)}
+            onClick={handleResendVerification}
+          >
+            {resending
+              ? t("Sending...")
+              : t("Resend verification email")}
+          </Button>
+        )}
       </form>
 
       {!adminOnly && (

@@ -16,20 +16,51 @@ type SiteVerifyResponse = {
 };
 
 /**
+ * Why a Turnstile check did not pass.
+ * - `misconfigured`: server secret missing in production → operator error, not user error.
+ * - `invalid`: token missing/rejected by Cloudflare.
+ */
+export type TurnstileFailureReason = "misconfigured" | "invalid";
+
+export type TurnstileResult =
+  | { success: true }
+  | { success: false; reason: TurnstileFailureReason };
+
+/** Human-facing copy for a failed check. */
+export function turnstileErrorMessage(reason: TurnstileFailureReason): string {
+  return reason === "misconfigured"
+    ? "Security check is temporarily unavailable. Please try again later."
+    : "Security check failed. Please try again.";
+}
+
+/** HTTP status for a failed check (503 for operator error, 403 for a bad token). */
+export function turnstileErrorStatus(reason: TurnstileFailureReason): number {
+  return reason === "misconfigured" ? 503 : 403;
+}
+
+/**
  * Verifies a Turnstile token with Cloudflare.
- * If `CLOUDFLARE_TURNSTILE_SECRET_KEY` is unset (local dev), verification is skipped.
+ * Outside production a missing secret skips verification (local dev convenience).
+ * In production a missing secret fails closed so bot protection cannot silently vanish.
  */
 export async function verifyTurnstileResponse(
   token: string | undefined,
   remoteip?: string | null
-): Promise<{ success: boolean }> {
+): Promise<TurnstileResult> {
   const secret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY?.trim();
   if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[turnstile] CLOUDFLARE_TURNSTILE_SECRET_KEY is not set. " +
+          "Login and registration are blocked until it is configured."
+      );
+      return { success: false, reason: "misconfigured" };
+    }
     return { success: true };
   }
 
   if (!token?.trim()) {
-    return { success: false };
+    return { success: false, reason: "invalid" };
   }
 
   const body = new URLSearchParams({
@@ -40,18 +71,25 @@ export async function verifyTurnstileResponse(
     body.set("remoteip", remoteip.trim());
   }
 
-  const res = await fetch(TURNSTILE_VERIFY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  try {
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
 
-  if (!res.ok) {
-    return { success: false };
+    if (!res.ok) {
+      return { success: false, reason: "invalid" };
+    }
+
+    const data = (await res.json()) as SiteVerifyResponse;
+    if (data.success === true) return { success: true };
+    return { success: false, reason: "invalid" };
+  } catch (err) {
+    // Cloudflare unreachable — operator/network issue, not a user error.
+    console.error("[turnstile] verification request failed", err);
+    return { success: false, reason: "misconfigured" };
   }
-
-  const data = (await res.json()) as SiteVerifyResponse;
-  return { success: data.success === true };
 }
 
 export function clientIpFromRequest(request: Request): string | undefined {

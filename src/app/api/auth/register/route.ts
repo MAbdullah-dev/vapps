@@ -4,10 +4,41 @@ import crypto from "crypto";
 
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/schemas/auth/auth.schema";
-import { sendVerificationEmail } from "@/helpers/mailer";
+import {
+  emailVerifyIdentifier,
+  sendAccountExistsEmail,
+  sendVerificationEmail,
+} from "@/helpers/mailer";
 import { logger } from "@/lib/logger";
-import { clientIpFromRequest, verifyTurnstileResponse } from "@/lib/turnstile";
+import {
+  clientIpFromRequest,
+  turnstileErrorMessage,
+  turnstileErrorStatus,
+  verifyTurnstileResponse,
+} from "@/lib/turnstile";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+/** Neutral response — same for new and existing emails (anti-enumeration). */
+const NEUTRAL_MESSAGE =
+  "Check your email for next steps. If you already have an account, sign in instead.";
+
+async function issueVerificationEmail(email: string) {
+  const token = crypto.randomUUID();
+  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+  const identifier = emailVerifyIdentifier(email);
+
+  await prisma.verificationToken.deleteMany({ where: { identifier } });
+  await prisma.verificationToken.create({
+    data: { identifier, token, expires },
+  });
+
+  try {
+    await sendVerificationEmail({ email, token });
+  } catch (err) {
+    await prisma.verificationToken.deleteMany({ where: { identifier, token } });
+    throw err;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,29 +72,47 @@ export async function POST(req: NextRequest) {
     );
     if (!turnstileOk.success) {
       return NextResponse.json(
-        { error: "Security check failed. Please try again." },
-        { status: 403 }
+        { error: turnstileErrorMessage(turnstileOk.reason) },
+        { status: turnstileErrorStatus(turnstileOk.reason) }
       );
     }
 
-    const exists = await prisma.user.findUnique({
-      where: { email },
+    const exists = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      include: { accounts: { select: { provider: true } } },
     });
 
     if (exists) {
-      // Avoid account enumeration — same message as success path for existing emails
-      return NextResponse.json(
-        {
-          message:
-            "If this email is eligible, you will receive next steps shortly. If you already have an account, sign in instead.",
-        },
-        { status: 200 }
+      // Existing account: never create a duplicate. Email the owner with next steps,
+      // but cap per-address sends so this cannot be used to flood someone's inbox.
+      const notifyLimit = checkRateLimit(
+        `auth:register-notify:${email}`,
+        3,
+        60 * 60 * 1000
       );
+      if (notifyLimit.allowed) {
+        try {
+          if (!exists.emailVerified && exists.password && exists.email) {
+            // Unverified local account — re-send verification (recover from failed mail).
+            await issueVerificationEmail(exists.email);
+          } else if (exists.email) {
+            await sendAccountExistsEmail({
+              email: exists.email,
+              providers: exists.accounts.map((a) => a.provider),
+              hasPassword: Boolean(exists.password),
+            });
+          }
+        } catch (mailErr) {
+          logger.error("register: notify existing user failed", mailErr, { email });
+        }
+      }
+
+      return NextResponse.json({ message: NEUTRAL_MESSAGE }, { status: 200 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // ✅ Create user (unverified)
+    // Create unverified user; roll back if verification email fails.
     const user = await prisma.user.create({
       data: {
         email,
@@ -71,46 +120,38 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ✅ Create verification token
-    const token = crypto.randomUUID();
-    const expires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+    try {
+      await issueVerificationEmail(email);
+    } catch (mailErr) {
+      // Do not leave a bricked unverified account with no usable recovery path.
+      await prisma.verificationToken
+        .deleteMany({ where: { identifier: emailVerifyIdentifier(email) } })
+        .catch(() => {});
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+      logger.error("register: verification email failed", mailErr, { email });
+      return NextResponse.json(
+        { error: "Could not send verification email. Please try again later." },
+        { status: 503 }
+      );
+    }
 
-    await prisma.verificationToken.create({
-      data: {
-        identifier: email,
-        token,
-        expires,
-      },
-    });
-
-    // ✅ Send verification email
-    await sendVerificationEmail({
-      email,
-      token,
-    });
-
-    // ✅ If inviteToken is provided, auto-accept the invite after registration
+    // If inviteToken is provided, auto-verify so invite flow can proceed after login.
     let inviteAccepted = false;
     if (inviteToken) {
       try {
-        // Verify invite exists and matches email
         const invite = await prisma.invitation.findUnique({
           where: { token: inviteToken },
-          include: {
-            organization: {
-              include: { database: true },
-            },
-          },
         });
 
-        if (invite && invite.email.toLowerCase() === email.toLowerCase() && invite.status === "pending") {
-          // Auto-verify email for invited users (skip email verification step)
+        if (
+          invite &&
+          invite.email.toLowerCase() === email &&
+          invite.status === "pending"
+        ) {
           await prisma.user.update({
             where: { id: user.id },
             data: { emailVerified: new Date() },
           });
-
-          // Accept invite will be handled by the frontend after login
           inviteAccepted = true;
           logger.info("User registered with invite token", {
             userId: user.id,
@@ -119,7 +160,6 @@ export async function POST(req: NextRequest) {
           });
         }
       } catch (inviteError) {
-        // Log but don't fail registration if invite acceptance fails
         logger.error("Failed to auto-accept invite during registration", inviteError, {
           userId: user.id,
           inviteToken,
@@ -131,11 +171,11 @@ export async function POST(req: NextRequest) {
       {
         message: inviteAccepted
           ? "Registration successful. You can now log in and your invitation will be accepted automatically."
-          : "Registration successful. Please verify your email before logging in.",
+          : NEUTRAL_MESSAGE,
         inviteAccepted,
         inviteToken: inviteAccepted ? inviteToken : undefined,
       },
-      { status: 201 }
+      { status: inviteAccepted ? 201 : 200 }
     );
   } catch (error) {
     logger.error("Registration error", error);

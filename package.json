@@ -11,6 +11,7 @@
     "tenant:migrate-pending": "node scripts/run-pending-tenant-migrations.js",
     "tenant:migrate-all": "node scripts/run-pending-tenant-migrations.js --all",
     "tenant:encrypt-secrets": "node scripts/encrypt-tenant-secrets.js",
+    "auth:check-duplicate-emails": "node scripts/check-duplicate-emails.js",
     "db:migrate-deploy": "prisma migrate deploy && prisma db seed",
     "db:seed": "prisma db seed",
     "db:setup": "prisma migrate deploy && prisma generate && prisma db seed"

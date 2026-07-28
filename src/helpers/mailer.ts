@@ -33,6 +33,29 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
+const PASSWORD_RESET_IDENTIFIER_PREFIX = "password-reset:";
+const EMAIL_VERIFY_IDENTIFIER_PREFIX = "email-verify:";
+
+/** Used when storing tokens; keep in sync with forgot-password / reset-password routes. */
+export function passwordResetIdentifier(email: string) {
+  return `${PASSWORD_RESET_IDENTIFIER_PREFIX}${email.toLowerCase().trim()}`;
+}
+
+export function parseEmailFromPasswordResetIdentifier(identifier: string): string | null {
+  if (!identifier.startsWith(PASSWORD_RESET_IDENTIFIER_PREFIX)) return null;
+  return identifier.slice(PASSWORD_RESET_IDENTIFIER_PREFIX.length) || null;
+}
+
+/** Email-verification token namespace (avoids collision with password-reset tokens). */
+export function emailVerifyIdentifier(email: string) {
+  return `${EMAIL_VERIFY_IDENTIFIER_PREFIX}${email.toLowerCase().trim()}`;
+}
+
+export function parseEmailFromEmailVerifyIdentifier(identifier: string): string | null {
+  if (!identifier.startsWith(EMAIL_VERIFY_IDENTIFIER_PREFIX)) return null;
+  return identifier.slice(EMAIL_VERIFY_IDENTIFIER_PREFIX.length) || null;
+}
+
 export async function sendVerificationEmail({
   email,
   token,
@@ -52,6 +75,69 @@ export async function sendVerificationEmail({
       <p>Please verify your email by clicking the link below:</p>
       <a href="${verifyUrl}">Verify Email</a>
       <p>This link expires in 24 hours.</p>
+    `,
+  });
+}
+
+/**
+ * Sent when someone tries to register with an email that already has an account.
+ * Revealing the sign-in method inside email is safe (only inbox owner reads it).
+ */
+export async function sendAccountExistsEmail({
+  email,
+  providers,
+  hasPassword,
+}: {
+  email: string;
+  providers: string[];
+  hasPassword: boolean;
+}) {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    "http://localhost:3000";
+  const loginUrl = `${baseUrl}/auth`;
+  const fromEmail = process.env.SMTP_FROM || "noreply@vie.com";
+
+  const providerLabels = providers
+    .map((p) => {
+      if (p === "google") return "Google";
+      if (p === "github") return "GitHub";
+      if (p === "apple") return "Apple";
+      if (p === "atlassian") return "Atlassian";
+      return p;
+    })
+    .filter(Boolean);
+
+  const methods: string[] = [];
+  if (hasPassword) methods.push("email and password");
+  for (const label of providerLabels) {
+    if (!methods.includes(label)) methods.push(label);
+  }
+
+  const methodText =
+    methods.length === 0
+      ? "your existing sign-in method"
+      : methods.length === 1
+        ? methods[0]
+        : `${methods.slice(0, -1).join(", ")} or ${methods[methods.length - 1]}`;
+
+  await transporter.sendMail({
+    from: `"Vie" <${fromEmail}>`,
+    to: email,
+    subject: "You already have a Vie account",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0A0A0A;">You already have an account</h2>
+        <p>Someone tried to create a Vie account using this email address.</p>
+        <p>You already have an account. Sign in with <strong>${methodText}</strong>.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${loginUrl}" style="background-color: #0A0A0A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Sign in
+          </a>
+        </div>
+        <p style="color: #999; font-size: 12px; margin-top: 30px;">If you did not try to register, you can safely ignore this email.</p>
+      </div>
     `,
   });
 }
@@ -86,18 +172,6 @@ export async function sendEmailChangeVerification({
       </div>
     `,
   });
-}
-
-const PASSWORD_RESET_IDENTIFIER_PREFIX = "password-reset:";
-
-/** Used when storing tokens; keep in sync with forgot-password / reset-password routes. */
-export function passwordResetIdentifier(email: string) {
-  return `${PASSWORD_RESET_IDENTIFIER_PREFIX}${email.toLowerCase().trim()}`;
-}
-
-export function parseEmailFromPasswordResetIdentifier(identifier: string): string | null {
-  if (!identifier.startsWith(PASSWORD_RESET_IDENTIFIER_PREFIX)) return null;
-  return identifier.slice(PASSWORD_RESET_IDENTIFIER_PREFIX.length) || null;
 }
 
 export async function sendPasswordResetEmail({
@@ -187,7 +261,7 @@ export async function sendInvitationEmail({
 
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000"}/auth/invite?token=${token}`;
   // Format role for display in email
-  const roleText = 
+  const roleText =
     role?.toLowerCase() === "admin" || role?.toLowerCase() === "administrator" ? "Administrator" :
     role?.toLowerCase() === "owner" ? "Owner" :
     role?.toLowerCase() === "manager" ? "Manager" :

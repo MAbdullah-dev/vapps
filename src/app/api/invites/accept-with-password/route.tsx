@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { normalizeRole, isRoleHigher, roleToLeadershipTier } from "@/lib/roles";
 import { SUPER_ADMIN_ORG_FORBIDDEN } from "@/lib/super-admin-policy";
 import { isSuperAdminEmail } from "@/lib/super-admin-policy.server";
+import { normalizeEmail } from "@/lib/email-normalize";
 
 export async function POST(req: NextRequest) {
   try {
@@ -113,9 +114,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: SUPER_ADMIN_ORG_FORBIDDEN }, { status: 403 });
     }
 
-    // 2️⃣ Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: masterInvite.email },
+    // 2️⃣ Check if user exists (case-insensitive: emails are stored normalized)
+    const inviteEmail = normalizeEmail(masterInvite.email);
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: inviteEmail, mode: "insensitive" } },
     });
 
     // 3️⃣ SECURITY: If user already exists, they must NOT use password-based acceptance
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest) {
     const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: {
-        email: masterInvite.email,
+        email: inviteEmail,
         name: masterInvite.name || null, // Save name from invitation
         password: hashed,
         emailVerified: new Date(), // invited users are auto-verified

@@ -63,16 +63,24 @@ export default function ResolvePage() {
     }
   }, [status, session?.user?.platformRole, router]);
 
-  // Handle auto-redirect when only one organization
+  // Handle auto-redirect when only one organization, or home when none
   useEffect(() => {
-    if (organizations.length === 1 && !isLoading && !isRedirecting) {
+    if (isLoading || isRedirecting || status !== "authenticated") return;
+
+    if (organizations.length === 1) {
       setIsRedirecting(true);
       const slug = organizations[0].slug ?? organizations[0].id;
       const url = getOrgDashboardUrl(slug);
       if (url.startsWith("http")) window.location.href = url;
       else router.push(url);
+      return;
     }
-  }, [organizations, isLoading, isRedirecting, router]);
+
+    if (organizations.length === 0 && !error) {
+      setIsRedirecting(true);
+      router.replace("/");
+    }
+  }, [organizations, isLoading, isRedirecting, status, error, router]);
 
   const handleSelectOrg = (org: Organization) => {
     const slug = org.slug ?? org.id;
@@ -114,22 +122,9 @@ export default function ResolvePage() {
     );
   }
 
-  // Show no organizations message
+  // Empty org list is redirected in the effect above
   if (organizations.length === 0) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-        <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-sm text-center">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h1 className="mt-4 text-xl font-semibold">{t("No Organizations")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("You don't belong to any organizations yet.")}
-          </p>
-          <Button className="mt-6" onClick={() => router.push("/")}>
-            {t("Go to Home")}
-          </Button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // Multiple organizations - show selection

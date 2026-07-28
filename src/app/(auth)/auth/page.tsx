@@ -35,8 +35,22 @@ function AuthPageContent() {
   useEffect(() => {
     const verified = searchParams.get("verified");
     if (verified === "true") {
-      toast.success(t("Email verified successfully!"));
+      toast.success(t("Email verified successfully! You can sign in now."));
+      return;
     }
+
+    const error = searchParams.get("error");
+    if (!error) return;
+
+    const messages: Record<string, string> = {
+      InvalidToken: "That verification link is invalid.",
+      TokenExpired: "That verification link has expired. Sign in and request a new one.",
+      VerificationFailed: "Email verification failed. Please try again.",
+      EmailNotVerified: "Your email is not verified with that provider.",
+      SuperAdminAppForbidden:
+        "Super admin accounts must sign in at the admin portal.",
+    };
+    toast.error(t(messages[error] ?? "Authentication error. Please try again."));
   }, [searchParams, t]);
 
   return (

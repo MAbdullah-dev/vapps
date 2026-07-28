@@ -1,5 +1,6 @@
 // lib/auth.ts
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -8,7 +9,7 @@ import GitHub from "next-auth/providers/github";
 import Apple from "next-auth/providers/apple";
 import Atlassian from "next-auth/providers/atlassian";
 import bcrypt from "bcryptjs";
-import { verifyTurnstileResponse } from "./turnstile";
+import { turnstileErrorMessage, verifyTurnstileResponse } from "./turnstile";
 import {
   decryptTwoFactorSecret,
   verifyTwoFactorToken,
@@ -18,9 +19,19 @@ import {
   parseStoredRecoveryCodes,
   verifyAndConsumeRecoveryCode,
 } from "./two-factor-recovery";
+import { headers } from "next/headers";
 import { isAdminHostFromHost } from "./app-hosts";
-import { ADMIN_SESSION_COOKIE, APP_SESSION_COOKIE, getAuthSecret } from "./auth-cookies";
+import {
+  ADMIN_SESSION_COOKIE,
+  APP_SESSION_COOKIE,
+  getAuthSecret,
+  getRequestHost,
+} from "./auth-cookies";
 import { checkRateLimit } from "./rate-limit";
+import { normalizeEmail } from "./email-normalize";
+import { isSuperAdminBlockedOnAppHost } from "./domain-auth";
+import { SUPER_ADMIN_APP_LOGIN_FORBIDDEN } from "./super-admin-policy";
+import { logger } from "./logger";
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
@@ -63,7 +74,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
-        const emailKey = String(credentials.email).trim().toLowerCase();
+        const emailKey = normalizeEmail(String(credentials.email));
         const loginLimit = checkRateLimit(
           `auth:login:${emailKey}`,
           10,
@@ -79,25 +90,48 @@ export const authOptions: NextAuthOptions = {
             : undefined;
         const turnstileOk = await verifyTurnstileResponse(turnstileToken);
         if (!turnstileOk.success) {
-          throw new Error("Security check failed. Please try again.");
+          throw new Error(turnstileErrorMessage(turnstileOk.reason));
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: emailKey, mode: "insensitive" } },
         });
 
+        // Same message for missing user / wrong password (anti-enumeration).
         if (!user || !user.password) {
           throw new Error("Invalid email or password");
-        }
-
-        // Email verification check
-        if (!user.emailVerified) {
-          throw new Error("Please verify your email before logging in");
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
           throw new Error("Invalid email or password");
+        }
+
+        // Only reveal verification status after a correct password.
+        if (!user.emailVerified) {
+          throw new Error(
+            "Please verify your email before logging in. Check your inbox or request a new verification link."
+          );
+        }
+
+        if (user.isBlocked) {
+          throw new Error("Invalid email or password");
+        }
+
+        // Super admins must use the admin portal — never mint an app-host session.
+        try {
+          const host = getRequestHost(await headers());
+          if (isSuperAdminBlockedOnAppHost(user.platformRole, host)) {
+            throw new Error(SUPER_ADMIN_APP_LOGIN_FORBIDDEN);
+          }
+        } catch (err) {
+          if (
+            err instanceof Error &&
+            err.message === SUPER_ADMIN_APP_LOGIN_FORBIDDEN
+          ) {
+            throw err;
+          }
+          // headers() unavailable in rare contexts — proxy still enforces host policy
         }
 
         if (user.twoFactorEnabled) {
@@ -139,7 +173,11 @@ export const authOptions: NextAuthOptions = {
         try {
           await prisma.user.update({
             where: { id: user.id },
-            data: { lastActive: new Date() } as { lastActive: Date },
+            data: {
+              lastActive: new Date(),
+              // Normalize stored email if it was created with mixed case.
+              email: emailKey,
+            } as { lastActive: Date; email: string },
           });
         } catch {
           // Ignore: lastActive column may not exist yet or Prisma client may be stale
@@ -148,7 +186,7 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           name: user.name ?? undefined,
-          email: user.email ?? undefined,
+          email: emailKey,
         };
       },
     }),
@@ -252,80 +290,128 @@ export const authOptions: NextAuthOptions = {
       return baseUrl;
     },
 
-    async signIn({ user, account }) {
-      // Handle OAuth account linking for existing users
-      if (account?.provider !== "credentials" && user.email && account) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email },
-          include: { accounts: true },
-        });
-        
-        if (dbUser) {
-          // User exists - check if account is already linked
-          const existingAccount = dbUser.accounts.find(
-            (acc) => acc.provider === account.provider && acc.providerAccountId === account.providerAccountId
-          );
+    async signIn({ user, account, profile }) {
+      // OAuth only — credentials already validated in authorize.
+      if (account?.provider === "credentials" || !user.email || !account) {
+        return true;
+      }
 
-          if (!existingAccount) {
-            // Account not linked - link it now
-            await prisma.account.create({
-              data: {
-                userId: dbUser.id,
-                type: account.type,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-                refresh_token: account.refresh_token,
-                access_token: account.access_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-                session_state: account.session_state,
-              },
-            });
+      const emailKey = normalizeEmail(user.email);
+
+      // Reject providers that explicitly report an unverified email.
+      const profileRecord = profile as Record<string, unknown> | undefined;
+      const emailVerifiedClaim =
+        profileRecord?.email_verified ?? profileRecord?.verified;
+      if (emailVerifiedClaim === false) {
+        return "/auth?error=EmailNotVerified";
+      }
+
+      const dbUser = await prisma.user.findFirst({
+        where: { email: { equals: emailKey, mode: "insensitive" } },
+        include: { accounts: true },
+      });
+
+      if (dbUser) {
+        // Super admins must only sign in on the admin portal host.
+        try {
+          const host = getRequestHost(await headers());
+          if (isSuperAdminBlockedOnAppHost(dbUser.platformRole, host)) {
+            return `/auth?error=SuperAdminAppForbidden`;
           }
+        } catch {
+          // headers() may fail in edge cases; proxy still enforces host policy
+        }
 
-          // Auto-verify email if not verified
-          if (!dbUser.emailVerified) {
-            await prisma.user.update({
-              where: { id: dbUser.id },
-              data: { emailVerified: new Date() },
-            });
-          }
+        const existingAccount = dbUser.accounts.find(
+          (acc) =>
+            acc.provider === account.provider &&
+            acc.providerAccountId === account.providerAccountId
+        );
 
-          // Update lastActive on OAuth sign-in (ignore if column not yet migrated)
+        if (!existingAccount) {
+          await prisma.account.create({
+            data: {
+              userId: dbUser.id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              refresh_token: account.refresh_token,
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              token_type: account.token_type,
+              scope: account.scope,
+              id_token: account.id_token,
+              session_state: account.session_state,
+            },
+          });
+        }
+
+        // Linking OAuth to an unverified local account: verify AND clear any
+        // attacker-set password / 2FA so pre-registration takeover is impossible.
+        // This must succeed — if it fails, deny the sign-in rather than leaving a
+        // usable password on an account the OAuth user now controls.
+        if (!dbUser.emailVerified) {
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              emailVerified: new Date(),
+              password: null,
+              twoFactorEnabled: false,
+              twoFactorSecret: null,
+              twoFactorRecoveryCodes: Prisma.DbNull,
+            },
+          });
+        }
+
+        // Normalizing a legacy mixed-case address can collide with an existing
+        // lowercase row; that is a data problem, not a reason to block login.
+        if (dbUser.email !== emailKey) {
           try {
             await prisma.user.update({
               where: { id: dbUser.id },
-              data: { lastActive: new Date() } as { lastActive: Date },
+              data: { email: emailKey },
             });
-          } catch {
-            // Ignore
-          }
-        } else if (user.id) {
-          try {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastActive: new Date() } as { lastActive: Date },
+          } catch (err) {
+            logger.warn("signIn: could not normalize email (duplicate row?)", {
+              userId: dbUser.id,
+              error: err instanceof Error ? err.message : String(err),
             });
-          } catch {
-            // Ignore
           }
         }
+
+        try {
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: { lastActive: new Date() } as { lastActive: Date },
+          });
+        } catch {
+          // Ignore: lastActive column may not exist yet
+        }
       }
+      // New OAuth users are handled by the adapter + `events.createUser`.
+
       return true;
     },
   },
 
   events: {
-    // ✅ Auto-verify OAuth users after creation
     async createUser({ user }) {
+      if (!user.id) return;
+      const data: {
+        emailVerified?: Date;
+        email?: string;
+      } = {};
       if (!user.emailVerified) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { emailVerified: new Date() },
-        });
+        data.emailVerified = new Date();
       }
+      if (user.email) {
+        data.email = normalizeEmail(user.email);
+      }
+      if (Object.keys(data).length === 0) return;
+      await prisma.user.update({
+        where: { id: user.id },
+        data,
+      });
     },
   },
 

@@ -110,10 +110,24 @@ class ApiClient {
     inviteToken?: string;
     turnstileToken?: string;
   }) {
-    return this.fetch("/auth/register", {
+    return this.fetch<{
+      message: string;
+      inviteAccepted?: boolean;
+      inviteToken?: string;
+    }>("/auth/register", {
       method: "POST",
       body: data,
     });
+  }
+
+  resendVerification(data: { email: string; turnstileToken?: string }) {
+    return this.fetch<{ ok: boolean; message: string }>(
+      "/auth/resend-verification",
+      {
+        method: "POST",
+        body: data,
+      }
+    );
   }
 
   /**

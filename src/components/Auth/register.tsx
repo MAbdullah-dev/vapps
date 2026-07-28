@@ -54,7 +54,7 @@ const Register = ({ onSwitch }: RegisterProps) => {
 
       setLoading(true);
 
-      await apiClient.register({
+      const result = await apiClient.register({
         ...data,
         ...(turnstileEnabled && turnstileToken
           ? { turnstileToken }
@@ -62,7 +62,10 @@ const Register = ({ onSwitch }: RegisterProps) => {
       });
 
       toast.success(
-        t("Account created! Please check your email to verify your account.")
+        t(
+          result.message ||
+            "Check your email for next steps. If you already have an account, sign in instead."
+        )
       );
 
       reset();
