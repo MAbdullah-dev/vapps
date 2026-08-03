@@ -507,6 +507,15 @@ export default function CreateDocumentStep({
   const currentSiteDisplay = siteId.trim() || "S1";
   const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
   const currentProcessCode = extractProcessCode(currentProcessDisplay);
+  const lockedSiteLabel = (() => {
+    const matched = sites.find((s) => s.id === site);
+    if (!matched) return isLoadingSites ? t("Loading sites...") : site || "";
+    return matched.code ? `${matched.code} - ${matched.name}` : matched.name;
+  })();
+  const lockedProcessLabel =
+    processes.find((p) => p.id === processId)?.name ||
+    processName ||
+    (isLoadingProcesses ? t("Loading processes...") : "");
   const transferSiteCodes = useMemo(() => {
     const codes = Array.from(
       new Set(sites.map((s) => s.code).filter((c) => Boolean(c && c.trim().length > 0)))
@@ -885,35 +894,44 @@ export default function CreateDocumentStep({
                       </span>
                     ) : null}
                   </Label>
-                  <Select
-                    value={site}
-                    onValueChange={(v) => {
-                      setSite(v);
-                      if (formErrors.site) setFormErrors((p) => ({ ...p, site: false }));
-                    }}
-                    disabled={
-                      isViewMode || siteSelectionLocked || isLoadingContext || isLoadingSites
-                    }
-                  >
-                    <SelectTrigger id="doc-site" className={cn("w-full", requiredInputClass(!!formErrors.site))}>
-                      <SelectValue
-                        placeholder={
-                          isLoadingSites
-                            ? t("Loading sites...")
-                            : siteSelectionLocked
-                              ? t("Assigned site")
-                              : t("Select site")
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sites.map((siteOption) => (
-                        <SelectItem key={siteOption.id} value={siteOption.id}>
-                          {siteOption.code ? `${siteOption.code} - ${siteOption.name}` : siteOption.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {siteSelectionLocked || isViewMode ? (
+                    <Input
+                      id="doc-site"
+                      value={lockedSiteLabel}
+                      readOnly
+                      className={cn(
+                        "bg-muted text-muted-foreground",
+                        requiredInputClass(!!formErrors.site)
+                      )}
+                      placeholder={
+                        isLoadingSites ? t("Loading sites...") : t("Assigned site")
+                      }
+                    />
+                  ) : (
+                    <Select
+                      value={site}
+                      onValueChange={(v) => {
+                        setSite(v);
+                        if (formErrors.site) setFormErrors((p) => ({ ...p, site: false }));
+                      }}
+                      disabled={isLoadingContext || isLoadingSites}
+                    >
+                      <SelectTrigger id="doc-site" className={cn("w-full", requiredInputClass(!!formErrors.site))}>
+                        <SelectValue
+                          placeholder={
+                            isLoadingSites ? t("Loading sites...") : t("Select site")
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sites.map((siteOption) => (
+                          <SelectItem key={siteOption.id} value={siteOption.id}>
+                            {siteOption.code ? `${siteOption.code} - ${siteOption.name}` : siteOption.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <DocFieldError show={!!formErrors.site} t={t} />
                 </div>
                 <div className="space-y-2">
@@ -952,40 +970,48 @@ export default function CreateDocumentStep({
                       </span>
                     ) : null}
                   </Label>
-                  <Select
-                    value={processId}
-                    onValueChange={(v) => {
-                      setProcessName(v);
-                      if (formErrors.process) setFormErrors((p) => ({ ...p, process: false }));
-                    }}
-                    disabled={
-                      isViewMode ||
-                      processSelectionLocked ||
-                      !site ||
-                      isLoadingProcesses
-                    }
-                  >
-                    <SelectTrigger id="doc-process" className={cn("w-full", requiredInputClass(!!formErrors.process))}>
-                      <SelectValue
-                        placeholder={
-                          processSelectionLocked
-                            ? t("Assigned process")
-                            : !site
+                  {processSelectionLocked || isViewMode ? (
+                    <Input
+                      id="doc-process"
+                      value={lockedProcessLabel}
+                      readOnly
+                      className={cn(
+                        "bg-muted text-muted-foreground",
+                        requiredInputClass(!!formErrors.process)
+                      )}
+                      placeholder={
+                        isLoadingProcesses ? t("Loading processes...") : t("Assigned process")
+                      }
+                    />
+                  ) : (
+                    <Select
+                      value={processId}
+                      onValueChange={(v) => {
+                        setProcessName(v);
+                        if (formErrors.process) setFormErrors((p) => ({ ...p, process: false }));
+                      }}
+                      disabled={!site || isLoadingProcesses}
+                    >
+                      <SelectTrigger id="doc-process" className={cn("w-full", requiredInputClass(!!formErrors.process))}>
+                        <SelectValue
+                          placeholder={
+                            !site
                               ? t("Select site first")
                               : isLoadingProcesses
                                 ? t("Loading processes...")
                                 : t("Select process")
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {processes.map((processOption) => (
-                        <SelectItem key={processOption.id} value={processOption.id}>
-                          {processOption.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {processes.map((processOption) => (
+                          <SelectItem key={processOption.id} value={processOption.id}>
+                            {processOption.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <DocFieldError show={!!formErrors.process} t={t} />
                 </div>
                 <div className="space-y-2">

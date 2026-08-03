@@ -44,7 +44,6 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 import { appendDocumentRecord } from "@/lib/documentLocalStorage";
-import { getSelectedSiteFromStorage } from "@/lib/selected-site";
 import { toast } from "sonner";
 
 type MeApiResponse = {
@@ -184,8 +183,6 @@ export default function DocumentsCreateContent() {
   });
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [processes, setProcesses] = useState<ProcessOption[]>([]);
-  /** Org owner may pick any site/process; all other users have a single assignment. */
-  const [isOrgOwner, setIsOrgOwner] = useState(false);
   const [isLoadingContext, setIsLoadingContext] = useState(true);
   const [isLoadingSites, setIsLoadingSites] = useState(false);
   const [isLoadingProcesses, setIsLoadingProcesses] = useState(false);
@@ -458,30 +455,23 @@ export default function DocumentsCreateContent() {
         if (ignore) return;
 
         const typedSitesJson = (sitesJson ?? {}) as SitesApiResponse;
-        const owner =
-          meJson?.isOwner === true ||
-          typedSitesJson.isOwner === true ||
-          String(typedSitesJson.userRole ?? "").toLowerCase() === "owner";
-        setIsOrgOwner(owner);
 
         let loadedSites: SiteOption[] = (typedSitesJson.sites ?? []).map((site) =>
           siteOptionFromApi(site)
         );
 
-        if (!owner && meJson?.assignedSite) {
-          const assigned = siteOptionFromApi(meJson.assignedSite);
-          if (!loadedSites.some((s) => s.id === assigned.id)) {
-            loadedSites = [assigned, ...loadedSites];
-          }
-        }
-
-        setSites(loadedSites);
-
-        const shouldApplyProfile = !owner && !recordId;
-        const meSite = shouldApplyProfile && meJson?.assignedSite
+        // Document identity uses only the logged-in user's Teams assignment — not sidebar/first site.
+        const meSite = meJson?.assignedSite
           ? siteOptionFromApi(meJson.assignedSite)
           : undefined;
-        const meProcess = shouldApplyProfile ? meJson?.assignedProcess : undefined;
+        const meProcess = meJson?.assignedProcess ?? undefined;
+
+        if (meSite && !loadedSites.some((s) => s.id === meSite.id)) {
+          loadedSites = [meSite, ...loadedSites];
+        }
+        setSites(loadedSites);
+
+        const shouldApplyProfile = !recordId;
 
         setFormData((prev) => {
           const next = {
@@ -506,17 +496,7 @@ export default function DocumentsCreateContent() {
             ),
           };
 
-          if (!shouldApplyProfile || prev.site || siteAutoFilledRef.current) {
-            return next;
-          }
-
-          const stored = getSelectedSiteFromStorage(orgId);
-          const fromList =
-            (meSite && loadedSites.find((s) => s.id === meSite.id)) ||
-            (stored?.id ? loadedSites.find((s) => s.id === stored.id) : undefined) ||
-            loadedSites[0];
-
-          if (!fromList) {
+          if (!shouldApplyProfile || !meSite) {
             return next;
           }
 
@@ -527,15 +507,18 @@ export default function DocumentsCreateContent() {
 
           return {
             ...next,
-            site: fromList.id,
-            siteId: fromList.code ?? "",
-            location: fromList.location ?? "",
+            site: meSite.id,
+            siteId: meSite.code ?? "",
+            location: meSite.location ?? "",
             ...(meProcess?.id
               ? {
                   processId: String(meProcess.id),
                   processName: String(meProcess.name ?? ""),
                 }
-              : {}),
+              : {
+                  processId: "",
+                  processName: "",
+                }),
           };
         });
       } finally {
@@ -574,21 +557,6 @@ export default function DocumentsCreateContent() {
           siteId: String(process.siteId ?? formData.site),
         }));
         setProcesses(loadedProcesses);
-
-        const profileProcess =
-          !isOrgOwner && !recordId && loadedProcesses[0] ? loadedProcesses[0] : undefined;
-
-        if (profileProcess && !processAutoFilledRef.current) {
-          setFormData((prev) => {
-            if (prev.processId || prev.processName) return prev;
-            processAutoFilledRef.current = true;
-            return {
-              ...prev,
-              processName: profileProcess.name,
-              processId: profileProcess.id,
-            };
-          });
-        }
       } finally {
         if (!ignore) setIsLoadingProcesses(false);
       }
@@ -597,7 +565,7 @@ export default function DocumentsCreateContent() {
     return () => {
       ignore = true;
     };
-  }, [orgId, formData.site, recordId, isOrgOwner]);
+  }, [orgId, formData.site, recordId]);
 
   useEffect(() => {
     let ignore = false;
@@ -746,61 +714,14 @@ export default function DocumentsCreateContent() {
     }
   }, [recordId]);
 
-  /** Apply site/process from profile when sites list arrives (e.g. after sidebar sync). */
-  useEffect(() => {
-    if (isOrgOwner || isViewMode || createStepReadOnly || recordId) return;
-    if (!orgId || sites.length === 0) return;
-
-    setFormData((prev) => {
-      if (prev.site) return prev;
-
-      const stored = getSelectedSiteFromStorage(orgId);
-      const fromList =
-        (stored?.id ? sites.find((s) => s.id === stored.id) : undefined) ?? sites[0];
-      if (!fromList) return prev;
-
-      siteAutoFilledRef.current = true;
-      return {
-        ...prev,
-        site: fromList.id,
-        siteId: fromList.code ?? "",
-        location: fromList.location ?? "",
-      };
-    });
-  }, [isOrgOwner, isViewMode, createStepReadOnly, recordId, orgId, sites]);
-
-  useEffect(() => {
-    if (isOrgOwner || isViewMode || createStepReadOnly || recordId) return;
-    if (!formData.site || processes.length === 0) return;
-
-    setFormData((prev) => {
-      if (prev.processId || prev.processName) return prev;
-      const chosen = processes[0];
-      if (!chosen) return prev;
-      processAutoFilledRef.current = true;
-      return {
-        ...prev,
-        processName: chosen.name,
-        processId: chosen.id,
-      };
-    });
-  }, [
-    isOrgOwner,
-    isViewMode,
-    createStepReadOnly,
-    recordId,
-    formData.site,
-    processes,
-  ]);
-
   const siteSelectionLocked = useMemo(
-    () => !isViewMode && !isOrgOwner && Boolean(formData.site),
-    [isViewMode, isOrgOwner, formData.site]
+    () => !isViewMode && Boolean(formData.site),
+    [isViewMode, formData.site]
   );
 
   const processSelectionLocked = useMemo(
-    () => !isViewMode && !isOrgOwner && Boolean(formData.processId),
-    [isViewMode, isOrgOwner, formData.processId]
+    () => !isViewMode && Boolean(formData.processId),
+    [isViewMode, formData.processId]
   );
 
   const managementStandardDisplayLabel = useMemo(

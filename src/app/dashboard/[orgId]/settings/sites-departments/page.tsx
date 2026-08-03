@@ -7,9 +7,11 @@ import { useOrg } from "@/components/providers/org-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -66,10 +68,14 @@ export default function SitesDepartmentsPage() {
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [expandedSites, setExpandedSites] = useState<string[]>([]);
   const [canManageSites, setCanManageSites] = useState(false);
+  const [canManageProcesses, setCanManageProcesses] = useState(false);
   const [isOrgOwner, setIsOrgOwner] = useState(false);
   const [confirmedSiteId, setConfirmedSiteId] = useState<string>("");
   const [pendingSiteId, setPendingSiteId] = useState<string>("");
   const [isSwitchingSite, setIsSwitchingSite] = useState(false);
+  const [isAddProcessDialogOpen, setIsAddProcessDialogOpen] = useState(false);
+  const [processSiteId, setProcessSiteId] = useState<string | null>(null);
+  const [isCreatingProcess, setIsCreatingProcess] = useState(false);
 
   // Form state for add/edit
   const [formData, setFormData] = useState({
@@ -165,14 +171,77 @@ export default function SitesDepartmentsPage() {
       const res = await apiClient.get<{
         currentUserPermissions: {
           manage_sites: boolean;
+          manage_processes: boolean;
         };
       }>(`/organization/${orgId}/permissions`);
       setCanManageSites(res.currentUserPermissions?.manage_sites ?? false);
+      setCanManageProcesses(res.currentUserPermissions?.manage_processes ?? false);
     } catch (e: any) {
       console.error("Failed to fetch permissions:", e);
       setCanManageSites(false);
+      setCanManageProcesses(false);
     }
   }, [orgId]);
+
+  const openAddProcessDialog = (siteId: string) => {
+    setProcessSiteId(siteId);
+    setIsAddProcessDialogOpen(true);
+    if (!expandedSites.includes(siteId)) {
+      setExpandedSites((prev) => [...prev, siteId]);
+    }
+  };
+
+  const handleAddProcessDialogChange = (open: boolean) => {
+    setIsAddProcessDialogOpen(open);
+    if (!open) setProcessSiteId(null);
+  };
+
+  const handleCreateProcess = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!processSiteId) {
+      toast.error("Please select a site first");
+      return;
+    }
+
+    setIsCreatingProcess(true);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const name = (formData.get("name") as string)?.trim();
+    const description = (formData.get("description") as string)?.trim();
+
+    if (!name) {
+      toast.error("Process name is required");
+      setIsCreatingProcess(false);
+      return;
+    }
+
+    try {
+      await apiClient.createProcess(orgId, {
+        name,
+        description: description || undefined,
+        siteId: processSiteId,
+      });
+      toast.success("Process created successfully");
+      form.reset();
+      const createdForSiteId = processSiteId;
+      setIsAddProcessDialogOpen(false);
+      setProcessSiteId(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("processCreated", {
+            detail: { siteId: createdForSiteId, orgId },
+          })
+        );
+      }
+      await fetchSites();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to create process";
+      console.error("Error creating process:", error);
+      toast.error(msg);
+    } finally {
+      setIsCreatingProcess(false);
+    }
+  };
 
   const handleAddSite = async () => {
     if (!formData.siteName.trim() || !formData.location.trim()) {
@@ -193,6 +262,23 @@ export default function SitesDepartmentsPage() {
       console.error("Error creating site:", error);
       toast.error(error.message || "Failed to create site");
     }
+  };
+
+  const openProcessesPageForSite = (site: Site) => {
+    setSelectedSiteInStorage(
+      orgId,
+      {
+        id: site.id,
+        name: site.name,
+        code: site.code,
+        location: site.location,
+        processes: site.processes,
+      },
+      orgSlug
+    );
+    setConfirmedSiteId(site.id);
+    setPendingSiteId(site.id);
+    router.push(getDashboardPath(orgSlug, "processes"));
   };
 
   const handleEditSite = (site: Site) => {
@@ -469,30 +555,37 @@ export default function SitesDepartmentsPage() {
                   </div>
                   <AccordionContent>
                     <div className="pt-4 pb-2 pl-8">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          Processes ({site.processes.length})
+                        </p>
+                        {canManageProcesses && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAddProcessDialog(site.id)}
+                          >
+                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            Add process
+                          </Button>
+                        )}
+                      </div>
                       {site.processes.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No processes for this site</p>
                       ) : (
                         <div className="space-y-2">
-                          <p className="mb-3 text-sm font-medium text-foreground">
-                            Processes ({site.processes.length})
-                          </p>
-                          <div className="space-y-2">
-                            {site.processes.map((process) => (
-                              <button
-                                key={process.id}
-                                type="button"
-                                onClick={() =>
-                                  router.push(
-                                    getDashboardPath(orgSlug, `processes/${process.id}`)
-                                  )
-                                }
-                                className="flex w-full items-center gap-2 rounded-md bg-muted/50 p-2 text-left transition-colors hover:bg-muted"
-                              >
-                                <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <span className="text-sm text-foreground">{process.name}</span>
-                              </button>
-                            ))}
-                          </div>
+                          {site.processes.map((process) => (
+                            <button
+                              key={process.id}
+                              type="button"
+                              onClick={() => openProcessesPageForSite(site)}
+                              className="flex w-full items-center gap-2 rounded-md bg-muted/50 p-2 text-left transition-colors hover:bg-muted"
+                            >
+                              <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              <span className="text-sm text-foreground">{process.name}</span>
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -618,6 +711,57 @@ export default function SitesDepartmentsPage() {
               Save Changes
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Process Dialog */}
+      <Dialog open={isAddProcessDialogOpen} onOpenChange={handleAddProcessDialogChange}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleCreateProcess}>
+            <DialogHeader>
+              <DialogTitle>New process</DialogTitle>
+              <DialogDescription>
+                Add a process to this site.
+                {processSiteId && (
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    Site: {sites.find((s) => s.id === processSiteId)?.name ?? "—"}
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="settings-process-name">Name *</Label>
+                <Input
+                  id="settings-process-name"
+                  name="name"
+                  placeholder="e.g. Customer onboarding"
+                  required
+                  disabled={isCreatingProcess}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="settings-process-description">Description</Label>
+                <Textarea
+                  id="settings-process-description"
+                  name="description"
+                  placeholder="What this process is for…"
+                  rows={3}
+                  disabled={isCreatingProcess}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isCreatingProcess}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={isCreatingProcess || !processSiteId} variant="dark">
+                {isCreatingProcess ? "Creating…" : "Create process"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
