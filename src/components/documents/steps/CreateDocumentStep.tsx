@@ -822,6 +822,95 @@ export default function CreateDocumentStep({
 
   return (
     <>
+      {/* First card under Step 1: Action Selection */}
+      <Card className="py-4">
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <h4 className="text-xl font-semibold text-foreground">{t("Action Selection")}</h4>
+            <p className="text-sm text-muted-foreground">{t("Select one action only (mutually exclusive)")}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("Action Type*")}</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                { value: "create" as const, label: t("Create") },
+                { value: "revise" as const, label: t("Revise") },
+                { value: "obsolete" as const, label: t("Obsolete") },
+              ].map((item) => {
+                const isActive = actionType === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setActionType(item.value)}
+                    className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
+                        ? cn(docSelectionActive, "font-medium")
+                        : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {actionType === "revise" ? (
+            <div className="space-y-2">
+              <Label>{t("Revise Sub-Action")}</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  { value: "update" as const, label: t("Revise -> Update") },
+                  { value: "transfer" as const, label: t("Revise -> Transfer") },
+                ].map((item) => {
+                  const isActive = reviseSubAction === item.value;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        setReviseSubAction(item.value);
+                        if (item.value === "transfer") {
+                        // Start transfer from current site/process by default.
+                        setTransferTargetSite(currentSiteDisplay);
+                        setTransferTargetProcess(currentProcessCode);
+                        setTransferTargetProcessId("");
+                        setTransferProcessOptions([]);
+
+                        // Reset transfer-specific fields.
+                        setTransferSearchRef("");
+                        setTransferStandardChange("");
+                        setTransferInitiatorRequest("");
+                        setOriginatorConsent(null);
+
+                          setTransferDocumentClass(documentClassification);
+                          if (documentClassification === "P" || documentClassification === "F") {
+                            setDocType(documentClassification);
+                          }
+                        }
+                        if (item.value === "update") {
+                          // Fresh revision context.
+                          setSearchCurrentDocumentRef("");
+                          setReasons([]);
+                          setRevisionComment("");
+                        }
+                      }}
+                      className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
+                          ? cn(docSelectionActive, "font-medium")
+                          : "border-border bg-background text-muted-foreground hover:bg-muted"
+                        }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -830,7 +919,7 @@ export default function CreateDocumentStep({
           </div>
 
           <div className="space-y-1 pt-2">
-            <h4 className="text-xl font-semibold text-foreground">{t("1. Identity Information")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Identity Information")}</h4>
             <p className="text-sm text-muted-foreground">
               {t("Auto-generated and basic organizational data")}
             </p>
@@ -1155,11 +1244,11 @@ export default function CreateDocumentStep({
           </div>
         </CardContent>
       </Card>
-      {/* Second card under Step 1: Change Request */}
+      {/* Third card under Step 1: Change Request */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("2. Change Request")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Change Request")}</h4>
             <p className="text-sm text-muted-foreground">{t("Document priority level")}</p>
           </div>
 
@@ -1203,11 +1292,11 @@ export default function CreateDocumentStep({
         </CardContent>
       </Card>
 
-      {/* Third card under Step 1: Document Type */}
+      {/* Fourth card under Step 1: Document Type */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("3. Document Type")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Document Type")}</h4>
             <p className="text-sm text-muted-foreground">{t("Select document classification")}</p>
           </div>
 
@@ -1252,95 +1341,6 @@ export default function CreateDocumentStep({
               );
             })}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Fourth card under Step 1: Action Selection */}
-      <Card className="py-4">
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("4. Action Selection")}</h4>
-            <p className="text-sm text-muted-foreground">{t("Select one action only (mutually exclusive)")}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t("Action Type*")}</Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[
-                { value: "create" as const, label: t("Create") },
-                { value: "revise" as const, label: t("Revise") },
-                { value: "obsolete" as const, label: t("Obsolete") },
-              ].map((item) => {
-                const isActive = actionType === item.value;
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setActionType(item.value)}
-                    className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
-                        ? cn(docSelectionActive, "font-medium")
-                        : "border-border bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {actionType === "revise" ? (
-            <div className="space-y-2">
-              <Label>{t("Revise Sub-Action")}</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[
-                  { value: "update" as const, label: t("Revise -> Update") },
-                  { value: "transfer" as const, label: t("Revise -> Transfer") },
-                ].map((item) => {
-                  const isActive = reviseSubAction === item.value;
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => {
-                        setReviseSubAction(item.value);
-                        if (item.value === "transfer") {
-                        // Start transfer from current site/process by default.
-                        setTransferTargetSite(currentSiteDisplay);
-                        setTransferTargetProcess(currentProcessCode);
-                        setTransferTargetProcessId("");
-                        setTransferProcessOptions([]);
-
-                        // Reset transfer-specific fields.
-                        setTransferSearchRef("");
-                        setTransferStandardChange("");
-                        setTransferInitiatorRequest("");
-                        setOriginatorConsent(null);
-
-                          setTransferDocumentClass(documentClassification);
-                          if (documentClassification === "P" || documentClassification === "F") {
-                            setDocType(documentClassification);
-                          }
-                        }
-                        if (item.value === "update") {
-                          // Fresh revision context.
-                          setSearchCurrentDocumentRef("");
-                          setReasons([]);
-                          setRevisionComment("");
-                        }
-                      }}
-                      className={`rounded-lg border p-3 text-center font-medium transition-colors ${isActive
-                          ? cn(docSelectionActive, "font-medium")
-                          : "border-border bg-background text-muted-foreground hover:bg-muted"
-                        }`}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -1700,7 +1700,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("5. Document Title")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Document Title")}</h4>
             <p className="text-sm text-muted-foreground">{t("Enter document title (max 30 characters)")}</p>
           </div>
 
@@ -1728,7 +1728,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("6. Standard Selection")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Standard Selection")}</h4>
             <p className="text-sm text-muted-foreground">{t("Select applicable management system standard")}</p>
           </div>
 
@@ -1812,7 +1812,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("7. Document Restriction (Security)")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Document Restriction (Security)")}</h4>
             <p className="text-sm text-muted-foreground">
               {t(
                 "Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft."
@@ -1931,7 +1931,7 @@ export default function CreateDocumentStep({
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
-              <h4 className="text-xl font-semibold text-foreground">{t("8. Reasons for Document Change")}</h4>
+              <h4 className="text-xl font-semibold text-foreground">{t("Reasons for Document Change")}</h4>
               <p className="text-sm text-muted-foreground">
                 {t("Select all applicable reasons (multiple selection)")}
               </p>
@@ -1974,7 +1974,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("9. Impact Assessment")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Impact Assessment")}</h4>
             <p className="text-sm text-muted-foreground">{t("Identify impact on other documents")}</p>
           </div>
 
@@ -2006,7 +2006,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("10. Risk Severity")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Risk Severity")}</h4>
             <p className="text-sm text-muted-foreground">{t("Assess risk level of this change")}</p>
           </div>
 
@@ -2072,7 +2072,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("11. Staff Training Requirement")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Staff Training Requirement")}</h4>
             <p className="text-sm text-muted-foreground">{t("Determine if training is needed for this change")}</p>
           </div>
 
@@ -2115,7 +2115,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("12. Document Editor (Main Content)")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Document Editor (Main Content)")}</h4>
             {documentClassification === "EXT" ? (
               <p className="text-sm text-muted-foreground">{t("Upload the external document file")}</p>
             ) : isReviseTransfer ? null : (
@@ -2265,7 +2265,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("13. Document Output Preview")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Document Output Preview")}</h4>
             <p className="text-sm text-muted-foreground">{t("Preview how the final document will appear")}</p>
           </div>
 
@@ -2319,7 +2319,7 @@ export default function CreateDocumentStep({
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h4 className="text-xl font-semibold text-foreground">{t("14. Submit Actions")}</h4>
+            <h4 className="text-xl font-semibold text-foreground">{t("Submit Actions")}</h4>
             <p className="text-sm text-muted-foreground">
               {t(
                 "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."

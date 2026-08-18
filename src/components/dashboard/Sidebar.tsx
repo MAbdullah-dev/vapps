@@ -187,7 +187,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   }, [orgId, queryClient]);
 
   return (
-    <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-max border-r border-border">
+    <aside className="hidden md:flex flex-col w-[20%] bg-card text-card-foreground h-[max(90vh, max-content)] border-r border-border">
       <div className="border-b pb-3 p-5">
         <BrandLogo className="mb-3" alt={t("Vie")} width={95} height={40} />
 
