@@ -15,10 +15,22 @@ export type AuditCreateStepNumber = keyof typeof AUDIT_STEP_SHORT_LABEL;
 
 /** Primary hero line per create step; English key for `t()`. */
 export const AUDIT_STEP_HERO: Record<AuditCreateStepNumber, string> = {
-  1: `STEP 1 OF 6: ${AUDIT_STEP_SHORT_LABEL[1]}`,
-  2: `STEP 2 OF 6: ${AUDIT_STEP_SHORT_LABEL[2]}`,
-  3: `STEP 3 OF 6: ${AUDIT_STEP_SHORT_LABEL[3]}`,
-  4: `STEP 4 OF 6: ${AUDIT_STEP_SHORT_LABEL[4]}`,
-  5: `STEP 5 OF 6: ${AUDIT_STEP_SHORT_LABEL[5]}`,
-  6: `STEP 6 OF 6: ${AUDIT_STEP_SHORT_LABEL[6]}`,
+  // with step counts and colons
+
+  // 1: `STEP 1 OF 6: ${AUDIT_STEP_SHORT_LABEL[1]}`,
+  // 2: `STEP 2 OF 6: ${AUDIT_STEP_SHORT_LABEL[2]}`,
+  // 3: `STEP 3 OF 6: ${AUDIT_STEP_SHORT_LABEL[3]}`,
+  // 4: `STEP 4 OF 6: ${AUDIT_STEP_SHORT_LABEL[4]}`,
+  // 5: `STEP 5 OF 6: ${AUDIT_STEP_SHORT_LABEL[5]}`,
+  // 6: `STEP 6 OF 6: ${AUDIT_STEP_SHORT_LABEL[6]}`,
+
+  
+  // without step counts and with colons
+
+  1: `${AUDIT_STEP_SHORT_LABEL[1]}`,
+  2: `${AUDIT_STEP_SHORT_LABEL[2]}`,
+  3: `${AUDIT_STEP_SHORT_LABEL[3]}`,
+  4: `${AUDIT_STEP_SHORT_LABEL[4]}`,
+  5: `${AUDIT_STEP_SHORT_LABEL[5]}`,
+  6: `${AUDIT_STEP_SHORT_LABEL[6]}`,
 };
