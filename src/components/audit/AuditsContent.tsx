@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,6 +46,11 @@ import {
 } from "@/lib/compliance-kpi";
 import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  paginateRows,
+  TablePagination,
+} from "@/components/ui/table-pagination";
 
 const NEXT_STEP_LABELS: Record<number, string> = {
   3: "Complete Findings (Step 3)",
@@ -606,6 +611,7 @@ export default function AuditsContent() {
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const [historyEntries, setHistoryEntries] = useState<AuditHistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [auditTablePage, setAuditTablePage] = useState(1);
   const createAuditHref = getDashboardPath(slug, "audit/create/1");
 
   const { data: plansData, isLoading: plansLoading } = useQuery({
@@ -618,6 +624,15 @@ export default function AuditsContent() {
   const audits = useMemo(
     () => (plansData?.plans ? mapPlansToAudits(plansData.plans) : []),
     [plansData?.plans]
+  );
+
+  useEffect(() => {
+    setAuditTablePage(1);
+  }, [slug]);
+
+  const paginatedAudits = useMemo(
+    () => paginateRows(audits, auditTablePage, DEFAULT_TABLE_PAGE_SIZE),
+    [audits, auditTablePage]
   );
 
   const auditStats = useMemo(() => {
@@ -699,7 +714,7 @@ export default function AuditsContent() {
   );
 
   const table = useReactTable({
-    data: audits,
+    data: paginatedAudits,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -877,6 +892,11 @@ export default function AuditsContent() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={auditTablePage}
+            total={audits.length}
+            onPageChange={setAuditTablePage}
+          />
         </CardContent>
       </Card>
 

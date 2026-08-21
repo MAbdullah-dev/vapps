@@ -23,7 +23,7 @@ export default async function OrgDashboardLayout({
         <OrgProvider orgId={org.id} slug={org.slug}>
             <div className="flex min-h-screen bg-background">
                 <Sidebar orgId={org.id} slug={org.slug} />
-                <div className="md:w-[80%] w-full">
+                <div className="flex min-w-0 flex-1 flex-col">
                     <Topbar />
                     <main className="p-6 w-full bg-background flex-1">
                         {children}

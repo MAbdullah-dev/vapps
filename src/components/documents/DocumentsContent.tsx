@@ -10,6 +10,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  DEFAULT_TABLE_PAGE_SIZE,
+  paginateRows,
+  TablePagination,
+} from "@/components/ui/table-pagination";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -831,6 +836,7 @@ export default function DocumentsContent() {
     : "#";
   const [selectedTable, setSelectedTable] = useState<string>("Master Document List");
   const [search, setSearch] = useState("");
+  const [tablePage, setTablePage] = useState(1);
   const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
   const [obsoleteApiRows, setObsoleteApiRows] = useState<ObsoleteDocumentRow[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(() => !orgId);
@@ -1271,6 +1277,42 @@ export default function DocumentsContent() {
       return haystack.includes(q);
     });
   }, [selectedTable, search, obsoleteApiRows]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [selectedTable, search]);
+
+  const activeTableRowCount = useMemo(() => {
+    switch (selectedTable) {
+      case "Master Document List":
+        return filteredMaster.length;
+      case "Obsolete Document Register":
+        return filteredObsolete.length;
+      case "Documentary Evidence":
+        return filteredEvidence.length;
+      case "Records Disposal Log":
+        return filteredDisposal.length;
+      default:
+        return filteredMaster.length;
+    }
+  }, [selectedTable, filteredMaster, filteredObsolete, filteredEvidence, filteredDisposal]);
+
+  const paginatedMaster = useMemo(
+    () => paginateRows(filteredMaster, tablePage, DEFAULT_TABLE_PAGE_SIZE),
+    [filteredMaster, tablePage]
+  );
+  const paginatedObsolete = useMemo(
+    () => paginateRows(filteredObsolete, tablePage, DEFAULT_TABLE_PAGE_SIZE),
+    [filteredObsolete, tablePage]
+  );
+  const paginatedEvidence = useMemo(
+    () => paginateRows(filteredEvidence, tablePage, DEFAULT_TABLE_PAGE_SIZE),
+    [filteredEvidence, tablePage]
+  );
+  const paginatedDisposal = useMemo(
+    () => paginateRows(filteredDisposal, tablePage, DEFAULT_TABLE_PAGE_SIZE),
+    [filteredDisposal, tablePage]
+  );
 
   const downloadMasterRowPdf = async (docRow: MasterDocumentRow) => {
     try {
@@ -1838,7 +1880,7 @@ export default function DocumentsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredMaster.map((doc) => (
+                    paginatedMaster.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell className="text-sm font-medium text-foreground whitespace-nowrap">
                           {doc.documentRef}
@@ -1945,7 +1987,7 @@ export default function DocumentsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredObsolete.map((row) => (
+                    paginatedObsolete.map((row) => (
                     <TableRow
                       key={row.id}
                       className="border-b border-border bg-background hover:bg-muted/30"
@@ -2032,7 +2074,7 @@ export default function DocumentsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredEvidence.map((row) => {
+                    paginatedEvidence.map((row) => {
                       const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
                       const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
                       const ref = row.template_preview_ref || String(cd.templateRef ?? "");
@@ -2157,7 +2199,7 @@ export default function DocumentsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDisposal.map((row) => {
+                    paginatedDisposal.map((row) => {
                       const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
                       const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
                       const shortId = row.id.slice(0, 4);
@@ -2289,7 +2331,7 @@ export default function DocumentsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredMaster.map((doc) => (
+                    paginatedMaster.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-foreground">{doc.documentRef}</TableCell>
                         <TableCell>{t(doc.natureOfDocument)}</TableCell>
@@ -2316,6 +2358,12 @@ export default function DocumentsContent() {
               </Table>
             )}
           </div>
+
+          <TablePagination
+            page={tablePage}
+            total={activeTableRowCount}
+            onPageChange={setTablePage}
+          />
 
           {/* Action strip (purely visual until backend exists) */}
           {/* <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">

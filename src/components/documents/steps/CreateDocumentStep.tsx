@@ -822,7 +822,7 @@ export default function CreateDocumentStep({
 
   return (
     <>
-      {/* First card under Step 1: Action Selection */}
+      {/* First card under Step 1: Action Selection — UI temporarily hidden
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -910,6 +910,7 @@ export default function CreateDocumentStep({
           ) : null}
         </CardContent>
       </Card>
+      */}
 
       <Card className="py-4">
         <CardContent className="space-y-4">
@@ -1122,7 +1123,7 @@ export default function CreateDocumentStep({
               <h5 className="text-lg font-semibold text-foreground">{t("Process Owner & Approver")}</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="process-owner">{t("Process Owner / Responsible Person *")}</Label>
+                  <Label htmlFor="process-owner">{t("Select Document Reviewer *")}</Label>
                   <Select
                     value={processOwner || undefined}
                     onValueChange={handleProcessOwnerChange}
@@ -1161,7 +1162,7 @@ export default function CreateDocumentStep({
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="doc-approver">{t("Approver *")}</Label>
+                  <Label htmlFor="doc-approver">{t("Select Document Approver *")}</Label>
                   <Select
                     value={approverName || undefined}
                     onValueChange={handleApproverChange}
