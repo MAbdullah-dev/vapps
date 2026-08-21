@@ -36,6 +36,7 @@ const fs = require("fs");
 const path = require("path");
 const { Client } = require("pg");
 const { PrismaClient } = require("@prisma/client");
+const { revealTenantConnectionString } = require("./lib/tenant-secrets");
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "tenant-migrations");
 const DEFAULT_STATEMENT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -190,10 +191,19 @@ async function migrateOneTenant({
   allFiles,
   args,
 }) {
-  const dsnLabel = safeDsnLabel(url);
+  let connectionString;
+  try {
+    connectionString = revealTenantConnectionString(url);
+  } catch (err) {
+    throw new Error(
+      `Failed to decrypt tenant connection string: ${err.message || err}`
+    );
+  }
+
+  const dsnLabel = safeDsnLabel(connectionString);
   const client = new Client({
-    connectionString: url,
-    ssl: sslOption(url),
+    connectionString,
+    ssl: sslOption(connectionString),
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
     statement_timeout: args.statementTimeoutMs,
   });

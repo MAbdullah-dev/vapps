@@ -256,7 +256,6 @@ export default function ProcessLayout({
           const storedSite = getSelectedSiteIdFromStorage(orgId as string);
           const defaultSite = storedSite || sites[0]?.id || "";
           setSelectedIssueSiteId(defaultSite);
-          setIsLoadingUsers(false);
         } else {
           setIsLoadingUsers(true);
           const [sprintsRes, usersRes] = await Promise.all([
@@ -271,6 +270,7 @@ export default function ProcessLayout({
         toast.error(t("Failed to load data"));
       } finally {
         setIsLoadingMetadata(false);
+        setIsLoadingUsers(false);
       }
     };
 
@@ -541,6 +541,12 @@ export default function ProcessLayout({
       editingIssue.issuer != null ? String(editingIssue.issuer) : "";
     return uid === assigneeId || (issuerId !== "" && uid === issuerId);
   }, [editingIssue?.id, editingIssue?.assignee, editingIssue?.issuer, currentUserId]);
+
+  const assignableUsers = useMemo(() => {
+    if (!currentUserId) return processUsers;
+    const uid = String(currentUserId);
+    return processUsers.filter((user) => String(user.id) !== uid);
+  }, [processUsers, currentUserId]);
 
   const handleAddComment = useCallback(async () => {
     if (!commentText.trim() || !canAddIssueComment) return;
@@ -1254,37 +1260,7 @@ export default function ProcessLayout({
                         setSelectedIssueProcessId(value);
                         setSelectedSprint("__backlog__");
                         if (issueFormErrors.sprintProcess) setIssueFormErrors((p) => ({ ...p, sprintProcess: false }));
-                        if (value && value !== "__none__") {
-                          try {
-                            setIsLoadingUsers(true);
-                            const [sprintsRes, usersRes] = await Promise.all([
-                              apiClient.getSprints(orgId as string, value),
-                              apiClient.getProcessUsers(orgId as string, value),
-                            ]);
-                            setSprints(sprintsRes.sprints?.map((s: any) => ({ id: s.id, name: s.name })) || []);
-                            setProcessUsers(usersRes.users || []);
-                          } catch {
-                            setSprints([]);
-                            setProcessUsers([]);
-                          } finally {
-                            setIsLoadingUsers(false);
-                          }
-                        } else {
-                          setSprints([]);
-                          try {
-                            const membersRes = await apiClient.getMembers(orgId as string);
-                            setProcessUsers(
-                              (membersRes.teamMembers || []).map((m) => ({
-                                id: m.id,
-                                name: m.name || m.email || "User",
-                                email: m.email,
-                                role: m.systemRole || "member",
-                              }))
-                            );
-                          } catch {
-                            setProcessUsers([]);
-                          }
-                        }
+                        await loadIssuePeopleAndSprints(value);
                       }}
                       disabled={isViewOnly || isCreatingIssue || isUpdatingIssue || isLoadingMetadata}
                     >
@@ -1414,7 +1390,7 @@ export default function ProcessLayout({
                       <Button
                         variant="outline"
                         role="combobox"
-                        disabled={isViewOnly || isCreatingIssue || isLoadingUsers || processUsers.length === 0}
+                        disabled={isViewOnly || isCreatingIssue || isLoadingUsers || assignableUsers.length === 0}
                         className={cn(
                           "w-full justify-between",
                           selectedAssignees.length === 0 && "text-muted-foreground",
@@ -1423,7 +1399,7 @@ export default function ProcessLayout({
                       >
                         {isLoadingUsers
                           ? t("Loading users...")
-                          : processUsers.length === 0
+                          : assignableUsers.length === 0
                             ? t("No users available")
                             : t("Select assignee(s)")}
                         <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
@@ -1434,7 +1410,7 @@ export default function ProcessLayout({
                       <Command>
                         <CommandEmpty>{t("No users found.")}</CommandEmpty>
                         <CommandGroup>
-                          {processUsers.map((user) => (
+                          {assignableUsers.map((user) => (
                             <CommandItem
                               key={user.id}
                               onSelect={() => {

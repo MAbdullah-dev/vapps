@@ -56,14 +56,35 @@ jobs:
               printf "%s %s\n" "$(ts)" "$*" | tee -a "$DEPLOY_LOG"
             }
 
+            # A half-written or missing .next leaves the running app unable to
+            # restart, so put the last known good build back before giving up.
+            restore_previous_build() {
+              if [ -f "$APP_DIR/.next/BUILD_ID" ]; then
+                return 0
+              fi
+
+              if [ ! -f "$APP_DIR/.next.prev/BUILD_ID" ]; then
+                return 0
+              fi
+
+              rm -rf "$APP_DIR/.next"
+              mv "$APP_DIR/.next.prev" "$APP_DIR/.next"
+
+              log "restored previous .next build"
+            }
+
             on_error() {
               local ec=$?
+
+              trap - ERR
 
               log "❌ DEPLOY FAILED at line $1"
               log "exit_code=$ec"
               log "commit=${GITHUB_SHA:-unknown}"
               log "ref=${GITHUB_REF_NAME:-unknown}"
               log "run=${GITHUB_RUN_ID:-unknown}"
+
+              restore_previous_build || true
 
               pm2 status || true
               pm2 logs "$PM2_APP_NAME" --lines 50 --nostream || true
@@ -112,11 +133,15 @@ jobs:
 
             git reset --hard origin/main
 
+            # .next is kept so the running app stays serviceable until the new
+            # build succeeds; it is replaced in the build step below.
             git clean -fdx \
               --exclude=.deploy \
               --exclude=node_modules \
               --exclude=.env \
-              --exclude=.env.local
+              --exclude=.env.local \
+              --exclude=.next \
+              --exclude=.next.prev
 
             if [ ! -s "$APP_DIR/.env" ]; then
               cp "$APP_DIR/.deploy/env.backup" "$APP_DIR/.env"
@@ -163,22 +188,6 @@ jobs:
             npx --no-install prisma db seed
 
             ###########################################################
-            # TENANT MIGRATIONS
-            ###########################################################
-
-            log "--- tenant DB migrate (--all, concurrency=$TENANT_CONCURRENCY) ---"
-
-            npm run tenant:migrate-all -- --concurrency "$TENANT_CONCURRENCY"
-
-            ###########################################################
-            # CLEAN NEXT BUILD
-            ###########################################################
-
-            log "--- clean old next build ---"
-
-            rm -rf .next
-
-            ###########################################################
             # BUILD
             ###########################################################
 
@@ -186,7 +195,21 @@ jobs:
 
             export NODE_ENV=production
 
+            rm -rf .next.prev
+
+            if [ -d .next ]; then
+              mv .next .next.prev
+            fi
+
             npm run build
+
+            ###########################################################
+            # TENANT MIGRATIONS
+            ###########################################################
+
+            log "--- tenant DB migrate (--all, concurrency=$TENANT_CONCURRENCY) ---"
+
+            npm run tenant:migrate-all -- --concurrency "$TENANT_CONCURRENCY"
 
             ###########################################################
             # PM2 RESTART
@@ -245,5 +268,7 @@ jobs:
               exit 1
 
             fi
+
+            rm -rf "$APP_DIR/.next.prev"
 
             log "=== DEPLOY SUCCESS ==="
