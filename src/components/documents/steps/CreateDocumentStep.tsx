@@ -45,6 +45,7 @@ import { useTranslate } from "@/components/providers/translation-provider";
 import {
   applyDraftPlaceholderRef,
   bumpVersionInRef,
+  compactSiteCode,
   DRAFT_DOC_NUMBER,
   isDraftPlaceholderRef,
   parseDocNumberSegment,
@@ -504,7 +505,7 @@ export default function CreateDocumentStep({
       ? t("Document body appears here after revision…")
       : t("Enter or paste document content…");
 
-  const currentSiteDisplay = siteId.trim() || "S1";
+  const currentSiteDisplay = compactSiteCode(siteId.trim() || "S1");
   const currentProcessDisplay = processName.trim() || processId.trim() || "P1";
   const currentProcessCode = extractProcessCode(currentProcessDisplay);
   const lockedSiteLabel = (() => {
@@ -526,7 +527,11 @@ export default function CreateDocumentStep({
   // Map transfer target site code (e.g. "S1") => its DB site id (uuid).
   useEffect(() => {
     if (!sites.length) return;
-    const matched = sites.find((s) => s.code === transferTargetSite);
+    const matched = sites.find(
+      (s) =>
+        s.code === transferTargetSite ||
+        compactSiteCode(s.code) === compactSiteCode(transferTargetSite)
+    );
     setTransferTargetSiteId(matched?.id ?? "");
   }, [sites, transferTargetSite]);
 
@@ -622,9 +627,9 @@ export default function CreateDocumentStep({
       const y = new Date().getFullYear();
       const cls = transferDocumentClass;
       const docSeg = cls === "EXT" ? "EXT" : pathDocNumber;
-      return `Doc/${y}/${transferTargetSite}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
+      return `Doc/${y}/${compactSiteCode(transferTargetSite)}/${transferTargetProcess}/${cls}/${docSeg}/v1`;
     }
-    const base = `Doc/${new Date().getFullYear()}/${siteId || "S1"}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
+    const base = `Doc/${new Date().getFullYear()}/${compactSiteCode(siteId || "S1")}/${currentProcessCode || "P1"}/${documentClassification}/${pathDocNumber}/v1`;
     if (isDraftRecord || (recordId && isDraftPlaceholderRef(initialPreviewDocRef ?? ""))) {
       return applyDraftPlaceholderRef(base);
     }
@@ -1028,7 +1033,7 @@ export default function CreateDocumentStep({
                   <Label htmlFor="site-id">{t("Site ID")}</Label>
                   <Input
                     id="site-id"
-                    value={siteId}
+                    value={compactSiteCode(siteId)}
                     readOnly
                     className="bg-muted text-muted-foreground"
                   />
@@ -1496,7 +1501,9 @@ export default function CreateDocumentStep({
                   <span className="text-xs text-muted-foreground">{t("Transfer to Site")}</span>
                   <div className="flex flex-wrap gap-2">
                     {transferSiteCodes.map((s) => {
-                      const on = transferTargetSite === s;
+                      const on =
+                        transferTargetSite === s ||
+                        compactSiteCode(transferTargetSite) === compactSiteCode(s);
                       return (
                         <button
                           key={s}
@@ -1513,7 +1520,7 @@ export default function CreateDocumentStep({
                               : "border-border bg-background text-muted-foreground hover:bg-muted/30"
                           }`}
                         >
-                          {s}
+                          {compactSiteCode(s)}
                         </button>
                       );
                     })}
@@ -1736,11 +1743,12 @@ export default function CreateDocumentStep({
           <div className="space-y-2">
             <Label>{t("Management System Standard *")}</Label>
             <Select
-              value={managementStandard}
+              value={managementStandard || undefined}
               onValueChange={(v) => {
                 setManagementStandard(v);
                 if (formErrors.managementStandard) setFormErrors((p) => ({ ...p, managementStandard: false }));
               }}
+              disabled={isLoadingStandards}
             >
               <SelectTrigger className={cn("w-full", requiredInputClass(!!formErrors.managementStandard))}>
                 <SelectValue
@@ -1748,11 +1756,17 @@ export default function CreateDocumentStep({
                 />
               </SelectTrigger>
               <SelectContent>
-                {standards.map((standard) => (
-                  <SelectItem key={standard.id} value={standard.id}>
-                    {standard.name}
-                  </SelectItem>
-                ))}
+                {standards.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    {isLoadingStandards ? t("Loading standards...") : t("No standards available")}
+                  </div>
+                ) : (
+                  standards.map((standard) => (
+                    <SelectItem key={standard.id} value={standard.id}>
+                      {standard.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             <DocFieldError show={!!formErrors.managementStandard} t={t} />
@@ -1762,7 +1776,7 @@ export default function CreateDocumentStep({
             <div className="space-y-2">
               <Label>{t("Clause")}</Label>
               <Select
-                value={clause}
+                value={clause || undefined}
                 onValueChange={setClause}
                 disabled={!managementStandard || isLoadingClauses}
               >
@@ -1789,7 +1803,7 @@ export default function CreateDocumentStep({
             <div className="space-y-2">
               <Label>{t("Sub-Clause")}</Label>
               <Select
-                value={subClause}
+                value={subClause || undefined}
                 onValueChange={setSubClause}
                 disabled={!clause || isLoadingClauses}
               >

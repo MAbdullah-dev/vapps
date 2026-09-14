@@ -28,7 +28,7 @@ import {
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
-import { docAlertInfo } from "@/lib/document-ui-classes";
+import { compactSiteCode, compactSiteCodeInDocumentRef } from "@/lib/documentRef";
 
 type DocumentsApiRecord = {
   id: string;
@@ -78,12 +78,12 @@ function mapRecordToTemplate(
   standardNameById: Record<string, string>
 ): FRecordTemplate {
   const formData = (row.form_data ?? {}) as Record<string, unknown>;
-  const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+  const documentRef = compactSiteCodeInDocumentRef(String(row.preview_doc_ref ?? "").trim() || "-");
   return {
     recordId: row.id,
     referenceNumber: documentRef,
     formTitle: String(formData.title ?? "").trim() || "-",
-    site: String(formData.siteId ?? formData.site ?? "").trim() || "-",
+    site: compactSiteCode(String(formData.siteId ?? formData.site ?? "").trim() || "-"),
     process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
     standard: resolveManagementStandardLabel(
       String(formData.managementStandard ?? ""),
@@ -432,6 +432,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                   const evId = String(latest?.id ?? "").trim();
                   const designatedId = String(latest?.designated_verifier_user_id ?? "").trim();
                   const isDesignatedVerifier = Boolean(userId && designatedId && userId === designatedId);
+                  const canVerifyRow = isVerifierTier && (!designatedId || isDesignatedVerifier);
                   const st = workflowStatusLabel(ws, t);
 
                   const startCaptureUrl = `${captureHref}?template=${encodeURIComponent(row.referenceNumber)}&recordId=${encodeURIComponent(row.recordId)}`;
@@ -537,7 +538,7 @@ export default function DocumentaryEvidenceTemplatesContent() {
                                       </Link>
                                     </Button>
                                   ) : null}
-                                  {isVerifierTier && isDesignatedVerifier ? (
+                                  {canVerifyRow ? (
                                     <Button
                                       type="button"
                                       size="sm"

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { generateMasterDocumentListPdfAsync } from "@/lib/masterDocumentPdf";
+import { generateDocumentaryEvidencePdf } from "@/lib/generateDocumentaryEvidencePdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,12 +16,15 @@ import {
   TablePagination,
 } from "@/components/ui/table-pagination";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +54,8 @@ import {
   Upload,
 } from "lucide-react";
 import { getDashboardPath } from "@/lib/subdomain";
-import { cn } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+import { cn, documentActorMatches } from "@/lib/utils";
 import {
   docAlertInfo,
   docAlertNote,
@@ -62,7 +67,6 @@ import {
   docMenuItemPrimary,
   docPositionBadge,
   docSearchInput,
-  docSelectTrigger,
   docStatusBadgeDanger,
   docStatusBadgeSuccess,
   docStatusBadgeWarning,
@@ -70,9 +74,12 @@ import {
 import { toast } from "sonner";
 import { getComplianceKpiFromDays, getDaysSince } from "@/lib/compliance-kpi";
 import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
+import { TenantStorageBanner } from "@/components/common/TenantStorageBanner";
 import { useTranslate } from "@/components/providers/translation-provider";
 import {
   applyDraftPlaceholderRef,
+  compactSiteCode,
+  compactSiteCodeInDocumentRef,
   DRAFT_DOC_NUMBER,
   isDraftPlaceholderRef,
 } from "@/lib/documentRef";
@@ -84,6 +91,21 @@ import {
 function displayCell(value: string, t: (text: string) => string): string {
   if (!value || value === "-") return t("—");
   return value;
+}
+
+function formatDdMmYyyy(value: Date | string | null | undefined): string {
+  if (!value) return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
+
+function formatTrackingNumber(raw: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s || s === "-") return "-";
+  if (/^\d+$/.test(s)) return s.padStart(4, "0");
+  return s;
 }
 
 function formatLocaleDate(
@@ -142,7 +164,9 @@ type DocumentsApiRecord = {
   form_data: Record<string, unknown> | null;
   wizard_data: Record<string, unknown> | null;
   workflow_status?: "draft" | "in_review" | "in_approval" | "approved";
-  lifecycle_status?: "active" | "obsolete";
+  lifecycle_status?: "active" | "archived" | "obsolete";
+  obsolete_at?: string | null;
+  archived_at?: string | null;
   created_by_user_id?: string | null;
   created_by_user_name: string | null;
   reviewed_by_user_name?: string | null;
@@ -273,6 +297,68 @@ function htmlToPlain(value: string): string {
     .trim();
 }
 
+type EvidenceRegisterSource = {
+  id: string;
+  template_record_id: string;
+  template_preview_ref: string;
+  workflow_status: string;
+  capture_data: Record<string, unknown>;
+  created_at: string;
+};
+
+type EvidenceRegisterView = {
+  documentRef: string;
+  title: string;
+  site: string;
+  docNumber: string;
+  version: string;
+  tracking: string;
+  effectiveDate: string;
+  kpi: "Consistent" | "Pending" | "Inconsistent";
+  recordStatus: "Success" | "Pending" | "Fail";
+  recordPosition: "Active" | "Captured";
+  isCompleted: boolean;
+};
+
+function toEvidenceRegisterView(
+  row: EvidenceRegisterSource,
+  titleByTemplateId: Record<string, string>
+): EvidenceRegisterView {
+  const cd =
+    row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {};
+  const ref = compactSiteCodeInDocumentRef(
+    row.template_preview_ref || String(cd.templateRef ?? "")
+  );
+  const refParts = ref.split("/").filter(Boolean);
+  const version = refParts.length > 0 ? refParts[refParts.length - 1] ?? "-" : "-";
+  const site = compactSiteCode(refParts.length > 2 ? refParts[2] ?? "-" : "-");
+  const docNumber = refParts.length > 5 ? refParts[5] ?? "-" : "-";
+  const fromCapture = String(cd.formTitle ?? "").trim();
+  const fromTemplate = String(titleByTemplateId[row.template_record_id] ?? "").trim();
+  const fromBody = htmlToPlain(String(cd.capturedData ?? "")).split("\n")[0]?.slice(0, 80) ?? "";
+  const title = fromCapture || fromTemplate || fromBody || "-";
+  const tracking = formatTrackingNumber(String(cd.lotBatchSerial ?? ""));
+  const isCompleted = String(row.workflow_status ?? "").trim() === "completed";
+  const captureDateObj = row.created_at ? new Date(row.created_at) : null;
+  const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
+  const { kpiLabel } = getComplianceKpiFromDays(daysSinceCapture, {
+    closed: isCompleted,
+  });
+  return {
+    documentRef: ref || "-",
+    title,
+    site,
+    docNumber,
+    version,
+    tracking,
+    effectiveDate: formatDdMmYyyy(captureDateObj),
+    kpi: kpiLabel,
+    recordStatus: isCompleted ? "Success" : "Pending",
+    recordPosition: isCompleted ? "Active" : "Captured",
+    isCompleted,
+  };
+}
+
 function normalizeDocNumberSeg(value: unknown): string | null {
   const m = /^D(\d+)$/i.exec(String(value ?? "").trim());
   return m ? `D${m[1]}` : null;
@@ -327,6 +413,7 @@ type ObsoleteDocumentRow = {
   site: string;
   docNumber: string;
   version: string;
+  lifecycleStatus: "archived" | "obsolete";
   obsoletedBy: string;
   obsoleteDate: string;
   replacedBy: string;
@@ -358,6 +445,23 @@ function ObsoleteTypeBadge({ type }: { type: ObsoleteDocumentRow["type"] }) {
       )}
     >
       {type}
+    </Badge>
+  );
+}
+
+function ObsoleteLifecycleBadge({ status }: { status: ObsoleteDocumentRow["lifecycleStatus"] }) {
+  const { t } = useTranslate();
+  if (status === "archived") {
+    return (
+      <Badge className="gap-1 rounded-md border-transparent bg-muted-foreground text-primary-foreground shadow-none hover:bg-muted-foreground/90">
+        <Archive className="size-3.5" aria-hidden />
+        {t("Archive")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="gap-1 rounded-md border-transparent bg-amber-600 text-white shadow-none hover:bg-amber-600/90 dark:bg-amber-700">
+      {t("Obsolete")}
     </Badge>
   );
 }
@@ -566,6 +670,7 @@ function MasterDocumentRowActionsMenu({
   onShare,
   onDownloadPdf,
   onDownloadExcel,
+  onObsolete,
 }: {
   row: MasterDocumentRow;
   editHref: string;
@@ -577,23 +682,42 @@ function MasterDocumentRowActionsMenu({
   onShare: (row: MasterDocumentRow, viewHref: string) => void | Promise<void>;
   onDownloadPdf: (row: MasterDocumentRow) => void | Promise<void>;
   onDownloadExcel: (row: MasterDocumentRow) => void;
+  onObsolete: (row: MasterDocumentRow) => void;
 }) {
   const { t } = useTranslate();
-  const workflowStep =
-    workflowStatus === "in_review"
-      ? "2"
-      : workflowStatus === "in_approval"
-        ? "3"
-        : workflowStatus === "approved"
-          ? "2"
-          : "1";
-  const workflowHref = `${editHref}&step=${workflowStep}`;
-  const workflowLabel =
-    workflowStatus === "in_review"
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? "";
+  const currentUserName = session?.user?.name ?? "";
+  const isReviewer = documentActorMatches(
+    currentUserId,
+    currentUserName,
+    row.processOwnerUserId,
+    row.processOwnerName
+  );
+  const isApprover = documentActorMatches(
+    currentUserId,
+    currentUserName,
+    row.approverUserId,
+    row.approverName
+  );
+  const isCreator = documentActorMatches(
+    currentUserId,
+    currentUserName,
+    row.createdByUserId,
+    row.createdByName
+  );
+  const showSubmitForReview = workflowStatus === "in_review" && isReviewer;
+  const showSubmitForApproval = workflowStatus === "in_approval" && isApprover;
+  const workflowHref = showSubmitForReview
+    ? `${editHref}&step=2`
+    : showSubmitForApproval
+      ? `${editHref}&step=3`
+      : null;
+  const workflowLabel = showSubmitForReview
+    ? t("Submit for Review")
+    : showSubmitForApproval
       ? t("Submit for Approval")
-      : workflowStatus === "in_approval"
-        ? t("Open Approval")
-        : t("Submit for Review");
+      : null;
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -630,15 +754,26 @@ function MasterDocumentRowActionsMenu({
             <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseUpdateHref}>
                 <Pencil size={16} className="text-muted-foreground" aria-hidden />
-                {t("Revise & Update")}
+                {t("Revise")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseTransferHref}>
                 <Pencil size={16} className="text-muted-foreground" aria-hidden />
-                {t("Revise & Transfer")}
+                {t("Transfer")}
               </Link>
             </DropdownMenuItem>
+            {isCreator ? (
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive"
+                onSelect={() => {
+                  onObsolete(row);
+                }}
+              >
+                <Archive size={16} aria-hidden />
+                {t("Obsolete")}
+              </DropdownMenuItem>
+            ) : null}
           </>
         )}
         <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
@@ -669,19 +804,23 @@ function MasterDocumentRowActionsMenu({
           <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-border" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-          {t("Workflow")}
-        </DropdownMenuLabel>
-        <DropdownMenuItem
-          asChild
-          className={docMenuItemPrimary}
-        >
-          <Link href={workflowHref}>
-            <Send size={16} aria-hidden />
-            {workflowLabel}
-          </Link>
-        </DropdownMenuItem>
+        {workflowHref && workflowLabel ? (
+          <>
+            <DropdownMenuSeparator className="my-2 bg-border" />
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+              {t("Workflow")}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              asChild
+              className={docMenuItemPrimary}
+            >
+              <Link href={workflowHref}>
+                <Send size={16} aria-hidden />
+                {workflowLabel}
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -699,12 +838,12 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
           className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={t("Row actions")}
         >
-          <MoreVertical className="size-[18px]" />
+          <MoreVertical className="size-4.5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className={cn("w-[200px]", docDropdownContent)}
+        className={cn("w-50", docDropdownContent)}
       >
         <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted focus:text-foreground">
           <Eye size={16} className="text-foreground" aria-hidden />
@@ -733,7 +872,23 @@ function ObsoleteDocumentRowActionsMenu({ onShare }: { onShare: () => void }) {
   );
 }
 
-function DocumentaryEvidenceRowActionsMenu() {
+function DocumentaryEvidenceRowActionsMenu({
+  viewHref,
+  verifyHref,
+  canProceedToVerify,
+  canDownloadPdf,
+  onShare,
+  onDownloadPdf,
+  onDownloadExcel,
+}: {
+  viewHref: string;
+  verifyHref: string;
+  canProceedToVerify: boolean;
+  canDownloadPdf: boolean;
+  onShare: () => void;
+  onDownloadPdf: () => void;
+  onDownloadExcel: () => void;
+}) {
   const { t } = useTranslate();
   return (
     <DropdownMenu modal={false}>
@@ -748,38 +903,57 @@ function DocumentaryEvidenceRowActionsMenu() {
           <MoreVertical className="size-[18px]" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className={cn("w-[220px]", docDropdownContent)}
-      >
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
-          <Eye size={16} className="text-foreground" aria-hidden />
-          {t("View")}
+      <DropdownMenuContent align="end" className={cn("w-[220px]", docDropdownContent)}>
+        <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
+          <Link href={viewHref}>
+            <Eye size={16} className="text-muted-foreground" aria-hidden />
+            {t("View")}
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-foreground focus:bg-muted">
-          <Pencil size={16} className="text-foreground" aria-hidden />
-          {t("Edit")}
+        <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-foreground outline-none focus:bg-muted"
+            onClick={() => onShare()}
+          >
+            <Share2 size={16} className="text-muted-foreground" />
+            {t("Share")}
+          </button>
         </DropdownMenuItem>
-        <DropdownMenuItem className={docMenuItemPrimary}>
-          <Share2 size={16} />
-          {t("Share")}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
+        <DropdownMenuItem
+          disabled={!canDownloadPdf}
+          className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground"
+          onSelect={() => {
+            if (canDownloadPdf) onDownloadPdf();
+          }}
+        >
           <FileDown size={16} aria-hidden />
           {t("Download PDF")}
         </DropdownMenuItem>
-        <DropdownMenuItem className={docMenuItemPrimary}>
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-primary focus:bg-accent focus:text-primary [&_svg]:text-primary"
+          onSelect={() => onDownloadExcel()}
+        >
           <FileSpreadsheet size={16} />
           {t("Download Excel")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-2 bg-border" />
-        <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-          {t("Record lifecycle")}
-        </DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground">
-          <Archive size={16} aria-hidden />
-          {t("Archive Record")}
-        </DropdownMenuItem>
+        {canProceedToVerify ? (
+          <>
+            <DropdownMenuSeparator className="my-2 bg-border" />
+            <DropdownMenuLabel className="px-2 py-1.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+              {t("Workflow")}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              asChild
+              className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-violet-600 focus:bg-accent focus:text-violet-600 [&_svg]:text-violet-600"
+            >
+              <Link href={verifyHref}>
+                <Send size={16} aria-hidden />
+                {t("Proceed to Verify")}
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -827,6 +1001,7 @@ function RecordsDisposalRowActionsMenu() {
 
 export default function DocumentsContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const { t, locale } = useTranslate();
   const orgId = (params?.orgId as string) || "";
   const createDocumentHref = orgId ? getDashboardPath(orgId, "documents/create") : "#";
@@ -834,7 +1009,18 @@ export default function DocumentsContent() {
   const documentaryEvidenceTemplatesHref = orgId
     ? getDashboardPath(orgId, "documents/documentary-evidence")
     : "#";
-  const [selectedTable, setSelectedTable] = useState<string>("Master Document List");
+  const captureRecordsHref = orgId
+    ? getDashboardPath(orgId, "documents/documentary-evidence/capture")
+    : "#";
+  const [selectedTable, setSelectedTable] = useState<string>(() =>
+    searchParams.get("table") === "records" ? "Documentary Evidence" : "Master Document List"
+  );
+
+  useEffect(() => {
+    if (searchParams.get("table") === "records") {
+      setSelectedTable("Documentary Evidence");
+    }
+  }, [searchParams]);
   const [search, setSearch] = useState("");
   const [tablePage, setTablePage] = useState(1);
   const [masterApiRows, setMasterApiRows] = useState<MasterDocumentRow[]>([]);
@@ -859,6 +1045,8 @@ export default function DocumentsContent() {
   const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [myDraftId, setMyDraftId] = useState<string | null>(null);
+  const [obsoleteTarget, setObsoleteTarget] = useState<MasterDocumentRow | null>(null);
+  const [obsoleteBusy, setObsoleteBusy] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -1007,13 +1195,14 @@ export default function DocumentsContent() {
           ) {
             documentRef = applyDraftPlaceholderRef(documentRef);
           }
+          documentRef = compactSiteCodeInDocumentRef(documentRef);
           return {
             id: row.id,
             documentRef,
             natureOfDocument,
             title: String(formData.title ?? "").trim() || "-",
             type: String(wizard.documentClassification ?? formData.docType ?? "").trim() || "-",
-            site: String(formData.siteId ?? formData.site ?? "").trim() || "-",
+            site: compactSiteCode(String(formData.siteId ?? formData.site ?? "").trim() || "-"),
             process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
             standard,
             clause: String(formData.clause ?? "").trim() || "-",
@@ -1052,7 +1241,9 @@ export default function DocumentsContent() {
         const mappedObsolete: ObsoleteDocumentRow[] = obsoleteRecords.map((row) => {
           const formData = (row.form_data ?? {}) as Record<string, unknown>;
           const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
-          const documentRef = String(row.preview_doc_ref ?? "").trim() || "-";
+          const documentRef = compactSiteCodeInDocumentRef(
+            String(row.preview_doc_ref ?? "").trim() || "-"
+          );
           const parts = documentRef.split("/").filter(Boolean);
           const docNumber = resolveObsoleteDocNumber(row);
           const version = parts.length >= 1 ? parts[parts.length - 1] ?? "-" : "-";
@@ -1061,6 +1252,12 @@ export default function DocumentsContent() {
             .trim();
           const type: "P" | "F" | "EXT" =
             typeRaw === "EXT" ? "EXT" : typeRaw === "F" ? "F" : "P";
+          const lifecycleStatus: ObsoleteDocumentRow["lifecycleStatus"] =
+            String(row.lifecycle_status ?? "").toLowerCase() === "obsolete" ? "obsolete" : "archived";
+          const statusDateRaw =
+            lifecycleStatus === "obsolete"
+              ? row.obsolete_at || row.archived_at || row.updated_at || row.created_at
+              : row.archived_at || row.updated_at || row.created_at;
           return {
             id: row.id,
             documentRef,
@@ -1068,11 +1265,12 @@ export default function DocumentsContent() {
             type,
             processOwner: String(formData.processName ?? formData.processId ?? "-"),
             standard: resolveStandard(formData.managementStandard),
-            site: String(formData.siteId ?? formData.site ?? "-"),
+            site: compactSiteCode(String(formData.siteId ?? formData.site ?? "-")),
             docNumber,
             version,
+            lifecycleStatus,
             obsoletedBy: String(row.created_by_user_name ?? "-"),
-            obsoleteDate: formatDate(row.updated_at || row.created_at),
+            obsoleteDate: formatDate(statusDateRaw),
             replacedBy: "-",
             archivedLocation: "Cloud",
           };
@@ -1153,11 +1351,6 @@ export default function DocumentsContent() {
     };
   }, [orgId]);
 
-  const evidenceCapturedOnly = useMemo(
-    () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "capture_submitted"),
-    [evidenceRows]
-  );
-
   const evidenceCompletedOnly = useMemo(
     () => evidenceRows.filter((r) => String(r.workflow_status ?? "").trim() === "completed"),
     [evidenceRows]
@@ -1165,7 +1358,7 @@ export default function DocumentsContent() {
 
   const filteredEvidence = useMemo(() => {
     if (selectedTable !== "Documentary Evidence") return [];
-    const source = evidenceCapturedOnly;
+    const source = evidenceRows;
     const q = search.trim().toLowerCase();
     if (!q) return source;
     return source.filter((row) => {
@@ -1173,6 +1366,7 @@ export default function DocumentsContent() {
       const haystack = [
         row.template_preview_ref,
         String(cd.templateRef ?? ""),
+        String(cd.formTitle ?? ""),
         String(cd.capturedData ?? ""),
         String(cd.shift ?? ""),
         String(cd.lotBatchSerial ?? ""),
@@ -1184,7 +1378,16 @@ export default function DocumentsContent() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [selectedTable, search, evidenceCapturedOnly]);
+  }, [selectedTable, search, evidenceRows]);
+
+  const evidenceTitleByTemplateId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const doc of masterApiRows) {
+      const title = String(doc.title ?? "").trim();
+      if (doc.id && title && title !== "-") map[doc.id] = title;
+    }
+    return map;
+  }, [masterApiRows]);
 
   const filteredDisposal = useMemo(() => {
     if (selectedTable !== "Records Disposal Log") return [];
@@ -1267,6 +1470,7 @@ export default function DocumentsContent() {
         row.site,
         row.docNumber,
         row.version,
+        row.lifecycleStatus,
         row.obsoletedBy,
         row.obsoleteDate,
         row.replacedBy,
@@ -1487,6 +1691,7 @@ export default function DocumentsContent() {
         t("Site"),
         t("Doc#"),
         t("Version"),
+        t("Status"),
         t("Obsoleted By"),
         t("Obsolete Date"),
         t("Replaced By"),
@@ -1501,6 +1706,7 @@ export default function DocumentsContent() {
         row.site,
         row.docNumber,
         row.version,
+        row.lifecycleStatus === "archived" ? t("Archive") : t("Obsolete"),
         row.obsoletedBy,
         row.obsoleteDate,
         row.replacedBy,
@@ -1516,62 +1722,33 @@ export default function DocumentsContent() {
       const headers = [
         t("Document Ref."),
         t("Title"),
-        t("Process Owner"),
-        t("Batch/Lot#"),
-        t("Year/Month"),
+        t("Type"),
         t("Site"),
         t("Doc#"),
         t("Version"),
-        t("Capture By"),
-        t("Capture Date"),
-        t("Verify By"),
-        t("Verify Date"),
+        t("Tracking#"),
+        t("Effective Date"),
         t("KPI"),
         t("Record Status"),
+        t("Record Position"),
       ];
       const rows = filteredEvidence.map((row) => {
-        const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
-        const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
-        const ref = row.template_preview_ref || String(cd.templateRef ?? "");
-        const refParts = ref.split("/").filter(Boolean);
-        const version = refParts.length > 0 ? refParts[refParts.length - 1] ?? "-" : "-";
-        const site = refParts.length > 2 ? refParts[2] ?? "-" : "-";
-        const processOwner = refParts.length > 3 ? refParts[3] ?? "-" : "-";
-        const docNum = refParts.length > 5 ? refParts[5] ?? "-" : "-";
-        const title = String(cd.capturedData ?? "").trim().slice(0, 60) || "-";
-        const batch = String(cd.lotBatchSerial ?? "").trim() || "-";
-        const captureDateObj = row.created_at ? new Date(row.created_at) : null;
-        const yearMonth = captureDateObj
-          ? `${captureDateObj.getFullYear()}/${String(captureDateObj.getMonth() + 1).padStart(2, "0")}`
-          : "-";
-        const captureBy = String(row.support_user_name ?? "").trim() || "-";
-        const captureDate = captureDateObj
-          ? formatLocaleDate(captureDateObj, locale)
-          : "-";
-        const verifyBy = String(row.designated_verifier_name ?? "").trim() || "-";
-        const verifyDate = va.completedAt
-          ? formatLocaleDate(String(va.completedAt), locale)
-          : "-";
-        const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
-        const { kpiLabel, statusLabel } = getComplianceKpiFromDays(daysSinceCapture);
+        const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
         return [
-          ref || "-",
-          title,
-          processOwner,
-          batch,
-          yearMonth,
-          site,
-          docNum,
-          version,
-          captureBy,
-          captureDate,
-          verifyBy,
-          verifyDate,
-          t(kpiLabel),
-          t(statusLabel),
+          view.documentRef,
+          view.title,
+          "F",
+          view.site,
+          view.docNumber,
+          view.version,
+          view.tracking,
+          view.effectiveDate,
+          t(view.kpi),
+          t(view.recordStatus),
+          t(view.recordPosition),
         ];
       });
-      downloadExcelTable("documentary-evidence.xls", headers, rows);
+      downloadExcelTable("records-register.xls", headers, rows);
       toast.success(t("Excel file downloaded."));
       return;
     }
@@ -1616,6 +1793,34 @@ export default function DocumentsContent() {
     copyShareUrlToClipboard(absoluteUrl, t);
   };
 
+  const requestObsoleteMasterRow = (row: MasterDocumentRow) => {
+    setObsoleteTarget(row);
+  };
+
+  const confirmObsoleteMasterRow = async () => {
+    if (!orgId || !obsoleteTarget || obsoleteBusy) return;
+    const deletedId = obsoleteTarget.id;
+    setObsoleteBusy(true);
+    try {
+      const res = await fetch(
+        `/api/organization/${orgId}/documents?id=${encodeURIComponent(deletedId)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(String(json.error ?? t("Could not delete this document.")));
+        return;
+      }
+      setMasterApiRows((prev) => prev.filter((row) => row.id !== deletedId));
+      setObsoleteTarget(null);
+      toast.success(t("Document deleted permanently."));
+    } catch {
+      toast.error(t("Could not delete this document."));
+    } finally {
+      setObsoleteBusy(false);
+    }
+  };
+
   const copyDocumentViewLink = (recordId: string) => {
     if (!orgId) {
       toast.error(t("Could not copy link."));
@@ -1638,6 +1843,102 @@ export default function DocumentsContent() {
     copyShareUrlToClipboard(absoluteUrl, t);
   };
 
+  const evidenceCaptureViewHref = (row: EvidenceRecordRow) => {
+    if (!orgId) return "#";
+    const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
+    const u = new URLSearchParams();
+    if (view.documentRef && view.documentRef !== "-") u.set("template", view.documentRef);
+    if (row.template_record_id) u.set("recordId", row.template_record_id);
+    u.set("evidenceRecordId", row.id);
+    u.set("mode", "view");
+    return `${getDashboardPath(orgId, "documents/documentary-evidence/capture")}?${u.toString()}`;
+  };
+
+  const evidenceVerifyHref = (row: EvidenceRecordRow) => {
+    if (!orgId) return "#";
+    const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
+    const u = new URLSearchParams();
+    if (view.documentRef && view.documentRef !== "-") u.set("template", view.documentRef);
+    if (row.template_record_id) u.set("recordId", row.template_record_id);
+    u.set("evidenceRecordId", row.id);
+    return `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?${u.toString()}`;
+  };
+
+  const copyEvidenceShareLink = (row: EvidenceRecordRow) => {
+    const relativePath = evidenceCaptureViewHref(row);
+    const absoluteUrl =
+      typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
+    copyShareUrlToClipboard(absoluteUrl, t);
+  };
+
+  const downloadEvidenceRowExcel = (row: EvidenceRecordRow) => {
+    const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
+    const headers = [
+      t("Document Ref."),
+      t("Title"),
+      t("Type"),
+      t("Site"),
+      t("Doc#"),
+      t("Version"),
+      t("Tracking#"),
+      t("Effective Date"),
+      t("KPI"),
+      t("Record Status"),
+      t("Record Position"),
+    ];
+    downloadExcelTable(`records-register-${sanitizeFilePart(view.docNumber || row.id)}.xls`, headers, [
+      [
+        view.documentRef,
+        view.title,
+        "F",
+        view.site,
+        view.docNumber,
+        view.version,
+        view.tracking,
+        view.effectiveDate,
+        t(view.kpi),
+        t(view.recordStatus),
+        t(view.recordPosition),
+      ],
+    ]);
+    toast.success(t("Excel file downloaded."));
+  };
+
+  const downloadEvidenceRowPdf = (row: EvidenceRecordRow) => {
+    const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
+    const cd =
+      row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {};
+    const va =
+      row.verify_archive_data && typeof row.verify_archive_data === "object"
+        ? row.verify_archive_data
+        : {};
+    try {
+      const n = new Date();
+      const p = (x: number) => String(x).padStart(2, "0");
+      const doc = generateDocumentaryEvidencePdf({
+        recordId: `REC-${row.id.slice(0, 8).toUpperCase()}`,
+        reference: view.documentRef,
+        formTitle: view.title,
+        capturedData: String(cd.capturedData ?? "").trim() || t("—"),
+        verifierName: String(row.designated_verifier_name ?? "").trim(),
+        verifierUserId: String(row.designated_verifier_user_id ?? "").trim(),
+        verificationComments: String(va.verificationComments ?? "").trim(),
+        archiveLocation: String(va.archiveLocation ?? "").trim() || t("Cloud"),
+        retentionPeriod: String(va.retentionPeriod ?? "").trim() || t("3 Years"),
+        archiveDate: `${p(n.getMonth() + 1)}/${n.getFullYear()}`,
+        retentionExpiry: String(n.getFullYear() + 3),
+        siteLabel: view.site,
+        lotBatchSerial: view.tracking,
+        shiftLabel: String(cd.shift ?? "").trim(),
+        captureByName: String(row.support_user_name ?? "").trim(),
+      });
+      doc.save(`documentary-evidence-${sanitizeFilePart(view.docNumber || row.id)}.pdf`);
+      toast.success(t("PDF downloaded."));
+    } catch {
+      toast.error(t("Could not generate PDF for this row."));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="py-4">
@@ -1655,8 +1956,8 @@ export default function DocumentsContent() {
                 {t("View and manage documents across different categories")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
+            <div className="flex flex-col items-stretch gap-2">
+              {/* <Button
                 asChild
                 variant="outline"
                 className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
@@ -1679,11 +1980,21 @@ export default function DocumentsContent() {
                     {t("Continue Draft")}
                   </Link>
                 </Button>
-              ) : null}
+              ) : null} */}
               <Button asChild variant="default" className="flex items-center gap-2">
                 <Link href={createDocumentHref}>
                   <Plus size={16} />
                   {t("Create Document")}
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 hover:text-primary"
+              >
+                <Link href={captureRecordsHref}>
+                  <FileText size={16} />
+                  {t("Capture Records")}
                 </Link>
               </Button>
             </div>
@@ -1691,38 +2002,44 @@ export default function DocumentsContent() {
         </CardContent>
       </Card>
 
-      {/* Select table */}
-      <Card className="py-4">
-        <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="w-full sm:w-auto">
-            <p className="mb-2 text-xs text-muted-foreground">{t("Select Table")}</p>
-            <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className={cn(docSelectTrigger, "sm:min-w-[340px] sm:max-w-[520px]")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Master Document List">
-                  {t("Master Document List")}
-                </SelectItem>
-                <SelectItem value="Obsolete Document Register">
-                  {t("Obsolete Document Register")}
-                </SelectItem>
-                <SelectItem value="Documentary Evidence">
-                  {t("Documentary Evidence (F) - Completed Form/Template - Archive")}
-                </SelectItem>
-                <SelectItem value="Records Disposal Log">
-                  {t("Records Disposal Log (F) - Completed Form/Template")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <TenantStorageBanner organizationName={organizationName} />
 
       {/* Main list */}
       <Card>
         <CardContent className="space-y-4">
-          {selectedTable === "Obsolete Document Register" ? (
+          <div
+            role="tablist"
+            aria-label={t("Document tables")}
+            className="inline-flex w-fit items-center rounded-full bg-muted p-1"
+          >
+            <Button
+              type="button"
+              role="tab"
+              aria-selected={selectedTable === "Master Document List"}
+              variant={selectedTable === "Master Document List" ? "default" : "ghost"}
+              className="h-10 rounded-full px-5 text-sm font-semibold shadow-none"
+              onClick={() => {
+                setSelectedTable("Master Document List");
+                setSearch("");
+              }}
+            >
+              {t("Master Document List")}
+            </Button>
+            <Button
+              type="button"
+              role="tab"
+              aria-selected={selectedTable === "Documentary Evidence"}
+              variant={selectedTable === "Documentary Evidence" ? "default" : "ghost"}
+              className="h-10 rounded-full px-5 text-sm font-semibold shadow-none"
+              onClick={() => {
+                setSelectedTable("Documentary Evidence");
+                setSearch("");
+              }}
+            >
+              {t("Records Register")}
+            </Button>
+          </div>
+          {selectedTable === "Documentary Evidence" ? null : selectedTable === "Obsolete Document Register" ? (
             <div
               className={cn(docAlertInfo, "text-sm")}
               role="note"
@@ -1733,26 +2050,13 @@ export default function DocumentsContent() {
                 <span className="font-medium">{t("new version")}</span>{" "}
                 {t("of a document is created as a revision and")}{" "}
                 <span className="font-medium">{t("approved")}</span>
-                {t(", the previous version is moved here automatically (it stays linked to the new active record). Obsolete rows are")}{" "}
-                <span className="font-medium">{t("permanently deleted")}</span> {t("once")}{" "}
+                {t(", the previous version is")}{" "}
+                <span className="font-medium">{t("archived")}</span>{" "}
+                {t("here and stays linked to the new active record. After")}{" "}
                 <span className="font-medium">{t("three years")}</span>{" "}
-                {t("have passed since they became obsolete; cleanup runs when document lists are loaded.")}
-              </p>
-            </div>
-          ) : null}
-          {selectedTable === "Documentary Evidence" ? (
-            <div
-              className={cn(docAlertSuccess, "text-sm")}
-              role="note"
-            >
-              <p className={docAlertNoteTitle}>
-                {t("Captured F-type evidence records — awaiting verification")}
-              </p>
-              <p className="mt-2 leading-relaxed">
-                {t("This table shows F-type documentary evidence records where the")}{" "}
-                <span className="font-medium">{t("capture step is complete")}</span>{" "}
-                {t("but verification is still pending. Once the designated verifier completes Verify & Archive, the record moves to the")}{" "}
-                <span className="font-medium">{t("Records Disposal Log")}</span>.
+                {t("as archived, its status becomes")}{" "}
+                <span className="font-medium">{t("obsolete")}</span>
+                {t("; this update runs when document lists are loaded.")}
               </p>
             </div>
           ) : null}
@@ -1770,25 +2074,13 @@ export default function DocumentsContent() {
               </p>
             </div>
           ) : null}
-          {selectedTable === "Master Document List" ? (
-            <div
-              className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground"
-              role="note"
-            >
-              <p className="leading-relaxed">
-                {t("Revising an")} <span className="font-medium">{t("approved")}</span>{" "}
-                {t("document creates a new version; when that new version completes approval, the prior version appears in the")}{" "}
-                <span className="font-medium">{t("Obsolete Document Register")}</span>.
-              </p>
-            </div>
-          ) : null}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-foreground">
                 {selectedTable === "Obsolete Document Register"
                   ? t("Obsolete Document Register P/F")
                   : selectedTable === "Documentary Evidence"
-                    ? t("Documentary Evidence (F) - Completed Form/Template - Archive")
+                    ? ""
                     : selectedTable === "Records Disposal Log"
                       ? t("Records Disposal Log (F) - Completed Form/Template")
                       : t(selectedTable)}
@@ -1806,7 +2098,9 @@ export default function DocumentsContent() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className={docSearchInput}
-                  placeholder={t("Search...")}
+                  placeholder={
+                    selectedTable === "Documentary Evidence" ? t("Fetch...") : t("Search...")
+                  }
                   aria-label={t("Search")}
                 />
               </div>
@@ -1935,6 +2229,7 @@ export default function DocumentsContent() {
                             onShare={shareMasterRow}
                             onDownloadPdf={downloadMasterRowPdf}
                             onDownloadExcel={downloadMasterRowExcel}
+                            onObsolete={requestObsoleteMasterRow}
                           />
                         </TableCell>
                       </TableRow>
@@ -1960,6 +2255,7 @@ export default function DocumentsContent() {
                     <ObsoleteRegisterColumnHead title={t("Site")} />
                     <ObsoleteRegisterColumnHead title={t("Doc#")} />
                     <ObsoleteRegisterColumnHead title={t("Version")} />
+                    <ObsoleteRegisterColumnHead title={t("Status")} />
                     <ObsoleteRegisterColumnHead title={t("Obsoleted By")} />
                     <ObsoleteRegisterColumnHead title={t("Obsolete Date")} />
                     <ObsoleteRegisterColumnHead title={t("Replaced By")} hint={t("(If Any)")} />
@@ -1972,17 +2268,17 @@ export default function DocumentsContent() {
                 <TableBody>
                   {!documentsLoaded && orgId ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
                         {t("Loading…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredObsolete.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
                           ? t("Open this page from your organization dashboard to load documents.")
                           : obsoleteApiRows.length === 0
-                            ? t("No obsolete documents. Superseded versions appear here after a new revision is approved.")
+                            ? t("No superseded documents. Previous versions appear here as archived after a new revision is approved.")
                             : t("No obsolete documents match your search.")}
                       </TableCell>
                     </TableRow>
@@ -2008,6 +2304,9 @@ export default function DocumentsContent() {
                       <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.site}</TableCell>
                       <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">{row.docNumber}</TableCell>
                       <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.version}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <ObsoleteLifecycleBadge status={row.lifecycleStatus} />
+                      </TableCell>
                       <TableCell className="px-3 py-2.5 text-sm text-foreground">{row.obsoletedBy}</TableCell>
                       <TableCell className="px-3 py-2.5 text-sm whitespace-nowrap text-foreground">
                         {row.obsoleteDate}
@@ -2028,130 +2327,125 @@ export default function DocumentsContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
-                    <ObsoleteRegisterColumnHead
-                      title={t("Document Ref.")}
-                      hint={t("(Doc/Year/Site/Process/Type/Doc#/Version)")}
-                    />
-                    <ObsoleteRegisterColumnHead title={t("Title")} />
-                    <ObsoleteRegisterColumnHead
-                      title={t("Process Owner")}
-                      hint={t("(P1=Quality, P2=Manufacturing...)")}
-                    />
-                    <ObsoleteRegisterColumnHead title={t("Batch/Lot#")} />
-                    <ObsoleteRegisterColumnHead title={t("Year/Month")} />
-                    <ObsoleteRegisterColumnHead title={t("Site")} />
-                    <ObsoleteRegisterColumnHead title={t("Doc#")} />
-                    <ObsoleteRegisterColumnHead title={t("Version")} />
-                    <ObsoleteRegisterColumnHead title={t("Capture By")} />
-                    <ObsoleteRegisterColumnHead title={t("Capture Date")} />
-                    <ObsoleteRegisterColumnHead title={t("Verify By")} />
-                    <ObsoleteRegisterColumnHead title={t("Verify Date")} />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title={t("KPI")}
-                      hint={t("≤30d Green · >30d Yellow · >40d Red")}
-                    />
-                    <ObsoleteRegisterColumnHead
-                      align="center"
-                      title={t("Record Status")}
-                      hint={t("Success / Pending / Fail")}
-                    />
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Document Ref.")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Title")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Type")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Site")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Doc#")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Version")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-primary whitespace-nowrap">
+                      {t("Tracking#")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
+                      {t("Effective Date")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-primary whitespace-nowrap">
+                      {t("KPI")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-primary whitespace-nowrap">
+                      {t("Record Status")}
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold text-primary whitespace-nowrap">
+                      {t("Record Position")}
+                    </TableHead>
+                    <TableHead className="w-[56px] text-center text-xs font-semibold text-foreground">
+                      {t("Actions")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!evidenceLoaded ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
                         {t("Loading evidence records…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredEvidence.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
-                        {evidenceCapturedOnly.length === 0
-                          ? t("No documentary evidence records loaded yet. This view will use captured F-type records when the API is connected.")
+                      <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
+                        {evidenceRows.length === 0
+                          ? t("No documentary evidence records yet. Use Capture Records to add one.")
                           : t("No records match your search.")}
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginatedEvidence.map((row) => {
-                      const cd = (row.capture_data && typeof row.capture_data === "object" ? row.capture_data : {}) as Record<string, unknown>;
-                      const va = (row.verify_archive_data && typeof row.verify_archive_data === "object" ? row.verify_archive_data : {}) as Record<string, unknown>;
-                      const ref = row.template_preview_ref || String(cd.templateRef ?? "");
-                      const refParts = ref.split("/").filter(Boolean);
-                      const version = refParts.length > 0 ? refParts[refParts.length - 1] : "-";
-                      const site = refParts.length > 2 ? refParts[2] : "-";
-                      const processOwner = refParts.length > 3 ? refParts[3] : "-";
-                      const docNum = refParts.length > 5 ? refParts[5] : "-";
-                      const title = String(cd.capturedData ?? "").trim().slice(0, 60) || "-";
-                      const batch = String(cd.lotBatchSerial ?? "").trim() || "-";
-                      const captureDateObj = row.created_at ? new Date(row.created_at) : null;
-                      const yearMonth = captureDateObj
-                        ? `${captureDateObj.getFullYear()}/${String(captureDateObj.getMonth() + 1).padStart(2, "0")}`
-                        : "-";
-                      const captureBy = String(row.support_user_name ?? "").trim() || "-";
-                      const captureDate = captureDateObj
-                        ? formatLocaleDate(captureDateObj, locale)
-                        : "-";
-                      const verifyBy = String(row.designated_verifier_name ?? "").trim() || "-";
-                      const verifyDate = va.completedAt
-                        ? formatLocaleDate(String(va.completedAt), locale)
-                        : "-";
-                      const daysSinceCapture = captureDateObj ? getDaysSince(captureDateObj) : 0;
-                      const { kpiLabel, statusLabel, kpiColorClass: kpiColor, statusBadgeClass: statusBg } =
-                        getComplianceKpiFromDays(daysSinceCapture);
-
+                      const view = toEvidenceRegisterView(row, evidenceTitleByTemplateId);
                       return (
                         <TableRow key={row.id} className="border-b border-border hover:bg-muted/20">
                           <TableCell className="px-3 py-2.5 text-sm font-medium text-foreground whitespace-nowrap">
-                            {displayCell(ref, t)}
+                            {displayCell(view.documentRef, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground max-w-[180px]">
-                            {displayCell(title, t)}
+                          <TableCell className="max-w-[200px] px-3 py-2.5 text-sm text-foreground">
+                            {displayCell(view.title, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(processOwner, t)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(batch, t)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
-                            {displayCell(yearMonth, t)}
+                          <TableCell className="px-3 py-2.5">
+                            <ObsoleteTypeBadge type="F" />
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(site, t)}
+                            {displayCell(view.site, t)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">
-                            {displayCell(docNum, t)}
+                            {displayCell(view.docNumber, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(version, t)}
+                          <TableCell className="px-3 py-2.5 text-sm font-semibold text-amber-600">
+                            {displayCell(view.version, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(captureBy, t)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
-                            {displayCell(captureDate, t)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm text-foreground">
-                            {displayCell(verifyBy, t)}
+                          <TableCell className="px-3 py-2.5 text-sm font-semibold text-amber-600">
+                            {displayCell(view.tracking, t)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
-                            {displayCell(verifyDate, t)}
+                            {displayCell(view.effectiveDate, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-center">
-                            <span className={cn("text-sm font-semibold", kpiColor)}>{t(kpiLabel)}</span>
+                          <TableCell className="px-3 py-2.5">
+                            <EvidenceKpiText kpi={view.kpi} />
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-center">
+                          <TableCell className="px-3 py-2.5">
                             <span
                               className={cn(
-                                "inline-block rounded-md px-3 py-1 text-xs font-semibold",
-                                statusBg,
-                                complianceStatusTextClass(statusLabel)
+                                "text-sm font-semibold",
+                                view.recordStatus === "Success"
+                                  ? "text-primary"
+                                  : view.recordStatus === "Fail"
+                                    ? "text-destructive"
+                                    : "text-amber-600"
                               )}
                             >
-                              {t(statusLabel)}
+                              {t(view.recordStatus)}
                             </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5">
+                            <span
+                              className={cn(
+                                "text-sm font-semibold",
+                                view.recordPosition === "Active" ? "text-primary" : "text-amber-600"
+                              )}
+                            >
+                              {t(view.recordPosition)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-3 py-2.5 text-center">
+                            <DocumentaryEvidenceRowActionsMenu
+                              viewHref={evidenceCaptureViewHref(row)}
+                              verifyHref={evidenceVerifyHref(row)}
+                              canProceedToVerify={!view.isCompleted}
+                              canDownloadPdf={view.isCompleted}
+                              onShare={() => copyEvidenceShareLink(row)}
+                              onDownloadPdf={() => downloadEvidenceRowPdf(row)}
+                              onDownloadExcel={() => downloadEvidenceRowExcel(row)}
+                            />
                           </TableCell>
                         </TableRow>
                       );
@@ -2420,6 +2714,38 @@ export default function DocumentsContent() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={obsoleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !obsoleteBusy) setObsoleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Delete this document permanently?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("This will permanently delete the document. This action cannot be undone.")}
+              {obsoleteTarget?.title && obsoleteTarget.title !== "-" ? (
+                <span className="mt-2 block font-medium text-foreground">{obsoleteTarget.title}</span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={obsoleteBusy}>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={obsoleteBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmObsoleteMasterRow();
+              }}
+            >
+              {obsoleteBusy ? t("Deleting...") : t("Obsolete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

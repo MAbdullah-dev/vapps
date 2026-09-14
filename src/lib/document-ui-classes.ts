@@ -120,6 +120,9 @@ export const docEvidenceStepIdle =
 export const docEvidenceStepIconCurrent =
   "h-8 w-8 rounded-full border border-primary-foreground/30 bg-primary-foreground/15 flex items-center justify-center";
 
+export const docEvidenceStepIconIdle =
+  "h-8 w-8 rounded-full border border-border bg-muted flex items-center justify-center";
+
 export const docAckBox =
   "rounded-lg border border-primary/30 bg-primary/10 px-4 py-3";
 

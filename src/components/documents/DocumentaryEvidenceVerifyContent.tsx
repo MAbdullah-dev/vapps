@@ -9,13 +9,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
   canViewDocumentaryEvidenceWorkflow,
-  isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
 import VerifyArchiveEvidenceStep, {
   type DesignatedVerifier,
 } from "@/components/documents/steps/VerifyArchiveEvidenceStep";
 import type { EvidencePdfData } from "@/lib/generateDocumentaryEvidencePdf";
+import { compactSiteCode, compactSiteCodeInDocumentRef } from "@/lib/documentRef";
+import {
+  buildManagementStandardNameMap,
+  resolveManagementStandardLabel,
+} from "@/lib/management-standard-label";
 
 type EvidenceRow = {
   id?: string;
@@ -53,17 +57,25 @@ export default function DocumentaryEvidenceVerifyContent() {
   const recordsHref = orgId ? getDashboardPath(orgId, "documents/documentary-evidence") : "/";
 
   const evidenceRecordId = searchParams.get("evidenceRecordId")?.trim() ?? "";
-  const templateRecordId = searchParams.get("recordId")?.trim() ?? "";
-  const templateRef = searchParams.get("template")?.trim() ?? "";
+  const templateRecordIdFromUrl = searchParams.get("recordId")?.trim() ?? "";
+  const templateRefFromUrl = searchParams.get("template")?.trim() ?? "";
 
   const [meReady, setMeReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
   const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
 
   const [evidence, setEvidence] = useState<EvidenceRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfTemplateMeta, setPdfTemplateMeta] = useState<Partial<EvidencePdfData>>({});
+
+  const templateRecordId =
+    templateRecordIdFromUrl || String(evidence?.template_record_id ?? "").trim();
+  const templateRef =
+    templateRefFromUrl || String(evidence?.template_preview_ref ?? "").trim();
 
   useEffect(() => {
     let ignore = false;
@@ -73,11 +85,18 @@ export default function DocumentaryEvidenceVerifyContent() {
         return;
       }
       try {
-        const res = await fetch(`/api/organization/${orgId}/me`, { credentials: "include" });
-        const j = res.ok ? await res.json() : {};
+        const [meRes, profileRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/me`, { credentials: "include" }),
+          fetch("/api/user/profile", { credentials: "include" }),
+        ]);
+        const j = meRes.ok ? await meRes.json() : {};
+        const profile = profileRes.ok ? await profileRes.json() : {};
         if (!ignore) {
           setUserId(typeof j.userId === "string" ? j.userId : null);
           setLeadershipTier(typeof j.leadershipTier === "string" ? j.leadershipTier : undefined);
+          setUserName(String(profile.name ?? profile.email ?? "").trim());
+          setJobTitle(String(profile.jobTitle ?? j.jobTitle ?? "").trim());
+          setEmployeeId(String(profile.employeeId ?? "").trim());
         }
       } catch {
         if (!ignore) {
@@ -139,14 +158,16 @@ export default function DocumentaryEvidenceVerifyContent() {
     let cancelled = false;
     (async () => {
       try {
-        const [docRes, orgRes] = await Promise.all([
+        const [docRes, orgRes, checklistsRes] = await Promise.all([
           fetch(`/api/organization/${orgId}/documents?id=${encodeURIComponent(templateRecordId)}`, {
             credentials: "include",
           }),
           fetch(`/api/organization/${orgId}/organization-info`, { credentials: "include" }),
+          fetch(`/api/organization/${orgId}/audit-checklists`, { credentials: "include" }),
         ]);
         const docJ = docRes.ok ? await docRes.json() : {};
         const orgJ = orgRes.ok ? await orgRes.json() : {};
+        const checklistsJ = checklistsRes.ok ? await checklistsRes.json() : {};
         if (cancelled) return;
         const row = Array.isArray(docJ?.records) ? docJ.records[0] : null;
         const fd =
@@ -158,12 +179,25 @@ export default function DocumentaryEvidenceVerifyContent() {
             ? (orgJ.organizationInfo as Record<string, unknown>)
             : {};
         const orgName = String(oi.organizationName ?? oi.companyName ?? oi.name ?? "").trim();
+        const standardNameById = buildManagementStandardNameMap(
+          Array.isArray(checklistsJ?.checklists) ? checklistsJ.checklists : []
+        );
+        const previewRef = compactSiteCodeInDocumentRef(
+          String(row?.preview_doc_ref ?? templateRef ?? "").trim()
+        );
+        const refParts = previewRef.split("/").filter(Boolean);
+        const siteFromRef = compactSiteCode(refParts[2] ?? "");
+        const processFromRef = String(refParts[3] ?? "").trim();
+        const siteFromForm = compactSiteCode(String(fd.siteId ?? fd.site ?? "").trim());
+        const processFromForm = String(fd.processName ?? fd.processId ?? "").trim();
         setPdfTemplateMeta({
           companyName: orgName || undefined,
           formTitle: String(fd.title ?? "").trim() || undefined,
-          siteLabel: String(fd.siteId ?? "").trim() || undefined,
-          processLabel: String(fd.processName ?? "").trim() || undefined,
-          standardLabel: String(fd.managementStandard ?? "").trim() || undefined,
+          siteLabel: siteFromRef || siteFromForm || undefined,
+          processLabel: processFromRef || processFromForm || undefined,
+          standardLabel:
+            resolveManagementStandardLabel(String(fd.managementStandard ?? ""), standardNameById) ||
+            undefined,
           clauseLabel: String(fd.clause ?? "").trim() || undefined,
           subClauseLabel: String(fd.subClause ?? "").trim() || undefined,
         });
@@ -197,8 +231,14 @@ export default function DocumentaryEvidenceVerifyContent() {
     }
     const arch = new Date();
     const recordsArchiveYm = `${arch.getFullYear()} / ${String(arch.getMonth() + 1).padStart(2, "0")}`;
+    const ref = compactSiteCodeInDocumentRef(
+      templateRef || String(evidence?.template_preview_ref ?? "").trim()
+    );
+    const refParts = ref.split("/").filter(Boolean);
     return {
       ...pdfTemplateMeta,
+      siteLabel: pdfTemplateMeta.siteLabel || compactSiteCode(refParts[2] ?? "") || undefined,
+      processLabel: pdfTemplateMeta.processLabel || String(refParts[3] ?? "").trim() || undefined,
       lotBatchSerial: String(captureData.lotBatchSerial ?? "").trim() || undefined,
       shiftLabel: String(captureData.shift ?? "").trim() || undefined,
       captureByName: String(evidence?.support_user_name ?? "").trim() || undefined,
@@ -207,22 +247,29 @@ export default function DocumentaryEvidenceVerifyContent() {
       captureTimeLabel,
       recordsArchiveYm,
     };
-  }, [pdfTemplateMeta, captureData, evidence]);
+  }, [pdfTemplateMeta, captureData, evidence, templateRef]);
 
-  const designatedVerifier: DesignatedVerifier | null = useMemo(() => {
-    const uid = String(evidence?.designated_verifier_user_id ?? "").trim();
-    const name = String(evidence?.designated_verifier_name ?? "").trim();
-    if (!uid) return null;
-    return { userId: uid, name: name || uid };
-  }, [evidence]);
+  const designatedVerifier: DesignatedVerifier = useMemo(() => {
+    const storedUid = String(evidence?.designated_verifier_user_id ?? "").trim();
+    const storedName = String(evidence?.designated_verifier_name ?? "").trim();
+    if (storedUid) {
+      return { userId: storedUid, name: storedName || storedUid };
+    }
+    if (!isTopOrOperationalLeadershipTier(leadershipTier)) {
+      return { userId: "", name: "" };
+    }
+    const displayName = jobTitle && userName ? `${userName} (${jobTitle})` : userName || userId || "";
+    const displayId = employeeId || userId || "";
+    return { userId: displayId, name: displayName };
+  }, [evidence, userId, userName, jobTitle, employeeId, leadershipTier]);
 
   const workflowStatus = String(evidence?.workflow_status ?? "").trim();
 
   const canAccessRoute = canViewDocumentaryEvidenceWorkflow(leadershipTier);
-  const isSupport = isSupportLeadershipTier(leadershipTier);
   const isVerifierTier = isTopOrOperationalLeadershipTier(leadershipTier);
-  const isDesignatedVerifier =
-    Boolean(userId && designatedVerifier && designatedVerifier.userId === userId);
+  const storedDesignatedId = String(evidence?.designated_verifier_user_id ?? "").trim();
+  const isDesignatedVerifier = Boolean(userId && storedDesignatedId && storedDesignatedId === userId);
+  const canCompleteVerification = isVerifierTier && (!storedDesignatedId || isDesignatedVerifier);
 
   const captureViewHref = useMemo(() => {
     const ref = templateRef || String(evidence?.template_preview_ref ?? "").trim();
@@ -288,103 +335,36 @@ export default function DocumentaryEvidenceVerifyContent() {
     );
   }
 
-  if (workflowStatus === "capture_submitted") {
-    if (isSupport) {
-      return (
-        <div className="space-y-4">
-          <Card className="border border-sky-200 bg-sky-50">
-            <CardContent className="py-6 space-y-3">
-              <h2 className="text-lg font-semibold text-sky-900">Awaiting designated verifier</h2>
-              <p className="text-sm text-sky-800 leading-relaxed">
-                Capture has been submitted. The designated verifier must complete verification and archive. You can
-                review captured data in read-only mode.
-              </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <Button asChild variant="outline" className="bg-background">
-                  <Link href={captureViewHref}>View capture</Link>
-                </Button>
-                <Button asChild variant="ghost">
-                  <Link href={recordsHref}>Back to templates</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-    if (!isVerifierTier || !isDesignatedVerifier) {
-      return (
-        <Card className="border-amber-200 bg-amber-50/90">
-          <CardContent className="py-10 text-center space-y-3">
-            <h2 className="text-lg font-semibold text-amber-950">Not your verification task</h2>
-            <p className="text-sm text-amber-900/90 max-w-md mx-auto">
-              Only the designated Top/Operational verifier selected during capture can complete this step.
-            </p>
-            <Button asChild variant="outline">
-              <Link href={recordsHref}>Back to templates</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
-    if (!designatedVerifier || !evidenceRecordId) {
-      return null;
-    }
-    const ref = templateRef || String(evidence.template_preview_ref ?? "").trim();
-    return (
-      <div className="space-y-6">
-        <nav className="text-sm text-muted-foreground">
-          <ol className="flex flex-wrap items-center gap-1.5">
-            <li>
-              <Link href={documentsHref} className="hover:underline">
-                Documents
-              </Link>
-            </li>
-            <li>/</li>
-            <li>
-              <Link href={recordsHref} className="hover:underline">
-                Documentary Evidence Records
-              </Link>
-            </li>
-            <li>/</li>
-            <li className="font-medium text-foreground">Verify &amp; Archive</li>
-          </ol>
-        </nav>
-        <VerifyArchiveEvidenceStep
-          orgId={orgId}
-          evidenceRecordId={evidenceRecordId}
-          templateRef={ref}
-          initialCapturedData={initialCapturedText}
-          designatedVerifier={designatedVerifier}
-          stepMode="edit"
-          pdfContext={pdfContext}
-          onBack={() => router.push(recordsHref)}
-          onConfirmComplete={() => router.push(recordsHref)}
-        />
-      </div>
+  if (workflowStatus === "capture_submitted" || workflowStatus === "completed") {
+    if (!evidenceRecordId) return null;
+    const ref = compactSiteCodeInDocumentRef(
+      templateRef || String(evidence.template_preview_ref ?? "").trim()
     );
-  }
-
-  if (workflowStatus === "completed") {
-    if (!designatedVerifier || !evidenceRecordId) return null;
-    const ref = templateRef || String(evidence.template_preview_ref ?? "").trim();
+    const isCompleted = workflowStatus === "completed";
+    const canEdit = !isCompleted && canCompleteVerification;
     return (
       <div className="space-y-6">
-        <nav className="text-sm text-muted-foreground">
+        <nav aria-label="Breadcrumb" className="text-sm">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
-              <Link href={documentsHref} className="hover:underline">
+              <Link href={documentsHref} className="text-muted-foreground hover:text-foreground">
                 Documents
               </Link>
             </li>
-            <li>/</li>
+            <li className="text-muted-foreground/70">›</li>
             <li>
-              <Link href={recordsHref} className="hover:underline">
+              <Link href={recordsHref} className="text-muted-foreground hover:text-foreground">
                 Documentary Evidence Records
               </Link>
             </li>
-            <li>/</li>
-            <li className="font-medium text-foreground">Record (Active)</li>
+            <li className="text-muted-foreground/70">›</li>
+            <li>
+              <Link href={captureViewHref} className="text-muted-foreground hover:text-foreground">
+                Capture
+              </Link>
+            </li>
+            <li className="text-muted-foreground/70">›</li>
+            <li className="font-semibold text-primary">Verify</li>
           </ol>
         </nav>
         <VerifyArchiveEvidenceStep
@@ -393,13 +373,15 @@ export default function DocumentaryEvidenceVerifyContent() {
           templateRef={ref}
           initialCapturedData={initialCapturedText}
           designatedVerifier={designatedVerifier}
-          stepMode="readonly-completed"
+          stepMode={canEdit ? "edit" : "readonly-completed"}
           initialVerificationComments={String(verifyData.verificationComments ?? "").trim()}
           initialArchiveLocation={String(verifyData.archiveLocation ?? "").trim()}
           initialRetentionPeriod={String(verifyData.retentionPeriod ?? "").trim()}
           pdfContext={pdfContext}
-          onBack={() => router.push(recordsHref)}
-          onConfirmComplete={() => router.push(recordsHref)}
+          onBack={() => router.push(captureViewHref)}
+          onConfirmComplete={() =>
+            router.push(orgId ? `${getDashboardPath(orgId, "documents")}?table=records` : "/")
+          }
         />
       </div>
     );

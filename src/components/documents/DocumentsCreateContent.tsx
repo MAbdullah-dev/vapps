@@ -86,6 +86,14 @@ type ChecklistsApiResponse = {
   checklists?: Array<{ id: string; name: string }>;
 };
 
+const FALLBACK_MANAGEMENT_STANDARDS: StandardOption[] = [
+  { id: "a1000001-9001-4001-8001-000000000001", name: "ISO 9001 QUALITY" },
+  { id: "a1000002-1400-4002-8001-000000000002", name: "ISO 14001 ENVIRONMENT" },
+  { id: "a1000003-4500-4003-8001-000000000003", name: "ISO 45001 HEALTH & SAFETY" },
+  { id: "a1000004-2700-4004-8001-000000000004", name: "ISO 27001 INFORMATION SECURITY" },
+  { id: "a1000005-1694-4005-8001-000000000005", name: "IATF 16949" },
+];
+
 type ChecklistQuestionsApiResponse = {
   questions?: Array<{ clause?: string; subclause?: string }>;
 };
@@ -579,11 +587,15 @@ export default function DocumentsCreateContent() {
         const json = res.ok ? await res.json() : { checklists: [] };
         if (ignore) return;
         const typed = (json ?? {}) as ChecklistsApiResponse;
-        const loadedStandards: StandardOption[] = (typed.checklists ?? []).map((item) => ({
-          id: String(item.id),
-          name: String(item.name ?? ""),
-        }));
-        setStandards(loadedStandards);
+        const loadedStandards: StandardOption[] = (typed.checklists ?? [])
+          .map((item) => ({
+            id: String(item.id ?? "").trim(),
+            name: String(item.name ?? "").trim(),
+          }))
+          .filter((item) => item.id.length > 0 && item.name.length > 0);
+        setStandards(loadedStandards.length > 0 ? loadedStandards : FALLBACK_MANAGEMENT_STANDARDS);
+      } catch {
+        if (!ignore) setStandards(FALLBACK_MANAGEMENT_STANDARDS);
       } finally {
         if (!ignore) setIsLoadingStandards(false);
       }
@@ -881,11 +893,16 @@ export default function DocumentsCreateContent() {
         const approved = (row?.workflow_status ?? "").toLowerCase() === "approved";
         const forcedRevisionWizard =
           isEditMode && approved
-            ? {
-                ...(baseWizard ?? {}),
-                actionType: "revise" as const,
-                reviseSubAction: revisionType === "transfer" ? ("transfer" as const) : ("update" as const),
-              }
+            ? revisionType === "obsolete"
+              ? {
+                  ...(baseWizard ?? {}),
+                  actionType: "obsolete" as const,
+                }
+              : {
+                  ...(baseWizard ?? {}),
+                  actionType: "revise" as const,
+                  reviseSubAction: revisionType === "transfer" ? ("transfer" as const) : ("update" as const),
+                }
             : baseWizard;
         setInitialWizardData(forcedRevisionWizard);
         setActiveRecordId(recordId);

@@ -1,22 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
   canPerformSupportLeadershipCapture,
-  isSupportLeadershipTier,
-  isTopOrOperationalLeadershipTier,
+  canViewDocumentaryEvidenceWorkflow,
 } from "@/lib/documentaryEvidenceAccess";
-import CaptureEvidenceStep from "@/components/documents/steps/CaptureEvidenceStep";
+import CaptureEvidenceStep, {
+  type CaptureEvidenceStepHandle,
+} from "@/components/documents/steps/CaptureEvidenceStep";
 import {
   docEvidenceStepCurrent,
   docEvidenceStepIconCurrent,
+  docEvidenceStepIconIdle,
+  docEvidenceStepIdle,
 } from "@/lib/document-ui-classes";
+import { cn } from "@/lib/utils";
 
 type EvidenceRow = {
   workflow_status?: string;
@@ -49,10 +53,11 @@ export default function DocumentaryEvidenceCaptureContent() {
   const orgId = (params?.orgId as string) || "";
   const documentsHref = orgId ? getDashboardPath(orgId, "documents") : "/";
   const recordsHref = orgId ? getDashboardPath(orgId, "documents/documentary-evidence") : "/";
-  const templateRef = searchParams.get("template") || "Doc/2025/S1/P1/P/D1/v1";
+  const templateRef = searchParams.get("template") || "";
   const templateRecordId = searchParams.get("recordId")?.trim() ?? "";
   const evidenceFromUrl = searchParams.get("evidenceRecordId")?.trim() ?? "";
   const mode = searchParams.get("mode")?.trim().toLowerCase() ?? "";
+  const captureStepRef = useRef<CaptureEvidenceStepHandle>(null);
 
   const [evidenceRecordId, setEvidenceRecordId] = useState<string | null>(evidenceFromUrl || null);
   const [evidenceRow, setEvidenceRow] = useState<EvidenceRow | null>(null);
@@ -63,8 +68,6 @@ export default function DocumentaryEvidenceCaptureContent() {
   const [leadershipTier, setLeadershipTier] = useState<string | undefined>(undefined);
   const [additionalRoleNames, setAdditionalRoleNames] = useState<string[]>([]);
 
-  const isSupportTier = isSupportLeadershipTier(leadershipTier);
-  const isVerifierTier = isTopOrOperationalLeadershipTier(leadershipTier);
   const canRunSupportCapture = canPerformSupportLeadershipCapture(leadershipTier, additionalRoleNames);
 
   useEffect(() => {
@@ -169,25 +172,53 @@ export default function DocumentaryEvidenceCaptureContent() {
   }, [orgId, templateRecordId]);
 
   const workflow = String(evidenceRow?.workflow_status ?? "").trim();
-
-  const readOnly = Boolean(
-    mode === "view" ||
-      workflow === "capture_submitted" ||
-      workflow === "completed" ||
-      (!isSupportTier && isVerifierTier)
-  );
-
-  const canUseCapturePage =
-    canRunSupportCapture ||
-    (isVerifierTier && mode === "view" && Boolean(evidenceFromUrl) && !evidenceLoading);
+  const isWorkflowLocked =
+    mode === "view" || workflow === "capture_submitted" || workflow === "completed";
+  const readOnly = Boolean(isWorkflowLocked || !canRunSupportCapture);
+  const canUseCapturePage = canViewDocumentaryEvidenceWorkflow(leadershipTier);
 
   const serverCapture = evidenceRow ? parseCaptureData(evidenceRow.capture_data) : null;
-  const serverDesignatedVerifierUserId = String(evidenceRow?.designated_verifier_user_id ?? "").trim() || undefined;
-  const serverDesignatedVerifierName = String(evidenceRow?.designated_verifier_name ?? "").trim() || undefined;
 
-  const handleCaptureSubmit = useCallback(() => {
-    router.push(recordsHref);
-  }, [router, recordsHref]);
+  const handleCaptureSubmit = useCallback(
+    (payload: { evidenceRecordId: string }) => {
+      const eid = String(payload.evidenceRecordId ?? "").trim();
+      if (!orgId || !eid) {
+        router.push(recordsHref);
+        return;
+      }
+      const u = new URLSearchParams();
+      if (templateRef) u.set("template", templateRef);
+      if (templateRecordId) u.set("recordId", templateRecordId);
+      u.set("evidenceRecordId", eid);
+      router.push(
+        `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?${u.toString()}`
+      );
+    },
+    [orgId, templateRef, templateRecordId, recordsHref, router]
+  );
+
+  const handleTemplateChange = useCallback(
+    (next: { recordId: string; referenceNumber: string }) => {
+      if (!orgId) return;
+      const u = new URLSearchParams();
+      if (next.referenceNumber) u.set("template", next.referenceNumber);
+      if (next.recordId) u.set("recordId", next.recordId);
+      if (evidenceRecordId) u.set("evidenceRecordId", evidenceRecordId);
+      if (mode) u.set("mode", mode);
+      const qs = u.toString();
+      router.replace(
+        `${getDashboardPath(orgId, "documents/documentary-evidence/capture")}${qs ? `?${qs}` : ""}`
+      );
+    },
+    [orgId, evidenceRecordId, mode, router]
+  );
+
+  const verifyHref =
+    orgId && evidenceRecordId && templateRecordId
+      ? `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?template=${encodeURIComponent(templateRef)}&recordId=${encodeURIComponent(templateRecordId)}&evidenceRecordId=${encodeURIComponent(evidenceRecordId)}`
+      : "";
+  const canOpenVerify =
+    Boolean(verifyHref) && (workflow === "capture_submitted" || workflow === "completed");
 
   if (!meReady || (Boolean(evidenceFromUrl) && evidenceLoading)) {
     return (
@@ -205,12 +236,11 @@ export default function DocumentaryEvidenceCaptureContent() {
           <CardContent className="py-10 text-center space-y-3">
             <h2 className="text-lg font-semibold text-foreground">Capture is restricted</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Only <span className="font-medium">Support Leadership</span> can enter and edit capture data. Top and
-              Operational leadership can open capture from the templates table in <span className="font-medium">view</span>{" "}
-              mode after submission.
+              Documentary evidence capture is available to Support, Operational, and Top leadership. Support staff
+              create and submit records; mid-level leadership verifies them.
             </p>
             <Button asChild variant="outline" className="mt-2">
-              <Link href={recordsHref}>Back to templates</Link>
+              <Link href={documentsHref}>Back to documents</Link>
             </Button>
           </CardContent>
         </Card>
@@ -225,6 +255,18 @@ export default function DocumentaryEvidenceCaptureContent() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-[36px] leading-tight font-bold text-foreground">Documentary Evidence Records</h2>
             <div className="flex items-center gap-2">
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => void captureStepRef.current?.saveDraft()}
+                >
+                  <Save size={14} />
+                  Save Draft
+                </Button>
+              ) : null}
               <Button variant="ghost" size="sm" asChild>
                 <Link href={documentsHref}>Exit to Dashboard</Link>
               </Button>
@@ -233,18 +275,42 @@ export default function DocumentaryEvidenceCaptureContent() {
 
           {readOnly ? (
             <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
-              <span className="font-semibold">View only.</span> Capture has been submitted or completed; fields cannot be
-              edited here.
+              {isWorkflowLocked ? (
+                <>
+                  <span className="font-semibold">View only.</span> Capture has been submitted or completed; fields
+                  cannot be edited here.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">View only.</span> Support staff create and submit records. Mid-level
+                  leadership verifies submitted records. Fields cannot be edited with your role.
+                </>
+              )}
             </div>
           ) : null}
 
-          <div className="max-w-md">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className={docEvidenceStepCurrent} aria-current="step">
               <span className={docEvidenceStepIconCurrent}>
                 <FileText size={15} className="text-primary-foreground" />
               </span>
               <span className="text-xs font-medium text-center leading-snug">Capture</span>
             </div>
+            {canOpenVerify ? (
+              <Link href={verifyHref} className={docEvidenceStepIdle}>
+                <span className={docEvidenceStepIconIdle}>
+                  <ShieldCheck size={15} className="text-muted-foreground" />
+                </span>
+                <span className="text-xs font-medium text-center leading-snug">Verify</span>
+              </Link>
+            ) : (
+              <div className={cn(docEvidenceStepIdle, "pointer-events-none cursor-not-allowed opacity-70")}>
+                <span className={docEvidenceStepIconIdle}>
+                  <ShieldCheck size={15} className="text-muted-foreground" />
+                </span>
+                <span className="text-xs font-medium text-center leading-snug">Verify</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -268,18 +334,18 @@ export default function DocumentaryEvidenceCaptureContent() {
       </nav>
 
       <CaptureEvidenceStep
+        ref={captureStepRef}
         orgId={orgId}
         templateRecordId={templateRecordId}
         templateRef={templateRef}
         templatesHref={recordsHref}
         evidenceRecordId={evidenceRecordId}
         onEvidenceRecordIdChange={(id) => setEvidenceRecordId(id)}
+        onTemplateChange={handleTemplateChange}
         onSubmit={handleCaptureSubmit}
         readOnly={readOnly}
         serverCapture={serverCapture}
         serverTemplateDocumentEditorContent={templateEditorContent}
-        serverDesignatedVerifierUserId={serverDesignatedVerifierUserId}
-        serverDesignatedVerifierName={serverDesignatedVerifierName}
       />
     </div>
   );

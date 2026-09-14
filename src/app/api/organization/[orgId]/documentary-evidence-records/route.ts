@@ -7,7 +7,7 @@ import {
   isSupportLeadershipTier,
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
-import { userHasAuditorAdditionalRole } from "@/lib/filter-auditor-additional-roles-for-member";
+import { removeAuditorAdditionalRoleForUser } from "@/lib/filter-auditor-additional-roles-for-member";
 
 type CapturePayload = {
   templateRef?: string;
@@ -54,7 +54,7 @@ async function resolveMembershipTier(orgId: string, userId: string): Promise<str
   );
 }
 
-/** Support Leadership — draft/submit capture (POST). Auditors cannot use Support capture (separation of duties). */
+/** Support Leadership — draft/submit capture (POST). Coordinator / Member job titles are capture users. */
 async function assertSupportUserCanCapture(
   orgId: string,
   userId: string,
@@ -70,15 +70,8 @@ async function assertSupportUserCanCapture(
       { status: 403 }
     );
   }
-  if (await userHasAuditorAdditionalRole(connectionString, userId)) {
-    return NextResponse.json(
-      {
-        error:
-          "Users with the Auditor role cannot perform Support Leadership documentary evidence capture.",
-      },
-      { status: 403 }
-    );
-  }
+  // Members cannot hold Auditor; drop leftover rows so a prior title does not block capture.
+  await removeAuditorAdditionalRoleForUser(connectionString, userId);
   return null;
 }
 
@@ -270,12 +263,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
       const verifierId = String(capturePayload.designatedVerifierUserId ?? "").trim();
       const verifierName = String(capturePayload.designatedVerifierName ?? "").trim();
 
-      if (action === "submit-capture") {
-        if (!verifierId || !verifierName) {
-          throw new Error("VERIFIER_REQUIRED");
-        }
-      }
-
       workflowStatus = action === "submit-capture" ? "capture_submitted" : "draft";
       const ref = templatePreviewRef || row.preview_doc_ref || "";
 
@@ -358,9 +345,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
     if (msg === "NOT_F_TYPE") {
       return NextResponse.json({ error: "Template must be an F-type (retained record) document." }, { status: 400 });
     }
-    if (msg === "VERIFIER_REQUIRED") {
-      return NextResponse.json({ error: "Designated verifier is required to submit capture." }, { status: 400 });
-    }
     if (msg === "EVIDENCE_NOT_FOUND") {
       return NextResponse.json({ error: "Evidence record not found" }, { status: 404 });
     }
@@ -386,7 +370,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ or
     }
     if (!isTopOrOperationalLeadershipTier(tier)) {
       return NextResponse.json(
-        { error: "Only the designated Top or Operational leadership verifier can complete verification." },
+        { error: "Only Top or Operational leadership can complete verification." },
         { status: 403 }
       );
     }
@@ -435,7 +419,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ or
       if (String(row.workflow_status ?? "").trim() !== "capture_submitted") {
         throw new Error("NOT_AWAITING_VERIFICATION");
       }
-      if (String(row.designated_verifier_user_id ?? "").trim() !== actorId) {
+      const designatedId = String(row.designated_verifier_user_id ?? "").trim();
+      if (designatedId && designatedId !== actorId) {
         throw new Error("NOT_DESIGNATED_VERIFIER");
       }
 
@@ -448,7 +433,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ or
             updated_at = NOW()
          WHERE id::text = $1::text
            AND workflow_status = 'capture_submitted'
-           AND designated_verifier_user_id = $5
+           AND (designated_verifier_user_id = '' OR designated_verifier_user_id = $5)
          RETURNING id::text`,
         [evidenceRecordId, verifyJson, actorId, actorName, actorId]
       );

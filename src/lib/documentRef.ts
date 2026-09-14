@@ -82,6 +82,24 @@ export function applyDraftPlaceholderRef(ref: string): string {
   return withDocNumberSegment(ref, DRAFT_DOC_NUMBER);
 }
 
+/** Display site codes like S001 as S1. */
+export function compactSiteCode(code: string): string {
+  const trimmed = String(code ?? "").trim();
+  const m = /^S0*(\d+)$/i.exec(trimmed);
+  if (!m) return trimmed;
+  return `S${Number(m[1])}`;
+}
+
+/** Compact padded site codes inside a document ref path (Doc/Year/S001/... → Doc/Year/S1/...). */
+export function compactSiteCodeInDocumentRef(ref: string): string {
+  const trimmed = String(ref ?? "").trim();
+  if (!trimmed || trimmed === "-") return trimmed;
+  return trimmed
+    .split("/")
+    .map((seg) => compactSiteCode(seg.trim()))
+    .join("/");
+}
+
 export type DocumentWorkflowPosition =
   | "Draft"
   | "Review Pending"

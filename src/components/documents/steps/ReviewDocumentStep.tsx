@@ -397,7 +397,7 @@ export default function ReviewDocumentStep({
             checked={reviewAcknowledged}
             onCheckedChange={(v) => setReviewAcknowledged(v === true)}
             disabled={!canPerformReview || readOnlyObserver}
-            className="mt-1"
+            className="mt-1 size-5 border-2 border-foreground bg-background dark:border-foreground dark:bg-background"
           />
           <div className="space-y-1 min-w-0">
             <label htmlFor="review-ack" className="block cursor-pointer font-semibold text-foreground">

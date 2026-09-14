@@ -82,6 +82,39 @@ async function findUserActiveDraft(
   return (result.rows[0] as UserActiveDraft | undefined) ?? null;
 }
 
+type DocumentLifecycleStatus = "active" | "archived" | "obsolete";
+
+async function ensureDocumentArchiveLifecycle(client: {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>;
+}) {
+  await client.query(
+    `ALTER TABLE document_module_records
+       ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL`
+  );
+  await client.query(
+    `ALTER TABLE document_module_records
+       ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
+  );
+  const check = await client.query(
+    `SELECT pg_get_constraintdef(oid) AS def
+     FROM pg_constraint
+     WHERE conrelid = 'public.document_module_records'::regclass
+       AND conname = 'document_module_records_lifecycle_status_check'`
+  );
+  const def = String((check.rows[0] as { def?: string } | undefined)?.def ?? "");
+  if (!def.includes("archived")) {
+    await client.query(
+      `ALTER TABLE document_module_records
+         DROP CONSTRAINT IF EXISTS document_module_records_lifecycle_status_check`
+    );
+    await client.query(
+      `ALTER TABLE document_module_records
+         ADD CONSTRAINT document_module_records_lifecycle_status_check
+         CHECK (lifecycle_status IN ('active', 'archived', 'obsolete'))`
+    );
+  }
+}
+
 function draftLimitReachedResponse(existing: UserActiveDraft): NextResponse {
   return NextResponse.json(
     {
@@ -161,7 +194,7 @@ export async function GET(
       preview_doc_ref: string;
       form_data: unknown;
       wizard_data: unknown;
-      lifecycle_status: "active" | "obsolete";
+      lifecycle_status: DocumentLifecycleStatus;
       supersedes_record_id: string | null;
       superseded_by_record_id: string | null;
       workflow_status: "draft" | "in_review" | "in_approval" | "approved";
@@ -175,6 +208,7 @@ export async function GET(
       created_at: string;
       updated_at: string;
       obsolete_at: string | null;
+      archived_at: string | null;
     }> = [];
 
     let reviewReturnNotice: {
@@ -201,10 +235,7 @@ export async function GET(
         throw new Error("document_module_records table does not exist. Run tenant migration 020.");
       }
 
-      await client.query(
-        `ALTER TABLE document_module_records
-           ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
-      );
+      await ensureDocumentArchiveLifecycle(client);
 
       const lifecycleColCheck = await client.query(
         `SELECT 1 FROM information_schema.columns
@@ -257,27 +288,35 @@ export async function GET(
       );
       const hasApprovedById = approvedByIdColCheck.rows.length > 0;
 
+      const archivedAtColCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = 'archived_at'`
+      );
+      const hasArchivedAt = archivedAtColCheck.rows.length > 0;
+
       const isListFetch = !(requestedId?.trim() ?? "");
       if (isListFetch && hasLifecycle) {
-        const obsoleteAgePredicate = hasObsoleteAt
-          ? "COALESCE(x.obsolete_at, x.updated_at) < NOW() - INTERVAL '3 years'"
-          : "x.updated_at < NOW() - INTERVAL '3 years'";
-        if (hasSupersedes) {
+        const archivedAgeExpr = hasArchivedAt
+          ? "COALESCE(archived_at, obsolete_at, updated_at) < NOW() - INTERVAL '3 years'"
+          : hasObsoleteAt
+            ? "COALESCE(obsolete_at, updated_at) < NOW() - INTERVAL '3 years'"
+            : "updated_at < NOW() - INTERVAL '3 years'";
+        if (hasArchivedAt && hasSupersededBy) {
           await client.query(
-            `UPDATE document_module_records r
-             SET supersedes_record_id = NULL
-             WHERE r.supersedes_record_id IN (
-               SELECT x.id FROM document_module_records x
-               WHERE x.lifecycle_status = 'obsolete' AND ${obsoleteAgePredicate}
-             )`
+            `UPDATE document_module_records
+             SET lifecycle_status = 'archived',
+                 archived_at = COALESCE(archived_at, obsolete_at, updated_at),
+                 obsolete_at = NULL
+             WHERE lifecycle_status = 'obsolete'
+               AND superseded_by_record_id IS NOT NULL
+               AND COALESCE(obsolete_at, updated_at) >= NOW() - INTERVAL '3 years'`
           );
         }
-        const deleteAgeExpr = hasObsoleteAt
-          ? "COALESCE(obsolete_at, updated_at) < NOW() - INTERVAL '3 years'"
-          : "updated_at < NOW() - INTERVAL '3 years'";
         await client.query(
-          `DELETE FROM document_module_records
-           WHERE lifecycle_status = 'obsolete' AND ${deleteAgeExpr}`
+          `UPDATE document_module_records
+           SET lifecycle_status = 'obsolete',
+               obsolete_at = COALESCE(obsolete_at, NOW())
+           WHERE lifecycle_status = 'archived' AND ${archivedAgeExpr}`
         );
       }
 
@@ -287,7 +326,7 @@ export async function GET(
         preview_doc_ref: string;
         form_data: unknown;
         wizard_data: unknown;
-        lifecycle_status: "active" | "obsolete";
+        lifecycle_status: DocumentLifecycleStatus;
         supersedes_record_id: string | null;
         superseded_by_record_id: string | null;
         workflow_status: "draft" | "in_review" | "in_approval" | "approved";
@@ -301,6 +340,7 @@ export async function GET(
         created_at: string;
         updated_at: string;
         obsolete_at: string | null;
+        archived_at: string | null;
       }>(
         `SELECT
           id::text,
@@ -321,12 +361,14 @@ export async function GET(
           ${hasApprovedById ? "approved_by_user_id" : "NULL::text AS approved_by_user_id"},
           created_at::text,
           updated_at::text,
-          ${hasObsoleteAt ? "obsolete_at::text" : "NULL::text AS obsolete_at"}
+          ${hasObsoleteAt ? "obsolete_at::text" : "NULL::text AS obsolete_at"},
+          ${hasArchivedAt ? "archived_at::text" : "NULL::text AS archived_at"}
          FROM document_module_records
          WHERE ($1::text IS NULL OR id::text = $1::text)
            AND (
              $2::text IS NULL
-            OR (${hasLifecycle ? "lifecycle_status" : "'active'::text"}) = $2::text
+             OR ($2::text = 'obsolete' AND (${hasLifecycle ? "lifecycle_status" : "'active'::text"}) IN ('obsolete', 'archived'))
+             OR (${hasLifecycle ? "lifecycle_status" : "'active'::text"}) = $2::text
              OR $3::boolean = true
            )
          ORDER BY updated_at DESC`,
@@ -465,7 +507,7 @@ export async function POST(
         : {};
 
     let savedRecordId = "";
-    let lifecycleStatus: "active" | "obsolete" = "active";
+    let lifecycleStatus: DocumentLifecycleStatus = "active";
     let workflowStatus: "draft" | "in_review" | "in_approval" | "approved" = "draft";
     let postForbidden: NextResponse | null = null;
 
@@ -496,6 +538,7 @@ export async function POST(
         `ALTER TABLE document_module_records
            ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
       );
+      await ensureDocumentArchiveLifecycle(client);
       await client.query(
         `ALTER TABLE document_module_records
            ADD COLUMN IF NOT EXISTS workflow_status VARCHAR(20) NOT NULL DEFAULT 'draft'`
@@ -561,7 +604,7 @@ export async function POST(
 
         const updated = await client.query<{
           id: string;
-          lifecycle_status: "active" | "obsolete";
+          lifecycle_status: DocumentLifecycleStatus;
           workflow_status: "draft" | "in_review" | "in_approval" | "approved";
         }>(
           `UPDATE document_module_records
@@ -656,7 +699,7 @@ export async function POST(
 
         const updated = await client.query<{
           id: string;
-          lifecycle_status: "active" | "obsolete";
+          lifecycle_status: DocumentLifecycleStatus;
           workflow_status: "draft" | "in_review" | "in_approval" | "approved";
         }>(
           `UPDATE document_module_records
@@ -793,7 +836,7 @@ export async function POST(
 
       const result = await client.query<{
         id: string;
-        lifecycle_status: "active" | "obsolete";
+        lifecycle_status: DocumentLifecycleStatus;
         workflow_status: "draft" | "in_review" | "in_approval" | "approved";
       }>(
         `INSERT INTO document_module_records (
@@ -897,10 +940,7 @@ export async function PATCH(
     let forbiddenResponse: NextResponse | null = null;
 
     await withTenantConnection(connectionString, async (client) => {
-      await client.query(
-        `ALTER TABLE document_module_records
-           ADD COLUMN IF NOT EXISTS obsolete_at TIMESTAMPTZ NULL`
-      );
+      await ensureDocumentArchiveLifecycle(client);
 
       const access = await client.query<{
         form_data: unknown;
@@ -1244,9 +1284,9 @@ export async function PATCH(
         if (supersedes) {
           await client.query(
             `UPDATE document_module_records
-             SET lifecycle_status = 'obsolete',
+             SET lifecycle_status = 'archived',
                  superseded_by_record_id = $2::uuid,
-                 obsolete_at = NOW(),
+                 archived_at = NOW(),
                  updated_by_user_id = $3,
                  updated_by_user_name = $4,
                  updated_at = NOW()
@@ -1291,5 +1331,136 @@ export async function PATCH(
   } catch (error) {
     console.error("Error updating document workflow:", error);
     return NextResponse.json({ error: "Failed to update workflow" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ orgId: string }> }
+) {
+  try {
+    const { orgId } = await params;
+    const { context, errorResponse } = await getRequestContextAndError(req, orgId);
+    if (errorResponse) return errorResponse;
+
+    const connectionString = context.tenant.connectionString;
+    if (!connectionString) {
+      return NextResponse.json({ error: "Tenant database not found" }, { status: 404 });
+    }
+
+    const recordId = String(req.nextUrl.searchParams.get("id") ?? "").trim();
+    if (!recordId) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    let notFound = false;
+    let forbiddenResponse: NextResponse | null = null;
+
+    await withTenantConnection(connectionString, async (client) => {
+      const tableCheck = await client.query(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'document_module_records'`
+      );
+      if (tableCheck.rows.length === 0) {
+        notFound = true;
+        return;
+      }
+
+      const existing = await client.query<{
+        id: string;
+        form_data: unknown;
+        created_by_user_id: string | null;
+        created_by_user_name: string | null;
+      }>(
+        `SELECT id::text, form_data, created_by_user_id, created_by_user_name
+         FROM document_module_records WHERE id::text = $1::text`,
+        [recordId]
+      );
+      if (existing.rows.length === 0) {
+        notFound = true;
+        return;
+      }
+
+      const row = existing.rows[0];
+      const formData =
+        typeof row.form_data === "object" && row.form_data !== null && !Array.isArray(row.form_data)
+          ? (row.form_data as Record<string, unknown>)
+          : null;
+      if (
+        !isDocumentRecordCreator(
+          context.user.id,
+          context.user.name,
+          formData,
+          row.created_by_user_id,
+          row.created_by_user_name
+        )
+      ) {
+        forbiddenResponse = NextResponse.json(
+          { error: "Only the person who created this document can obsolete it." },
+          { status: 403 }
+        );
+        return;
+      }
+
+      const columnExists = async (columnName: string) => {
+        const check = await client.query(
+          `SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'document_module_records' AND column_name = $1`,
+          [columnName]
+        );
+        return check.rows.length > 0;
+      };
+
+      if (await columnExists("supersedes_record_id")) {
+        await client.query(
+          `UPDATE document_module_records
+           SET supersedes_record_id = NULL
+           WHERE supersedes_record_id::text = $1::text`,
+          [recordId]
+        );
+      }
+      if (await columnExists("superseded_by_record_id")) {
+        await client.query(
+          `UPDATE document_module_records
+           SET superseded_by_record_id = NULL
+           WHERE superseded_by_record_id::text = $1::text`,
+          [recordId]
+        );
+      }
+
+      const historyTable = await client.query(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'document_module_history'`
+      );
+      if (historyTable.rows.length > 0) {
+        await client.query(
+          `DELETE FROM document_module_history WHERE record_id::text = $1::text`,
+          [recordId]
+        );
+      }
+
+      const evidenceTable = await client.query(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'documentary_evidence_records'`
+      );
+      if (evidenceTable.rows.length > 0) {
+        await client.query(
+          `DELETE FROM documentary_evidence_records WHERE template_record_id::text = $1::text`,
+          [recordId]
+        );
+      }
+
+      await client.query(`DELETE FROM document_module_records WHERE id::text = $1::text`, [recordId]);
+    });
+
+    if (notFound) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+    if (forbiddenResponse) return forbiddenResponse;
+
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (error) {
+    console.error("Error deleting document record:", error);
+    return NextResponse.json({ error: "Failed to delete document" }, { status: 500 });
   }
 }

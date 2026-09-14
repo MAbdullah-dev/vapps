@@ -5,7 +5,10 @@ import { withTenantConnection } from "@/lib/db/connection-helper";
 import { logger } from "@/lib/logger";
 import { normalizeRole, roleToLeadershipTier, isRoleHigher, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
-import { filterAdditionalRoleIdsExcludingAuditorForMember } from "@/lib/filter-auditor-additional-roles-for-member";
+import {
+  filterAdditionalRoleIdsExcludingAuditorForMember,
+  removeAuditorAdditionalRoleForUser,
+} from "@/lib/filter-auditor-additional-roles-for-member";
 
 /**
  * PUT /api/organization/[orgId]/members/[userId]
@@ -186,7 +189,7 @@ export async function PUT(
       );
       await withTenantConnection(ctx.tenant.connectionString, async (client) => {
         await client.query(
-          `DELETE FROM user_additional_roles WHERE user_id = $1`,
+          `DELETE FROM user_additional_roles WHERE user_id::text = $1`,
           [userId]
         );
         for (const roleId of roleIds) {
@@ -198,6 +201,11 @@ export async function PUT(
           }
         }
       });
+    }
+
+    // Coordinator / Member cannot hold Auditor even if Edit User hid additional roles and skipped the payload.
+    if (ctx.tenant?.connectionString && normalizedRole === "member") {
+      await removeAuditorAdditionalRoleForUser(ctx.tenant.connectionString, userId);
     }
 
     logger.info("User updated in organization", {

@@ -24,9 +24,6 @@ import {
   Funnel,
   Plus,
   Search,
-  Cloud,
-  Folder,
-  Upload,
   History,
   Pencil,
   FileEdit,
@@ -45,6 +42,7 @@ import {
   getDaysBetween,
 } from "@/lib/compliance-kpi";
 import { KpiStatusLogicCard } from "@/components/compliance/KpiStatusLogicCard";
+import { TenantStorageBanner } from "@/components/common/TenantStorageBanner";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_TABLE_PAGE_SIZE,
@@ -607,7 +605,8 @@ export default function AuditsContent() {
   const { data: session } = useSession();
   const { t } = useTranslate();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
-  const { slug } = useOrg();
+  const { slug, orgId } = useOrg();
+  const [organizationName, setOrganizationName] = useState("Company Name");
   const [historyAudit, setHistoryAudit] = useState<Audit | null>(null);
   const [historyEntries, setHistoryEntries] = useState<AuditHistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -629,6 +628,35 @@ export default function AuditsContent() {
   useEffect(() => {
     setAuditTablePage(1);
   }, [slug]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadOrgInfo() {
+      if (!orgId) {
+        if (!ignore) setOrganizationName("Company Name");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/organization/${orgId}/organization-info`, {
+          credentials: "include",
+        });
+        const j = res.ok ? await res.json() : {};
+        if (ignore) return;
+        const oi =
+          j?.organizationInfo && typeof j.organizationInfo === "object"
+            ? (j.organizationInfo as Record<string, unknown>)
+            : {};
+        const orgNm = String(oi.name ?? oi.organizationName ?? oi.companyName ?? "").trim();
+        setOrganizationName(orgNm || "Company Name");
+      } catch {
+        if (!ignore) setOrganizationName("Company Name");
+      }
+    }
+    void loadOrgInfo();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
 
   const paginatedAudits = useMemo(
     () => paginateRows(audits, auditTablePage, DEFAULT_TABLE_PAGE_SIZE),
@@ -734,33 +762,7 @@ export default function AuditsContent() {
         </Button>
       </div>
 
-      {/* Tenant Information Banner */}
-      <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <Cloud className="text-primary" size={20} />
-            <div>
-              <p className="text-sm font-medium text-foreground">{t("Active Tenant")}</p>
-              <span className="text-xs text-muted-foreground">{slug}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Folder className="text-muted-foreground" size={18} />
-              <span className="rounded-full bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
-                {t("Shared S3")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Upload className="text-muted-foreground" size={18} />
-              <span className="text-sm text-muted-foreground">{t("100 MB limit")}</span>
-              <span className="rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
-                {t("Pro")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TenantStorageBanner className="mb-6" organizationName={organizationName} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">

@@ -66,3 +66,12 @@ export async function seedDefaultAuditChecklists(db: PrismaClient): Promise<void
     }
   }
 }
+
+export function getDefaultChecklistQuestionsById(checklistId: string): QuestionSeed[] | null {
+  const match = DEFAULT_CHECKLISTS.find((c) => c.id === checklistId);
+  return match ? match.questions : null;
+}
+
+export function listDefaultAuditChecklistSummaries(): { id: string; name: string }[] {
+  return DEFAULT_CHECKLISTS.map((c) => ({ id: c.id, name: c.name }));
+}

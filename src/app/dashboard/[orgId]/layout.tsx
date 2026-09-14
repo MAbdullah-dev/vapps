@@ -23,9 +23,9 @@ export default async function OrgDashboardLayout({
         <OrgProvider orgId={org.id} slug={org.slug}>
             <div className="flex min-h-screen bg-background">
                 <Sidebar orgId={org.id} slug={org.slug} />
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
                     <Topbar />
-                    <main className="p-6 w-full bg-background flex-1">
+                    <main className="p-6 w-full bg-background flex-1 overflow-y-auto">
                         {children}
                     </main>
                 </div>

@@ -1,21 +1,24 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, ArrowUpRight, ChevronRight, Info, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, ChevronRight, FileText, Info, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { useTranslate } from "@/components/providers/translation-provider";
-import { isTopOrOperationalLeadershipTier } from "@/lib/documentaryEvidenceAccess";
+import { compactSiteCode, compactSiteCodeInDocumentRef } from "@/lib/documentRef";
+import {
+  buildManagementStandardNameMap,
+  resolveManagementStandardLabel,
+} from "@/lib/management-standard-label";
 import { toast } from "sonner";
 import {
-  docAckBox,
   docBadgeActive,
   docInfoCard,
   docInfoCardIcon,
@@ -23,11 +26,53 @@ import {
   docWarningBanner,
 } from "@/lib/document-ui-classes";
 
-type VerifierMember = {
+type FormTemplateOption = {
+  recordId: string;
+  formTitle: string;
+  referenceNumber: string;
+  site: string;
+  process: string;
+  standard: string;
+  clause: string;
+  subclause: string;
+};
+
+type DocumentsApiRecord = {
   id: string;
-  name: string;
-  leadershipTier?: string;
-  status?: string;
+  preview_doc_ref: string;
+  form_data: Record<string, unknown> | null;
+  wizard_data: Record<string, unknown> | null;
+};
+
+function isFTypeDocument(row: DocumentsApiRecord): boolean {
+  const formData = (row.form_data ?? {}) as Record<string, unknown>;
+  const wizard = (row.wizard_data ?? {}) as Record<string, unknown>;
+  const t = String(wizard.documentClassification ?? formData.docType ?? "")
+    .trim()
+    .toUpperCase();
+  return t === "F";
+}
+
+function mapRecordToTemplate(
+  row: DocumentsApiRecord,
+  standardNameById: Record<string, string>
+): FormTemplateOption {
+  const formData = (row.form_data ?? {}) as Record<string, unknown>;
+  const documentRef = compactSiteCodeInDocumentRef(String(row.preview_doc_ref ?? "").trim() || "-");
+  return {
+    recordId: row.id,
+    formTitle: String(formData.title ?? "").trim() || "-",
+    referenceNumber: documentRef,
+    site: compactSiteCode(String(formData.siteId ?? formData.site ?? "").trim() || "-"),
+    process: String(formData.processName ?? formData.processId ?? "").trim() || "-",
+    standard: resolveManagementStandardLabel(String(formData.managementStandard ?? ""), standardNameById),
+    clause: String(formData.clause ?? "").trim() || "-",
+    subclause: String(formData.subClause ?? "").trim() || "-",
+  };
+}
+
+export type CaptureEvidenceStepHandle = {
+  saveDraft: () => Promise<void>;
 };
 
 type CaptureEvidenceStepProps = {
@@ -38,20 +83,18 @@ type CaptureEvidenceStepProps = {
   templatesHref: string;
   evidenceRecordId: string | null;
   onEvidenceRecordIdChange: (id: string) => void;
+  onTemplateChange?: (next: { recordId: string; referenceNumber: string }) => void;
   onSubmit: (payload: {
     evidenceRecordId: string;
-    verifierUserId: string;
-    verifierName: string;
     captureData: Record<string, unknown>;
   }) => void;
   /** View-only: after capture submit or when opened from templates as View capture. */
   readOnly?: boolean;
-  /** Hydrate fields from tenant `capture_data` JSON (and verifier from row). */
+  /** Hydrate fields from tenant `capture_data` JSON. */
   serverCapture?: Record<string, unknown> | null;
   /** Hydrate from source template document editor content when capture is first opened. */
   serverTemplateDocumentEditorContent?: string;
-  serverDesignatedVerifierUserId?: string;
-  serverDesignatedVerifierName?: string;
+  ref?: Ref<CaptureEvidenceStepHandle>;
 };
 
 export default function CaptureEvidenceStep({
@@ -61,23 +104,22 @@ export default function CaptureEvidenceStep({
   templatesHref,
   evidenceRecordId,
   onEvidenceRecordIdChange,
+  onTemplateChange,
   onSubmit,
   readOnly = false,
   serverCapture = null,
   serverTemplateDocumentEditorContent,
-  serverDesignatedVerifierUserId,
-  serverDesignatedVerifierName,
+  ref,
 }: CaptureEvidenceStepProps) {
   const { t } = useTranslate();
-  // Placeholder values to match the screenshot layout.
-  const reference = templateRef;
+  const [formTemplates, setFormTemplates] = useState<FormTemplateOption[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [formTitleQuery, setFormTitleQuery] = useState("");
+  const [formPickerOpen, setFormPickerOpen] = useState(false);
   const [shift, setShift] = useState("");
   const [lotBatchSerial, setLotBatchSerial] = useState("");
   const [capturedData, setCapturedData] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
-  const [verifierUserId, setVerifierUserId] = useState("");
-  const [verifierOptions, setVerifierOptions] = useState<VerifierMember[]>([]);
-  const [isLoadingVerifiers, setIsLoadingVerifiers] = useState(false);
   /** Logged-in Support user performing capture (shown in Support Leadership summary). */
   const [captureOperator, setCaptureOperator] = useState<{
     name: string;
@@ -85,6 +127,61 @@ export default function CaptureEvidenceStep({
   } | null>(null);
   const [isLoadingCaptureOperator, setIsLoadingCaptureOperator] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const saveDraftFnRef = useRef<() => Promise<void>>(async () => {});
+
+  const selectedTemplate = useMemo(
+    () => formTemplates.find((row) => row.recordId === templateRecordId) ?? null,
+    [formTemplates, templateRecordId]
+  );
+  const reference = selectedTemplate?.referenceNumber || templateRef;
+
+  useEffect(() => {
+    if (selectedTemplate?.formTitle && selectedTemplate.formTitle !== "-") {
+      setFormTitleQuery(selectedTemplate.formTitle);
+    }
+  }, [selectedTemplate?.formTitle]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadTemplates() {
+      if (!orgId) {
+        setFormTemplates([]);
+        return;
+      }
+      setIsLoadingTemplates(true);
+      try {
+        const [docsRes, checklistsRes] = await Promise.all([
+          fetch(`/api/organization/${orgId}/documents?lifecycle=active`, { credentials: "include" }),
+          fetch(`/api/organization/${orgId}/audit-checklists`, { credentials: "include" }),
+        ]);
+        const json = docsRes.ok ? await docsRes.json() : { records: [] };
+        const checklistsJson = checklistsRes.ok ? await checklistsRes.json() : { checklists: [] };
+        if (ignore) return;
+        const standardNameById = buildManagementStandardNameMap(
+          Array.isArray(checklistsJson?.checklists) ? checklistsJson.checklists : []
+        );
+        const records = Array.isArray(json?.records) ? (json.records as DocumentsApiRecord[]) : [];
+        setFormTemplates(records.filter(isFTypeDocument).map((row) => mapRecordToTemplate(row, standardNameById)));
+      } catch {
+        if (!ignore) setFormTemplates([]);
+      } finally {
+        if (!ignore) setIsLoadingTemplates(false);
+      }
+    }
+    void loadTemplates();
+    return () => {
+      ignore = true;
+    };
+  }, [orgId]);
+
+  const filteredFormTemplates = useMemo(() => {
+    const q = formTitleQuery.trim().toLowerCase();
+    if (!q) return formTemplates;
+    return formTemplates.filter(
+      (row) =>
+        row.formTitle.toLowerCase().includes(q) || row.referenceNumber.toLowerCase().includes(q)
+    );
+  }, [formTemplates, formTitleQuery]);
 
   useEffect(() => {
     let ignore = false;
@@ -112,40 +209,6 @@ export default function CaptureEvidenceStep({
   }, [t]);
 
   useEffect(() => {
-    let ignore = false;
-    async function load() {
-      if (!orgId) {
-        setVerifierOptions([]);
-        return;
-      }
-      setIsLoadingVerifiers(true);
-      try {
-        const res = await fetch(`/api/organization/${orgId}/members`, { credentials: "include" });
-        const json = res.ok ? await res.json() : {};
-        if (ignore) return;
-        const raw = Array.isArray(json?.teamMembers)
-          ? (json.teamMembers as VerifierMember[])
-          : Array.isArray(json?.members)
-            ? (json.members as VerifierMember[])
-            : [];
-        const filtered = raw.filter((m) => {
-          const isActive = (m.status ?? "Active") === "Active";
-          return isTopOrOperationalLeadershipTier(m.leadershipTier) && isActive;
-        });
-        setVerifierOptions(filtered);
-      } catch {
-        if (!ignore) setVerifierOptions([]);
-      } finally {
-        if (!ignore) setIsLoadingVerifiers(false);
-      }
-    }
-    void load();
-    return () => {
-      ignore = true;
-    };
-  }, [orgId]);
-
-  useEffect(() => {
     if (!serverCapture) return;
     setShift(String(serverCapture.shift ?? ""));
     setLotBatchSerial(String(serverCapture.lotBatchSerial ?? ""));
@@ -160,44 +223,29 @@ export default function CaptureEvidenceStep({
     setCapturedData((prev) => (prev.trim().length > 0 ? prev : sourceContent));
   }, [serverTemplateDocumentEditorContent]);
 
-  useEffect(() => {
-    if (!serverDesignatedVerifierUserId?.trim()) return;
-    setVerifierUserId(serverDesignatedVerifierUserId.trim());
-  }, [serverDesignatedVerifierUserId]);
-
-  const verifierById = useMemo(() => {
-    const m = new Map(verifierOptions.map((x) => [x.id, x]));
-    if (serverDesignatedVerifierUserId?.trim() && serverDesignatedVerifierName?.trim()) {
-      const id = serverDesignatedVerifierUserId.trim();
-      if (!m.has(id)) {
-        m.set(id, { id, name: serverDesignatedVerifierName.trim() });
-      }
-    }
-    return m;
-  }, [verifierOptions, serverDesignatedVerifierUserId, serverDesignatedVerifierName]);
-
   const canSubmit =
     !readOnly &&
     Boolean(templateRecordId.trim()) &&
-    Boolean(verifierUserId.trim()) &&
     Boolean(shift.trim()) &&
     Boolean(lotBatchSerial.trim()) &&
     Boolean(capturedData.trim());
 
   const buildCapturePayload = () => ({
     templateRef,
+    formTitle:
+      selectedTemplate && selectedTemplate.formTitle !== "-"
+        ? selectedTemplate.formTitle.trim()
+        : "",
     shift: shift.trim(),
     lotBatchSerial: lotBatchSerial.trim(),
     capturedData: capturedData.trim(),
     additionalNotes: additionalNotes.trim(),
-    designatedVerifierUserId: verifierUserId.trim(),
-    designatedVerifierName: verifierById.get(verifierUserId)?.name?.trim() ?? "",
   });
 
   const saveDraftToTenant = async () => {
     if (readOnly) return;
     if (!templateRecordId.trim()) {
-      toast.error(t("Missing template link. Open capture from the templates list."));
+      toast.error(t("Select a form title before saving a draft."));
       return;
     }
     setIsSaving(true);
@@ -210,7 +258,7 @@ export default function CaptureEvidenceStep({
           action: "draft",
           evidenceRecordId: evidenceRecordId || undefined,
           templateRecordId: templateRecordId.trim(),
-          templatePreviewRef: templateRef,
+          templatePreviewRef: reference || templateRef,
           capturePayload: buildCapturePayload(),
         }),
       });
@@ -230,11 +278,16 @@ export default function CaptureEvidenceStep({
     }
   };
 
+  saveDraftFnRef.current = saveDraftToTenant;
+  useImperativeHandle(ref, () => ({
+    saveDraft: () => saveDraftFnRef.current(),
+  }));
+
   const submitCaptureToTenant = async () => {
     if (readOnly) return;
     if (!canSubmit) return;
     if (!templateRecordId.trim()) {
-      toast.error(t("Missing template link."));
+      toast.error(t("Select a form title before submitting capture."));
       return;
     }
     setIsSaving(true);
@@ -247,7 +300,7 @@ export default function CaptureEvidenceStep({
           action: "submit-capture",
           evidenceRecordId: evidenceRecordId || undefined,
           templateRecordId: templateRecordId.trim(),
-          templatePreviewRef: templateRef,
+          templatePreviewRef: reference || templateRef,
           capturePayload: buildCapturePayload(),
         }),
       });
@@ -271,8 +324,6 @@ export default function CaptureEvidenceStep({
       toast.success(t("Capture submitted and saved."));
       onSubmit({
         evidenceRecordId: eid,
-        verifierUserId: verifierUserId.trim(),
-        verifierName: verifierById.get(verifierUserId)?.name?.trim() || "",
         captureData: (j.captureData && typeof j.captureData === "object" ? j.captureData : {}) as Record<
           string,
           unknown
@@ -287,19 +338,6 @@ export default function CaptureEvidenceStep({
 
   return (
     <>
-      {!templateRecordId.trim() ? (
-        <div
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
-          role="alert"
-        >
-          {t("Missing template document. Use")}{" "}
-          <span className="font-medium">{t("Start Capture")}</span>{" "}
-          {t(
-            "from the F-record templates table so this session is linked to the Master Document List."
-          )}
-        </div>
-      ) : null}
-
       <Card className="border border-border">
         <CardContent className="py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -347,48 +385,113 @@ export default function CaptureEvidenceStep({
 
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
-          <div>
-            <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>1.</span> {t("Designated verifier")}
-            </h4>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t(
-                "Choose who will verify this record (Top Leadership and Operational Leadership members)."
-              )}
+          <h4 className="text-base font-semibold text-foreground">
+            <span className={docSectionNumber}>1.1</span>{" "}
+            {t("Action Compliance Forms Engine (Documentary Evidence)")}
+          </h4>
+
+          <div className="space-y-2">
+            <Label htmlFor="form-title-draft">
+              {t("Form Title (Draft)")} <span className="text-red-500">*</span>
+            </Label>
+            <Popover open={formPickerOpen} onOpenChange={setFormPickerOpen}>
+              <PopoverAnchor asChild>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="form-title-draft"
+                    value={formTitleQuery}
+                    onChange={(e) => {
+                      setFormTitleQuery(e.target.value);
+                      setFormPickerOpen(true);
+                    }}
+                    onFocus={() => setFormPickerOpen(true)}
+                    placeholder={
+                      isLoadingTemplates ? t("Loading forms…") : t("Search form title")
+                    }
+                    disabled={readOnly && Boolean(evidenceRecordId)}
+                    className="h-10 pl-9"
+                    autoComplete="off"
+                  />
+                </div>
+              </PopoverAnchor>
+              <PopoverContent
+                className="w-96 max-w-[calc(100vw-2rem)] p-1"
+                align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                {filteredFormTemplates.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    {isLoadingTemplates ? t("Loading forms…") : t("No matching forms")}
+                  </p>
+                ) : (
+                  <ul className="max-h-56 overflow-auto">
+                    {filteredFormTemplates.map((row) => (
+                      <li key={row.recordId}>
+                        <button
+                          type="button"
+                          className="flex w-full flex-col items-start rounded-md px-3 py-2 text-left text-sm hover:bg-accent"
+                          onClick={() => {
+                            setFormTitleQuery(row.formTitle === "-" ? "" : row.formTitle);
+                            setFormPickerOpen(false);
+                            onTemplateChange?.({
+                              recordId: row.recordId,
+                              referenceNumber: row.referenceNumber,
+                            });
+                          }}
+                        >
+                          <span className="font-medium text-foreground">
+                            {row.formTitle === "-" ? t("Untitled form") : row.formTitle}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{row.referenceNumber}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              {t("A unique ID will be generated for traceability. Retained documented information (low-level specific documents).")}
             </p>
           </div>
-          <div className="max-w-xl space-y-2">
-            <Label htmlFor="designated-verifier">
-              {t("Verifier")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={verifierUserId}
-              onValueChange={(id) => setVerifierUserId(id)}
-              disabled={readOnly || !orgId || isLoadingVerifiers}
-            >
-              <SelectTrigger id="designated-verifier" className="w-full bg-background">
-                <SelectValue
-                  placeholder={
-                    isLoadingVerifiers
-                      ? t("Loading members…")
-                      : verifierOptions.length === 0
-                        ? t("No eligible verifiers")
-                        : t("Select verifier")
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {verifierOptions.map((m) => (
-                  <SelectItem
-                    key={m.id}
-                    value={m.id}
-                    title={String(m.leadershipTier ?? "").trim() || undefined}
-                  >
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+          <div className={docWarningBanner}>
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+            <div className="min-w-0 space-y-1 text-sm">
+              <p>
+                <span className="font-semibold">{t("Note:")}</span>{" "}
+                {t(
+                  "Complete the form (draft). A unique ID will be generated for traceability. Retained documented information (low-level specific documents). Reference section 1.12.2 retained records."
+                )}
+              </p>
+              <p>
+                {t("e.g. Reference")}{" "}
+                <span className="font-medium">Doc/2025/S1/P4/F/D5/v1</span>{" "}
+                <Link
+                  href={templatesHref}
+                  className="inline-flex items-center gap-0.5 font-medium text-amber-800 underline-offset-2 hover:underline dark:text-amber-300"
+                >
+                  {t("Learn More")}
+                  <ArrowUpRight size={12} />
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {t(
+              "Dynamic data capture serves as a method for generating documentary evidence, and it often manifests in commonplace documents such as standardized forms and comprehensive checklists. This regular, day-to-day recording of data provides tangible proof of adherence to established regulations, as can be seen in the maintenance of detailed training records. Furthermore, it significantly reinforces the practical application and consistent execution of organizational policies and standard operating procedures (SOPs). Mid-level management plays a crucial role in the process by carefully verifying the accuracy and completeness of the captured data. Once verified, the data is systematically archived and securely stored for a predetermined duration, typically a period of three years or more, as dictated by legal or organizational requirements."
+            )}
+          </p>
+
+          <div className="flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100">
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
+            <p className="leading-relaxed">
+              {t(
+                "Preserved and maintained documented information, specifically encompassing detailed, low-level documents that have been carefully retained for future reference and use — including, but not limited to, specific documents containing granular, highly detailed information."
+              )}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -452,7 +555,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("Inspection Checklist")}
+                  value={selectedTemplate && selectedTemplate.formTitle !== "-" ? selectedTemplate.formTitle : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -463,7 +567,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("S1")}
+                  value={selectedTemplate && selectedTemplate.site !== "-" ? selectedTemplate.site : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -474,7 +579,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("P4")}
+                  value={selectedTemplate && selectedTemplate.process !== "-" ? selectedTemplate.process : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -488,7 +594,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("ISO 9001")}
+                  value={selectedTemplate && selectedTemplate.standard !== "-" ? selectedTemplate.standard : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -499,7 +606,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("8.6 Release")}
+                  value={selectedTemplate && selectedTemplate.clause !== "-" ? selectedTemplate.clause : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -510,7 +618,8 @@ export default function CaptureEvidenceStep({
                 <Input
                   readOnly
                   tabIndex={-1}
-                  value={t("8.6.1 Product Release")}
+                  value={selectedTemplate && selectedTemplate.subclause !== "-" ? selectedTemplate.subclause : ""}
+                  placeholder={t("—")}
                   className="mt-1 h-10 border-border bg-muted text-muted-foreground"
                 />
               </div>
@@ -564,7 +673,7 @@ export default function CaptureEvidenceStep({
 
             <div>
               <Label className="flex items-center gap-2 text-sm leading-none font-medium">
-                {t("Lot / Batch / Serial*")}
+                {t("Tracking*")}
               </Label>
               <Input
                 value={lotBatchSerial}
@@ -654,27 +763,6 @@ export default function CaptureEvidenceStep({
                 </p>
               </div>
             </div>
-            {verifierUserId ? (
-              <div className="border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("Designated verifier (your selection in step 1):")}{" "}
-                  <span className="font-medium text-foreground">
-                    {verifierById.get(verifierUserId)?.name ?? verifierUserId}
-                  </span>
-                  <span className="ml-1 text-muted-foreground">
-                    (
-                    {String(verifierById.get(verifierUserId)?.leadershipTier ?? "").trim() || t("—")}
-                    )
-                  </span>
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-800/90 border-t border-amber-200/80 pt-3">
-                {t("Select a designated verifier in")}{" "}
-                <span className="font-medium">{t("section 1")}</span>{" "}
-                {t("— it will appear here.")}
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -690,41 +778,32 @@ export default function CaptureEvidenceStep({
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center pt-2">
-        <Button variant="outline" asChild>
-          <Link href={templatesHref}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            {t("Back to Templates")}
-          </Link>
-        </Button>
-
-        <div className="flex flex-wrap items-center gap-2 justify-end">
-          {!readOnly ? (
-            <>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={isSaving || !templateRecordId.trim()}
-                onClick={() => void saveDraftToTenant()}
-              >
-                {t("Save draft (tenant)")}
-              </Button>
-              <Button
-                type="button"
-                disabled={!canSubmit || isSaving}
-                className="gap-2"
-                onClick={() => void submitCaptureToTenant()}
-              >
-                {t("Submit Capture")}
-                <ChevronRight size={16} />
-              </Button>
-            </>
-          ) : (
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("This capture is read-only.")}
-            </span>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+        {!readOnly ? (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isSaving || !templateRecordId.trim()}
+              onClick={() => void saveDraftToTenant()}
+            >
+              {t("Save draft")}
+            </Button>
+            <Button
+              type="button"
+              disabled={!canSubmit || isSaving}
+              className="gap-2"
+              onClick={() => void submitCaptureToTenant()}
+            >
+              {t("Submit Capture")}
+              <ChevronRight size={16} />
+            </Button>
+          </>
+        ) : (
+          <span className="text-xs font-medium text-muted-foreground">
+            {t("This capture is read-only.")}
+          </span>
+        )}
       </div>
     </>
   );

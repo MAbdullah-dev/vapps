@@ -3,6 +3,8 @@ import { getRequestContext } from "@/lib/request-context";
 import { getTenantClient } from "@/lib/db/tenant-pool";
 import { prisma } from "@/lib/prisma";
 import { roleToLeadershipTier, roleToSystemRoleDisplay } from "@/lib/roles";
+import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
+import { isSupportLeadershipTier } from "@/lib/documentaryEvidenceAccess";
 
 /**
  * GET /api/organization/[orgId]/me
@@ -60,6 +62,7 @@ export async function GET(
       location: string | null;
     } | null = null;
     let assignedProcess: { id: string; name: string; siteId: string } | null = null;
+    let additionalRoles: string[] = [];
 
     const client = await getTenantClient(resolvedOrgId);
     try {
@@ -113,6 +116,24 @@ export async function GET(
         );
         assignedSite = siteRes.rows[0] ?? null;
       }
+
+      try {
+        const roleRes = await client.query<{ name: string }>(
+          `SELECT ar.name
+           FROM user_additional_roles uar
+           INNER JOIN additional_roles ar ON ar.id = uar.additional_role_id AND ar.is_active = true
+           WHERE uar.user_id::text = $1
+           ORDER BY ar.name`,
+          [userId]
+        );
+        additionalRoles = roleRes.rows.map((row) => row.name).filter(Boolean);
+      } catch {
+        additionalRoles = [];
+      }
+
+      if (isSupportLeadershipTier(leadershipTier)) {
+        additionalRoles = additionalRoles.filter((name) => !isAuditorRoleName(name));
+      }
     } finally {
       client.release();
     }
@@ -125,6 +146,7 @@ export async function GET(
       isOwner,
       assignedSite,
       assignedProcess,
+      additionalRoles,
     });
   } catch (error) {
     console.error("Error fetching org membership:", error);

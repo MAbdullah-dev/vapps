@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withTenantConnection } from "@/lib/db/connection-helper";
 import { roleToLeadershipTier, roleToSystemRoleDisplay } from "@/lib/roles";
 import { teamMemberAvatarReference } from "@/lib/avatar-public";
+import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
 
 /**
  * GET /api/organization/[orgId]/members
@@ -213,7 +214,9 @@ export async function GET(
         status: "Active" as const,
         lastActive: "—",
         avatar: teamMemberAvatarReference(m.user.image),
-        additionalRoles: userAdditionalRoles[m.user.id] || [],
+        additionalRoles: (userAdditionalRoles[m.user.id] || []).filter(
+          (name) => m.role !== "member" || !isAuditorRoleName(name)
+        ),
         // Site and process for every non-owner (every user has one site + one process except Owner)
         ...(sites.length > 0
           ? {
