@@ -6,6 +6,7 @@ import {
   validateUploadFile,
   sanitizeFileName,
 } from "@/lib/file-access";
+import { storageGuardResponse, recordStorageUpload } from "@/lib/billing/storage-guard";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
     const orgId = access.orgId!;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    const storageDenied = await storageGuardResponse(orgId, orgIdParam, buffer.length);
+    if (storageDenied) return storageDenied;
     const ext = file.name.split(".").pop();
     if (!ext) {
       return NextResponse.json({ error: "File has no extension" }, { status: 400 });
@@ -82,6 +86,8 @@ export async function POST(req: NextRequest) {
         link: `/api/files/froala/download?key=${encodeURIComponent(key)}`,
       };
     }
+
+    await recordStorageUpload(orgId, buffer.length);
 
     return NextResponse.json(responseData);
   } catch (err: unknown) {

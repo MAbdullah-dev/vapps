@@ -6,6 +6,7 @@ import {
   validateUploadFile,
   sanitizeFileName,
 } from "@/lib/file-access";
+import { recordStorageUpload, storageGuardResponse } from "@/lib/billing/storage-guard";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,9 @@ export async function POST(req: NextRequest) {
     if (validationError) return validationError;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const storageDenied = await storageGuardResponse(orgId, orgIdParam, buffer.length);
+    if (storageDenied) return storageDenied;
+
     const sanitized = sanitizeFileName(file.name);
     const unique = `${randomUUID().slice(0, 8)}-${sanitized}`;
 
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
     const auditBucket =
       process.env.AWS_S3_BUCKET_AUDIT || process.env.AWS_S3_BUCKET_NAME;
     await uploadFileToS3(buffer, key, file.type, { useAuditBucket: true });
+    await recordStorageUpload(orgId, buffer.length);
 
     const link = `/api/files/download?key=${encodeURIComponent(key)}`;
     return NextResponse.json({

@@ -31,7 +31,7 @@ import {
   isSameIssueUser,
   validateBoardIssueStatusTransition,
 } from '@/lib/issue-comment-permissions';
-import { patchIssuesList } from '@/lib/issue-board-sync';
+import { patchIssuesList, dispatchOpenIssueDialog, isKanbanClickLikeDrag } from '@/lib/issue-board-sync';
 
 const statusToColumnId = (status: string): string => {
   const statusMap: Record<string, string> = {
@@ -412,30 +412,30 @@ export default function IssuesBoardPage() {
     issuesRef.current = updatedIssues;
   }, [queueUpdate, pendingReviewUpdate, currentUserId, t]);
 
-  // Handle drag start - track that dragging has started
-  const handleDragStart = useCallback((event: any) => {
+  const openIssue = useCallback((issueId: string, processId?: string) => {
+    dispatchOpenIssueDialog({ issueId, orgId, processId });
+  }, [orgId]);
+
+  const handleDragStart = useCallback(() => {
     setIsDragging(true);
-    console.log(`[DragStart] Drag started for issue ${event.active.id}`);
   }, []);
 
-  // Handle drag end - no API calls here, handled by queue
-  const handleDragEnd = useCallback((event: any) => {
-    const { active, over } = event;
-    
-    // Reset dragging state after a short delay to allow click handlers to check
+  const handleDragCancel = useCallback(() => {
     setTimeout(() => {
       setIsDragging(false);
     }, 100);
-    
-    // Early return if invalid drop
-    if (!over || active.id === over.id) {
-      return;
-    }
-
-    // Queue processing is already scheduled by handleDataChange
-    // This handler is just for any additional cleanup if needed
-    console.log(`[DragEnd] Drag completed for issue ${active.id}`);
   }, []);
+
+  const handleDragEnd = useCallback((event: any) => {
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 100);
+
+    if (isKanbanClickLikeDrag(event)) {
+      const issue = issuesRef.current.find((i) => i.id === event.active.id);
+      openIssue(String(event.active.id), issue?.processId ?? undefined);
+    }
+  }, [openIssue]);
 
   // Handle review dialog submission - finalize the status update
   const handleReviewSubmit = useCallback(() => {
@@ -583,6 +583,7 @@ export default function IssuesBoardPage() {
         onDataChange={handleDataChange}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
     >
       {(column) => {
         // Filter issues for this column
@@ -616,27 +617,13 @@ export default function IssuesBoardPage() {
                     id={issue.id}
                     key={issue.id}
                     name={issue.title}
+                    onClick={(e) => {
+                        if (isDragging) return;
+                        e.stopPropagation();
+                        openIssue(issue.id, issue.processId ?? undefined);
+                    }}
               >
-                    <div 
-                      className="space-y-2 cursor-pointer"
-                      onClick={(e) => {
-                        // Only open dialog if not dragging
-                        // The activation constraint (5px) ensures clicks don't trigger drag
-                        if (!isDragging) {
-                          e.stopPropagation();
-                          // Open issue dialog in view/edit mode
-                          if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('openIssueDialog', {
-                              detail: {
-                                issueId: issue.id,
-                                orgId,
-                                processId: issue.processId ?? undefined,
-                              }
-                            }));
-                          }
-                        }
-                      }}
-                    >
+                    <div className="space-y-2">
                       {/* Header: ID and Options */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground font-mono">
@@ -650,6 +637,7 @@ export default function IssuesBoardPage() {
                             setIssueToDelete(issue);
                             setDeleteDialogOpen(true);
                           }}
+                          onPointerDown={(e) => e.stopPropagation()}
                         >
                           <Trash2 className="text-red-500 hover:text-red-700" size={14} />
                         </button>

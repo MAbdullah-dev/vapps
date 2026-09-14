@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useOrg } from '@/components/providers/org-provider';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
@@ -29,7 +30,7 @@ import {
   isSameIssueUser,
   validateBoardIssueStatusTransition,
 } from '@/lib/issue-comment-permissions';
-import { patchIssuesList } from '@/lib/issue-board-sync';
+import { patchIssuesList, dispatchOpenIssueDialog, isKanbanClickLikeDrag } from '@/lib/issue-board-sync';
 
 // Define columns for the board
 const columns = [
@@ -90,7 +91,7 @@ type QueuedUpdate = {
 
 const Board = () => {
   const params = useParams();
-  const orgId = params.orgId as string;
+  const { orgId } = useOrg();
   const processId = params.processId as string;
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
@@ -366,30 +367,33 @@ const Board = () => {
     issuesRef.current = updatedIssues;
   }, [queueUpdate, pendingReviewUpdate, currentUserId, orgId, processId]);
 
+  const openIssue = useCallback((issueId: string) => {
+    dispatchOpenIssueDialog({ issueId, orgId, processId });
+  }, [orgId, processId]);
+
   // Handle drag start - track that dragging has started
   const handleDragStart = useCallback((event: any) => {
     setIsDragging(true);
-    console.log(`[DragStart] Drag started for issue ${event.active.id}`);
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 100);
   }, []);
 
   // Handle drag end - no API calls here, handled by queue
   const handleDragEnd = useCallback((event: any) => {
-    const { active, over } = event;
-    
-    // Reset dragging state after a short delay to allow click handlers to check
+    // Reset dragging state after a short delay so a real drag doesn't also fire onClick
     setTimeout(() => {
       setIsDragging(false);
     }, 100);
-    
-    // Early return if invalid drop
-    if (!over || active.id === over.id) {
+
+    if (isKanbanClickLikeDrag(event)) {
+      openIssue(String(event.active.id));
       return;
     }
-
-    // Queue processing is already scheduled by handleDataChange
-    // This handler is just for any additional cleanup if needed
-    console.log(`[DragEnd] Drag completed for issue ${active.id}`);
-  }, []);
+  }, [openIssue]);
 
   // Handle review dialog submission - finalize the status update
   const handleReviewSubmit = useCallback(() => {
@@ -528,6 +532,7 @@ const Board = () => {
         onDataChange={handleDataChange}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
     >
       {(column) => {
         // Filter issues for this column
@@ -561,23 +566,13 @@ const Board = () => {
                     id={issue.id}
                     key={issue.id}
                     name={issue.title}
+                    onClick={(e) => {
+                        if (isDragging) return;
+                        e.stopPropagation();
+                        openIssue(issue.id);
+                    }}
               >
-                    <div 
-                      className="space-y-2 cursor-pointer"
-                      onClick={(e) => {
-                        // Only open dialog if not dragging
-                        // The activation constraint (5px) ensures clicks don't trigger drag
-                        if (!isDragging) {
-                          e.stopPropagation();
-                          // Open issue dialog in view/edit mode
-                          if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('openIssueDialog', {
-                              detail: { issueId: issue.id, orgId, processId }
-                            }));
-                          }
-                        }
-                      }}
-                    >
+                    <div className="space-y-2">
                       {/* Header: ID and Options */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground font-mono">
@@ -591,6 +586,7 @@ const Board = () => {
                             setIssueToDelete(issue);
                             setDeleteDialogOpen(true);
                           }}
+                          onPointerDown={(e) => e.stopPropagation()}
                         >
                           <Trash2 className="text-red-500 hover:text-red-700" size={14} />
                         </button>

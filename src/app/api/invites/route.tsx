@@ -11,6 +11,9 @@ import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import { filterAdditionalRoleIdsExcludingAuditorForMember } from "@/lib/filter-auditor-additional-roles-for-member";
 import { INVITE_SUPER_ADMIN_FORBIDDEN } from "@/lib/super-admin-policy";
 import { isSuperAdminEmail } from "@/lib/super-admin-policy.server";
+import { ENTITLEMENT_KEYS } from "@/lib/billing/entitlement-keys";
+import { assertWithinLimit, billingErrorResponse } from "@/lib/billing/guard";
+import { countSeats } from "@/lib/billing/usage";
 
 export async function POST(req: NextRequest) {
   let bodyData: { orgId?: string; email?: string } = {};
@@ -156,6 +159,19 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    try {
+      await assertWithinLimit({
+        organizationId: resolvedOrgId,
+        key: ENTITLEMENT_KEYS.USERS_MAX,
+        currentUsage: await countSeats(resolvedOrgId),
+        increment: 1,
+      });
+    } catch (billingError) {
+      const billed = billingErrorResponse(billingError, orgId);
+      if (billed) return billed;
+      throw billingError;
     }
 
     const existingInvite = await prisma.invitation.findFirst({

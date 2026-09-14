@@ -8,6 +8,17 @@ module.exports = {
           NODE_ENV: "production",
           NODE_EXTRA_CA_CERTS: "/home/ec2-user/certs/global-bundle.pem"
         }
+      },
+      {
+        name: "vie-billing-renew",
+        script: "node",
+        args: "scripts/run-billing-renewal.js",
+        cron_restart: "15 2 * * *",
+        autorestart: false,
+        env: {
+          NODE_ENV: "production",
+          NODE_EXTRA_CA_CERTS: "/home/ec2-user/certs/global-bundle.pem"
+        }
       }
     ]
   };

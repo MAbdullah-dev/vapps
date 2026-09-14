@@ -23,6 +23,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   createContext,
   type HTMLAttributes,
+  type MouseEvent,
   type ReactNode,
   useContext,
   useState,
@@ -91,6 +92,7 @@ export const KanbanBoard = ({ id, children, className }: KanbanBoardProps) => {
 export type KanbanCardProps<T extends KanbanItemProps = KanbanItemProps> = T & {
   children?: ReactNode;
   className?: string;
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
 };
 
 export const KanbanCard = <T extends KanbanItemProps = KanbanItemProps>({
@@ -98,6 +100,7 @@ export const KanbanCard = <T extends KanbanItemProps = KanbanItemProps>({
   name,
   children,
   className,
+  onClick,
 }: KanbanCardProps<T>) => {
   const {
     attributes,
@@ -118,7 +121,13 @@ export const KanbanCard = <T extends KanbanItemProps = KanbanItemProps>({
 
   return (
     <>
-      <div style={style} {...listeners} {...attributes} ref={setNodeRef}>
+      <div
+        style={style}
+        {...listeners}
+        {...attributes}
+        ref={setNodeRef}
+        onClick={onClick}
+      >
         <Card
           className={cn(
             'cursor-grab gap-4 rounded-md p-3 shadow-sm',
@@ -214,9 +223,9 @@ export const KanbanProvider = <
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
-      // Require 5px movement before drag starts (allows clicks to work)
+      // Require movement before drag starts so a normal click still fires onClick
       activationConstraint: {
-        distance: 5,
+        distance: 8,
       },
     }),
     useSensor(TouchSensor, {

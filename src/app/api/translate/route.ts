@@ -5,6 +5,9 @@ import { translationSourceHash } from "@/lib/translation-hash";
 import { getCurrentUser } from "@/lib/get-server-session";
 import { clientIpFromRequest } from "@/lib/turnstile";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ENTITLEMENT_KEYS } from "@/lib/billing/entitlement-keys";
+import { assertFeatureEnabled, billingErrorResponse } from "@/lib/billing/guard";
+import { resolveBillingOrganizationId } from "@/lib/billing/resolve-org";
 
 const DEFAULT_SOURCE_LANG = "en";
 
@@ -15,6 +18,7 @@ type BodyShape = {
   texts?: unknown;
   targetLang?: unknown;
   sourceLang?: unknown;
+  orgId?: unknown;
 };
 
 /**
@@ -121,6 +125,24 @@ export async function POST(req: NextRequest) {
         byHash.set(hashes[index]!, text);
       });
     } else if (toTranslate.length > 0) {
+      const organizationId = await resolveBillingOrganizationId({
+        req,
+        userId: user.id,
+        explicitOrgId: typeof body.orgId === "string" ? body.orgId : null,
+      });
+      if (organizationId) {
+        try {
+          await assertFeatureEnabled({
+            organizationId,
+            key: ENTITLEMENT_KEYS.TRANSLATION_ENABLED,
+          });
+        } catch (billingError) {
+          const billed = billingErrorResponse(billingError, organizationId);
+          if (billed) return billed;
+          throw billingError;
+        }
+      }
+
       const apiTranslated = await translatePlainTexts({
         texts: toTranslate.map((x) => x.text),
         targetLang,

@@ -40,8 +40,17 @@ import {
 import { toast } from "sonner";
 import { isPlatformSuperAdmin } from "@/lib/platform-roles";
 import AuditChecklistManager from "@/components/admin/AuditChecklistManager";
+import PlanManager from "@/components/admin/PlanManager";
+import OrgBillingPanel from "@/components/admin/OrgBillingPanel";
 
-const TAB_VALUES = new Set(["overview", "organizations", "users", "audit-checklists", "audit"]);
+const TAB_VALUES = new Set([
+  "overview",
+  "organizations",
+  "users",
+  "plans",
+  "audit-checklists",
+  "audit",
+]);
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -369,6 +378,7 @@ export default function AdminDashboard() {
                     <TableHead>Status</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Members</TableHead>
+                    <TableHead>Plan</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -376,13 +386,13 @@ export default function AdminDashboard() {
                 <TableBody>
                   {isLoadingOrgs ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Loading organizations...
                       </TableCell>
                     </TableRow>
                   ) : filteredOrganizations.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No organizations found.
                       </TableCell>
                     </TableRow>
@@ -407,6 +417,20 @@ export default function AdminDashboard() {
                         </TableCell>
                         <TableCell>{org.ownerEmail ?? "—"}</TableCell>
                         <TableCell>{org.memberCount}</TableCell>
+                        <TableCell>
+                          {org.planName ? (
+                            <span>
+                              {org.planName}
+                              {org.subscriptionStatus ? (
+                                <span className="block text-xs text-muted-foreground">
+                                  {org.subscriptionStatus}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
                         <TableCell>{formatDate(org.createdAt)}</TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -451,6 +475,13 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
               </div>
+
+              {selectedOrgId ? (
+                <OrgBillingPanel
+                  organizationId={selectedOrgId}
+                  organizationName={selectedOrganization?.name ?? "this organization"}
+                />
+              ) : null}
 
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -689,6 +720,18 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="plans" className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Plans and pricing</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Define what each plan includes and what it costs. Changing a price creates a
+              new version, so organizations already subscribed keep their agreed terms.
+            </p>
+          </div>
+
+          <PlanManager />
         </TabsContent>
 
         <TabsContent value="audit-checklists" className="space-y-4">

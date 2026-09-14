@@ -291,3 +291,141 @@ export async function sendInvitationEmail({
     `,
   });
 }
+
+/** True when SMTP is usable. Billing mail is best-effort and skips when it is not. */
+export function isSmtpConfigured(): boolean {
+  return Boolean(
+    process.env.SMTP_HOST?.trim() &&
+      process.env.SMTP_USER?.trim() &&
+      process.env.SMTP_PASS?.trim()
+  );
+}
+
+function billingLayout(params: {
+  heading: string;
+  bodyHtml: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  footer: string;
+}) {
+  return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0A0A0A;">${params.heading}</h2>
+        ${params.bodyHtml}
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${params.ctaUrl}" style="background-color: #0A0A0A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            ${params.ctaLabel}
+          </a>
+        </div>
+        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 12px; word-break: break-all;">${params.ctaUrl}</p>
+        <p style="color: #999; font-size: 12px; margin-top: 30px;">${params.footer}</p>
+      </div>
+    `;
+}
+
+function billingFrom() {
+  return `"Vie" <${process.env.SMTP_FROM || "noreply@vie.com"}>`;
+}
+
+export async function sendBillingPastDueEmail({
+  to,
+  organizationName,
+  planName,
+  amountLabel,
+  graceEndsAt,
+  billingUrl,
+}: {
+  to: string[];
+  organizationName: string;
+  planName: string;
+  amountLabel: string;
+  graceEndsAt: Date | null;
+  billingUrl: string;
+}) {
+  const graceLine = graceEndsAt
+    ? `<p>You keep <strong>${planName}</strong> until <strong>${graceEndsAt.toDateString()}</strong>. After that the workspace returns to the free Seed plan.</p>`
+    : `<p>You keep <strong>${planName}</strong> for now. If payment is not received the workspace returns to the free Seed plan.</p>`;
+
+  await transporter.sendMail({
+    from: billingFrom(),
+    to,
+    subject: `Payment due for ${organizationName}`,
+    html: billingLayout({
+      heading: "Your payment is past due",
+      bodyHtml: `
+        <p>The billing period for <strong>${organizationName}</strong> has ended and we have not received payment of <strong>${amountLabel}</strong>.</p>
+        ${graceLine}
+        <p>Nothing has been deleted, and nobody has lost access to your records.</p>
+      `,
+      ctaLabel: "Pay now",
+      ctaUrl: billingUrl,
+      footer: "You are receiving this because you manage billing for this organization.",
+    }),
+  });
+}
+
+export async function sendBillingDowngradedEmail({
+  to,
+  organizationName,
+  previousPlanName,
+  fallbackPlanName,
+  billingUrl,
+}: {
+  to: string[];
+  organizationName: string;
+  previousPlanName: string;
+  fallbackPlanName: string;
+  billingUrl: string;
+}) {
+  await transporter.sendMail({
+    from: billingFrom(),
+    to,
+    subject: `${organizationName} moved to the ${fallbackPlanName} plan`,
+    html: billingLayout({
+      heading: `Moved to ${fallbackPlanName}`,
+      bodyHtml: `
+        <p>Payment for <strong>${previousPlanName}</strong> was not received, so <strong>${organizationName}</strong> is now on the free <strong>${fallbackPlanName}</strong> plan.</p>
+        <p><strong>Your data is safe.</strong> Nothing was deleted — your issues, documents, and audit records are all still there. Some limits are lower until you subscribe again.</p>
+      `,
+      ctaLabel: "Restore your plan",
+      ctaUrl: billingUrl,
+      footer: "You are receiving this because you manage billing for this organization.",
+    }),
+  });
+}
+
+export async function sendBillingReceiptEmail({
+  to,
+  organizationName,
+  planName,
+  amountLabel,
+  invoiceNumber,
+  periodEnd,
+  billingUrl,
+}: {
+  to: string[];
+  organizationName: string;
+  planName: string;
+  amountLabel: string;
+  invoiceNumber: string | null;
+  periodEnd: Date | null;
+  billingUrl: string;
+}) {
+  await transporter.sendMail({
+    from: billingFrom(),
+    to,
+    subject: `Payment received for ${organizationName}`,
+    html: billingLayout({
+      heading: "Payment received",
+      bodyHtml: `
+        <p>Thank you. We received <strong>${amountLabel}</strong> for <strong>${organizationName}</strong>.</p>
+        <p><strong>${planName}</strong> is active${periodEnd ? ` until <strong>${periodEnd.toDateString()}</strong>` : ""}.</p>
+        ${invoiceNumber ? `<p style="color: #666; font-size: 14px;">Invoice ${invoiceNumber}</p>` : ""}
+      `,
+      ctaLabel: "View invoices",
+      ctaUrl: billingUrl,
+      footer: "You are receiving this because you manage billing for this organization.",
+    }),
+  });
+}

@@ -7,6 +7,7 @@ import { storeTenantData } from "@/lib/store-tenant-data";
 import { OnboardingData } from "@/store/onboardingStore";
 import { z } from "zod";
 import { encryptTenantDatabaseFields } from "@/lib/tenant-secrets";
+import { ensureDefaultSubscription } from "@/lib/billing/subscription-service";
 
 /**
  * Validation schema for organization creation
@@ -336,6 +337,15 @@ export async function POST(req: NextRequest) {
       dbInstance = result.dbInstance;
       tenantDb = result.tenantDb;
 
+      try {
+        await ensureDefaultSubscription(organization.id, user.id);
+      } catch (billingError) {
+        console.error(
+          "Warning: Failed to create default subscription (org still created):",
+          billingError
+        );
+      }
+
       // 9. Run migrations on tenant database to create tables
       try {
         await runTenantMigrations(tenantDb.connectionString);
@@ -391,6 +401,21 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     console.error("Unexpected error in organization creation:", error);
+    const code = error?.code as string | undefined;
+    const dbDown =
+      code === "ECONNREFUSED" ||
+      code === "P1001" ||
+      String(error?.message ?? "").includes("ECONNREFUSED");
+    if (dbDown) {
+      return NextResponse.json(
+        {
+          error: "Database unavailable",
+          message:
+            "Cannot reach PostgreSQL. Start the local database and try again.",
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       {
         error: "Internal server error",

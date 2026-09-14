@@ -7,6 +7,9 @@ import { roleToLeadershipTier, type Role } from "@/lib/roles";
 import { hasPermission, type StoredPermissions } from "@/lib/permissions";
 import { getUserAssignedProcessIds } from "@/lib/process-access";
 import crypto from "crypto";
+import { ENTITLEMENT_KEYS } from "@/lib/billing/entitlement-keys";
+import { assertWithinLimit, billingErrorResponse } from "@/lib/billing/guard";
+import { countSites } from "@/lib/billing/usage";
 
 /**
  * GET /api/organization/[orgId]/sites
@@ -184,6 +187,19 @@ export async function POST(
         { error: "Site name and location are required" },
         { status: 400 }
       );
+    }
+
+    try {
+      await assertWithinLimit({
+        organizationId: resolvedOrgId,
+        key: ENTITLEMENT_KEYS.SITES_MAX,
+        currentUsage: await countSites(resolvedOrgId),
+        increment: 1,
+      });
+    } catch (billingError) {
+      const billed = billingErrorResponse(billingError, orgId);
+      if (billed) return billed;
+      throw billingError;
     }
 
     try {
