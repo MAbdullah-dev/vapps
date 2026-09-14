@@ -41,6 +41,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { generateId } from "@/lib/generate-id";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/billing/client-error";
 
 import {
   Popover,
@@ -286,8 +287,16 @@ export default function ProcessLayout({
       const customEvent = event as CustomEvent;
       const { issueId, orgId: eventOrgId, processId: eventProcessId } = customEvent.detail;
 
-      if (eventOrgId !== orgId) return;
-      if (workspaceSegment !== "issues" && eventProcessId !== processId) return;
+      if (
+        eventOrgId &&
+        eventOrgId !== orgId &&
+        eventOrgId !== orgSlug
+      ) {
+        return;
+      }
+      if (workspaceSegment !== "issues" && eventProcessId && eventProcessId !== processId) {
+        return;
+      }
 
       // Open in create mode when no issueId (e.g. from timeline "add")
       if (!issueId) {
@@ -330,6 +339,7 @@ export default function ProcessLayout({
         const issue = response.issue;
 
         if (!issue || String(issue.id) !== String(requestedIssueId)) {
+          toast.error(t("Failed to load issue details"));
           return;
         }
         setEditingIssue(issue);
@@ -365,7 +375,7 @@ export default function ProcessLayout({
     return () => {
       window.removeEventListener('openIssueDialog', handleOpenIssueDialog);
     };
-  }, [orgId, processId, workspaceSegment, loadIssuePeopleAndSprints]);
+  }, [orgId, orgSlug, processId, workspaceSegment, loadIssuePeopleAndSprints, t]);
 
   // Reset form when dialog closes
   const handleDialogOpenChange = (open: boolean) => {
@@ -864,8 +874,8 @@ export default function ProcessLayout({
       setEmail("");
       setRole("member");
       setDialogOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || t("Failed to send invitation"));
+    } catch (error: unknown) {
+      toastApiError(error, t("Failed to send invitation"), orgSlug);
     } finally {
       setIsSubmitting(false);
     }

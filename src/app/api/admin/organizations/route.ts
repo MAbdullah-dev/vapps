@@ -29,6 +29,12 @@ export async function GET(req: NextRequest) {
             invitations: true,
           },
         },
+        subscription: {
+          select: {
+            status: true,
+            plan: { select: { id: true, name: true, code: true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -45,6 +51,10 @@ export async function GET(req: NextRequest) {
         ownerEmail: org.owner?.email ?? null,
         memberCount: org._count.users,
         pendingInvites: org._count.invitations,
+        planName: org.subscription?.plan.name ?? null,
+        planCode: org.subscription?.plan.code ?? null,
+        planId: org.subscription?.plan.id ?? null,
+        subscriptionStatus: org.subscription?.status ?? null,
       })),
     });
   } catch (error: unknown) {

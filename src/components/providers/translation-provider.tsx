@@ -160,7 +160,22 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
       });
 
       if (!res.ok) {
-        console.warn("[TranslationProvider] /api/translate HTTP error:", res.status);
+        if (res.status === 402) {
+          try {
+            const body = (await res.json()) as { error?: string };
+            if (!sessionStorage.getItem("vie-translate-plan-tip")) {
+              sessionStorage.setItem("vie-translate-plan-tip", "1");
+              toast.error(body.error || "Translation is not included in your plan.", {
+                description: "Upgrade from Settings → Billing & Subscription to enable it.",
+                duration: 12_000,
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        } else {
+          console.warn("[TranslationProvider] /api/translate HTTP error:", res.status);
+        }
         return;
       }
 

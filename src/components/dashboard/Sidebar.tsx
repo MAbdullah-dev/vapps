@@ -141,6 +141,13 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
     enabled: !!orgId,
   });
 
+  const { data: billing } = useQuery({
+    queryKey: ["org-billing", slug],
+    queryFn: () => apiClient.getOrgBilling(slug),
+    staleTime: 60 * 1000,
+    enabled: !!slug,
+  });
+
   const showSettingsLink = canAccessOrgSettings(
     orgMembership?.leadershipTier,
     orgMembership?.isOwner
@@ -159,6 +166,9 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   const footerOrgName = displayOrgName || t("Organization");
   const footerInitials = displayOrgName.slice(0, 2).toUpperCase() || t("—");
   const isOrgOwner = orgMembership?.isOwner ?? false;
+  const planFooterLabel = billing?.subscription.plan.isFallback
+    ? t("Free")
+    : billing?.subscription.plan.name ?? t("Free");
 
   const link = (path: string) => getDashboardPath(slug, path);
   const sidebarProcesses = selectedSite?.processes ?? [];
@@ -489,10 +499,10 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
             </Avatar>
             <div className="description min-w-0 flex-1">
               <h3 className="truncate text-sm text-foreground">{footerOrgName}</h3>
-              <p className="text-xs">{t("Free")}</p>
+              <p className="text-xs">{planFooterLabel}</p>
             </div>
             <Link
-              href="/upgrade"
+              href={link("settings/billing-subscription")}
               className="ml-auto shrink-0 rounded-full border border-primary/35 bg-primary/10 p-2.5 text-xs text-primary"
             >
               {t("Upgrade")}

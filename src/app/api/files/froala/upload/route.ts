@@ -5,6 +5,7 @@ import {
   requireOrgMembership,
   validateUploadFile,
 } from "@/lib/file-access";
+import { recordStorageUpload, storageGuardResponse } from "@/lib/billing/storage-guard";
 
 export const runtime = "nodejs";
 
@@ -32,10 +33,14 @@ export async function POST(req: NextRequest) {
     if (validationError) return validationError;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const storageDenied = await storageGuardResponse(orgId, orgIdParam, buffer.length);
+    if (storageDenied) return storageDenied;
+
     const ext = file.name.split(".").pop() || "bin";
     const key = `${orgId}/froala/${randomUUID()}.${ext}`;
 
     await uploadFileToS3(buffer, key, file.type);
+    await recordStorageUpload(orgId, buffer.length);
 
     return NextResponse.json({
       link: `/api/files/froala/download?key=${encodeURIComponent(key)}`,

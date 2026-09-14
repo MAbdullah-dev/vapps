@@ -4,9 +4,11 @@ import {
   seedDefaultSuperAdmin,
 } from "@/lib/seed-default-super-admin";
 import { seedDefaultAuditChecklists } from "@/lib/seed-default-audit-checklists";
+import { seedDefaultPlans } from "@/lib/billing/seed-default-plans";
+import { backfillDefaultSubscriptions } from "@/lib/billing/subscription-service";
 
 /**
- * Master DB seed: default super admin + global audit checklists.
+ * Master DB seed: default super admin + global audit checklists + billing plans.
  * Safe to run repeatedly (idempotent). Does not promote other users.
  */
 export async function runMasterDbSeed(db: PrismaClient): Promise<void> {
@@ -28,4 +30,6 @@ export async function runMasterDbSeed(db: PrismaClient): Promise<void> {
   }
 
   await seedDefaultAuditChecklists(db);
+  await seedDefaultPlans(db);
+  await backfillDefaultSubscriptions(db);
 }

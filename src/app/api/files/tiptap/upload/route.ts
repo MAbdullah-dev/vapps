@@ -5,6 +5,7 @@ import {
   requireOrgMembership,
   validateUploadFile,
 } from "@/lib/file-access";
+import { recordStorageUpload, storageGuardResponse } from "@/lib/billing/storage-guard";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
     if (validationError) return validationError;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const storageDenied = await storageGuardResponse(orgId, orgIdParam, buffer.length);
+    if (storageDenied) return storageDenied;
+
     const ext = file.name.split(".").pop();
     if (!ext) {
       return NextResponse.json({ error: "File has no extension" }, { status: 400 });
@@ -45,6 +49,7 @@ export async function POST(req: NextRequest) {
     const key = `${TIPTAP_S3_KEY_PREFIX}${orgId}/${randomUUID()}.${ext}`;
 
     await uploadTiptapFileToS3(buffer, key, file.type);
+    await recordStorageUpload(orgId, buffer.length);
 
     return NextResponse.json({
       link: `/api/files/froala/download?key=${encodeURIComponent(key)}`,

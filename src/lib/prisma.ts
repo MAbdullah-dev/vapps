@@ -19,6 +19,11 @@ const getConnectionStringWithTimeouts = () => {
   const baseUrl = process.env.DATABASE_URL!;
   try {
     const url = new URL(baseUrl);
+    // Windows often resolves "localhost" to ::1 first. If Postgres only listens on
+    // IPv4, that produces ECONNREFUSED even when the server is running.
+    if (url.hostname === "localhost") {
+      url.hostname = "127.0.0.1";
+    }
     // CRITICAL: The ~23 second timeout is likely a TCP socket timeout
     // We need to ensure all timeout parameters are set correctly
     // Note: socket_timeout and pool_timeout are Prisma-specific and may not work with pg Pool
@@ -174,7 +179,12 @@ export const prisma = basePrisma.$extends({
 
         return result;
       } catch (error: any) {
-        if (error.message?.includes('timeout')) {
+        if (error.code === "ECONNREFUSED" || error.message?.includes("ECONNREFUSED")) {
+          console.error(
+            "❌ PostgreSQL connection refused. Start the local server (service postgresql-x64-18 or pg_ctl) and retry.",
+            { model, operation }
+          );
+        } else if (error.message?.includes('timeout')) {
           console.error(`Query timeout: ${model}.${operation}`, {
             args: JSON.stringify(args).substring(0, 200),
             duration: Date.now() - start,

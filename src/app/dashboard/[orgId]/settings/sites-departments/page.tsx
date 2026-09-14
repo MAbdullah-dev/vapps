@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Building2, Users, ChevronRight, Edit, Trash2, Plus, FolderKanban } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { toastApiError } from "@/lib/billing/client-error";
 import { getDashboardPath } from "@/lib/subdomain";
 import {
   Select,
@@ -258,9 +259,9 @@ export default function SitesDepartmentsPage() {
       setIsAddDialogOpen(false);
       setFormData({ siteName: "", location: "" });
       fetchSites();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating site:", error);
-      toast.error(error.message || "Failed to create site");
+      toastApiError(error, "Failed to create site", orgSlug);
     }
   };
 

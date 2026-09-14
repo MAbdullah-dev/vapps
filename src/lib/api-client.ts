@@ -1,4 +1,64 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
+import type {
+  AdminPlan,
+  AdminPlansResponse,
+  AdminPlanVersion,
+  CreatePlanPayload,
+  CreatePlanVersionPayload,
+  UpdatePlanPayload,
+  UpdatePlanVersionPayload,
+} from "@/lib/billing/admin-types";
+import type { CheckoutResponse, OrgBillingResponse } from "@/lib/billing/org-types";
+import type { EntitlementDefinition } from "@/lib/billing/entitlement-keys";
+
+type AdminEntitlementOverride = {
+  id: string;
+  key: string;
+  kind: string;
+  numberValue: number | null;
+  boolValue: boolean | null;
+  textValue: string | null;
+  reason: string;
+  expiresAt: string | null;
+  createdBy: string;
+  createdAt: string;
+};
+
+type AdminOrgBillingResponse = {
+  subscription: {
+    id: string;
+    status: string;
+    currentPeriodEnd: string;
+    cancelAtPeriodEnd: boolean;
+    plan: { id: string; code: string; name: string };
+    planVersion: {
+      id: string;
+      amountMinor: number;
+      currency: string;
+      versionLabel: string;
+    };
+  } | null;
+  overrides: AdminEntitlementOverride[];
+  plans: Array<{
+    id: string;
+    code: string;
+    name: string;
+    visibility: string;
+    isFallback: boolean;
+  }>;
+  entitlementDefinitions: EntitlementDefinition[];
+};
+
+type ChangePlanClientResult =
+  | { outcome: "unchanged" }
+  | { outcome: "applied" }
+  | { outcome: "scheduled"; effectiveAt: string }
+  | {
+      outcome: "requires_payment";
+      planVersionId: string;
+      amountMinor: number;
+      currency: string;
+    };
 
 type FetchOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -25,14 +85,30 @@ class ApiClient {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
-        const data = error.response?.data as { error?: string; message?: string } | undefined;
+        const data = error.response?.data as {
+          error?: string;
+          message?: string;
+          upgradePath?: string;
+          code?: string;
+        } | undefined;
         const base = data?.error || error.message || "Something went wrong";
         const detail = data?.message;
-        const errorMessage =
+        let errorMessage =
           detail && typeof detail === "string" && detail.trim() !== "" && detail !== base
             ? `${base}: ${detail}`
             : base;
-        throw new Error(errorMessage);
+        if (error.response?.status === 402 && data?.upgradePath) {
+          errorMessage = `${errorMessage} Open Billing to upgrade.`;
+        }
+        const err = new Error(errorMessage) as Error & {
+          status?: number;
+          code?: string;
+          upgradePath?: string;
+        };
+        err.status = error.response?.status;
+        err.code = data?.code;
+        err.upgradePath = data?.upgradePath;
+        throw err;
       }
     );
   }
@@ -152,6 +228,10 @@ class ApiClient {
         ownerEmail: string | null;
         memberCount: number;
         pendingInvites: number;
+        planName: string | null;
+        planCode: string | null;
+        planId: string | null;
+        subscriptionStatus: string | null;
       }>;
     }>("/admin/organizations");
   }
@@ -316,6 +396,105 @@ class ApiClient {
   deleteAdminChecklistQuestion(checklistId: string, questionId: string) {
     return this.delete<{ success: boolean }>(
       `/admin/audit-checklists/${checklistId}/questions/${questionId}`
+    );
+  }
+
+  // ========== Admin: Billing Plans ==========
+
+  getAdminPlans() {
+    return this.get<AdminPlansResponse>("/admin/plans");
+  }
+
+  createAdminPlan(data: CreatePlanPayload) {
+    return this.post<{ plan: AdminPlan }>("/admin/plans", data);
+  }
+
+  updateAdminPlan(planId: string, data: UpdatePlanPayload) {
+    return this.patch<{ plan: AdminPlan }>(`/admin/plans/${planId}`, data);
+  }
+
+  createAdminPlanVersion(planId: string, data: CreatePlanVersionPayload) {
+    return this.post<{ version: AdminPlanVersion }>(
+      `/admin/plans/${planId}/versions`,
+      data
+    );
+  }
+
+  updateAdminPlanVersion(
+    planId: string,
+    versionId: string,
+    data: UpdatePlanVersionPayload
+  ) {
+    return this.patch<{ version?: AdminPlanVersion; success?: boolean }>(
+      `/admin/plans/${planId}/versions/${versionId}`,
+      data
+    );
+  }
+
+  assignAdminOrganizationPlan(orgId: string, data: { planId: string; reason?: string }) {
+    return this.post<{ ok: boolean }>(`/admin/organizations/${orgId}/subscription`, data);
+  }
+
+  getAdminOrganizationBilling(orgId: string) {
+    return this.get<AdminOrgBillingResponse>(`/admin/organizations/${orgId}/billing`);
+  }
+
+  upsertAdminEntitlementOverride(
+    orgId: string,
+    data: {
+      key: string;
+      kind?: string;
+      numberValue?: number | null;
+      boolValue?: boolean | null;
+      textValue?: string | null;
+      reason: string;
+      expiresAt?: string | null;
+    }
+  ) {
+    return this.put<{ override: AdminEntitlementOverride }>(
+      `/admin/organizations/${orgId}/overrides`,
+      data
+    );
+  }
+
+  deleteAdminEntitlementOverride(orgId: string, key: string) {
+    return this.delete<{ ok: boolean }>(
+      `/admin/organizations/${orgId}/overrides?key=${encodeURIComponent(key)}`
+    );
+  }
+
+  runAdminBillingRenewal() {
+    return this.post<{
+      scanned: number;
+      rolled: number;
+      pastDue: number;
+      changed: number;
+      downgraded: number;
+    }>("/admin/billing/renew");
+  }
+
+  getOrgBilling(orgId: string) {
+    return this.get<OrgBillingResponse>(`/organization/${orgId}/billing`);
+  }
+
+  changeOrgPlan(orgId: string, planId: string) {
+    return this.post<ChangePlanClientResult>(`/organization/${orgId}/billing/change-plan`, {
+      planId,
+    });
+  }
+
+  checkoutOrgPlan(orgId: string, planId: string) {
+    return this.post<CheckoutResponse>(`/organization/${orgId}/billing/checkout`, { planId });
+  }
+
+  checkoutOrgRenewal(orgId: string) {
+    return this.post<CheckoutResponse>(`/organization/${orgId}/billing/checkout`, { renew: true });
+  }
+
+  cancelOrgSubscription(orgId: string, resume = false) {
+    return this.post<{ ok: boolean; resumed?: boolean; cancelAtPeriodEnd?: boolean }>(
+      `/organization/${orgId}/billing/cancel`,
+      { resume }
     );
   }
 

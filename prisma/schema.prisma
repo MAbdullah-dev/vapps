@@ -132,6 +132,19 @@ model Organization {
   users       UserOrganization[]
   invitations Invitation[]
   adminActions AdminActionLog[]    @relation("AdminOrganization")
+
+  /**
+   * Billing. Kept in the master DB (not tenant DBs) so plans stay single-source
+   * and super admin can query subscriptions across all tenants.
+   * `status` above is moderation state and is deliberately separate from
+   * Subscription.status (billing state); an org can be blocked and past due.
+   */
+  subscription         Subscription?
+  invoices             Invoice[]
+  payments             Payment[]
+  usageCounters        UsageCounter[]
+  entitlementOverrides EntitlementOverride[]
+  creditLedger         CreditLedgerEntry[]
 }
 
 model UserOrganization {
@@ -233,4 +246,365 @@ model AuditChecklistQuestion {
 
   @@index([auditChecklistId])
   @@map("audit_checklist_questions")
+}
+
+// ============================================================
+// Billing
+//
+// Design notes:
+// - Price and limits are versioned together (PlanVersion). A Subscription pins
+//   one version, so raising a price or a limit never silently changes what an
+//   existing customer pays for; grandfathering is the default.
+// - Money is stored in minor units (paisa for PKR) as Int. Never floats.
+// - Entitlement keys are plain strings (see src/lib/billing/entitlement-keys.ts)
+//   so adding a new limit does not require a migration.
+// ============================================================
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// PUBLIC plans appear on the pricing page; PRIVATE plans are assigned by super admin only.
+enum PlanVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  GRACE
+  CANCELED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum EntitlementKind {
+  NUMBER
+  BOOLEAN
+  TEXT
+  UNLIMITED
+}
+
+/// What happens when a limit is reached. Compliance-record paths must stay WARN:
+/// blocking a nonconformity from being recorded would create audit-trail gaps.
+enum LimitAction {
+  WARN
+  BLOCK
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  REJECTED
+  FAILED
+}
+
+model Plan {
+  id           String         @id @default(uuid())
+  code         String         @unique
+  name         String
+  description  String?
+  status       PlanStatus     @default(DRAFT)
+  visibility   PlanVisibility @default(PUBLIC)
+  displayOrder Int            @default(0)
+  /// Exactly one plan is the fallback (Seed): unpaid subscriptions land here instead of losing access.
+  isFallback   Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  versions      PlanVersion[]
+  subscriptions Subscription[]
+
+  @@index([status, visibility, displayOrder])
+  @@map("plans")
+}
+
+model PlanVersion {
+  id            String       @id @default(uuid())
+  planId        String
+  versionLabel  String
+  currency      String       @default("PKR")
+  /// Minor units (paisa for PKR).
+  amountMinor   Int
+  billingCycle  BillingCycle @default(MONTHLY)
+  trialDays     Int          @default(0)
+  effectiveFrom DateTime     @default(now())
+  effectiveTo   DateTime?
+  /// At most one current version per plan (enforced in application code).
+  isCurrent     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  plan                 Plan                  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  entitlements         PlanEntitlement[]
+  subscriptions        Subscription[]
+  scheduledPlanChanges ScheduledPlanChange[]
+
+  @@index([planId, isCurrent])
+  @@map("plan_versions")
+}
+
+model PlanEntitlement {
+  id            String          @id @default(uuid())
+  planVersionId String
+  key           String
+  kind          EntitlementKind
+  numberValue   Int?
+  boolValue     Boolean?
+  textValue     String?
+  onExceed      LimitAction     @default(WARN)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  planVersion PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([planVersionId, key])
+  @@map("plan_entitlements")
+}
+
+model Subscription {
+  id             String @id @default(uuid())
+  /// One subscription row per organization, mutated over time. History lives in SubscriptionEvent.
+  organizationId String @unique
+  planId         String
+  /// Pinned version — the source of grandfathering.
+  planVersionId  String
+
+  status       SubscriptionStatus @default(ACTIVE)
+  billingCycle BillingCycle       @default(MONTHLY)
+
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  gracePeriodEndsAt  DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  canceledAt         DateTime?
+
+  /// Failed renewal attempts in the current dunning run; reset on success.
+  failedAttempts Int       @default(0)
+  lastAttemptAt  DateTime?
+
+  /// Gateway recurring credential (PayFast instrument token). Encrypted at rest (enc:v1).
+  providerToken       String?
+  providerCustomerRef String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan            Plan                  @relation(fields: [planId], references: [id])
+  planVersion     PlanVersion           @relation(fields: [planVersionId], references: [id])
+  events          SubscriptionEvent[]
+  scheduledChange ScheduledPlanChange[]
+  invoices        Invoice[]
+
+  @@index([status, currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+/// Append-only transition history. Never updated or deleted.
+model SubscriptionEvent {
+  id                String   @id @default(uuid())
+  subscriptionId    String
+  fromStatus        String?
+  toStatus          String
+  fromPlanVersionId String?
+  toPlanVersionId   String?
+  reason            String
+  actorUserId       String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
+  @@map("subscription_events")
+}
+
+/// Downgrades take effect at period end so customers keep what they already paid for.
+model ScheduledPlanChange {
+  id                  String    @id @default(uuid())
+  subscriptionId      String
+  targetPlanVersionId String
+  effectiveAt         DateTime
+  appliedAt           DateTime?
+  reason              String?
+  createdBy           String?
+  createdAt           DateTime  @default(now())
+
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  targetPlanVersion PlanVersion  @relation(fields: [targetPlanVersionId], references: [id])
+
+  @@index([effectiveAt, appliedAt])
+  @@map("scheduled_plan_changes")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  organizationId String
+  subscriptionId String?
+  number         String        @unique
+  status         InvoiceStatus @default(DRAFT)
+  currency       String        @default("PKR")
+  subtotalMinor  Int
+  taxMinor       Int           @default(0)
+  totalMinor     Int
+  periodStart    DateTime
+  periodEnd      DateTime
+  dueAt          DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+
+  @@index([organizationId, status])
+  @@index([status, dueAt])
+  @@map("invoices")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  organizationId String
+  invoiceId      String?
+  provider       String
+  /// Reference we generate and send to the gateway (PayFast basket_id).
+  providerRef    String
+  /// Gateway's own transaction id, known only after it responds.
+  providerTxnId  String?
+  amountMinor    Int
+  currency       String        @default("PKR")
+  status         PaymentStatus @default(PENDING)
+  failureReason  String?
+  rawPayload     Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerRef])
+  @@index([organizationId, status])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+/// Every gateway callback is persisted before processing so replays are harmless
+/// and rejected payloads remain auditable.
+model WebhookEvent {
+  id             String        @id @default(uuid())
+  provider       String
+  dedupeKey      String
+  signatureValid Boolean       @default(false)
+  sourceIp       String?
+  payload        Json
+  status         WebhookStatus @default(RECEIVED)
+  error          String?
+  processedAt    DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@unique([provider, dedupeKey])
+  @@index([status, createdAt])
+  @@map("webhook_events")
+}
+
+model UsageCounter {
+  id             String    @id @default(uuid())
+  organizationId String
+  periodStart    DateTime
+  periodEnd      DateTime
+  seatsUsed      Int       @default(0)
+  storageBytes   BigInt    @default(0)
+  activeIssues   Int       @default(0)
+  documentsCount Int       @default(0)
+  sitesCount     Int       @default(0)
+  creditsUsed    Int       @default(0)
+  reconciledAt   DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, periodStart])
+  @@map("usage_counters")
+}
+
+/// Per-org exception granted by super admin (sales deals) without inventing a fake plan.
+/// Takes precedence over the pinned plan version.
+model EntitlementOverride {
+  id             String          @id @default(uuid())
+  organizationId String
+  key            String
+  kind           EntitlementKind
+  numberValue    Int?
+  boolValue      Boolean?
+  textValue      String?
+  reason         String
+  expiresAt      DateTime?
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@map("entitlement_overrides")
+}
+
+/// Configurable credit cost per action. Generic CRUD ships at cost 0; only
+/// genuinely variable-cost operations (AI, translation) are priced.
+model CreditAction {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  cost      Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("credit_actions")
+}
+
+/// Append-only credit ledger. Balance is derived, never stored, so it stays auditable.
+model CreditLedgerEntry {
+  id             String   @id @default(uuid())
+  organizationId String
+  periodStart    DateTime
+  /// Positive for grants, negative for consumption.
+  delta          Int
+  reason         String
+  actionCode     String?
+  refType        String?
+  refId          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, periodStart])
+  @@map("credit_ledger_entries")
 }
