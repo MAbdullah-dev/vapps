@@ -39,6 +39,7 @@ type ReviewDocumentStepProps = {
   loginUserId?: string;
   /** Approver viewing Create + Review read-only while Process Owner corrects after approval return. */
   readOnlyObserver?: boolean;
+  obsoleteReason?: string;
   onBack: () => void;
   onNext: (payload: { comments: string; decision: "effective" | "ineffective" | null }) => void;
 };
@@ -71,6 +72,7 @@ export default function ReviewDocumentStep({
   loginUserName,
   loginUserId,
   readOnlyObserver = false,
+  obsoleteReason = "",
   onBack,
   onNext,
 }: ReviewDocumentStepProps) {
@@ -234,6 +236,13 @@ export default function ReviewDocumentStep({
             <p className="font-semibold text-foreground">{version?.trim() || t("—")}</p>
           </div>
         </div>
+
+        {obsoleteReason.trim() ? (
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <p className="text-sm font-semibold text-foreground">{t("Obsolete Reason")}</p>
+            <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{obsoleteReason.trim()}</p>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-3">
           <Button variant="outline" className="gap-2">

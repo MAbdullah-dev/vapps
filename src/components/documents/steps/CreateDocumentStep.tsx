@@ -28,10 +28,10 @@ import type {
   Step1FormData,
 } from "@/components/documents/types";
 import {
+  ArrowLeftRight,
   Calendar as CalendarIcon,
   Lock,
   Paperclip,
-  RefreshCw,
   Save,
   Search,
   Send,
@@ -294,6 +294,9 @@ export default function CreateDocumentStep({
   const [transferDocumentClass, setTransferDocumentClass] = useState<"P" | "F" | "EXT">("P");
   const [transferInitiatorRequest, setTransferInitiatorRequest] = useState("");
   const [originatorConsent, setOriginatorConsent] = useState<"accepted" | "declined" | null>(null);
+  const [originalDocumentTitle, setOriginalDocumentTitle] = useState("");
+  const [transferTitleChange, setTransferTitleChange] = useState("");
+  const [obsoleteReason, setObsoleteReason] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
   const [processOwnerOptions, setProcessOwnerOptions] = useState<ProcessOwnerMemberOption[]>([]);
@@ -361,18 +364,22 @@ export default function CreateDocumentStep({
   }, [orgId, processOwner, processOwnerUserId, loginUserName, loginUserId]);
 
   useEffect(() => {
+    if (initialWizard?.actionType === "revise" || actionType === "revise") return;
+    if (initialWizard?.actionType === "obsolete" || actionType === "obsolete") return;
     if (documentActorMatches(loginUserId, loginUserName, processOwnerUserId, processOwner)) {
       setProcessOwner("");
       setProcessOwnerUserId("");
     }
-  }, [loginUserId, loginUserName, processOwnerUserId, processOwner, setProcessOwner, setProcessOwnerUserId]);
+  }, [loginUserId, loginUserName, processOwnerUserId, processOwner, setProcessOwner, setProcessOwnerUserId, initialWizard?.actionType, actionType]);
 
   useEffect(() => {
+    if (initialWizard?.actionType === "revise" || actionType === "revise") return;
+    if (initialWizard?.actionType === "obsolete" || actionType === "obsolete") return;
     if (documentActorMatches(loginUserId, loginUserName, approverUserId, approverName)) {
       setApproverName("");
       setApproverUserId("");
     }
-  }, [loginUserId, loginUserName, approverUserId, approverName, setApproverName, setApproverUserId]);
+  }, [loginUserId, loginUserName, approverUserId, approverName, setApproverName, setApproverUserId, initialWizard?.actionType, actionType]);
 
   useEffect(() => {
     const a = approverName.trim();
@@ -430,7 +437,11 @@ export default function CreateDocumentStep({
     if (initialWizard.documentClassification === "P" || initialWizard.documentClassification === "F" || initialWizard.documentClassification === "EXT") setDocumentClassification(initialWizard.documentClassification);
     if (initialWizard.actionType === "create" || initialWizard.actionType === "revise" || initialWizard.actionType === "obsolete") setActionType(initialWizard.actionType);
     if (initialWizard.reviseSubAction === "update" || initialWizard.reviseSubAction === "transfer") setReviseSubAction(initialWizard.reviseSubAction);
-    if (typeof initialWizard.searchCurrentDocumentRef === "string") setSearchCurrentDocumentRef(initialWizard.searchCurrentDocumentRef);
+    const wizardSearchRef =
+      typeof initialWizard.searchCurrentDocumentRef === "string"
+        ? initialWizard.searchCurrentDocumentRef.trim()
+        : "";
+    setSearchCurrentDocumentRef(wizardSearchRef || initialPreviewDocRef?.trim() || "");
     if (typeof initialWizard.revisionComment === "string") setRevisionComment(initialWizard.revisionComment);
     if (typeof initialWizard.documentEditorContent === "string") setDocumentEditorContent(initialWizard.documentEditorContent);
     if (typeof initialWizard.externalDocumentFileName === "string") setExternalDocumentFileName(initialWizard.externalDocumentFileName);
@@ -465,6 +476,9 @@ export default function CreateDocumentStep({
     if (initialWizard.transferDocumentClass === "P" || initialWizard.transferDocumentClass === "F" || initialWizard.transferDocumentClass === "EXT") setTransferDocumentClass(initialWizard.transferDocumentClass);
     if (typeof initialWizard.transferInitiatorRequest === "string") setTransferInitiatorRequest(initialWizard.transferInitiatorRequest);
     if (initialWizard.originatorConsent === "accepted" || initialWizard.originatorConsent === "declined" || initialWizard.originatorConsent === null) setOriginatorConsent(initialWizard.originatorConsent);
+    if (typeof initialWizard.originalDocumentTitle === "string") setOriginalDocumentTitle(initialWizard.originalDocumentTitle);
+    if (typeof initialWizard.transferTitleChange === "string") setTransferTitleChange(initialWizard.transferTitleChange);
+    if (typeof initialWizard.obsoleteReason === "string") setObsoleteReason(initialWizard.obsoleteReason);
     if (
       typeof initialWizard.documentNumberSegment === "string" &&
       !isDraftRecord &&
@@ -498,6 +512,16 @@ export default function CreateDocumentStep({
 
   const isReviseUpdate = actionType === "revise" && reviseSubAction === "update";
   const isReviseTransfer = actionType === "revise" && reviseSubAction === "transfer";
+  const isObsolete = actionType === "obsolete";
+  const isDocumentTypeLocked = isReviseUpdate || isViewMode || isObsolete;
+  const identificationLocked = isViewMode || isObsolete;
+
+  useEffect(() => {
+    if (!isReviseTransfer) return;
+    const current = title.trim();
+    if (!current) return;
+    setOriginalDocumentTitle((prev) => prev.trim() || current);
+  }, [isReviseTransfer, title]);
 
   const documentEditorPlaceholder = isReviseTransfer
     ? t("Document body for the transferred record…")
@@ -611,6 +635,12 @@ export default function CreateDocumentStep({
   useEffect(() => {
     const ref = initialPreviewDocRef?.trim();
     if (!ref) return;
+    setSearchCurrentDocumentRef((prev) => prev.trim() || ref);
+  }, [initialPreviewDocRef]);
+
+  useEffect(() => {
+    const ref = initialPreviewDocRef?.trim();
+    if (!ref) return;
     if (isDraftRecord || isDraftPlaceholderRef(ref)) {
       setPathDocNumber(DRAFT_DOC_NUMBER);
       return;
@@ -620,6 +650,9 @@ export default function CreateDocumentStep({
   }, [initialPreviewDocRef, isDraftRecord]);
 
   const previewDocRef = useMemo(() => {
+    if (isObsolete && initialPreviewDocRef?.trim()) {
+      return initialPreviewDocRef.trim();
+    }
     if (isReviseUpdate && searchCurrentDocumentRef.trim()) {
       return bumpVersionInRef(searchCurrentDocumentRef.trim());
     }
@@ -637,6 +670,7 @@ export default function CreateDocumentStep({
   }, [
     isReviseUpdate,
     isReviseTransfer,
+    isObsolete,
     searchCurrentDocumentRef,
     pathDocNumber,
     transferDocumentClass,
@@ -691,7 +725,10 @@ export default function CreateDocumentStep({
       transferDocumentClass,
       transferInitiatorRequest,
       originatorConsent,
+      originalDocumentTitle,
+      transferTitleChange,
       documentNumberSegment: pathDocNumber,
+      obsoleteReason,
     },
   });
 
@@ -710,13 +747,15 @@ export default function CreateDocumentStep({
       Boolean(transferTargetProcess.trim()) &&
       transferProcessOptions.some((p) => p.code === transferTargetProcess));
 
+  const isObsoleteReady = !isObsolete || obsoleteReason.trim().length > 0;
+
   /** Resubmit after review/approval return — do not block on revise sub-flow fields. */
   const bypassReviseSubmitGuards =
     formData.correctionPhase === "awaiting_creator_after_review" ||
     formData.correctionPhase === "awaiting_reviewer_after_approval";
 
   const reviseSubmitGuardsSatisfied =
-    bypassReviseSubmitGuards || (isReviseUpdateReady && isReviseTransferReady);
+    bypassReviseSubmitGuards || (isReviseUpdateReady && isReviseTransferReady && isObsoleteReady);
 
   const validateDocumentForm = (): boolean => {
     if (isViewMode) return true;
@@ -730,6 +769,9 @@ export default function CreateDocumentStep({
     };
 
     if (!bypassReviseSubmitGuards) {
+      if (isObsolete) {
+        errors.obsoleteReason = !obsoleteReason.trim();
+      }
       if (isReviseUpdate) {
         errors.searchCurrentDocumentRef = !searchCurrentDocumentRef.trim();
         errors.reasons = reasons.length === 0;
@@ -743,11 +785,11 @@ export default function CreateDocumentStep({
       }
     }
 
-    if (restriction === "locked" && !filePin) {
+    if (!isObsolete && restriction === "locked" && !filePin) {
       errors.documentPin = true;
     }
 
-    if (documentClassification === "EXT" && !externalDocumentFileName.trim()) {
+    if (!isObsolete && documentClassification === "EXT" && !externalDocumentFileName.trim()) {
       errors.externalFile = true;
     }
 
@@ -921,7 +963,11 @@ export default function CreateDocumentStep({
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h3 className="text-3xl font-semibold text-foreground">{flowTitle}</h3>
-            <p className="text-sm text-muted-foreground">{t("Start Procedure(P) or Form(F)!")}</p>
+            <p className="text-sm text-muted-foreground">
+              {isObsolete
+                ? t("Review document identification, provide a reason, and select a reviewer for approval")
+                : t("Start Procedure(P) or Form(F)!")}
+            </p>
           </div>
 
           <div className="space-y-1 pt-2">
@@ -989,7 +1035,7 @@ export default function CreateDocumentStep({
                       </span>
                     ) : null}
                   </Label>
-                  {siteSelectionLocked || isViewMode ? (
+                  {siteSelectionLocked || identificationLocked ? (
                     <Input
                       id="doc-site"
                       value={lockedSiteLabel}
@@ -1065,7 +1111,7 @@ export default function CreateDocumentStep({
                       </span>
                     ) : null}
                   </Label>
-                  {processSelectionLocked || isViewMode ? (
+                  {processSelectionLocked || identificationLocked ? (
                     <Input
                       id="doc-process"
                       value={lockedProcessLabel}
@@ -1125,14 +1171,18 @@ export default function CreateDocumentStep({
             <div className="border-t border-border" />
 
             <div className="space-y-3">
-              <h5 className="text-lg font-semibold text-foreground">{t("Process Owner & Approver")}</h5>
+              <h5 className="text-lg font-semibold text-foreground">
+                {isObsolete ? t("Reviewer & Approver") : t("Process Owner & Approver")}
+              </h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="process-owner">{t("Select Document Reviewer *")}</Label>
+                  <Label htmlFor="process-owner">
+                    {isObsolete ? t("Select Reviewer *") : t("Select Document Reviewer *")}
+                  </Label>
                   <Select
                     value={processOwner || undefined}
                     onValueChange={handleProcessOwnerChange}
-                    disabled={isViewMode || isLoadingProcessOwners}
+                    disabled={isLoadingProcessOwners || (isViewMode && !isReviseUpdate && !isObsolete)}
                   >
                     <SelectTrigger id="process-owner" className={cn("w-full", requiredInputClass(!!formErrors.processOwner))}>
                       <SelectValue
@@ -1163,7 +1213,9 @@ export default function CreateDocumentStep({
                   </Select>
                   <DocFieldError show={!!formErrors.processOwner} t={t} />
                   <p className="text-xs text-muted-foreground">
-                    {t("Top/middle tier only. The person creating this document cannot be Process Owner.")}
+                    {isObsolete
+                      ? t("This reviewer will be notified first, then the request moves to the approver.")
+                      : t("Top/middle tier only. The person creating this document cannot be Process Owner.")}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -1171,7 +1223,7 @@ export default function CreateDocumentStep({
                   <Select
                     value={approverName || undefined}
                     onValueChange={handleApproverChange}
-                    disabled={isViewMode || isLoadingProcessOwners}
+                    disabled={isLoadingProcessOwners || (isViewMode && !isReviseUpdate && !isObsolete)}
                   >
                     <SelectTrigger id="doc-approver" className={cn("w-full", requiredInputClass(!!formErrors.approver))}>
                       <SelectValue
@@ -1202,9 +1254,11 @@ export default function CreateDocumentStep({
                   </Select>
                   <DocFieldError show={!!formErrors.approver} t={t} />
                   <p className="text-xs text-muted-foreground">
-                    {t(
-                      "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
-                    )}
+                    {isObsolete
+                      ? t("Top-tier only. After the reviewer, this approver must approve before the document is removed.")
+                      : t(
+                          "Top-tier only. The person creating this document cannot be approver. The Process Owner cannot be approver."
+                        )}
                   </p>
                 </div>
               </div>
@@ -1212,7 +1266,7 @@ export default function CreateDocumentStep({
 
             <div className="border-t border-border" />
 
-            {!isReviseUpdate && !isReviseTransfer ? (
+            {!isReviseUpdate && !isReviseTransfer && !isObsolete ? (
               <>
                 <div className="space-y-3">
                   <h5 className="text-lg font-semibold text-foreground">{t("Previous Document Reference")}</h5>
@@ -1237,20 +1291,121 @@ export default function CreateDocumentStep({
 
             <div className="space-y-3">
               <h5 className="text-lg font-semibold text-foreground">{t("Document Details")}</h5>
-              <div className="space-y-2">
-                <Label htmlFor="doc-description">{t("Description")}</Label>
-                <Textarea
-                  id="doc-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={t("Write document scope...")}
-                />
-              </div>
+              {isObsolete ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="obsolete-current-title">{t("Document Title")}</Label>
+                    <Input
+                      id="obsolete-current-title"
+                      value={title.trim() || t("—")}
+                      readOnly
+                      tabIndex={-1}
+                      className="bg-muted text-muted-foreground"
+                    />
+                  </div>
+                  {description.trim() ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="obsolete-description">{t("Description")}</Label>
+                      <Textarea
+                        id="obsolete-description"
+                        value={description}
+                        readOnly
+                        tabIndex={-1}
+                        className="bg-muted text-muted-foreground"
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {isReviseTransfer ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="transfer-current-title">{t("Document Title")}</Label>
+                    <Input
+                      id="transfer-current-title"
+                      value={originalDocumentTitle.trim() || title.trim() || t("—")}
+                      readOnly
+                      tabIndex={-1}
+                      className="bg-muted text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("System generated from the document being transferred")}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="transfer-new-title">{t("Change Document Title (optional)")}</Label>
+                    <Input
+                      id="transfer-new-title"
+                      value={transferTitleChange}
+                      onChange={(e) => {
+                        const next = e.target.value.slice(0, 30);
+                        setTransferTitleChange(next);
+                        const fallback = originalDocumentTitle.trim() || title.trim();
+                        setTitle((next.trim() || fallback).slice(0, 30));
+                        if (formErrors.title) setFormErrors((p) => ({ ...p, title: false }));
+                      }}
+                      placeholder={t("Enter a new title if you want to change it")}
+                    />
+                    <p className="text-xs text-muted-foreground text-right">
+                      {transferTitleChange.length}/30 {t("characters")}
+                    </p>
+                  </div>
+                </>
+              ) : null}
+              {!isReviseTransfer && !isObsolete ? (
+                <div className="space-y-2">
+                  <Label htmlFor="doc-description">{t("Description")}</Label>
+                  <Textarea
+                    id="doc-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder={t("Write document scope...")}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {isObsolete ? (
+        <Card className="py-4">
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h4 className="text-xl font-semibold text-foreground">{t("Obsolete Reason")}</h4>
+              <p className="text-sm text-muted-foreground">
+                {t("Explain why this document should be obsoleted. The reviewer and approver will see this reason.")}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="obsolete-reason">{t("Reason *")}</Label>
+              <Textarea
+                id="obsolete-reason"
+                value={obsoleteReason}
+                onChange={(e) => {
+                  const next = limitToWords(e.target.value, 80);
+                  setObsoleteReason(next);
+                  if (formErrors.obsoleteReason && next.trim()) {
+                    setFormErrors((p) => ({ ...p, obsoleteReason: false }));
+                  }
+                }}
+                placeholder={t("Describe why this document is no longer required...")}
+                className={requiredInputClass(!!formErrors.obsoleteReason)}
+              />
+              <DocFieldError show={!!formErrors.obsoleteReason} t={t} />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{t("Max 80 words")}</span>
+                <span>
+                  {countWords(obsoleteReason)}/80 {t("words")}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Third card under Step 1: Change Request */}
+      {!isReviseTransfer && !isObsolete ? (
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -1297,13 +1452,19 @@ export default function CreateDocumentStep({
           </RadioGroup>
         </CardContent>
       </Card>
+      ) : null}
 
-      {/* Fourth card under Step 1: Document Type */}
+      {/* Fourth card under Step 1: Document Type — hidden on transfer (type is in Transfer section) */}
+      {!isReviseTransfer && !isObsolete ? (
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("Document Type")}</h4>
-            <p className="text-sm text-muted-foreground">{t("Select document classification")}</p>
+            <p className="text-sm text-muted-foreground">
+              {isReviseUpdate
+                ? t("Document type cannot be changed during revision")
+                : t("Select document classification")}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1317,7 +1478,9 @@ export default function CreateDocumentStep({
                 <button
                   key={item.value}
                   type="button"
+                  disabled={isDocumentTypeLocked}
                   onClick={() => {
+                    if (isDocumentTypeLocked) return;
                     setDocumentClassification(item.value);
                     if (item.value === "P" || item.value === "F") {
                       setDocType(item.value);
@@ -1326,10 +1489,13 @@ export default function CreateDocumentStep({
                       setExternalDocumentFileName("");
                     }
                   }}
-                  className={`rounded-lg border p-4 text-center transition-colors ${isActive
-                      ? docSelectionActive
-                      : "border-border bg-background hover:bg-muted"
-                    }`}
+                  className={cn(
+                    "rounded-lg border p-4 text-center transition-colors",
+                    isActive ? docSelectionActive : "border-border bg-background",
+                    isDocumentTypeLocked
+                      ? "cursor-not-allowed opacity-70"
+                      : !isActive && "hover:bg-muted"
+                  )}
                 >
                   <p
                     className={`font-semibold ${isActive ? "text-primary" : "text-muted-foreground"
@@ -1349,6 +1515,7 @@ export default function CreateDocumentStep({
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       {/* Revise → Update only: Revision Details (matches design 1.9) */}
       {isReviseUpdate ? (
@@ -1362,26 +1529,17 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="search-current-doc">{t("Search Current Document (Required)")}</Label>
-              <div className="relative">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  id="search-current-doc"
-                  value={searchCurrentDocumentRef}
-                  onChange={(e) => {
-                    setSearchCurrentDocumentRef(e.target.value);
-                    if (formErrors.searchCurrentDocumentRef) setFormErrors((p) => ({ ...p, searchCurrentDocumentRef: false }));
-                  }}
-                  className={cn("pl-9", requiredInputClass(!!formErrors.searchCurrentDocumentRef))}
-                  placeholder={t("e.g. Doc/2025/S1/P1/P/D1/v1")}
-                />
-              </div>
-              <DocFieldError show={!!formErrors.searchCurrentDocumentRef} t={t} />
+              <Label htmlFor="search-current-doc">{t("Current Document")}</Label>
+              <Input
+                id="search-current-doc"
+                value={title.trim() || searchCurrentDocumentRef.trim() || t("—")}
+                readOnly
+                tabIndex={-1}
+                className="bg-muted text-muted-foreground"
+              />
               <p className="text-xs text-muted-foreground">
-                {t("Enter the existing document reference number to revise")}
+                {t("System generated from the document being revised")}
+                {searchCurrentDocumentRef.trim() ? ` — ${searchCurrentDocumentRef.trim()}` : ""}
               </p>
             </div>
 
@@ -1439,7 +1597,7 @@ export default function CreateDocumentStep({
           <CardContent className="space-y-4">
             <div className={cn(docAlertInfo, "p-4")}>
               <div className="flex gap-3">
-                <RefreshCw className="shrink-0 text-primary mt-0.5" size={20} />
+                <ArrowLeftRight className="shrink-0 text-primary mt-0.5" size={20} />
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {t("1.10 Transfer the Document (Manual)")}
@@ -1575,31 +1733,6 @@ export default function CreateDocumentStep({
             </div>
 
             <div className="space-y-2">
-              <Label>{t("Standard")}</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <span className="text-xs text-muted-foreground">{t("Current Standard")}</span>
-                  <Input
-                    readOnly
-                    value={managementStandardLabel(managementStandard, t, standards)}
-                    className="bg-muted/30 text-muted-foreground"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="transfer-standard-change" className="text-xs text-muted-foreground">
-                    {t("Change (If Required)")}
-                  </Label>
-                  <Input
-                    id="transfer-standard-change"
-                    value={transferStandardChange}
-                    onChange={(e) => setTransferStandardChange(e.target.value)}
-                    placeholder={t("e.g. ISO 14001")}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
               <Label>{t("Document Type")}</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1704,7 +1837,8 @@ export default function CreateDocumentStep({
         </Card>
       ) : null}
 
-      {/* Fifth card under Step 1: Document Title */}
+      {/* Fifth card under Step 1: Document Title — hidden on revise/transfer (shown in those sections) */}
+      {!isReviseUpdate && !isReviseTransfer && !isObsolete ? (
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -1731,13 +1865,18 @@ export default function CreateDocumentStep({
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       {/* Sixth card under Step 1: Standard Selection */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("Standard Selection")}</h4>
-            <p className="text-sm text-muted-foreground">{t("Select applicable management system standard")}</p>
+            <p className="text-sm text-muted-foreground">
+              {isReviseUpdate || isObsolete
+                ? t("Standard, clause, and sub-clause cannot be changed")
+                : t("Select applicable management system standard")}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -1748,7 +1887,7 @@ export default function CreateDocumentStep({
                 setManagementStandard(v);
                 if (formErrors.managementStandard) setFormErrors((p) => ({ ...p, managementStandard: false }));
               }}
-              disabled={isLoadingStandards}
+              disabled={isReviseUpdate || isObsolete || isLoadingStandards}
             >
               <SelectTrigger className={cn("w-full", requiredInputClass(!!formErrors.managementStandard))}>
                 <SelectValue
@@ -1778,7 +1917,7 @@ export default function CreateDocumentStep({
               <Select
                 value={clause || undefined}
                 onValueChange={setClause}
-                disabled={!managementStandard || isLoadingClauses}
+                disabled={isReviseUpdate || isObsolete || !managementStandard || isLoadingClauses}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue
@@ -1805,7 +1944,7 @@ export default function CreateDocumentStep({
               <Select
                 value={subClause || undefined}
                 onValueChange={setSubClause}
-                disabled={!clause || isLoadingClauses}
+                disabled={isReviseUpdate || isObsolete || !clause || isLoadingClauses}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={!clause ? t("Select clause first") : t("Sub-Clause")} />
@@ -1824,14 +1963,17 @@ export default function CreateDocumentStep({
       </Card>
 
       {/* Seventh card under Step 1: Document Restriction */}
+      {!isObsolete ? (
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("Document Restriction (Security)")}</h4>
             <p className="text-sm text-muted-foreground">
-              {t(
-                "Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft."
-              )}
+              {isReviseUpdate
+                ? t("Document restriction cannot be changed during revision")
+                : t(
+                    "Lock confidential documents with PIN protection. When locked, the Process Owner and Approver must enter this PIN to open Review and Approval; the document initiator does not need a PIN to work on the draft."
+                  )}
             </p>
           </div>
 
@@ -1841,26 +1983,38 @@ export default function CreateDocumentStep({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
+                  disabled={isReviseUpdate}
                   onClick={() => {
+                    if (isReviseUpdate) return;
                     setRestriction("unlocked");
                     setFilePin("");
                     setConfirmFilePin("");
                     setPinError("");
                   }}
-                  className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "unlocked"
+                  className={cn(
+                    "rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                    restriction === "unlocked"
                       ? docSelectionActive
-                      : "border-border bg-background text-muted-foreground"
-                    }`}
+                      : "border-border bg-background text-muted-foreground",
+                    isReviseUpdate && "cursor-not-allowed opacity-70"
+                  )}
                 >
                   <Unlock size={14} /> {t("Unlocked")}
                 </button>
                 <button
                   type="button"
-                  onClick={handleLockSelection}
-                  className={`rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${restriction === "locked"
+                  disabled={isReviseUpdate}
+                  onClick={() => {
+                    if (isReviseUpdate) return;
+                    handleLockSelection();
+                  }}
+                  className={cn(
+                    "rounded-lg border p-3 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                    restriction === "locked"
                       ? docSelectionActive
-                      : "border-border bg-background text-muted-foreground"
-                    }`}
+                      : "border-border bg-background text-muted-foreground",
+                    isReviseUpdate && "cursor-not-allowed opacity-70"
+                  )}
                 >
                   <Lock size={14} /> {t("Locked")}
                 </button>
@@ -1873,21 +2027,24 @@ export default function CreateDocumentStep({
                   <p className="text-xs text-muted-foreground">
                     {t("PIN configured for this file:")} {"*".repeat(filePin.length)}
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={handleEditPin}
-                  >
-                    {t("Edit PIN")}
-                  </Button>
+                  {!isReviseUpdate ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={handleEditPin}
+                    >
+                      {t("Edit PIN")}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
           </div>
         </CardContent>
       </Card>
+      ) : null}
       <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1942,7 +2099,7 @@ export default function CreateDocumentStep({
       </Dialog>
 
       {/* Eighth card under Step 1: Reasons for Document Change (hidden when Revise → Update — covered in 1.9) */}
-      {!isReviseUpdate ? (
+      {!isReviseUpdate && !isObsolete ? (
         <Card className="py-4">
           <CardContent className="space-y-4">
             <div className="space-y-1">
@@ -1985,7 +2142,9 @@ export default function CreateDocumentStep({
         </Card>
       ) : null}
 
-      {/* Ninth card under Step 1: Impact Assessment */}
+      {/* Ninth–eleventh cards: hidden on transfer */}
+      {!isReviseTransfer && !isObsolete ? (
+        <>
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -2017,7 +2176,6 @@ export default function CreateDocumentStep({
         </CardContent>
       </Card>
 
-      {/* Tenth card under Step 1: Risk Severity */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -2083,7 +2241,6 @@ export default function CreateDocumentStep({
         </CardContent>
       </Card>
 
-      {/* Eleventh card under Step 1: Staff Training Requirement */}
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -2125,8 +2282,11 @@ export default function CreateDocumentStep({
           </div>
         </CardContent>
       </Card>
+        </>
+      ) : null}
 
       {/* Twelfth card: always shown — EXT uses upload; P/F use rich text editor */}
+      {!isObsolete ? (
       <Card className="py-4">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -2180,6 +2340,7 @@ export default function CreateDocumentStep({
           ) : null}
         </CardContent>
       </Card>
+      ) : null}
 
       {/* Thirteenth card under Step 1: Document Dates */}
       {/* <Card className="py-4">
@@ -2336,12 +2497,28 @@ export default function CreateDocumentStep({
           <div className="space-y-1">
             <h4 className="text-xl font-semibold text-foreground">{t("Submit Actions")}</h4>
             <p className="text-sm text-muted-foreground">
-              {t(
-                "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."
-              )}
+              {isObsolete
+                ? t("Submit this obsolete request. The reviewer is notified first, then the approver.")
+                : t(
+                    "Save as draft or submit; you will return to the document tables. Drafts can be edited later from the table screen."
+                  )}
             </p>
           </div>
 
+          {isObsolete ? (
+            <div className="grid grid-cols-1 gap-3">
+              <Button
+                type="button"
+                variant={canProceed && reviseSubmitGuardsSatisfied ? "default" : "outline"}
+                className={cn("gap-2", (!canProceed || !reviseSubmitGuardsSatisfied) && !isViewMode && "opacity-60")}
+                onClick={handleSubmitProceedClick}
+                disabled={isSaving || isViewMode || isLoadingContext}
+              >
+                <Send size={14} />
+                {t("Submit for Obsolete Approval")}
+              </Button>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Button
               variant="outline"
@@ -2364,12 +2541,15 @@ export default function CreateDocumentStep({
               {t("Submit & Proceed")}
             </Button>
           </div>
+          )}
           {!canProceed ? (
             <p className="text-xs text-muted-foreground">
-              {t("Complete all required fields (site, process, owner, approver, title, and standard) to proceed.")}
+              {isObsolete
+                ? t("Select a reviewer, an approver, and enter a reason to submit this obsolete request.")
+                : t("Complete all required fields (site, process, owner, approver, title, and standard) to proceed.")}
             </p>
           ) : null}
-          {!canSaveDraft ? (
+          {!isObsolete && !canSaveDraft ? (
             <p className="text-xs text-muted-foreground">
               {t(
                 "You already have a document draft. You can submit this document for review, but only one draft is allowed at a time."

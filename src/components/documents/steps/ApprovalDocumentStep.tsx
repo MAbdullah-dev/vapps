@@ -43,6 +43,7 @@ type ApprovalDocumentStepProps = {
   positionLabel?: DocumentWorkflowPosition;
   /** Author or reviewer viewing Approval read-only; only the approver may submit. */
   readOnlyObserver?: boolean;
+  obsoleteReason?: string;
   onBack: () => void;
   onApprove: (payload: { comments: string; decision: "effective" | "ineffective" | null }) => Promise<void> | void;
 };
@@ -76,6 +77,7 @@ export default function ApprovalDocumentStep({
   version,
   positionLabel = "Approval Pending",
   readOnlyObserver = false,
+  obsoleteReason = "",
   onBack,
   onApprove,
 }: ApprovalDocumentStepProps) {
@@ -246,6 +248,13 @@ export default function ApprovalDocumentStep({
           </div>
         </div>
 
+        {obsoleteReason.trim() ? (
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <p className="text-sm font-semibold text-foreground">{t("Obsolete Reason")}</p>
+            <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{obsoleteReason.trim()}</p>
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-3">
           <Button type="button" variant="outline" className="gap-2">
             <Download size={14} />
@@ -401,8 +410,16 @@ export default function ApprovalDocumentStep({
                 ) : null}
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="font-semibold text-foreground">{t("Effective - Close Document")}</p>
-                <p className="text-sm text-muted-foreground">{t("Approved for Official Use")}</p>
+                <p className="font-semibold text-foreground">
+                  {obsoleteReason.trim()
+                    ? t("Effective - Approve Obsolete")
+                    : t("Effective - Close Document")}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {obsoleteReason.trim()
+                    ? t("Remove this document from the master list after approval")
+                    : t("Approved for Official Use")}
+                </p>
               </div>
             </button>
             <button
@@ -507,7 +524,11 @@ export default function ApprovalDocumentStep({
           }}
           disabled={readOnlyObserver || !canPerformApproval}
         >
-          {verificationOutcome === "ineffective" ? t("Send to Approval") : t("Approve & Finish")}
+          {verificationOutcome === "ineffective"
+            ? t("Send to Approval")
+            : obsoleteReason.trim()
+              ? t("Approve Obsolete")
+              : t("Approve & Finish")}
         </Button>
       </div>
     </div>

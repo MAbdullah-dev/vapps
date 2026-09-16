@@ -63,6 +63,7 @@ export function documentNotificationRecipients(
   switch (key) {
     case "submitted_for_review":
     case "revision_created":
+    case "obsolete_requested":
       recipients = [doc.processOwnerUserId];
       break;
     case "review_submitted":
@@ -76,6 +77,9 @@ export function documentNotificationRecipients(
       break;
     case "approved":
       recipients = [doc.createdByUserId, doc.processOwnerUserId];
+      break;
+    case "obsolete_approved":
+      recipients = [doc.createdByUserId];
       break;
     case "annual_review_requested":
       recipients = [doc.createdByUserId];

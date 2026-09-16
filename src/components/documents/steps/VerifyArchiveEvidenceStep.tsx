@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { docAckBox, docBadgeActive, docSectionNumber } from "@/lib/document-ui-classes";
+import { docAckBox, docBadgeActive } from "@/lib/document-ui-classes";
 import { toast } from "sonner";
 import {
   generateDocumentaryEvidencePdf,
@@ -267,7 +267,6 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>1.</span>
               {t("Captured Record Summary")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -296,7 +295,6 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-3">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>2.</span>
               {t("Captured Data")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">{t("Documentary Evidence")}</p>
@@ -321,7 +319,6 @@ export default function VerifyArchiveEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>3.</span>
               {t("Verification Details")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">

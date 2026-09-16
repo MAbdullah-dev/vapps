@@ -134,10 +134,19 @@ function getNotificationHref(slug: string | undefined, a: NotificationActivity):
     return `${base}?auditPlanId=${encodeURIComponent(a.entityId)}`;
   }
   if (a.entityType === "document" && a.entityId) {
+    const action = a.action.replace(/^document\./, "");
+    const needsReview =
+      action === "submitted_for_review" ||
+      action === "revision_created" ||
+      action === "obsolete_requested";
+    const needsApproval = action === "review_submitted";
     const q = new URLSearchParams({
       recordId: a.entityId,
-      mode: "view",
+      mode: needsReview || needsApproval ? "edit" : "view",
     });
+    if (needsReview) q.set("step", "2");
+    if (needsApproval) q.set("step", "3");
+    if (action === "obsolete_requested") q.set("revisionType", "obsolete");
     return getDashboardPath(slug, `documents/create?${q.toString()}`);
   }
 

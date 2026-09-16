@@ -18,6 +18,10 @@ export function documentActivityVerb(action: string): string {
       return "returned document for correction (approval)";
     case "approved":
       return "approved document";
+    case "obsolete_requested":
+      return "requested to obsolete document";
+    case "obsolete_approved":
+      return "approved obsolete request for document";
     case "annual_review_requested":
       return "requested annual review for document";
     case "annual_review_accepted":

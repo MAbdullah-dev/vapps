@@ -22,7 +22,6 @@ import {
   docBadgeActive,
   docInfoCard,
   docInfoCardIcon,
-  docSectionNumber,
   docWarningBanner,
 } from "@/lib/document-ui-classes";
 
@@ -386,7 +385,6 @@ export default function CaptureEvidenceStep({
       <Card className="border border-border">
         <CardContent className="p-5 space-y-4">
           <h4 className="text-base font-semibold text-foreground">
-            <span className={docSectionNumber}>1.1</span>{" "}
             {t("Action Compliance Forms Engine (Documentary Evidence)")}
           </h4>
 
@@ -500,7 +498,7 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>2.</span> {t("Record Metadata")}
+              {t("Record Metadata")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Auto-generated and basic organizational data")}
@@ -650,7 +648,7 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>3.</span> {t("Operational Metadata")}
+              {t("Operational Metadata")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("Shift, batch/lot, and technician details")}
@@ -691,7 +689,7 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>4.</span> {t("Captured Data")}
+              {t("Captured Data")}
             </h4>
             <p className="mt-1 text-sm text-muted-foreground">{t("Documentary Evidence")}</p>
           </div>
@@ -712,7 +710,7 @@ export default function CaptureEvidenceStep({
         <CardContent className="p-5 space-y-4">
           <div>
             <h4 className="text-base font-semibold text-foreground">
-              <span className={docSectionNumber}>5.</span> {t("Additional Notes")}
+              {t("Additional Notes")}
             </h4>
           </div>
           <Textarea

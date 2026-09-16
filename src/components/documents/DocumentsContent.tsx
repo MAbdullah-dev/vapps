@@ -16,16 +16,6 @@ import {
   TablePagination,
 } from "@/components/ui/table-pagination";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -35,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Archive,
+  ArrowLeftRight,
   Cloud,
   Download,
   Eye,
@@ -45,6 +36,7 @@ import {
   MoreVertical,
   Pencil,
   Plus,
+  RefreshCw,
   Scissors,
   Search,
   Send,
@@ -666,11 +658,10 @@ function MasterDocumentRowActionsMenu({
   canEditDirectly,
   reviseUpdateHref,
   reviseTransferHref,
+  obsoleteHref,
   workflowStatus,
-  onShare,
   onDownloadPdf,
   onDownloadExcel,
-  onObsolete,
 }: {
   row: MasterDocumentRow;
   editHref: string;
@@ -678,11 +669,10 @@ function MasterDocumentRowActionsMenu({
   canEditDirectly: boolean;
   reviseUpdateHref: string;
   reviseTransferHref: string;
+  obsoleteHref: string;
   workflowStatus: MasterDocumentRow["workflowStatus"];
-  onShare: (row: MasterDocumentRow, viewHref: string) => void | Promise<void>;
   onDownloadPdf: (row: MasterDocumentRow) => void | Promise<void>;
   onDownloadExcel: (row: MasterDocumentRow) => void;
-  onObsolete: (row: MasterDocumentRow) => void;
 }) {
   const { t } = useTranslate();
   const { data: session } = useSession();
@@ -753,41 +743,26 @@ function MasterDocumentRowActionsMenu({
             </DropdownMenuLabel>
             <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseUpdateHref}>
-                <Pencil size={16} className="text-muted-foreground" aria-hidden />
+                <RefreshCw size={16} className="text-muted-foreground" aria-hidden />
                 {t("Revise")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-foreground focus:bg-muted">
               <Link href={reviseTransferHref}>
-                <Pencil size={16} className="text-muted-foreground" aria-hidden />
+                <ArrowLeftRight size={16} className="text-muted-foreground" aria-hidden />
                 {t("Transfer")}
               </Link>
             </DropdownMenuItem>
             {isCreator ? (
-              <DropdownMenuItem
-                className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive"
-                onSelect={() => {
-                  onObsolete(row);
-                }}
-              >
-                <Archive size={16} aria-hidden />
-                {t("Obsolete")}
+              <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive">
+                <Link href={obsoleteHref}>
+                  <Trash2 size={16} aria-hidden />
+                  {t("Obsolete")}
+                </Link>
               </DropdownMenuItem>
             ) : null}
           </>
         )}
-        <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
-          <button
-            type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-primary outline-none focus:bg-accent focus:text-accent-foreground [&_svg]:text-primary"
-            onClick={() => {
-              void onShare(row, viewHref);
-            }}
-          >
-            <Share2 size={16} />
-            {t("Share")}
-          </button>
-        </DropdownMenuItem>
         <DropdownMenuItem
           className="cursor-pointer gap-2 rounded-lg py-2 text-sm text-muted-foreground focus:bg-muted focus:text-muted-foreground [&_svg]:text-muted-foreground"
           onSelect={() => {
@@ -877,7 +852,6 @@ function DocumentaryEvidenceRowActionsMenu({
   verifyHref,
   canProceedToVerify,
   canDownloadPdf,
-  onShare,
   onDownloadPdf,
   onDownloadExcel,
 }: {
@@ -885,7 +859,6 @@ function DocumentaryEvidenceRowActionsMenu({
   verifyHref: string;
   canProceedToVerify: boolean;
   canDownloadPdf: boolean;
-  onShare: () => void;
   onDownloadPdf: () => void;
   onDownloadExcel: () => void;
 }) {
@@ -909,16 +882,6 @@ function DocumentaryEvidenceRowActionsMenu({
             <Eye size={16} className="text-muted-foreground" aria-hidden />
             {t("View")}
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="p-0 focus:bg-transparent">
-          <button
-            type="button"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-foreground outline-none focus:bg-muted"
-            onClick={() => onShare()}
-          >
-            <Share2 size={16} className="text-muted-foreground" />
-            {t("Share")}
-          </button>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canDownloadPdf}
@@ -1045,8 +1008,6 @@ export default function DocumentsContent() {
   const [evidenceRows, setEvidenceRows] = useState<EvidenceRecordRow[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [myDraftId, setMyDraftId] = useState<string | null>(null);
-  const [obsoleteTarget, setObsoleteTarget] = useState<MasterDocumentRow | null>(null);
-  const [obsoleteBusy, setObsoleteBusy] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -1269,7 +1230,7 @@ export default function DocumentsContent() {
             docNumber,
             version,
             lifecycleStatus,
-            obsoletedBy: String(row.created_by_user_name ?? "-"),
+            obsoletedBy: String(row.reviewed_by_user_name ?? row.created_by_user_name ?? "-"),
             obsoleteDate: formatDate(statusDateRaw),
             replacedBy: "-",
             archivedLocation: "Cloud",
@@ -1787,40 +1748,6 @@ export default function DocumentsContent() {
     }
   };
 
-  const shareMasterRow = (_docRow: MasterDocumentRow, viewHref: string) => {
-    const absoluteUrl =
-      typeof window !== "undefined" ? new URL(viewHref, window.location.origin).toString() : viewHref;
-    copyShareUrlToClipboard(absoluteUrl, t);
-  };
-
-  const requestObsoleteMasterRow = (row: MasterDocumentRow) => {
-    setObsoleteTarget(row);
-  };
-
-  const confirmObsoleteMasterRow = async () => {
-    if (!orgId || !obsoleteTarget || obsoleteBusy) return;
-    const deletedId = obsoleteTarget.id;
-    setObsoleteBusy(true);
-    try {
-      const res = await fetch(
-        `/api/organization/${orgId}/documents?id=${encodeURIComponent(deletedId)}`,
-        { method: "DELETE", credentials: "include" }
-      );
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast.error(String(json.error ?? t("Could not delete this document.")));
-        return;
-      }
-      setMasterApiRows((prev) => prev.filter((row) => row.id !== deletedId));
-      setObsoleteTarget(null);
-      toast.success(t("Document deleted permanently."));
-    } catch {
-      toast.error(t("Could not delete this document."));
-    } finally {
-      setObsoleteBusy(false);
-    }
-  };
-
   const copyDocumentViewLink = (recordId: string) => {
     if (!orgId) {
       toast.error(t("Could not copy link."));
@@ -1862,13 +1789,6 @@ export default function DocumentsContent() {
     if (row.template_record_id) u.set("recordId", row.template_record_id);
     u.set("evidenceRecordId", row.id);
     return `${getDashboardPath(orgId, "documents/documentary-evidence/verify")}?${u.toString()}`;
-  };
-
-  const copyEvidenceShareLink = (row: EvidenceRecordRow) => {
-    const relativePath = evidenceCaptureViewHref(row);
-    const absoluteUrl =
-      typeof window !== "undefined" ? new URL(relativePath, window.location.origin).toString() : relativePath;
-    copyShareUrlToClipboard(absoluteUrl, t);
   };
 
   const downloadEvidenceRowExcel = (row: EvidenceRecordRow) => {
@@ -2225,11 +2145,10 @@ export default function DocumentsContent() {
                             canEditDirectly={doc.workflowStatus !== "approved"}
                             reviseUpdateHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=update`}
                             reviseTransferHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=transfer`}
+                            obsoleteHref={`${createDocumentBaseHref}?recordId=${encodeURIComponent(doc.id)}&mode=edit&revisionType=obsolete`}
                             workflowStatus={doc.workflowStatus}
-                            onShare={shareMasterRow}
                             onDownloadPdf={downloadMasterRowPdf}
                             onDownloadExcel={downloadMasterRowExcel}
-                            onObsolete={requestObsoleteMasterRow}
                           />
                         </TableCell>
                       </TableRow>
@@ -2442,7 +2361,6 @@ export default function DocumentsContent() {
                               verifyHref={evidenceVerifyHref(row)}
                               canProceedToVerify={!view.isCompleted}
                               canDownloadPdf={view.isCompleted}
-                              onShare={() => copyEvidenceShareLink(row)}
                               onDownloadPdf={() => downloadEvidenceRowPdf(row)}
                               onDownloadExcel={() => downloadEvidenceRowExcel(row)}
                             />
@@ -2714,38 +2632,6 @@ export default function DocumentsContent() {
           </div>
         </CardContent>
       </Card>
-
-      <AlertDialog
-        open={obsoleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !obsoleteBusy) setObsoleteTarget(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("Delete this document permanently?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("This will permanently delete the document. This action cannot be undone.")}
-              {obsoleteTarget?.title && obsoleteTarget.title !== "-" ? (
-                <span className="mt-2 block font-medium text-foreground">{obsoleteTarget.title}</span>
-              ) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={obsoleteBusy}>{t("Cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              disabled={obsoleteBusy}
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmObsoleteMasterRow();
-              }}
-            >
-              {obsoleteBusy ? t("Deleting...") : t("Obsolete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -230,13 +230,23 @@ export default function DocumentsCreateContent() {
   const processAutoFilledRef = useRef(false);
   const [myDraftId, setMyDraftId] = useState<string | null>(null);
 
+  const isObsoleteFlow =
+    (isEditMode && revisionType === "obsolete") || initialWizardData?.actionType === "obsolete";
+
   const steps = useMemo(
-    () => [
-      { step: 1 as const, label: "Create Document", icon: FileText },
-      { step: 2 as const, label: "Review", icon: Search },
-      { step: 3 as const, label: "Approval", icon: CheckCircle },
-    ],
-    []
+    () =>
+      isObsoleteFlow
+        ? [
+            { step: 1 as const, label: "Obsolete Document", icon: FileText },
+            { step: 2 as const, label: "Review", icon: Search },
+            { step: 3 as const, label: "Approval", icon: CheckCircle },
+          ]
+        : [
+            { step: 1 as const, label: "Create Document", icon: FileText },
+            { step: 2 as const, label: "Review", icon: Search },
+            { step: 3 as const, label: "Approval", icon: CheckCircle },
+          ],
+    [isObsoleteFlow]
   );
 
   const listHref = orgId ? getDashboardPath(orgId, "documents") : "/";
@@ -275,6 +285,8 @@ export default function DocumentsCreateContent() {
 
   const hasPersistedRecord = Boolean(recordId || activeRecordId);
   const wf = normalizeRecordWorkflow(recordWorkflowStatus);
+  const isRevisionFlow =
+    isEditMode && (revisionType === "update" || revisionType === "transfer");
 
   const isDocCreator = useMemo(
     () =>
@@ -304,6 +316,7 @@ export default function DocumentsCreateContent() {
       ? (correctionPhase === "awaiting_creator_after_review" && isDocCreator) ||
         (correctionPhase === "awaiting_reviewer_after_approval" && canAccessReviewStep) ||
         (correctionPhase === "none" && (wf === "draft" || wf === "") && isDocCreator) ||
+        (isRevisionFlow && isApprovedRecord) ||
         (isEditMode && isApprovedRecord && isDocCreator)
       : true);
 
@@ -940,13 +953,27 @@ export default function DocumentsCreateContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: "submitted",
-          saveMode: isEditMode ? (isApprovedRecord ? "revision" : "create") : "create",
+          saveMode:
+            payload.wizard.actionType === "obsolete"
+              ? "obsolete"
+              : isEditMode
+                ? isApprovedRecord
+                  ? "revision"
+                  : "create"
+                : "create",
           recordId: isEditMode ? activeRecordId : undefined,
           payload,
         }),
       });
-      if (!res.ok) throw new Error("Failed to save submitted document");
-      const json = await res.json();
+      const json = (await res.json().catch(() => ({}))) as { error?: string; id?: string };
+      if (!res.ok) {
+        const msg =
+          typeof json.error === "string" && json.error.trim()
+            ? json.error
+            : "Failed to save submitted document";
+        toast.error(msg);
+        return;
+      }
       createdId = String(json?.id ?? "");
       if (payload.previewDocRef?.trim()) {
         setPreviewDocRefFromRecord(payload.previewDocRef.trim());
@@ -954,7 +981,14 @@ export default function DocumentsCreateContent() {
       setReviewReturnNotice(null);
       setApprovalReturnNotice(null);
       submittedOk = true;
+      if (payload.wizard.actionType === "obsolete") {
+        toast.success("Obsolete request sent to the reviewer.");
+      }
     } catch {
+      if (payload.wizard.actionType === "obsolete") {
+        toast.error("Could not submit obsolete request.");
+        return;
+      }
       // Temporary fallback so users do not lose data while backend/table rollout continues.
       appendDocumentRecord(orgId || "tenant", "submitted", payload);
     }
@@ -1040,7 +1074,11 @@ export default function DocumentsCreateContent() {
           ...(workflowPinGateRequired ? { documentPin: workflowPinForPatchesRef.current } : {}),
         }),
       });
-      const patchJson = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      const patchJson = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        obsoleted?: boolean;
+      };
       if (!res.ok) {
         const msg =
           typeof patchJson.error === "string" && patchJson.error.trim()
@@ -1098,7 +1136,11 @@ export default function DocumentsCreateContent() {
           ...(workflowPinGateRequired ? { documentPin: workflowPinForPatchesRef.current } : {}),
         }),
       });
-      const patchJson = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      const patchJson = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        obsoleted?: boolean;
+      };
       if (!res.ok) {
         const msg =
           typeof patchJson.error === "string" && patchJson.error.trim()
@@ -1107,21 +1149,24 @@ export default function DocumentsCreateContent() {
         toast.error(msg);
         return;
       }
+      if (isIneffective) {
+        setRecordWorkflowStatus("draft");
+        setField("correctionPhase", "awaiting_reviewer_after_approval");
+        setStep(1);
+        setApprovalReturnNotice({
+          comments: payload.comments,
+          decision: "ineffective",
+          returnedAt: new Date().toISOString(),
+          approverName: formData.loginUserName?.trim() || null,
+        });
+      } else if (patchJson.obsoleted) {
+        toast.success("Document obsoleted after approver approval.");
+        redirectToDocuments();
+      } else {
+        redirectToDocuments();
+      }
     } catch {
       return;
-    }
-    if (isIneffective) {
-      setRecordWorkflowStatus("draft");
-      setField("correctionPhase", "awaiting_reviewer_after_approval");
-      setStep(1);
-      setApprovalReturnNotice({
-        comments: payload.comments,
-        decision: "ineffective",
-        returnedAt: new Date().toISOString(),
-        approverName: formData.loginUserName?.trim() || null,
-      });
-    } else {
-      redirectToDocuments();
     }
   };
 
@@ -1450,6 +1495,11 @@ export default function DocumentsCreateContent() {
                 documentNumber={documentHeaderMeta.documentNumber}
                 version={documentHeaderMeta.version}
                 positionLabel={documentHeaderMeta.positionLabel}
+                obsoleteReason={
+                  typeof initialWizardData?.obsoleteReason === "string"
+                    ? initialWizardData.obsoleteReason
+                    : ""
+                }
                 readOnlyObserver={reviewReadOnlyObserver}
                 onBack={() => setStep(1)}
                 onNext={handleReviewSubmit}
@@ -1487,6 +1537,11 @@ export default function DocumentsCreateContent() {
                 documentNumber={documentHeaderMeta.documentNumber}
                 version={documentHeaderMeta.version}
                 positionLabel={documentHeaderMeta.positionLabel}
+                obsoleteReason={
+                  typeof initialWizardData?.obsoleteReason === "string"
+                    ? initialWizardData.obsoleteReason
+                    : ""
+                }
                 readOnlyObserver={approvalReadOnlyObserver}
                 onBack={() => setStep(2)}
                 onApprove={handleApproveFinish}

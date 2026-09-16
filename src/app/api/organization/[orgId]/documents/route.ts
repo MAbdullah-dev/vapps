@@ -128,9 +128,14 @@ function draftLimitReachedResponse(existing: UserActiveDraft): NextResponse {
   );
 }
 
+function wizardActionType(wizard: unknown): string {
+  if (!wizard || typeof wizard !== "object" || Array.isArray(wizard)) return "";
+  return String((wizard as Record<string, unknown>).actionType ?? "").toLowerCase();
+}
+
 type SaveDocumentBody = {
   status?: "draft" | "submitted";
-  saveMode?: "create" | "edit-draft" | "revision" | "revision-draft";
+  saveMode?: "create" | "edit-draft" | "revision" | "revision-draft" | "obsolete";
   recordId?: string;
   payload?: {
     savedAt?: string;
@@ -741,6 +746,142 @@ export async function POST(
         return;
       }
 
+      if (saveMode === "obsolete" && sourceRecordId) {
+        const existingRow = await client.query<{
+          form_data: unknown;
+          wizard_data: unknown;
+          created_by_user_id: string | null;
+          created_by_user_name: string | null;
+          workflow_status: string;
+          lifecycle_status: string;
+          preview_doc_ref: string;
+        }>(
+          `SELECT form_data, wizard_data, created_by_user_id, created_by_user_name,
+                  workflow_status, lifecycle_status, preview_doc_ref
+           FROM document_module_records WHERE id::text = $1::text`,
+          [sourceRecordId]
+        );
+        if (existingRow.rows.length === 0) {
+          postForbidden = NextResponse.json({ error: "Document not found" }, { status: 404 });
+          return;
+        }
+        const existing = existingRow.rows[0];
+        if (
+          !isDocumentRecordCreator(
+            context.user.id,
+            context.user.name,
+            existing.form_data,
+            existing.created_by_user_id,
+            existing.created_by_user_name
+          )
+        ) {
+          postForbidden = NextResponse.json(
+            { error: "Only the person who created this document can obsolete it." },
+            { status: 403 }
+          );
+          return;
+        }
+        const lifecycle = String(existing.lifecycle_status ?? "active").toLowerCase();
+        if (lifecycle !== "active") {
+          postForbidden = NextResponse.json(
+            { error: "This document is already obsolete or archived." },
+            { status: 400 }
+          );
+          return;
+        }
+        const wf = String(existing.workflow_status ?? "").toLowerCase();
+        const alreadyObsoleteRequest = wizardActionType(existing.wizard_data) === "obsolete";
+        if (wf !== "approved" && !(alreadyObsoleteRequest && (wf === "draft" || wf === "in_review"))) {
+          postForbidden = NextResponse.json(
+            { error: "Only approved documents can be submitted for obsolete approval." },
+            { status: 400 }
+          );
+          return;
+        }
+
+        const merged = normalizeDocumentFormData(
+          { ...(typeof existing.form_data === "object" && existing.form_data ? existing.form_data : {}), ...formData },
+          context.user,
+          { clearCorrectionOnSubmit: true }
+        );
+        const reviewerName = String(merged.processOwner ?? "").trim();
+        const reviewerId = String(merged.processOwnerUserId ?? "").trim();
+        if (!reviewerName && !reviewerId) {
+          postForbidden = NextResponse.json(
+            { error: "Select a reviewer for obsolete approval." },
+            { status: 400 }
+          );
+          return;
+        }
+        const approverName = String(merged.approverName ?? "").trim();
+        const approverId = String(merged.approverUserId ?? "").trim();
+        if (!approverName && !approverId) {
+          postForbidden = NextResponse.json(
+            { error: "Select an approver for obsolete approval." },
+            { status: 400 }
+          );
+          return;
+        }
+        const existingWizard =
+          typeof existing.wizard_data === "object" && existing.wizard_data !== null && !Array.isArray(existing.wizard_data)
+            ? { ...(existing.wizard_data as Record<string, unknown>) }
+            : {};
+        const obsoleteWizard = {
+          ...existingWizard,
+          ...wizardData,
+          actionType: "obsolete",
+        };
+        const reason = String(obsoleteWizard.obsoleteReason ?? "").trim();
+        if (!reason) {
+          postForbidden = NextResponse.json(
+            { error: "A reason is required to obsolete this document." },
+            { status: 400 }
+          );
+          return;
+        }
+
+        const updated = await client.query<{
+          id: string;
+          lifecycle_status: DocumentLifecycleStatus;
+          workflow_status: "draft" | "in_review" | "in_approval" | "approved";
+        }>(
+          `UPDATE document_module_records
+           SET
+             status = 'submitted',
+             form_data = $2::jsonb,
+             wizard_data = $3::jsonb,
+             workflow_status = 'in_review',
+             updated_by_user_id = $4,
+             updated_by_user_name = $5,
+             updated_at = NOW()
+           WHERE id::text = $1::text
+           RETURNING id::text, lifecycle_status, workflow_status`,
+          [
+            sourceRecordId,
+            JSON.stringify(merged),
+            JSON.stringify(obsoleteWizard),
+            context.user.id,
+            context.user.name,
+          ]
+        );
+        savedRecordId = updated.rows[0]?.id ?? sourceRecordId;
+        lifecycleStatus = updated.rows[0]?.lifecycle_status ?? "active";
+        workflowStatus = (updated.rows[0]?.workflow_status as "in_review") ?? "in_review";
+        if (savedRecordId) {
+          await client.query(
+            `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)
+             VALUES ($1::uuid, 'obsolete_requested', $2, $3, $4::jsonb)`,
+            [
+              savedRecordId,
+              context.user.id,
+              context.user.name,
+              JSON.stringify({ reason, reviewerName, reviewerId, approverName, approverId }),
+            ]
+          );
+        }
+        return;
+      }
+
       if ((saveMode === "revision" || saveMode === "revision-draft") && sourceRecordId) {
         if (saveMode === "revision-draft") {
           const existingDraft = await findUserActiveDraft(client, context.user.id);
@@ -936,6 +1077,7 @@ export async function PATCH(
     }
 
     let workflowStatus: "draft" | "in_review" | "in_approval" | "approved" = "draft";
+    let obsoleted = false;
 
     let forbiddenResponse: NextResponse | null = null;
 
@@ -1264,6 +1406,35 @@ export async function PATCH(
       }
 
       if (action === "approve") {
+        if (wizardActionType(access.rows[0].wizard_data) === "obsolete") {
+          const updated = await client.query<{ workflow_status: "in_approval" }>(
+            `UPDATE document_module_records
+             SET lifecycle_status = 'obsolete',
+                 obsolete_at = COALESCE(obsolete_at, NOW()),
+                 approved_by_user_id = $2,
+                 approved_by_user_name = $3,
+                 approved_at = NOW(),
+                 updated_by_user_id = $2,
+                 updated_by_user_name = $3,
+                 updated_at = NOW()
+             WHERE id::text = $1::text
+             RETURNING workflow_status`,
+            [recordId, context.user.id, context.user.name]
+          );
+          workflowStatus = (updated.rows[0]?.workflow_status as "in_approval") ?? "in_approval";
+          obsoleted = true;
+          await client.query(
+            `INSERT INTO document_module_history (record_id, action, actor_user_id, actor_user_name, details)
+             VALUES ($1::uuid, 'obsolete_approved', $2, $3, $4::jsonb)`,
+            [
+              recordId,
+              context.user.id,
+              context.user.name,
+              JSON.stringify({ comments: body.comments ?? "", decision: body.decision ?? null }),
+            ]
+          );
+          return;
+        }
         const approved = await client.query<{ supersedes_record_id: string | null; workflow_status: "approved" }>(
           `UPDATE document_module_records
            SET workflow_status = 'approved',
@@ -1327,7 +1498,7 @@ export async function PATCH(
 
     if (forbiddenResponse) return forbiddenResponse;
 
-    return NextResponse.json({ ok: true, workflowStatus }, { status: 200 });
+    return NextResponse.json({ ok: true, workflowStatus, obsoleted }, { status: 200 });
   } catch (error) {
     console.error("Error updating document workflow:", error);
     return NextResponse.json({ error: "Failed to update workflow" }, { status: 500 });

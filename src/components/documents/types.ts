@@ -103,8 +103,14 @@ export type DocumentWizardSnapshot = {
   transferDocumentClass: "P" | "F" | "EXT";
   transferInitiatorRequest: string;
   originatorConsent: "accepted" | "declined" | null;
+  /** Original title of the document being transferred (system-generated display). */
+  originalDocumentTitle?: string;
+  /** Optional new title entered during transfer. */
+  transferTitleChange?: string;
   /** Allocated Doc# segment (e.g. D3) for preview path; persisted for table display. */
   documentNumberSegment?: string;
+  /** Reason provided when requesting to obsolete a document. */
+  obsoleteReason?: string;
 };
 
 export type DocumentSaveStatus = "draft" | "submitted";
