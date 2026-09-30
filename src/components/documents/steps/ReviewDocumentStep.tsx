@@ -517,7 +517,7 @@ export default function ReviewDocumentStep({
             aria-required={canPerformReview && !readOnlyObserver}
             placeholder={t("Enter your review comments here (required)…")}
             className={cn(
-              "min-h-[120px] resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground",
+              "min-h-30 resize-y border-border bg-muted text-foreground placeholder:text-muted-foreground",
               reviewErrors.comments && "border-destructive focus-visible:ring-destructive"
             )}
           />

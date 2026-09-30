@@ -285,12 +285,11 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
   return (
     <aside
       className={cn(
-        "hidden md:flex shrink-0 flex-col border-r border-border bg-card text-card-foreground transition-[width] duration-200 ease-in-out",
-        "h-[max(90vh,max-content)]",
-        collapsed ? "w-16" : "w-[20%] min-w-[240px] max-w-[320px]"
+        "hidden md:flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-border bg-card text-card-foreground transition-[width] duration-200 ease-in-out",
+        collapsed ? "w-16" : "w-[20%] min-w-60 max-w-[320px]"
       )}
     >
-      <div className={cn("border-b pb-3", collapsed ? "p-3" : "p-5")}>
+      <div className={cn("shrink-0 border-b pb-3", collapsed ? "p-3" : "p-5")}>
         <div
           className={cn(
             "flex items-center",
@@ -350,7 +349,12 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
         )}
       </div>
 
-      <nav className={cn("flex-1 space-y-1", collapsed ? "p-2" : "p-5")}>
+      <nav
+        className={cn(
+          "min-h-0 flex-1 space-y-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          collapsed ? "p-2" : "p-5"
+        )}
+      >
         <SidebarNavItem
           href={link("")}
           icon={<House size={18} />}
@@ -475,7 +479,7 @@ export default function Sidebar({ orgId, slug }: { orgId: string; slug: string }
         />
       </nav>
 
-      <div className={cn("footer", collapsed ? "p-2" : "p-5")}>
+      <div className={cn("footer shrink-0", collapsed ? "p-2" : "p-5")}>
         {showSettingsLink ? (
           <SidebarNavItem
             href={link("settings")}

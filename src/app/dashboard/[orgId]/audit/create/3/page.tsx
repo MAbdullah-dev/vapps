@@ -66,6 +66,7 @@ import {
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
+import { toast } from "sonner";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 type ComplianceStatus =
@@ -873,6 +874,34 @@ export default function CreateAuditStep3Page() {
     justificationForClassification: refJustificationForClassification,
   };
   const firstErrorFieldOrder: CaValidationField[] = ["evidenceSeen", "riskJustification", "statementOfNonconformity", "justificationForClassification"];
+
+  const validateOpenCa = (): boolean => {
+    if (!(isCurrentMinorOrMajorNc && isCaOpenForCurrentRow)) return true;
+    const errors: Partial<Record<CaValidationField, string>> = {};
+    if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = t("Statement of Nonconformity is required.");
+    if (stripHtml(riskJustification) === "") errors.riskJustification = t("Risk Justification & Comments is required.");
+    if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = t("Justification for Classification is required.");
+    const evidenceFilled = stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "";
+    if (!evidenceFilled) errors.evidenceSeen = t("Evidence Seen (or Evidence in the checklist row) is required.");
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstField = firstErrorFieldOrder.find((f) => errors[f]);
+      if (firstField) {
+        const ref = fieldRefs[firstField].current;
+        if (ref) {
+          ref.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => {
+            const focusable = ref.querySelector<HTMLElement>("textarea, [contenteditable=\"true\"], .fr-element");
+            if (focusable) focusable.focus();
+          }, 400);
+        }
+      }
+      toast.error(t("Please fill in all required fields."));
+      return false;
+    }
+    setFieldErrors({});
+    return true;
+  };
   useEffect(() => {
     if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
   }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
@@ -2183,35 +2212,15 @@ export default function CreateAuditStep3Page() {
             <Button
             type="button"
             className="rounded-full border-2 border-primary bg-background px-8 py-6 text-base font-bold uppercase text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20"
-            disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
+            disabled={savingFindings || planStatus === "findings_submitted_to_auditee"}
             onClick={async () => {
-              if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
-              setFieldErrors({});
-              const wasDocumentingCA = !!activeCARowId;
-              const isCaOpenForThisSave = isCurrentMinorOrMajorNc && isCaOpenForCurrentRow;
-              if (isCaOpenForThisSave) {
-                const errors: Partial<Record<CaValidationField, string>> = {};
-                if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = t("Statement of Nonconformity is required.");
-                if (stripHtml(riskJustification) === "") errors.riskJustification = t("Risk Justification & Comments is required.");
-                if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = t("Justification for Classification is required.");
-                const evidenceFilled = stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "";
-                if (!evidenceFilled) errors.evidenceSeen = t("Evidence Seen (or Evidence in the checklist row) is required.");
-                if (Object.keys(errors).length > 0) {
-                  setFieldErrors(errors);
-                  const firstField = firstErrorFieldOrder.find((f) => errors[f]);
-                  if (firstField) {
-                    const ref = fieldRefs[firstField].current;
-                    if (ref) {
-                      ref.scrollIntoView({ behavior: "smooth", block: "center" });
-                      setTimeout(() => {
-                        const focusable = ref.querySelector<HTMLElement>("textarea, [contenteditable=\"true\"], .fr-element");
-                        if (focusable) focusable.focus();
-                      }, 400);
-                    }
-                  }
-                  return;
-                }
+              if (!orgId || planStatus === "findings_submitted_to_auditee") return;
+              if (!auditPlanIdFromUrl) {
+                toast.error(t("Generate an audit plan before saving findings."));
+                return;
               }
+              if (!validateOpenCa()) return;
+              const wasDocumentingCA = !!activeCARowId;
               setSavingFindings(true);
               try {
                 const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;
@@ -2325,9 +2334,14 @@ export default function CreateAuditStep3Page() {
             <Button
               type="button"
               className="rounded-lg bg-primary px-8 py-6 text-base font-bold uppercase text-primary-foreground hover:bg-primary/90"
-              disabled={!auditPlanIdFromUrl || savingFindings || planStatus === "findings_submitted_to_auditee"}
+              disabled={savingFindings || planStatus === "findings_submitted_to_auditee"}
               onClick={async () => {
-                if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
+                if (!orgId || planStatus === "findings_submitted_to_auditee") return;
+                if (!auditPlanIdFromUrl) {
+                  toast.error(t("Generate an audit plan before saving findings."));
+                  return;
+                }
+                if (!validateOpenCa()) return;
                 setSavingFindings(true);
                 try {
                   const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;
@@ -2372,9 +2386,14 @@ export default function CreateAuditStep3Page() {
             <Button
               type="button"
               className="rounded-lg bg-red-600 px-8 py-6 text-base font-bold uppercase text-white hover:bg-red-700"
-              disabled={!auditPlanIdFromUrl || submittingToAuditee || planStatus === "findings_submitted_to_auditee"}
+              disabled={submittingToAuditee || planStatus === "findings_submitted_to_auditee"}
               onClick={async () => {
-                if (!orgId || !auditPlanIdFromUrl || planStatus === "findings_submitted_to_auditee") return;
+                if (!orgId || planStatus === "findings_submitted_to_auditee") return;
+                if (!auditPlanIdFromUrl) {
+                  toast.error(t("Generate an audit plan before submitting to the auditee."));
+                  return;
+                }
+                if (!validateOpenCa()) return;
                 setSubmittingToAuditee(true);
                 try {
                   const rowsToSave = rowsRef.current.length > 0 ? rowsRef.current : rows;

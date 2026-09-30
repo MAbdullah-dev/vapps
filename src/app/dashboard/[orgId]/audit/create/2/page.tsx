@@ -43,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import {
   Info,
@@ -186,6 +187,10 @@ const PROGRAM_CRITERIA_TO_AUDIT_CRITERIA: Record<string, string> = {
   legal: "ISO 27001 INFORMATION SECURITY",
 };
 const AUDIT_CRITERIA = Object.values(PROGRAM_CRITERIA_TO_AUDIT_CRITERIA);
+function programPurposeKey(value: string | null | undefined): string {
+  return (value ?? "").split("::")[0].toLowerCase();
+}
+
 const PROGRAM_AUDIT_TYPE_TO_PLAN: Record<string, string> = {
   fpa: "FPA",
   spa: "SPA",
@@ -304,6 +309,7 @@ export default function CreateAuditStep2Page() {
   };
 
   const [auditPlanTitle, setAuditPlanTitle] = useState("");
+  const [planErrors, setPlanErrors] = useState<Record<string, boolean>>({});
   const [auditNumber, setAuditNumber] = useState("");
   const [parentProgramName, setParentProgramName] = useState("");
   const [selectedPlanOption, setSelectedPlanOption] = useState<"A" | "B" | "C" | null>(null);
@@ -375,7 +381,7 @@ export default function CreateAuditStep2Page() {
     setParentProgramName(p.name || `Audit Program ${p.id.slice(0, 8)}`);
     setSelectedSiteIds(p.siteIds ?? []);
     setSelectedProcessId(p.processId ?? null);
-    const purposeKey = (p.programPurpose ?? "").toLowerCase();
+    const purposeKey = programPurposeKey(p.programPurpose);
     setObjectivesCheckboxes((prev) => {
       const next = { ...prev };
       const label = PROGRAM_PURPOSE_TO_OBJECTIVE[purposeKey];
@@ -424,6 +430,7 @@ export default function CreateAuditStep2Page() {
         setSelectedPlanOption("A");
         applyProgramToForm(res.program);
         setProgramSearch("");
+        setPlanErrors((prev) => ({ ...prev, program: false }));
       }
     } catch (e) {
       console.error(e);
@@ -728,6 +735,28 @@ export default function CreateAuditStep2Page() {
   };
 
   const submitAuditPlan = useCallback(async (asDraft: boolean = false) => {
+    const errors = {
+      program: !effectiveProgramId,
+      title: auditPlanTitle.trim() === "",
+      datePrepared: !datePrepared,
+      plannedDate: !plannedDate,
+      criteria: !selectedChecklistId && !(selectedCriteria && selectedCriteria.trim()),
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setPlanErrors(errors);
+      if (errors.program) setSelectedPlanOption("A");
+      if (errors.title || errors.datePrepared) setIdentificationOpen(true);
+      if (errors.plannedDate) setCalendarOpen(true);
+      if (errors.criteria) setCriteriaOpen(true);
+      const order = ["program", "title", "datePrepared", "plannedDate", "criteria"] as const;
+      const first = order.find((key) => errors[key]);
+      window.setTimeout(() => {
+        if (first) scrollToField(`audit-field-${first}`);
+      }, 80);
+      toast.error(t("Please fill in all required fields."));
+      return;
+    }
+    setPlanErrors({});
     if (!orgId || !effectiveProgramId) return;
     setIsSubmittingPlan(true);
     try {
@@ -934,12 +963,14 @@ export default function CreateAuditStep2Page() {
       <div className="space-y-6 mb-6">
         {/* Option A: Continue With Existing Audit Program — select from Step 1 link or search existing programs */}
         <div
+          id="audit-field-program"
           onClick={() => setSelectedPlanOption("A")}
           className={cn(
             "rounded-lg border-2 bg-card p-6 shadow-sm transition-all cursor-pointer hover:shadow-md",
             selectedPlanOption === "A"
               ? "border-primary bg-primary/10"
-              : "border-gray-200 hover:border-gray-300"
+              : "border-gray-200 hover:border-gray-300",
+            planErrors.program && "border-destructive ring-1 ring-destructive"
           )}
         >
           <div className="flex items-start justify-between">
@@ -995,6 +1026,9 @@ export default function CreateAuditStep2Page() {
                   {t("No programs match")} &quot;{programSearch}&quot;.
                 </p>
               )}
+              {planErrors.program && (
+                <p className="text-xs text-destructive">{t("This field is required")}</p>
+              )}
               {program && (
                 <div className="rounded-lg border border-primary/25 bg-primary/10 px-4 py-3">
                   <p className="text-sm font-medium text-primary">{t("Linked program:")} {formatProgramDisplay(program as ProgramListItem)}</p>
@@ -1008,7 +1042,7 @@ export default function CreateAuditStep2Page() {
                     variant="outline"
                     size="sm"
                     className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const key = PROGRAM_PURPOSE_TO_OBJECTIVE[program?.programPurpose ?? ""]; if (key) setObjectivesCheckboxes((prev) => ({ ...prev, [key]: true })); }}
+                    onClick={(e) => { e.stopPropagation(); const key = PROGRAM_PURPOSE_TO_OBJECTIVE[programPurposeKey(program?.programPurpose)]; if (key) setObjectivesCheckboxes((prev) => ({ ...prev, [key]: true })); }}
                   >
                     {t("AUTO-POPULATE: AUDIT OBJECTIVES")}
                   </Button>
@@ -1150,16 +1184,20 @@ export default function CreateAuditStep2Page() {
         <CollapsibleContent>
           <div className="border-t border-gray-200 px-6 py-5">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
+              <div id="audit-field-title" className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   {t("Audit Plan Title*")}
                 </Label>
                 <Input
                   placeholder={t("e.g., Quarterly 2026 QMS & ESG Audit Plan")}
-                  className="h-10 rounded-lg border-gray-300"
+                  className={cn("h-10 rounded-lg border-gray-300", planErrors.title && "border-destructive focus-visible:ring-destructive")}
                   value={auditPlanTitle}
-                  onChange={(e) => setAuditPlanTitle(e.target.value)}
+                  onChange={(e) => {
+                    setAuditPlanTitle(e.target.value);
+                    if (planErrors.title) setPlanErrors((prev) => ({ ...prev, title: false }));
+                  }}
                 />
+                {planErrors.title && <p className="text-xs text-destructive">{t("This field is required")}</p>}
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
@@ -1191,7 +1229,7 @@ export default function CreateAuditStep2Page() {
                 </div>
                 <p className="text-xs text-gray-500">{t("System: audit creator is the lead auditor.")}</p>
               </div>
-              <div className="space-y-2">
+              <div id="audit-field-datePrepared" className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
                   {t("Date Prepared*")}
                 </Label>
@@ -1201,7 +1239,8 @@ export default function CreateAuditStep2Page() {
                       variant="outline"
                       className={cn(
                         "h-10 w-full justify-start rounded-lg border-gray-300 text-left font-normal",
-                        !datePrepared && "text-gray-500"
+                        !datePrepared && "text-gray-500",
+                        planErrors.datePrepared && "border-destructive"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1209,14 +1248,18 @@ export default function CreateAuditStep2Page() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
+                      <Calendar
                       mode="single"
                       selected={datePrepared}
-                      onSelect={setDatePrepared}
+                      onSelect={(date) => {
+                        setDatePrepared(date);
+                        if (planErrors.datePrepared) setPlanErrors((prev) => ({ ...prev, datePrepared: false }));
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
                 </Popover>
+                {planErrors.datePrepared && <p className="text-xs text-destructive">{t("This field is required")}</p>}
               </div>
             </div>
           </div>
@@ -1264,7 +1307,7 @@ export default function CreateAuditStep2Page() {
                   "Assess ESG practices (E / S / G factors)",
                   "Support risk-based decision-making",
                 ].map((label) => {
-                  const isSelectedFromStep1 = program?.programPurpose != null && PROGRAM_PURPOSE_TO_OBJECTIVE[program.programPurpose] === label;
+                  const isSelectedFromStep1 = program?.programPurpose != null && PROGRAM_PURPOSE_TO_OBJECTIVE[programPurposeKey(program.programPurpose)] === label;
                   return (
                     <div
                       key={label}
@@ -1322,9 +1365,9 @@ export default function CreateAuditStep2Page() {
           <div className="border-t border-gray-200 px-6 py-5 space-y-6">
             {/* Audit Type content */}
             <div className="space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 flex gap-3">
-                <Info className="h-5 w-5 shrink-0 text-slate-600 mt-0.5" />
-                <p className="text-sm text-gray-700 italic">
+              <div className="rounded-lg border border-border bg-muted px-4 py-3 flex gap-3">
+                <Info className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
+                <p className="text-sm text-foreground italic">
                   {t(
                     "Audits assess systems, processes, products, or integrated combinations, including ESG, for compliance and effectiveness."
                   )}
@@ -1420,14 +1463,14 @@ export default function CreateAuditStep2Page() {
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg border border-red-300 bg-red-50/80 p-4">
+              <div className="rounded-lg border border-red-300 bg-red-50/80 p-4 dark:border-red-800 dark:bg-red-950/40">
                 <div className="flex gap-3">
-                  <ShieldCheck className="h-6 w-6 shrink-0 text-red-600" />
+                  <ShieldCheck className="h-6 w-6 shrink-0 text-red-600 dark:text-red-400" />
                   <div className="min-w-0">
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-red-800">
+                    <h4 className="text-sm font-bold uppercase tracking-wide text-red-800 dark:text-red-200">
                       {t("TPCC Critical Restriction")}
                     </h4>
-                    <p className="mt-1.5 text-sm text-gray-700">
+                    <p className="mt-1.5 text-sm text-red-900/90 dark:text-red-100">
                       {t(
                         "“External resources and third-party auditors have restricted system access to Step-3 (Findings) and Step-5 (Verification) modules unless explicit guest permissions are granted.”"
                       )}
@@ -1713,14 +1756,15 @@ export default function CreateAuditStep2Page() {
                     <TableCell className="px-6 py-4 font-medium uppercase tracking-wide text-gray-800">
                       {t("Planned Date")}
                     </TableCell>
-                    <TableCell className="px-6 py-4">
+                    <TableCell id="audit-field-plannedDate" className="px-6 py-4">
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             className={cn(
                               "h-10 w-full max-w-xs justify-start rounded-lg border-gray-300 text-left font-normal",
-                              !plannedDate && "text-gray-500"
+                              !plannedDate && "text-gray-500",
+                              planErrors.plannedDate && "border-destructive"
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1731,11 +1775,15 @@ export default function CreateAuditStep2Page() {
                           <Calendar
                             mode="single"
                             selected={plannedDate}
-                            onSelect={setPlannedDate}
+                            onSelect={(date) => {
+                              setPlannedDate(date);
+                              if (planErrors.plannedDate) setPlanErrors((prev) => ({ ...prev, plannedDate: false }));
+                            }}
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
+                      {planErrors.plannedDate && <p className="mt-2 text-xs text-destructive">{t("This field is required")}</p>}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">
@@ -1826,9 +1874,10 @@ export default function CreateAuditStep2Page() {
 
       {/* AUDIT PLAN CRITERIA (SELECT ONE) */}
       <Collapsible
+        id="audit-field-criteria"
         open={criteriaOpen}
         onOpenChange={setCriteriaOpen}
-        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
+        className={cn("rounded-lg border border-gray-200 bg-card shadow-sm mb-6", planErrors.criteria && "border-destructive ring-1 ring-destructive")}
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
@@ -1875,6 +1924,7 @@ export default function CreateAuditStep2Page() {
                           if (checked) {
                             setSelectedChecklistId(c.id);
                             setSelectedCriteria(c.name);
+                            if (planErrors.criteria) setPlanErrors((prev) => ({ ...prev, criteria: false }));
                           } else {
                             setSelectedChecklistId(null);
                             setSelectedCriteria(null);
@@ -1891,6 +1941,7 @@ export default function CreateAuditStep2Page() {
                     </Label>
                   ))}
                 </div>
+                {planErrors.criteria && <p className="text-xs text-destructive">{t("This field is required")}</p>}
                 <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex gap-3">
                   <RefreshCw className="h-5 w-5 shrink-0 text-primary mt-0.5" />
                   <p className="text-sm text-primary">
@@ -2354,7 +2405,7 @@ export default function CreateAuditStep2Page() {
               type="button"
               variant="outline"
               className="border-primary bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
-              disabled={!effectiveProgramId || isSubmittingPlan}
+              disabled={isSubmittingPlan}
               onClick={() => submitAuditPlan(true)}
             >
               <FileText className="h-4 w-4 mr-2" />
@@ -2363,7 +2414,7 @@ export default function CreateAuditStep2Page() {
             <Button
               type="button"
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={!effectiveProgramId || isSubmittingPlan}
+              disabled={isSubmittingPlan}
               onClick={() => submitAuditPlan(false)}
             >
               <FileCheck className="h-4 w-4 mr-2" />

@@ -130,13 +130,8 @@ type Audit = {
   closedAt?: string | null;
 };
 
-function TableHeader({ title, sub }: { title: string; sub?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-semibold text-foreground">{title}</span>
-      {sub && <span className="text-xs font-normal text-muted-foreground">{sub}</span>}
-    </div>
-  );
+function TableHeader({ title }: { title: string }) {
+  return <span className="font-semibold text-foreground">{title}</span>;
 }
 
 const getClassificationColor = (classification: string) => {
@@ -182,26 +177,26 @@ function getColumns(
   return [
   {
     accessorKey: "auditProgramRef",
-    header: () => <TableHeader title={t("Audit Program Ref.")} sub={t("(Audit/Year/Site/Process/Audit Type)")} />,
+    header: () => <TableHeader title={t("Audit Program Ref.")} />,
     cell: ({ row }) => <span className="font-medium text-foreground">{row.original.auditProgramRef}</span>,
   },
   {
     accessorKey: "standard",
-    header: () => <TableHeader title={t("Standard")} sub={t("(e.g., ISO 9001, ESG & Sustainability)")} />,
+    header: () => <TableHeader title={t("Standard")} />,
     cell: ({ row }) => (
       <span className="text-muted-foreground">{displayCellValue(row.original.standard, t)}</span>
     ),
   },
   {
     accessorKey: "scopeMethodBoundaries",
-    header: () => <TableHeader title={t("Scope, Method & Boundaries")} sub={t("(On-Site/Remote/Hybrid)")} />,
+    header: () => <TableHeader title={t("Scope, Method & Boundaries")} />,
     cell: ({ row }) => (
       <span className="text-muted-foreground">{t(row.original.scopeMethodBoundaries)}</span>
     ),
   },
   {
     accessorKey: "auditType",
-    header: () => <TableHeader title={t("Audit Type")} sub={t("FPA/SPA/TPA")} />,
+    header: () => <TableHeader title={t("Audit Type")} />,
     cell: ({ row }) => (
       <span className="bg-muted text-muted-foreground py-1 px-2 rounded-full text-xs font-medium">
         {t(row.original.auditType)}
@@ -238,7 +233,7 @@ function getColumns(
   },
   {
     accessorKey: "ncClassification",
-    header: () => <TableHeader title={t("NC Classification")} sub={t("(Major/Minor)")} />,
+    header: () => <TableHeader title={t("NC Classification")} />,
     cell: ({ row }) => {
       const label = row.original.ncClassification === "Major" ? t("MA") : t("mi");
       return (
@@ -250,7 +245,7 @@ function getColumns(
   },
   {
     accessorKey: "riskLevel",
-    header: () => <TableHeader title={t("Risk Level")} sub={t("(High/Medium/Low)")} />,
+    header: () => <TableHeader title={t("Risk Level")} />,
     cell: ({ row }) => (
       <span className={`${getRiskLevelColor(row.original.riskLevel)} py-1 px-2 rounded-full text-xs font-medium`}>
         {t(row.original.riskLevel)}
@@ -280,12 +275,7 @@ function getColumns(
   },
   {
     accessorKey: "kpiLabel",
-    header: () => (
-      <TableHeader
-        title={t("KPI")}
-        sub={t("≤30d Green · >30d Yellow · >40d Red")}
-      />
-    ),
+    header: () => <TableHeader title={t("KPI")} />,
     cell: ({ row }) => {
       const audit = row.original;
       const programNote =
@@ -310,12 +300,7 @@ function getColumns(
   {
     accessorKey: "auditStatusKey",
     id: "auditStatus",
-    header: () => (
-      <TableHeader
-        title={t("Audit Status")}
-        sub={t("Success ≤ 30 days / In-Progress < 30 days / Pending > 30 days / Fail > 40 days")}
-      />
-    ),
+    header: () => <TableHeader title={t("Audit Status")} />,
     cell: ({ row }) => {
       const audit = row.original;
       const badgeClass = getAuditStatusColor(audit.auditStatus);
@@ -330,7 +315,7 @@ function getColumns(
   {
     accessorKey: "nextStepForUser",
     id: "yourAction",
-    header: () => <TableHeader title={t("Your Action")} sub={t("Step requiring your input or Complete")} />,
+    header: () => <TableHeader title={t("Your Action")} />,
     cell: ({ row }) => {
       const audit = row.original;
       if (audit.planStatus === "closed") {
@@ -355,10 +340,23 @@ function getColumns(
   },
   {
     id: "actions",
-    header: () => <TableHeader title={t("Actions")} sub={t("View Share Download PDF")} />,
+    header: () => <TableHeader title={t("Actions")} />,
     cell: ({ row }) => {
       const audit = row.original;
       const step = audit.nextStepForUser;
+      const isAuditReviewer =
+        !!currentUserId && (audit.assignedAuditorIds ?? []).includes(currentUserId);
+      const isAuditApprover =
+        !!currentUserId && audit.leadAuditorUserId === currentUserId;
+      const showSubmitForReview =
+        isAuditReviewer && audit.planStatus === "ca_submitted_to_auditor";
+      const showSubmitForApproval =
+        isAuditApprover && audit.planStatus === "pending_closure";
+      const showOtherStep =
+        step != null &&
+        audit.planStatus !== "closed" &&
+        step !== 5 &&
+        step !== 6;
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -388,7 +386,19 @@ function getColumns(
               <History className="mr-2 h-4 w-4" />
               {t("View History")}
             </DropdownMenuItem>
-            {step != null && audit.planStatus !== "closed" && (
+            {showSubmitForReview && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 5); }}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {t("Submit Corrective Actions")}
+              </DropdownMenuItem>
+            )}
+            {showSubmitForApproval && (
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, 6); }}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {t("Submit Closure")}
+              </DropdownMenuItem>
+            )}
+            {showOtherStep && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenStep(audit, step); }}>
                 <Pencil className="mr-2 h-4 w-4" />
                 {NEXT_STEP_LABELS[step] != null ? t(NEXT_STEP_LABELS[step]) : `${t("Open Step")} ${step}`}

@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api-client";
+import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
@@ -87,6 +88,24 @@ function RequiredLabel({ htmlFor, children, className }: { htmlFor?: string; chi
 function FieldError({ show, t }: { show: boolean; t: (text: string) => string }) {
   if (!show) return null;
   return <p className="text-xs text-destructive">{t("This field is required")}</p>;
+}
+
+const BASE_FIELD_ORDER = [
+  "startPeriod",
+  "endPeriod",
+  "auditScope",
+  "site",
+  "auditType",
+  "processId",
+  "programOwnerUserId",
+  "programPurpose",
+  "objectiveStandard",
+  "auditCriteria",
+] as const;
+
+function focusFirstInvalid(errors: Record<string, boolean>, fields: { key: string; id: string }[]) {
+  const field = fields.find((item) => errors[item.key]);
+  if (field) scrollToField(field.id);
 }
 
 export default function CreateAuditStep1Page() {
@@ -138,6 +157,7 @@ export default function CreateAuditStep1Page() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [programPurpose, setProgramPurpose] = useState<string | null>(null);
+  const [objectiveStandard, setObjectiveStandard] = useState<string | null>(null);
   const [auditScope, setAuditScope] = useState<string | null>(null);
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [auditType, setAuditType] = useState<string | null>(null);
@@ -151,11 +171,13 @@ export default function CreateAuditStep1Page() {
       !!auditScope &&
       selectedSiteIds.length > 0 &&
       !!auditType &&
+      auditType !== "spa" &&
       !!processId &&
       !!programOwnerUserId &&
       !!programPurpose &&
+      !!objectiveStandard &&
       !!auditCriteria,
-    [startPeriod, endPeriod, auditScope, selectedSiteIds, auditType, processId, programOwnerUserId, programPurpose, auditCriteria]
+    [startPeriod, endPeriod, auditScope, selectedSiteIds, auditType, processId, programOwnerUserId, programPurpose, objectiveStandard, auditCriteria]
   );
 
   const validateBaseForm = (): boolean => {
@@ -164,15 +186,18 @@ export default function CreateAuditStep1Page() {
       endPeriod: !endPeriod,
       auditScope: !auditScope,
       site: selectedSiteIds.length === 0,
-      auditType: !auditType,
+      auditType: !auditType || auditType === "spa",
       processId: !processId,
       programOwnerUserId: !programOwnerUserId,
       programPurpose: !programPurpose,
+      objectiveStandard: !objectiveStandard,
       auditCriteria: !auditCriteria,
     };
     if (Object.values(errors).some(Boolean)) {
       setBaseFormErrors(errors);
-      toast.error(t("Please complete all required fields above before adding risks, schedule rows, KPIs, or reviews."));
+      const first = BASE_FIELD_ORDER.find((key) => errors[key]);
+      if (first) scrollToField(`audit-field-${first}`);
+      toast.error(t("Please fill in all required fields."));
       return false;
     }
     setBaseFormErrors({});
@@ -213,6 +238,14 @@ export default function CreateAuditStep1Page() {
     };
     if (Object.values(errors).some(Boolean)) {
       setRiskErrors(errors);
+      focusFirstInvalid(errors, [
+        { key: "rop", id: "risk-rop" },
+        { key: "category", id: "risk-category" },
+        { key: "description", id: "risk-description" },
+        { key: "impact", id: "risk-impact" },
+        { key: "frequency", id: "risk-frequency" },
+        { key: "priority", id: "risk-priority" },
+      ]);
       toast.error(t("Please fill in all required fields."));
       return;
     }
@@ -255,6 +288,14 @@ export default function CreateAuditStep1Page() {
     };
     if (Object.values(errors).some(Boolean)) {
       setKpiErrors(errors);
+      focusFirstInvalid(errors, [
+        { key: "kpi", id: "kpi-num" },
+        { key: "impact", id: "kpi-impact" },
+        { key: "description", id: "kpi-description" },
+        { key: "score", id: "kpi-score" },
+        { key: "priority", id: "kpi-priority" },
+        { key: "comments", id: "kpi-comments" },
+      ]);
       toast.error(t("Please fill in all required fields."));
       return;
     }
@@ -297,6 +338,14 @@ export default function CreateAuditStep1Page() {
     };
     if (Object.values(errors).some(Boolean)) {
       setScheduleErrors(errors);
+      focusFirstInvalid(errors, [
+        { key: "audit", id: "schedule-audit" },
+        { key: "type", id: "schedule-type" },
+        { key: "focus", id: "schedule-focus" },
+        { key: "frequency", id: "schedule-frequency" },
+        { key: "months", id: "schedule-months" },
+        { key: "lead", id: "schedule-lead" },
+      ]);
       toast.error(t("Please fill in all required fields."));
       return;
     }
@@ -345,6 +394,13 @@ export default function CreateAuditStep1Page() {
     };
     if (Object.values(errors).some(Boolean)) {
       setReviewErrors(errors);
+      focusFirstInvalid(errors, [
+        { key: "pri", id: "review-pri" },
+        { key: "type", id: "review-type" },
+        { key: "comments", id: "review-comments" },
+        { key: "priority", id: "review-priority" },
+        { key: "action", id: "review-action" },
+      ]);
       toast.error(t("Please fill in all required fields."));
       return;
     }
@@ -441,9 +497,13 @@ export default function CreateAuditStep1Page() {
       if (p.endPeriod) setEndPeriod(new Date(p.endPeriod));
       if (p.processId) setProcessId(p.processId);
       if (p.programOwnerUserId) setProgramOwnerUserId(p.programOwnerUserId);
-      if (p.programPurpose != null) setProgramPurpose(p.programPurpose);
+      if (p.programPurpose != null) {
+        const [purpose, standard] = String(p.programPurpose).split("::");
+        setProgramPurpose(purpose || null);
+        setObjectiveStandard(standard || null);
+      }
       if (p.auditScope != null) setAuditScope(p.auditScope);
-      if (p.auditType != null) setAuditType(p.auditType);
+      if (p.auditType != null && p.auditType !== "spa") setAuditType(p.auditType);
       if (p.auditCriteria != null) setAuditCriteria(p.auditCriteria);
       if (p.siteIds?.length) setSelectedSiteIds(p.siteIds);
       if (p.risks?.length) setRisks(p.risks.map((r: any, i: number) => ({
@@ -523,46 +583,56 @@ export default function CreateAuditStep1Page() {
           id: "fpa",
           label: "First-Party (FPA)",
           sub: "Audits conducted by, or on behalf of, the organization itself for management review and other internal purposes.",
+          disabled: false,
         },
         {
           id: "spa",
           label: "Second-Party (SPA)",
           sub: "Audits conducted by parties having an interest in the organization, such as customers, or by other persons on their behalf.",
+          disabled: true,
         },
-        {
-          id: "tpa",
-          label: "Third-Party (TPA)",
-          sub: "Audits conducted by independent auditing organizations, such as those providing certification of conformity or regulatory bodies.",
-        },
+        // Third-Party (TPA) — hidden for now; restore when third-party audits are needed.
+        // {
+        //   id: "tpa",
+        //   label: "Third-Party (TPA)",
+        //   sub: "Audits conducted by independent auditing organizations, such as those providing certification of conformity or regulatory bodies.",
+        // },
       ] as const,
     []
   );
   const programPurposeOptions = useMemo(
     () =>
       [
-        {
-          id: "conformity",
-          title: "Management system conformity with standards",
-          sub: "ISO 9001, 14001, 45001",
-        },
-        {
-          id: "effectiveness",
-          title: "Evaluation of system effectiveness",
-          sub: "Process performance and outcomes",
-        },
-        {
-          id: "esg",
-          title: "Assessment of ESG practices & disclosures",
-          sub: "GRI, IFRS S1/S2 Alignment",
-        },
-        {
-          id: "risk",
-          title: "Risk-based decision making support",
-          sub: "Identifying vulnerabilities in system",
-        },
+        { id: "iso", label: "ISO standards", sub: "ISO 9001, 14001, 45001" },
+        { id: "esg", label: "ESG frameworks", sub: "GRI, IFRS S1/S2" },
+        { id: "legal", label: "Legal & regulatory", sub: "Applicable legal and regulatory requirements" },
       ] as const,
     []
   );
+  const objectiveStandardOptions = useMemo(
+    () =>
+      ({
+        iso: [
+          { id: "iso-9001", label: "ISO 9001 — Quality management" },
+          { id: "iso-14001", label: "ISO 14001 — Environmental management" },
+          { id: "iso-45001", label: "ISO 45001 — Occupational health and safety" },
+          { id: "iso-27001", label: "ISO 27001 — Information security" },
+          { id: "iatf-16949", label: "IATF 16949 — Automotive quality" },
+        ],
+        esg: [
+          { id: "gri", label: "GRI Standards" },
+          { id: "ifrs-s1", label: "IFRS S1 — General sustainability disclosures" },
+          { id: "ifrs-s2", label: "IFRS S2 — Climate-related disclosures" },
+        ],
+        legal: [
+          { id: "statutory", label: "Statutory requirements" },
+          { id: "regulatory", label: "Regulatory requirements" },
+          { id: "customer", label: "Customer and other requirements" },
+        ],
+      }) as Record<string, { id: string; label: string }[]>,
+    []
+  );
+  const standardOptionsForPurpose = programPurpose ? objectiveStandardOptions[programPurpose] ?? [] : [];
   const auditCriteriaOptions = useMemo(
     () =>
       [
@@ -679,7 +749,7 @@ export default function CreateAuditStep1Page() {
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">{t("PERIOD COVERED")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-2">
+            <div id="audit-field-startPeriod" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("START PERIOD (MM-DD-YYYY)")}
               </RequiredLabel>
@@ -711,7 +781,7 @@ export default function CreateAuditStep1Page() {
               </Popover>
               <FieldError show={!!baseFormErrors.startPeriod} t={t} />
             </div>
-            <div className="space-y-2">
+            <div id="audit-field-endPeriod" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("END PERIOD (MM-DD-YYYY)")}
               </RequiredLabel>
@@ -767,7 +837,7 @@ export default function CreateAuditStep1Page() {
           {/* SCOPE OF AUDIT PROGRAM + ORGANIZATIONAL SITES - Half / Half */}
           <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Left half: Scope of Audit Program */}
-            <div>
+            <div id="audit-field-auditScope">
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
                 {t("SCOPE OF AUDIT PROGRAM (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
               </h3>
@@ -798,7 +868,7 @@ export default function CreateAuditStep1Page() {
               <FieldError show={!!baseFormErrors.auditScope} t={t} />
             </div>
             {/* Right half: Organizational Sites / Units (current org only) */}
-            <div>
+            <div id="audit-field-site">
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
                 {t("ORGANIZATIONAL SITES / UNITS (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
               </h3>
@@ -839,7 +909,7 @@ export default function CreateAuditStep1Page() {
           </div>
      
           {/* Types of Audits */}
-          <div>
+          <div id="audit-field-auditType">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">
               {t("TYPES OF AUDITS (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
             </h3>
@@ -848,16 +918,21 @@ export default function CreateAuditStep1Page() {
                 <Label
                   key={opt.id}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
-                    auditType === opt.id
+                    "flex items-start gap-3 rounded-lg border p-4 transition-colors",
+                    opt.disabled
+                      ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
+                      : "cursor-pointer",
+                    !opt.disabled && auditType === opt.id
                       ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                      : "border-border bg-card hover:border-border",
-                    baseFormErrors.auditType && auditType !== opt.id && "border-destructive/50"
+                      : !opt.disabled && "border-border bg-card hover:border-border",
+                    !opt.disabled && baseFormErrors.auditType && auditType !== opt.id && "border-destructive/50"
                   )}
                 >
                   <Checkbox
-                    checked={auditType === opt.id}
+                    checked={!opt.disabled && auditType === opt.id}
+                    disabled={opt.disabled}
                     onCheckedChange={(checked) => {
+                      if (opt.disabled) return;
                       setAuditType(checked ? opt.id : null);
                       if (baseFormErrors.auditType) setBaseFormErrors((p) => ({ ...p, auditType: false }));
                     }}
@@ -888,7 +963,7 @@ export default function CreateAuditStep1Page() {
             {t("assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.")}
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div id="audit-field-processId" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("PROCESS / DEPARTMENT")}
               </RequiredLabel>
@@ -913,7 +988,7 @@ export default function CreateAuditStep1Page() {
               <FieldError show={!!baseFormErrors.processId} t={t} />
               <p className="text-xs text-muted-foreground">{t("Only processes you are not assigned to are shown (no self-audit).")}</p>
             </div>
-            <div className="space-y-2">
+            <div id="audit-field-programOwnerUserId" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("RESPONSIBLE OWNER (AUDITEE)")}
               </RequiredLabel>
@@ -964,38 +1039,64 @@ export default function CreateAuditStep1Page() {
           <h2 className="mb-6 text-xl font-bold text-foreground">
             {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
-          <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-lg", baseFormErrors.programPurpose && "ring-1 ring-destructive")}>
-            {programPurposeOptions.map((opt) => (
-              <Label
-                key={opt.id}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
-                  programPurpose === opt.id
-                    ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                    : "border-border bg-card hover:border-border",
-                  baseFormErrors.programPurpose && programPurpose !== opt.id && "border-destructive/50"
-                )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div id="audit-field-programPurpose" className="space-y-2">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t("FRAMEWORK")}
+              </RequiredLabel>
+              <Select
+                value={programPurpose ?? ""}
+                onValueChange={(v) => {
+                  setProgramPurpose(v || null);
+                  setObjectiveStandard(null);
+                  if (baseFormErrors.programPurpose || baseFormErrors.objectiveStandard) {
+                    setBaseFormErrors((p) => ({ ...p, programPurpose: false, objectiveStandard: false }));
+                  }
+                }}
               >
-                <Checkbox
-                  checked={programPurpose === opt.id}
-                  onCheckedChange={(checked) => {
-                    setProgramPurpose(checked ? opt.id : null);
-                    if (baseFormErrors.programPurpose) setBaseFormErrors((p) => ({ ...p, programPurpose: false }));
-                  }}
-                  className="mt-0.5 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
-                />
-                <div>
-                  <div className="font-medium text-foreground">{t(opt.title)}</div>
-                  <div className="text-sm text-muted-foreground">{t(opt.sub)}</div>
-                </div>
-              </Label>
-            ))}
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programPurpose))}>
+                  <SelectValue placeholder={t("Select ISO, ESG, or another objective")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {programPurposeOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {t(opt.label)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError show={!!baseFormErrors.programPurpose} t={t} />
+            </div>
+            <div id="audit-field-objectiveStandard" className="space-y-2">
+              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t("STANDARD")}
+              </RequiredLabel>
+              <Select
+                value={objectiveStandard ?? ""}
+                onValueChange={(v) => {
+                  setObjectiveStandard(v || null);
+                  if (baseFormErrors.objectiveStandard) setBaseFormErrors((p) => ({ ...p, objectiveStandard: false }));
+                }}
+                disabled={!programPurpose}
+              >
+                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.objectiveStandard))}>
+                  <SelectValue placeholder={programPurpose ? t("Select a standard") : t("Select a framework first")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {standardOptionsForPurpose.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {t(opt.label)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError show={!!baseFormErrors.objectiveStandard} t={t} />
+            </div>
           </div>
-          <FieldError show={!!baseFormErrors.programPurpose} t={t} />
         </div>
 
         {/* Audit Program Criteria */}
-        <div className="p-8">
+        <div id="audit-field-auditCriteria" className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">
             {t("AUDIT PROGRAM CRITERIA (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
@@ -1033,6 +1134,9 @@ export default function CreateAuditStep1Page() {
             </p>
           </div>
         </div>
+        {/* Hidden for now — restore risks, schedule, KPIs, and program review when needed. */}
+        {false && (
+        <>
         {!canAddTableRows && (
           <div className="mx-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/40">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -1277,6 +1381,8 @@ export default function CreateAuditStep1Page() {
             </Table>
           </div>
         </div>
+        </>
+        )}
         {/* Audit Details (populated from database after save) */}
         <div className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm mx-8 my-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
@@ -1313,15 +1419,19 @@ export default function CreateAuditStep1Page() {
           size="lg"
           variant="outline"
           className="gap-2 border-border text-foreground hover:bg-muted/40"
-          disabled={isSaving || !currentUserId || !canAddTableRows}
+          disabled={isSaving}
           onClick={async () => {
-            if (!currentUserId || !validateBaseForm()) return;
+            if (!currentUserId) {
+              toast.error(t("You must be signed in to save."));
+              return;
+            }
+            if (!validateBaseForm()) return;
             setIsSaving(true);
             try {
               const payload = {
                 startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
                 endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
-                programPurpose,
+                programPurpose: programPurpose && objectiveStandard ? `${programPurpose}::${objectiveStandard}` : programPurpose,
                 auditScope,
                 auditType,
                 auditCriteria,
@@ -1354,15 +1464,19 @@ export default function CreateAuditStep1Page() {
         <Button
           size="lg"
           className="gap-2"
-          disabled={isSaving || !currentUserId || !canAddTableRows}
+          disabled={isSaving}
           onClick={async () => {
-            if (!currentUserId || !validateBaseForm()) return;
+            if (!currentUserId) {
+              toast.error(t("You must be signed in to continue."));
+              return;
+            }
+            if (!validateBaseForm()) return;
             setIsSaving(true);
             try {
               const payload = {
                 startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
                 endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
-                programPurpose,
+                programPurpose: programPurpose && objectiveStandard ? `${programPurpose}::${objectiveStandard}` : programPurpose,
                 auditScope,
                 auditType,
                 auditCriteria,
@@ -1422,7 +1536,7 @@ export default function CreateAuditStep1Page() {
               <FieldError show={!!riskErrors.description} t={t} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div id="risk-impact" className="space-y-2">
                 <RequiredLabel>{t("Impact (1-5)")}</RequiredLabel>
                 <Select value={riskForm.impact} onValueChange={(v) => { setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" })); if (riskErrors.impact) setRiskErrors((p) => ({ ...p, impact: false })); }}>
                   <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.impact))}>
@@ -1444,7 +1558,7 @@ export default function CreateAuditStep1Page() {
                 <FieldError show={!!riskErrors.frequency} t={t} />
               </div>
             </div>
-            <div className="space-y-2">
+            <div id="risk-priority" className="space-y-2">
               <RequiredLabel>{t("Priority")}</RequiredLabel>
               <Select value={riskForm.priority} onValueChange={(v) => { setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" })); if (riskErrors.priority) setRiskErrors((p) => ({ ...p, priority: false })); }}>
                 <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.priority))}>
@@ -1482,7 +1596,7 @@ export default function CreateAuditStep1Page() {
                 <Input id="kpi-num" value={kpiForm.kpi} onChange={(e) => { setKpiForm((f) => ({ ...f, kpi: e.target.value })); if (kpiErrors.kpi) setKpiErrors((p) => ({ ...p, kpi: false })); }} className={requiredInputClass(!!kpiErrors.kpi)} placeholder={t("e.g. 001")} />
                 <FieldError show={!!kpiErrors.kpi} t={t} />
               </div>
-              <div className="space-y-2">
+              <div id="kpi-impact" className="space-y-2">
                 <RequiredLabel>{t("Impact")}</RequiredLabel>
                 <Select value={kpiForm.impact} onValueChange={(v) => { setKpiForm((f) => ({ ...f, impact: v })); if (kpiErrors.impact) setKpiErrors((p) => ({ ...p, impact: false })); }}>
                   <SelectTrigger className={cn("w-full", requiredInputClass(!!kpiErrors.impact))}>
@@ -1591,7 +1705,7 @@ export default function CreateAuditStep1Page() {
                 <Input id="review-pri" value={reviewForm.pri} onChange={(e) => { setReviewForm((f) => ({ ...f, pri: e.target.value })); if (reviewErrors.pri) setReviewErrors((p) => ({ ...p, pri: false })); }} className={requiredInputClass(!!reviewErrors.pri)} placeholder={t("e.g. PRI-01")} />
                 <FieldError show={!!reviewErrors.pri} t={t} />
               </div>
-              <div className="space-y-2">
+              <div id="review-type" className="space-y-2">
                 <RequiredLabel>{t("Review Type")}</RequiredLabel>
                 <Select value={reviewForm.type} onValueChange={(v) => { setReviewForm((f) => ({ ...f, type: v })); if (reviewErrors.type) setReviewErrors((p) => ({ ...p, type: false })); }}>
                   <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.type))}>
@@ -1612,7 +1726,7 @@ export default function CreateAuditStep1Page() {
               <Textarea id="review-comments" value={reviewForm.comments} onChange={(e) => { setReviewForm((f) => ({ ...f, comments: e.target.value })); if (reviewErrors.comments) setReviewErrors((p) => ({ ...p, comments: false })); }} className={requiredInputClass(!!reviewErrors.comments)} placeholder={t("Enter comments")} rows={3} />
               <FieldError show={!!reviewErrors.comments} t={t} />
             </div>
-            <div className="space-y-2">
+            <div id="review-priority" className="space-y-2">
               <RequiredLabel>{t("Priority")}</RequiredLabel>
               <Select value={reviewForm.priority} onValueChange={(v) => { setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" })); if (reviewErrors.priority) setReviewErrors((p) => ({ ...p, priority: false })); }}>
                 <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.priority))}>

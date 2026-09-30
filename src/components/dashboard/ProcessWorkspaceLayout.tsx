@@ -1554,7 +1554,7 @@ export default function ProcessLayout({
                   <div className="space-y-3 pl-0 sm:pl-1">
                     <Textarea
                       placeholder={t("Add a comment…")}
-                      className="min-h-[88px] resize-y border border-input bg-background text-foreground placeholder:text-muted-foreground shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      className="min-h-22 resize-y border border-input bg-background text-foreground placeholder:text-muted-foreground shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       disabled={isPostingComment}

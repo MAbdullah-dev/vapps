@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Topbar from "@/components/dashboard/Topbar";
 import Sidebar from "@/components/dashboard/Sidebar";
+import DashboardScrollLock from "@/components/dashboard/DashboardScrollLock";
 import { getOrgBySlugOrId } from "@/lib/org-utils";
 import { OrgProvider } from "@/components/providers/org-provider";
 
@@ -21,11 +22,12 @@ export default async function OrgDashboardLayout({
 
     return (
         <OrgProvider orgId={org.id} slug={org.slug}>
-            <div className="flex min-h-screen bg-background">
+            <DashboardScrollLock />
+            <div className="fixed inset-0 flex overflow-hidden bg-background">
                 <Sidebar orgId={org.id} slug={org.slug} />
-                <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     <Topbar />
-                    <main className="p-6 w-full bg-background flex-1 overflow-y-auto">
+                    <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-background p-6">
                         {children}
                     </main>
                 </div>
