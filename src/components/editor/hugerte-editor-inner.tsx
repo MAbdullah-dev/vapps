@@ -237,7 +237,7 @@ export function HugerteEditorInner({
   return (
     <div
       className={cn(
-        "rich-text-editor-root rounded-md border border-border bg-background",
+        "rich-text-editor-root max-w-full overflow-hidden rounded-md border border-border bg-background",
         className
       )}
     >

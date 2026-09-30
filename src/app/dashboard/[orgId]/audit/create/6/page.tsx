@@ -14,6 +14,7 @@ import {
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -52,6 +53,7 @@ export default function CreateAuditStep6Page() {
     "effective" | "ineffective"
   >("effective");
   const [managementComments, setManagementComments] = useState("");
+  const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
     if (!orgId || !auditPlanId) {
@@ -200,22 +202,30 @@ export default function CreateAuditStep6Page() {
           </div>
 
           {/* Right: Management Comments */}
-          <div className="space-y-4">
+          <div id="audit-field-managementComments" className="space-y-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 shrink-0 text-primary" />
               <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-                {t("MANAGEMENT COMMENTS")}
+                {t("MANAGEMENT COMMENTS")} <span className="text-destructive" aria-hidden>*</span>
               </h2>
             </div>
             <Textarea
               placeholder={t(
                 "Executive summary of the audit cycle and final approval notes..."
               )}
-              className="min-h-44 rounded-lg border-border bg-background italic text-muted-foreground placeholder:text-muted-foreground"
+              className={cn(
+                "min-h-44 rounded-lg border-border bg-background italic placeholder:text-muted-foreground",
+                managementComments ? "text-foreground" : "text-muted-foreground",
+                commentsError && "border-destructive focus-visible:ring-destructive"
+              )}
               rows={8}
               value={managementComments}
-              onChange={(e) => setManagementComments(e.target.value)}
+              onChange={(e) => {
+                setManagementComments(e.target.value);
+                if (commentsError) setCommentsError(false);
+              }}
             />
+            {commentsError && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
         </div>
 
@@ -305,9 +315,19 @@ export default function CreateAuditStep6Page() {
         </Button> */}
         <Button
           className="bg-primary text-primary-foreground hover:bg-primary/90 ml-auto"
-          disabled={closing || !auditPlanId || !canEditStep6}
+          disabled={closing || !canEditStep6}
           onClick={async () => {
-            if (!orgId || !auditPlanId) return;
+            if (managementComments.trim() === "") {
+              setCommentsError(true);
+              scrollToField("audit-field-managementComments");
+              toast.error(t("Please fill in all required fields."));
+              return;
+            }
+            setCommentsError(false);
+            if (!orgId || !auditPlanId) {
+              toast.error(t("Open this step from a submitted audit plan."));
+              return;
+            }
             setClosing(true);
             try {
               if (finalDecision === "effective") {

@@ -19,7 +19,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { apiClient } from "@/lib/api-client";
+import { scrollToField } from "@/lib/scroll-to-field";
 import { useTranslate } from "@/components/providers/translation-provider";
+import { toast } from "sonner";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 export default function CreateAuditStep4Page() {
@@ -87,6 +89,7 @@ export default function CreateAuditStep4Page() {
   const [files45, setFiles45] = useState<{ name: string; key: string }[]>([]);
   const [files46, setFiles46] = useState<{ name: string; key: string }[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [step4Errors, setStep4Errors] = useState<Record<string, boolean>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -215,6 +218,9 @@ export default function CreateAuditStep4Page() {
         uploaded.push({ name: res.name, key: res.key });
       }
       setFiles((prev) => [...prev, ...uploaded]);
+      if (section === "s2" && uploaded.length > 0) {
+        setStep4Errors((prev) => ({ ...prev, filesS2: false }));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -254,8 +260,32 @@ export default function CreateAuditStep4Page() {
     files46,
   });
 
+  const validateStep4 = (): boolean => {
+    const errors = {
+      containmentDescription: containmentDescription.trim() === "",
+      responsiblePerson: responsiblePerson.trim() === "",
+      targetCompletionDate: !targetCompletionDate,
+      filesS2: filesS2.length === 0,
+      auditeeComments: auditeeComments.trim() === "",
+    };
+    if (Object.values(errors).some(Boolean)) {
+      setStep4Errors(errors);
+      const order = ["containmentDescription", "responsiblePerson", "targetCompletionDate", "filesS2", "auditeeComments"] as const;
+      const first = order.find((key) => errors[key]);
+      if (first) scrollToField(`audit-field-${first}`);
+      toast.error(t("Please fill in all required fields."));
+      return false;
+    }
+    setStep4Errors({});
+    return true;
+  };
+
   const handleSaveStep4 = async () => {
-    if (!orgId || !auditPlanId) return;
+    if (!validateStep4()) return;
+    if (!orgId || !auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      return;
+    }
     setSavingStep4(true);
     try {
       await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
@@ -423,31 +453,39 @@ export default function CreateAuditStep4Page() {
             {t("Stop The Bleeding Immediately. Implement Containment Actions With Defined Timelines And Responsible Parties To Control The Issue And Prevent Further Impact Until A Permanent Solution Is Implemented. This Approach Is Typical For *Minor Nonconformities. Major Nonconformities Require Systematic Corrective Actions, Timelines, And Responsible Parties.")}
           </p>
         </div>
-        <div className="mt-4 space-y-2">
+        <div id="audit-field-containmentDescription" className="mt-4 space-y-2">
           <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             {t("CONTAINMENT ACTION DESCRIPTION")}
           </Label>
           <Textarea
             placeholder={t("Describe the immediate actions taken to contain the nonconformity...")}
-            className="min-h-24 rounded-lg border-border"
+            className={cn("min-h-24 rounded-lg border-border", step4Errors.containmentDescription && "border-destructive focus-visible:ring-destructive")}
             rows={4}
             value={containmentDescription}
-            onChange={(e) => setContainmentDescription(e.target.value)}
+            onChange={(e) => {
+              setContainmentDescription(e.target.value);
+              if (step4Errors.containmentDescription) setStep4Errors((prev) => ({ ...prev, containmentDescription: false }));
+            }}
           />
+          {step4Errors.containmentDescription && <p className="text-xs text-destructive">{t("This field is required")}</p>}
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+          <div id="audit-field-responsiblePerson" className="space-y-2">
             <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               {t("RESPONSIBLE PERSON")}
             </Label>
             <Input
               placeholder={t("Full Name / Job Title")}
-              className="rounded-lg border-border"
+              className={cn("rounded-lg border-border", step4Errors.responsiblePerson && "border-destructive focus-visible:ring-destructive")}
               value={responsiblePerson}
-              onChange={(e) => setResponsiblePerson(e.target.value)}
+              onChange={(e) => {
+                setResponsiblePerson(e.target.value);
+                if (step4Errors.responsiblePerson) setStep4Errors((prev) => ({ ...prev, responsiblePerson: false }));
+              }}
             />
+            {step4Errors.responsiblePerson && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
-          <div className="space-y-2">
+          <div id="audit-field-targetCompletionDate" className="space-y-2">
             <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               {t("TARGET COMPLETION DATE")}
             </Label>
@@ -457,7 +495,8 @@ export default function CreateAuditStep4Page() {
                   variant="outline"
                   className={cn(
                     "w-full justify-start rounded-lg border-border text-left font-normal",
-                    !targetCompletionDate && "text-muted-foreground"
+                    !targetCompletionDate && "text-muted-foreground",
+                    step4Errors.targetCompletionDate && "border-destructive"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
@@ -468,11 +507,15 @@ export default function CreateAuditStep4Page() {
                 <Calendar
                   mode="single"
                   selected={targetCompletionDate}
-                  onSelect={setTargetCompletionDate}
+                  onSelect={(date) => {
+                    setTargetCompletionDate(date);
+                    if (step4Errors.targetCompletionDate) setStep4Errors((prev) => ({ ...prev, targetCompletionDate: false }));
+                  }}
                   initialFocus
                 />
               </PopoverContent>
             </Popover>
+            {step4Errors.targetCompletionDate && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
         </div>
 
@@ -489,7 +532,7 @@ export default function CreateAuditStep4Page() {
             {t("The Underlying Reason For An Issue, Identified Through Analysis To Ensure A Permanent Solution And Prevent Recurrence. Auditors May Use Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA.")}
           </p>
         </div>
-        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
+        <div id="audit-field-filesS2" className={cn("mt-4 rounded-lg border border-border bg-muted/80 p-6", step4Errors.filesS2 && "border-destructive ring-1 ring-destructive")}>
           <input
             ref={(el) => { fileInputRefs.current["s2"] = el; }}
             type="file"
@@ -517,6 +560,7 @@ export default function CreateAuditStep4Page() {
             >
               {t("BROWSE FILES")}
             </Button>
+            {step4Errors.filesS2 && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
         </div>
 
@@ -794,15 +838,19 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* Auditee Comments (Mandatory) */}
-        <div className="mt-8 space-y-4">
+        <div id="audit-field-auditeeComments" className="mt-8 space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("AUDITEE COMMENTS (MANDATORY)")}</h3>
           <Textarea
             placeholder={t("Final auditee observations regarding the CA effectiveness and risk mitigation...")}
-            className="min-h-32 rounded-lg border-border"
+            className={cn("min-h-32 rounded-lg border-border", step4Errors.auditeeComments && "border-destructive focus-visible:ring-destructive")}
             rows={6}
             value={auditeeComments}
-            onChange={(e) => setAuditeeComments(e.target.value)}
+            onChange={(e) => {
+              setAuditeeComments(e.target.value);
+              if (step4Errors.auditeeComments) setStep4Errors((prev) => ({ ...prev, auditeeComments: false }));
+            }}
           />
+          {step4Errors.auditeeComments && <p className="text-xs text-destructive">{t("This field is required")}</p>}
         </div>
 
         {/* Risk Evaluation Guideline */}
@@ -857,7 +905,7 @@ export default function CreateAuditStep4Page() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={savingStep4 || !auditPlanId}
+                disabled={savingStep4 || !canEditStep4}
                 onClick={handleSaveStep4}
                 className="inline-flex items-center gap-2 rounded-lg border-2 border-primary bg-transparent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 hover:text-white"
               >
@@ -866,10 +914,14 @@ export default function CreateAuditStep4Page() {
               </Button>
               <Button
                 type="button"
-                disabled={submittingToAuditor || !auditPlanId}
+                disabled={submittingToAuditor || !canEditStep4}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
                 onClick={async () => {
-                  if (!orgId || !auditPlanId) return;
+                  if (!validateStep4()) return;
+                  if (!orgId || !auditPlanId) {
+                    toast.error(t("Open this step from a submitted audit plan."));
+                    return;
+                  }
                   setSubmittingToAuditor(true);
                   try {
                     // Always save full Step 4 payload before updating status,

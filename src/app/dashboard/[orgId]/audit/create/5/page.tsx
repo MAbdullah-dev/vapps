@@ -16,6 +16,7 @@ import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { AuditUploadedFilesList, normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
@@ -56,6 +57,7 @@ export default function CreateAuditStep5Page() {
     "effective" | "ineffective"
   >("effective");
   const [auditorComments, setAuditorComments] = useState("");
+  const [commentsError, setCommentsError] = useState(false);
   const [evidenceFiles, setEvidenceFiles] = useState<{ name: string; key: string }[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [proceedingToStep6, setProceedingToStep6] = useState(false);
@@ -146,9 +148,24 @@ export default function CreateAuditStep5Page() {
     currentUserRole === "assigned_auditor" &&
     !["pending_closure", "closed", "verification_ineffective"].includes(planStatus ?? "");
 
+  const validateStep5 = (): boolean => {
+    if (auditorComments.trim() === "") {
+      setCommentsError(true);
+      scrollToField("audit-field-auditorComments");
+      toast.error(t("Please fill in all required fields."));
+      return false;
+    }
+    setCommentsError(false);
+    return true;
+  };
+
   /** Ineffective: return to auditee (Step 4). Effective: move to Step 6 for lead auditor. */
   const handleSaveStep5 = async () => {
-    if (!orgId || !auditPlanId) return;
+    if (!validateStep5()) return;
+    if (!orgId || !auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      return;
+    }
     setSaving(true);
     try {
       await apiClient.updateAuditPlan(orgId, auditPlanId, {
@@ -295,19 +312,23 @@ export default function CreateAuditStep5Page() {
           </div>
 
           {/* Auditor's Verification Comments */}
-          <div className="mt-8 space-y-3">
+          <div id="audit-field-auditorComments" className="mt-8 space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
-              {t("AUDITOR'S VERIFICATION COMMENTS")}
+              {t("AUDITOR'S VERIFICATION COMMENTS")} <span className="text-destructive" aria-hidden>*</span>
             </h2>
             <Textarea
               placeholder={t(
                 "Detail the audit evidence used for verification (e.g., site visit on 04-Feb, review of..."
               )}
-              className="min-h-28 rounded-lg border-border bg-background"
+              className={cn("min-h-28 rounded-lg border-border bg-background", commentsError && "border-destructive focus-visible:ring-destructive")}
               rows={4}
               value={auditorComments}
-              onChange={(e) => setAuditorComments(e.target.value)}
+              onChange={(e) => {
+                setAuditorComments(e.target.value);
+                if (commentsError) setCommentsError(false);
+              }}
             />
+            {commentsError && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
 
           {/* Revised Risk Severity & Attach Evidence - horizontal */}
@@ -399,16 +420,20 @@ export default function CreateAuditStep5Page() {
           <Button
             variant="outline"
             className="border-border text-foreground hover:bg-muted/40"
-            disabled={saving || !auditPlanId || !canEditStep5}
+            disabled={saving || !canEditStep5}
             onClick={handleSaveStep5}
           >
             {saving ? t("Saving…") : t("Save")}
           </Button>
           <Button
             className="bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={proceedingToStep6 || saving || !auditPlanId || !canEditStep5}
+            disabled={proceedingToStep6 || saving || !canEditStep5}
             onClick={async () => {
-              if (!orgId || !auditPlanId) return;
+              if (!validateStep5()) return;
+              if (!orgId || !auditPlanId) {
+                toast.error(t("Open this step from a submitted audit plan."));
+                return;
+              }
               setProceedingToStep6(true);
               try {
                 await apiClient.updateAuditPlan(orgId, auditPlanId, {

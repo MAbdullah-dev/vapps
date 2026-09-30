@@ -82,7 +82,7 @@ export default function AuditWorkflowHeader({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           {STEPS.map(({ step, label, icon: Icon }) => {
             // All steps are accessible (view any tab); completion = any step before current
             const isAccessible = allowedSteps.includes(step);
@@ -94,7 +94,7 @@ export default function AuditWorkflowHeader({
 
             // Tab colors: primary / card / accent from theme (globals.css) — no fixed Tailwind palette colors.
             const tabClasses = cn(
-              "flex-1 rounded-lg border-2 transition-all duration-200",
+              "min-w-0 flex-1 rounded-lg border-2 transition-all duration-200",
               "flex flex-col items-center justify-center py-4 px-2 min-h-[100px]",
               isCurrent
                 ? "bg-primary border-primary text-primary-foreground cursor-pointer"
