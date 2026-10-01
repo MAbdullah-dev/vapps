@@ -94,6 +94,7 @@ const AUDIT_TYPES = [
       "Audits conducted by the organization itself for management review and other internal purposes, providing information on the performance of the system.",
     badge: null,
     badgeVariant: null,
+    disabled: false,
   },
   {
     id: "SPA",
@@ -102,30 +103,35 @@ const AUDIT_TYPES = [
       "Audits conducted by parties having an interest in the organization, such as customers or partners. (Auto-selected if SPA chosen in Step 1.7.3).",
     badge: "CONDITION REQUIRED",
     badgeVariant: "yellow",
+    disabled: true,
   },
-  {
-    id: "TPA",
-    title: "THIRD-PARTY AUDIT (TPA)",
-    description: "Independent certification body or regulatory audit.",
-    badge: null,
-    badgeVariant: null,
-  },
-  {
-    id: "SCA",
-    title: "SELF-CERTIFICATION AUDIT (SCA)",
-    description:
-      "Audits outside formal Third-Party Certification schemes for self-declaration.",
-    badge: null,
-    badgeVariant: null,
-  },
-  {
-    id: "TPR",
-    title: "THIRD-PARTY RECORDS (TPR)",
-    description:
-      "Review of third-party certification records and audit results to ensure compliance maintenance. Record retention requirements apply.",
-    badge: "SUGGESTED FOR TPA",
-    badgeVariant: "blue",
-  },
+  // Third-Party (TPA), Self-Certification (SCA), and Third-Party Records (TPR) — hidden for now.
+  // {
+  //   id: "TPA",
+  //   title: "THIRD-PARTY AUDIT (TPA)",
+  //   description: "Independent certification body or regulatory audit.",
+  //   badge: null,
+  //   badgeVariant: null,
+  //   disabled: false,
+  // },
+  // {
+  //   id: "SCA",
+  //   title: "SELF-CERTIFICATION AUDIT (SCA)",
+  //   description:
+  //     "Audits outside formal Third-Party Certification schemes for self-declaration.",
+  //   badge: null,
+  //   badgeVariant: null,
+  //   disabled: false,
+  // },
+  // {
+  //   id: "TPR",
+  //   title: "THIRD-PARTY RECORDS (TPR)",
+  //   description:
+  //     "Review of third-party certification records and audit results to ensure compliance maintenance. Record retention requirements apply.",
+  //   badge: "SUGGESTED FOR TPA",
+  //   badgeVariant: "blue",
+  //   disabled: false,
+  // },
 ] as const;
 
 /** Audit criteria options are loaded from org checklists (managed in platform admin). */
@@ -390,7 +396,7 @@ export default function CreateAuditStep2Page() {
     });
     const typeKey = (p.auditType ?? "").toLowerCase();
     const typeMapped = PROGRAM_AUDIT_TYPE_TO_PLAN[typeKey];
-    if (typeMapped) setSelectedAuditType(typeMapped);
+    if (typeMapped && typeMapped !== "SPA") setSelectedAuditType(typeMapped);
     const critKey = (p.auditCriteria ?? "").toLowerCase();
     const critMapped = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[critKey];
     if (critMapped) setSelectedCriteria(critMapped);
@@ -558,7 +564,7 @@ export default function CreateAuditStep2Page() {
       if (typeof step2.leadAuditorComments === "string") setLeadAuditorComments(step2.leadAuditorComments);
       const reschedule = step2.rescheduleAuditPlan ?? (step2 as { reschedule_audit_plan?: string }).reschedule_audit_plan;
       if (reschedule === "yes" || reschedule === "no") setRescheduleAuditPlan(reschedule);
-      if (typeof step2.selectedAuditType === "string") setSelectedAuditType(step2.selectedAuditType);
+      if (typeof step2.selectedAuditType === "string" && !["TPA", "SCA", "TPR", "SPA"].includes(step2.selectedAuditType)) setSelectedAuditType(step2.selectedAuditType);
       if (step2.methodology === "on-site" || step2.methodology === "remote" || step2.methodology === "hybrid") setMethodology(step2.methodology);
       if (typeof step2.physicalLocationAddress === "string") setPhysicalLocationAddress(step2.physicalLocationAddress);
       if (Array.isArray(step2.selectedSiteIds)) setSelectedSiteIds(step2.selectedSiteIds);
@@ -638,7 +644,7 @@ export default function CreateAuditStep2Page() {
             setParentProgramName(p.name || programName);
             if (step2 && typeof step2 === "object") {
               if (typeof step2.parentProgramName === "string") setParentProgramName(step2.parentProgramName);
-              if (typeof step2.selectedAuditType === "string") setSelectedAuditType(step2.selectedAuditType);
+              if (typeof step2.selectedAuditType === "string" && !["TPA", "SCA", "TPR", "SPA"].includes(step2.selectedAuditType)) setSelectedAuditType(step2.selectedAuditType);
               if (step2.methodology === "on-site" || step2.methodology === "remote" || step2.methodology === "hybrid") setMethodology(step2.methodology);
               if (Array.isArray(step2.selectedSiteIds)) setSelectedSiteIds(step2.selectedSiteIds);
               if (step2.selectedProcessId != null) setSelectedProcessId(String(step2.selectedProcessId));
@@ -1051,7 +1057,7 @@ export default function CreateAuditStep2Page() {
                     variant="outline"
                     size="sm"
                     className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const planAuditType = PROGRAM_AUDIT_TYPE_TO_PLAN[program?.auditType ?? ""]; if (planAuditType) setSelectedAuditType(planAuditType); }}
+                    onClick={(e) => { e.stopPropagation(); const planAuditType = PROGRAM_AUDIT_TYPE_TO_PLAN[program?.auditType ?? ""]; if (planAuditType && planAuditType !== "SPA") setSelectedAuditType(planAuditType); }}
                   >
                     {t("AUTO-POPULATE: AUDIT TYPE")}
                   </Button>
@@ -1379,17 +1385,28 @@ export default function CreateAuditStep2Page() {
                     key={type.id}
                     type="button"
                     variant="ghost"
-                    onClick={() => setSelectedAuditType(type.id)}
+                    disabled={type.disabled}
+                    onClick={() => {
+                      if (type.disabled) return;
+                      setSelectedAuditType(type.id);
+                    }}
                     className={cn(
-                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors hover:bg-muted/80 whitespace-normal",
-                      selectedAuditType === type.id
+                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
+                      type.disabled
+                        ? "cursor-not-allowed border-gray-200 bg-muted/40 opacity-60 hover:bg-muted/40"
+                        : "hover:bg-muted/80",
+                      !type.disabled && selectedAuditType === type.id
                         ? "border-primary bg-primary/10"
-                        : "border-gray-200 bg-card"
+                        : !type.disabled && "border-gray-200 bg-card"
                     )}
                   >
                     <Checkbox
-                      checked={selectedAuditType === type.id}
-                      onCheckedChange={() => setSelectedAuditType(type.id)}
+                      checked={!type.disabled && selectedAuditType === type.id}
+                      disabled={type.disabled}
+                      onCheckedChange={() => {
+                        if (type.disabled) return;
+                        setSelectedAuditType(type.id);
+                      }}
                       onClick={(e) => e.stopPropagation()}
                       className="mt-0.5 border-2"
                     />
@@ -1419,7 +1436,8 @@ export default function CreateAuditStep2Page() {
               </div>
             </div>
 
-            {/* Third-Party Certification Collaboration (TPCC) */}
+            {/* Third-Party Certification Collaboration (TPCC) — hidden for now; restore when third-party collaboration is needed. */}
+            {false && (
             <div className="pt-4 border-t border-gray-200 space-y-4">
               <div>
                 <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
@@ -1479,6 +1497,7 @@ export default function CreateAuditStep2Page() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>

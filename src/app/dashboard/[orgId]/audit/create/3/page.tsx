@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -38,17 +37,14 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
-  Bold,
   Check,
   ChevronLeft,
   ChevronRight,
   Circle,
   Clock,
-  Code,
   Download,
   Eye,
   FileText,
-  Italic,
   Lock,
   Minus,
   Paperclip,
@@ -57,7 +53,6 @@ import {
   Send,
   ShieldCheck,
   Trash2,
-  Underline,
   Upload,
   UserCheck,
   X,
@@ -1011,14 +1006,14 @@ export default function CreateAuditStep3Page() {
 
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Evidence Seen")}</Label>
-                  <div className={cn("overflow-hidden rounded-lg border", canEditRowDialog ? "border-gray-200" : "border-gray-200 opacity-75")}>
-                    <RichTextEditor
-                      value={rowDialogDraft.evidence ?? ""}
-                      onChange={(v: string) => setRowDialogDraft((d) => (d ? { ...d, evidence: v } : d))}
-                      placeholder={t("Evidence seen...")}
-                      minHeight={120}
-                    />
-                  </div>
+                  <Textarea
+                    value={(rowDialogDraft.evidence ?? "").replace(/<[^>]*>/g, "")}
+                    onChange={(e) => setRowDialogDraft((d) => (d ? { ...d, evidence: e.target.value } : d))}
+                    placeholder={t("Evidence seen...")}
+                    rows={5}
+                    disabled={!canEditRowDialog}
+                    className="min-h-[120px] resize-y text-sm"
+                  />
                 </div>
 
                 {/* Minor/Major NC detail sections are intentionally not shown here. */}
@@ -1518,14 +1513,16 @@ export default function CreateAuditStep3Page() {
           </div>
           <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.7 EVIDENCE SEEN")}</Label>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.evidenceSeen ? "border-red-500" : "border-border")}>
-              <RichTextEditor
-                value={complianceDetails.evidenceSeen ?? ""}
-                onChange={(v: string) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: v }))}
-                placeholder={t("Document detailed findings, interview notes, and physical evidence observed...")}
-                minHeight={120}
-              />
-            </div>
+            <Textarea
+              value={(complianceDetails.evidenceSeen ?? "").replace(/<[^>]*>/g, "")}
+              onChange={(e) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: e.target.value }))}
+              placeholder={t("Document detailed findings, interview notes, and physical evidence observed...")}
+              rows={5}
+              className={cn(
+                "min-h-[120px] resize-y text-sm",
+                fieldErrors.evidenceSeen && "border-red-500 focus-visible:ring-red-500"
+              )}
+            />
             {fieldErrors.evidenceSeen && (
               <p className="text-sm font-medium text-red-600">{fieldErrors.evidenceSeen}</p>
             )}
@@ -1588,14 +1585,16 @@ export default function CreateAuditStep3Page() {
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("RISK JUSTIFICATION & COMMENTS (MANDATORY)")}
             </Label>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.riskJustification ? "border-red-500" : "border-border")}>
-              <RichTextEditor
-                value={riskJustification}
-                onChange={setRiskJustification}
-                placeholder={t("Explain the rationale behind the selected risk level...")}
-                minHeight={100}
-              />
-            </div>
+            <Textarea
+              value={riskJustification.replace(/<[^>]*>/g, "")}
+              onChange={(e) => setRiskJustification(e.target.value)}
+              placeholder={t("Explain the rationale behind the selected risk level...")}
+              rows={5}
+              className={cn(
+                "min-h-[120px] resize-y text-sm",
+                fieldErrors.riskJustification && "border-red-500 focus-visible:ring-red-500"
+              )}
+            />
             {fieldErrors.riskJustification && (
               <p className="text-sm font-medium text-red-600">{fieldErrors.riskJustification}</p>
             )}
@@ -1742,73 +1741,21 @@ export default function CreateAuditStep3Page() {
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
             {t("STATEMENT OF NONCONFORMITY")}
           </h2>
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded border-input"
-                  aria-label={t("Bold")}
-                >
-                  <Bold className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded border-input"
-                  aria-label={t("Italic")}
-                >
-                  <Italic className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded border-input"
-                  aria-label={t("Underline")}
-                >
-                  <Underline className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded border-input"
-                  aria-label={t("Clear")}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 rounded border-input"
-                  aria-label={t("HTML")}
-                >
-                  <Code className="h-4 w-4" />
-                </Button>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {t("PROFESSIONAL FINDINGS EDITOR (DOC 34 V10 MODE)")}
-              </span>
-            </div>
-            <div className={cn("overflow-hidden rounded-lg border", fieldErrors.statementOfNonconformity ? "border-red-500" : "border-border")}>
-              <RichTextEditor
-                value={statementOfNonconformity}
-                onChange={setStatementOfNonconformity}
-                placeholder={t(
-                  "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
-                )}
-                minHeight={200}
-              />
-            </div>
+          <Textarea
+            value={statementOfNonconformity.replace(/<[^>]*>/g, "")}
+            onChange={(e) => setStatementOfNonconformity(e.target.value)}
+            placeholder={t(
+              "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
+            )}
+            rows={8}
+            className={cn(
+              "min-h-[160px] resize-y text-sm",
+              fieldErrors.statementOfNonconformity && "border-red-500 focus-visible:ring-red-500"
+            )}
+          />
             {fieldErrors.statementOfNonconformity && (
               <p className="mt-2 text-sm font-medium text-red-600">{fieldErrors.statementOfNonconformity}</p>
             )}
-          </div>
 
           {/* Guidelines / Tips */}
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm  my-4">
@@ -2004,16 +1951,18 @@ export default function CreateAuditStep3Page() {
           <p className="mb-4 text-xs text-muted-foreground">
             {t("MANDATORY EXPLANATION: WHY MA OR MI?")}
           </p>
-          <div className={cn("overflow-hidden rounded-lg border", fieldErrors.justificationForClassification ? "border-red-500" : "border-border")}>
-            <RichTextEditor
-              value={justificationForClassification}
-              onChange={setJustificationForClassification}
-              placeholder={t(
-                "Provide a logical justification based on the severity of the deviation and its impact on the management system..."
-              )}
-              minHeight={140}
-            />
-          </div>
+          <Textarea
+            value={justificationForClassification.replace(/<[^>]*>/g, "")}
+            onChange={(e) => setJustificationForClassification(e.target.value)}
+            placeholder={t(
+              "Provide a logical justification based on the severity of the deviation and its impact on the management system..."
+            )}
+            rows={6}
+            className={cn(
+              "min-h-[140px] resize-y text-sm",
+              fieldErrors.justificationForClassification && "border-red-500 focus-visible:ring-red-500"
+            )}
+          />
           {fieldErrors.justificationForClassification && (
             <p className="mt-2 text-sm font-medium text-red-600">{fieldErrors.justificationForClassification}</p>
           )}
