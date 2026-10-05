@@ -432,21 +432,13 @@ export default function CreateAuditStep1Page() {
     [members, currentUserId]
   );
 
-  // Process(es) the current user is assigned to (user cannot audit their own process)
-  const currentUserProcessIds = useMemo(() => {
-    const processId = members.find((m) => m.id === currentUserId)?.processId;
-    return processId ? [processId] : [];
-  }, [members, currentUserId]);
-
-  // Processes for selected site(s) only; exclude processes where the current user is assigned (no self-audit)
+  // Processes for the selected site. Includes the signed-in user's own process.
   const processesForSelectedSites = useMemo(
     () =>
       selectedSiteIds.length === 0
         ? []
-        : processes
-            .filter((p) => p.siteId && selectedSiteIds.includes(p.siteId))
-            .filter((p) => !currentUserProcessIds.includes(p.id)),
-    [processes, selectedSiteIds, currentUserProcessIds]
+        : processes.filter((p) => p.siteId && selectedSiteIds.includes(p.siteId)),
+    [processes, selectedSiteIds]
   );
 
   // Responsible owner = members assigned to the selected process (and thus site)
@@ -464,7 +456,7 @@ export default function CreateAuditStep1Page() {
     Promise.all([
       apiClient.getOrganizationInfo(orgId),
       apiClient.getSites(orgId),
-      apiClient.getProcesses(orgId),
+      apiClient.getProcesses(orgId, undefined, { all: true }),
       apiClient.getMembers(orgId),
     ])
       .then(([orgRes, sitesRes, processesRes, membersRes]) => {
@@ -958,9 +950,7 @@ export default function CreateAuditStep1Page() {
             </div>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            {t("Select a site above first. Process list shows only processes for the selected site(s) that you are")}{" "}
-            <strong>{t("not")}</strong>{" "}
-            {t("assigned to (you cannot audit your own process). Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.")}
+            {t("Select a site above first. Process list shows processes for the selected site. Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.")}
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div id="audit-field-processId" className="space-y-2">
@@ -986,7 +976,7 @@ export default function CreateAuditStep1Page() {
                 </SelectContent>
               </Select>
               <FieldError show={!!baseFormErrors.processId} t={t} />
-              <p className="text-xs text-muted-foreground">{t("Only processes you are not assigned to are shown (no self-audit).")}</p>
+              <p className="text-xs text-muted-foreground">{t("Processes for the selected site are shown.")}</p>
             </div>
             <div id="audit-field-programOwnerUserId" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

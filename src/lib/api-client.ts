@@ -636,12 +636,16 @@ class ApiClient {
   }
 
   /**
-   * Get processes for an organization (optionally filtered by siteId)
+   * Get processes for an organization (optionally filtered by siteId).
+   * `all` returns every process, including ones the caller is not assigned to.
    */
-  getProcesses(orgId: string, siteId?: string) {
+  getProcesses(orgId: string, siteId?: string, options?: { all?: boolean }) {
+    const params: Record<string, string> = {};
+    if (siteId) params.siteId = siteId;
+    if (options?.all) params.all = "1";
     return this.get<{ processes: any[] }>(
       `/organization/${orgId}/processes`,
-      siteId ? { siteId } : undefined
+      Object.keys(params).length > 0 ? params : undefined
     );
   }
 
