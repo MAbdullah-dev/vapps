@@ -9,9 +9,10 @@ import { getUserAssignedProcessIds } from "@/lib/process-access";
 import crypto from "crypto";
 
 /**
- * GET /api/organization/[orgId]/processes?siteId=xxx
+ * GET /api/organization/[orgId]/processes?siteId=xxx&all=1
  * Get processes for an organization.
  * Access: Owner = all; others = only assigned process(es).
+ * `all=1` returns every process for org members (used by audit program setup).
  */
 export async function GET(
   req: NextRequest,
@@ -21,6 +22,7 @@ export async function GET(
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId");
+    const includeAll = searchParams.get("all") === "1";
 
     const ctx = await getRequestContext(req, orgId);
     if (!ctx) {
@@ -28,25 +30,30 @@ export async function GET(
     }
     const resolvedOrgId = ctx.tenant.orgId;
 
-    // Cache key includes userId so different roles get correct filtered results
-    const cacheKey = `processes:${resolvedOrgId}:${ctx.user.id}:${siteId || "all"}`;
+    // Filtered lists differ by user. The full list is the same for every member.
+    const cacheKey = includeAll
+      ? `processes:${resolvedOrgId}:org:${siteId || "all"}`
+      : `processes:${resolvedOrgId}:${ctx.user.id}:${siteId || "all"}`;
     const cached = cache.get<{ processes: any[] }>(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }
 
-    const org = await prisma.organization.findUnique({
-      where: { id: resolvedOrgId },
-      select: { ownerId: true },
-    });
-    const isOwner = org?.ownerId === ctx.user.id;
+    let listAll = includeAll;
+    if (!includeAll) {
+      const org = await prisma.organization.findUnique({
+        where: { id: resolvedOrgId },
+        select: { ownerId: true },
+      });
+      listAll = org?.ownerId === ctx.user.id;
+    }
 
     const client = await getTenantClient(resolvedOrgId);
 
     try {
       let allowedProcessIds: string[] | null = null;
 
-      if (!isOwner) {
+      if (!listAll) {
         allowedProcessIds = await getUserAssignedProcessIds(client, ctx.user.id);
         if (allowedProcessIds.length === 0) {
           client.release();
@@ -74,7 +81,7 @@ export async function GET(
 
       let processes: any[];
 
-      if (isOwner) {
+      if (listAll) {
         if (siteId) {
           const result = await client.query(
             `${baseQuery} WHERE p."siteId" = $1 ${orderClause}`,
