@@ -184,9 +184,44 @@ function createEmptyAuditorResource(): AuditorResource {
 const PROGRAM_PURPOSE_TO_OBJECTIVE: Record<string, string> = {
   conformity: "Verify management system conformity (ISO clauses)",
   effectiveness: "Evaluate system effectiveness & performance",
+  iso: "Verify management system conformity (ISO clauses)",
   esg: "Assess ESG practices (E / S / G factors)",
+  legal: "Support risk-based decision-making",
   risk: "Support risk-based decision-making",
 };
+
+const STEP1_FRAMEWORK_LABELS: Record<string, string> = {
+  iso: "ISO standards",
+  esg: "ESG frameworks",
+  legal: "Legal & regulatory",
+};
+
+const STEP1_STANDARD_LABELS: Record<string, string> = {
+  "iso-9001": "ISO 9001 — Quality management",
+  "iso-14001": "ISO 14001 — Environmental management",
+  "iso-45001": "ISO 45001 — Occupational health and safety",
+  "iso-27001": "ISO 27001 — Information security",
+  "iatf-16949": "IATF 16949 — Automotive quality",
+  gri: "GRI Standards",
+  "ifrs-s1": "IFRS S1 — General sustainability disclosures",
+  "ifrs-s2": "IFRS S2 — Climate-related disclosures",
+  statutory: "Statutory requirements",
+  regulatory: "Regulatory requirements",
+  customer: "Customer and other requirements",
+};
+
+/** Framework and standard saved from Step 1 as `frameworkId::standardId`. */
+function programPurposeSelection(value: string | null | undefined): { framework: string | null; standard: string | null } {
+  const raw = (value ?? "").trim();
+  if (!raw) return { framework: null, standard: null };
+  const [frameworkId, standardId] = raw.split("::");
+  const framework = STEP1_FRAMEWORK_LABELS[frameworkId] ?? null;
+  const standard = standardId ? STEP1_STANDARD_LABELS[standardId] ?? null : null;
+  if (framework || standard) return { framework, standard };
+  const legacy = PROGRAM_PURPOSE_TO_OBJECTIVE[frameworkId.toLowerCase()];
+  return { framework: legacy ?? null, standard: null };
+}
+
 const PROGRAM_CRITERIA_TO_AUDIT_CRITERIA: Record<string, string> = {
   iso: "ISO 9001 QUALITY",
   esg: "ESG & SUSTAINABILITY (GRI / IFRS S1/S2)",
@@ -365,6 +400,11 @@ export default function CreateAuditStep2Page() {
   const currentUserName = useMemo(
     () => members.find((m) => m.id === currentUserId)?.name ?? (session?.user as { name?: string })?.name ?? "—",
     [members, currentUserId, session]
+  );
+
+  const selectedProgramPurpose = useMemo(
+    () => programPurposeSelection(program?.programPurpose),
+    [program?.programPurpose]
   );
 
   /** Only org members who have the Auditor additional role — eligible for assignment to perform the audit. */
@@ -1307,30 +1347,26 @@ export default function CreateAuditStep2Page() {
                 {t("Selected from Step 1 — PROGRAM PURPOSE & OBJECTIVES (SELECT ONE).")}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  "Verify management system conformity (ISO clauses)",
-                  "Evaluate system effectiveness & performance",
-                  "Assess ESG practices (E / S / G factors)",
-                  "Support risk-based decision-making",
-                ].map((label) => {
-                  const isSelectedFromStep1 = program?.programPurpose != null && PROGRAM_PURPOSE_TO_OBJECTIVE[programPurposeKey(program.programPurpose)] === label;
-                  return (
-                    <div
-                      key={label}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg border px-4 py-3 transition-colors",
-                        isSelectedFromStep1 ? "border-primary bg-primary/10" : "border-gray-200 bg-muted/50 opacity-75"
-                      )}
-                    >
-                      {isSelectedFromStep1 ? (
+                {selectedProgramPurpose.framework || selectedProgramPurpose.standard ? (
+                  <>
+                    {selectedProgramPurpose.framework && (
+                      <div className="flex items-center gap-3 rounded-lg border border-primary bg-primary/10 px-4 py-3">
                         <Check className="h-5 w-5 shrink-0 text-primary" />
-                      ) : (
-                        <div className="h-5 w-5 shrink-0 rounded border border-gray-300 bg-card" />
-                      )}
-                      <span className={cn("text-sm", isSelectedFromStep1 ? "text-gray-900 font-medium" : "text-gray-500")}>{t(label)}</span>
-                    </div>
-                  );
-                })}
+                        <span className="text-sm font-medium text-gray-900">{t(selectedProgramPurpose.framework)}</span>
+                      </div>
+                    )}
+                    {selectedProgramPurpose.standard && (
+                      <div className="flex items-center gap-3 rounded-lg border border-primary bg-primary/10 px-4 py-3">
+                        <Check className="h-5 w-5 shrink-0 text-primary" />
+                        <span className="text-sm font-medium text-gray-900">{t(selectedProgramPurpose.standard)}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 sm:col-span-2">
+                    {t("No framework or standard was saved from Step 1.")}
+                  </p>
+                )}
               </div>
             </div>
 
