@@ -179,6 +179,8 @@ export async function POST(
       : Array.isArray(body.assigned_auditor_ids)
         ? body.assigned_auditor_ids
         : [];
+    const asDraft = body.status === "draft" || body.asDraft === true;
+    const planStatus = asDraft ? "draft" : "plan_submitted_to_auditee";
 
     if (!auditProgramId) {
       return NextResponse.json(
@@ -229,16 +231,18 @@ export async function POST(
       const hasChecklistId = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
       );
+      const submittedAt = asDraft ? null : new Date();
       if (hasChecklistId.rows.length > 0) {
         const insertPlan = await client.query(
           `INSERT INTO audit_plans (
             audit_program_id, status, lead_auditor_user_id, auditee_user_id,
             title, audit_number, criteria, checklist_id, planned_date, date_prepared,
             plan_submitted_at
-          ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, $9, now())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING id, audit_number`,
           [
             auditProgramId,
+            planStatus,
             leadAuditorUserId,
             auditeeUserId,
             title,
@@ -247,6 +251,7 @@ export async function POST(
             checklistId,
             plannedDateStr,
             datePreparedStr,
+            submittedAt,
           ]
         );
         planId = insertPlan.rows[0]?.id;
@@ -257,10 +262,11 @@ export async function POST(
             audit_program_id, status, lead_auditor_user_id, auditee_user_id,
             title, audit_number, criteria, planned_date, date_prepared,
             plan_submitted_at
-          ) VALUES ($1, 'plan_submitted_to_auditee', $2, $3, $4, $5, $6, $7, $8, now())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING id, audit_number`,
           [
             auditProgramId,
+            planStatus,
             leadAuditorUserId,
             auditeeUserId,
             title,
@@ -268,6 +274,7 @@ export async function POST(
             criteria,
             plannedDateStr,
             datePreparedStr,
+            submittedAt,
           ]
         );
         planId = insertPlan.rows[0]?.id;

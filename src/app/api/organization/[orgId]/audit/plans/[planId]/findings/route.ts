@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
+import {
+  auditPlanForbiddenResponse,
+  canAccessAuditPlan,
+  canWriteAuditFindings,
+  loadAuditPlanStakeholders,
+} from "@/lib/audit-plan-access";
 
 /**
  * GET /api/organization/[orgId]/audit/plans/[planId]/findings
@@ -23,8 +29,20 @@ export async function GET(
     }
 
     const findings: any[] = [];
+    let planNotFound = false;
+    let accessDenied = false;
 
     await withTenantConnection(connectionString, async (client) => {
+      const stakeholders = await loadAuditPlanStakeholders(client, planId);
+      if (!stakeholders) {
+        planNotFound = true;
+        return;
+      }
+      if (!canAccessAuditPlan(ctx, stakeholders)) {
+        accessDenied = true;
+        return;
+      }
+
       const tableCheck = await client.query(
         `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`
       );
@@ -85,6 +103,13 @@ export async function GET(
       }
     });
 
+    if (planNotFound) {
+      return NextResponse.json({ error: "Audit plan not found" }, { status: 404 });
+    }
+    if (accessDenied) {
+      return auditPlanForbiddenResponse();
+    }
+
     const res = NextResponse.json({ findings });
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
     res.headers.set("Pragma", "no-cache");
@@ -122,7 +147,20 @@ export async function PUT(
     const body = await req.json().catch(() => ({}));
     const findings: any[] = Array.isArray(body.findings) ? body.findings : [];
 
+    let planNotFound = false;
+    let accessDenied = false;
+
     await withTenantConnection(connectionString, async (client) => {
+      const stakeholders = await loadAuditPlanStakeholders(client, planId);
+      if (!stakeholders) {
+        planNotFound = true;
+        return;
+      }
+      if (!canWriteAuditFindings(ctx, stakeholders)) {
+        accessDenied = true;
+        return;
+      }
+
       const tableCheck = await client.query(
         `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_plan_findings'`
       );
@@ -130,6 +168,8 @@ export async function PUT(
         throw new Error("audit_plan_findings table does not exist. Run tenant migration 014.");
       }
 
+      await client.query("BEGIN");
+      try {
       await client.query(`DELETE FROM audit_plan_findings WHERE audit_plan_id = $1`, [planId]);
 
       const colRes = await client.query(
@@ -207,7 +247,19 @@ export async function PUT(
           throw insertErr;
         }
       }
+      await client.query("COMMIT");
+      } catch (txnErr) {
+        await client.query("ROLLBACK");
+        throw txnErr;
+      }
     });
+
+    if (planNotFound) {
+      return NextResponse.json({ error: "Audit plan not found" }, { status: 404 });
+    }
+    if (accessDenied) {
+      return auditPlanForbiddenResponse();
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

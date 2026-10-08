@@ -896,6 +896,7 @@ class ApiClient {
     plannedDate?: string;
     datePrepared?: string;
     assignedAuditorIds?: string[];
+    status?: "draft" | "plan_submitted_to_auditee";
   }) {
     return this.post<{ planId: string; success: boolean }>(`/organization/${orgId}/audit/plans`, data);
   }
@@ -923,6 +924,7 @@ class ApiClient {
     plannedDate?: string;
     datePrepared?: string;
     assignedAuditorIds?: string[];
+    checklistId?: string;
     status?: string;
     step2Data?: Record<string, unknown>;
     step5Data?: Record<string, unknown>;

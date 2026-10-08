@@ -274,6 +274,8 @@ export default function CreateAuditStep3Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLeadAuditor, setIsLeadAuditor] = useState(false);
+  const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
   const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(null);
   const [savingFindings, setSavingFindings] = useState(false);
   const [submittingToAuditee, setSubmittingToAuditee] = useState(false);
@@ -318,6 +320,8 @@ export default function CreateAuditStep3Page() {
           const plan = planRes.plan;
           setPlanStatus(plan.status ?? null);
           setCurrentUserRole(plan.currentUserRole ?? null);
+          setIsLeadAuditor(Boolean(plan.isLeadAuditor) || plan.currentUserRole === "lead_auditor");
+          setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
           programId = plan.auditProgramId ?? programId;
           setResolvedProgramId(programId);
           if (plan.checklistId) resolvedChecklistId = plan.checklistId;
@@ -783,6 +787,70 @@ export default function CreateAuditStep3Page() {
     );
   };
 
+  const supportingDocInputRef = useRef<HTMLInputElement>(null);
+
+  const applyEvidenceUpload = (targetId: string | null, fileName: string, s3Key: string) => {
+    setEvidenceItems((prev) => {
+      const slot =
+        (targetId && prev.find((item) => item.id === targetId)) ||
+        prev.find((item) => !item.s3Key);
+      if (slot) {
+        return prev.map((item) =>
+          item.id === slot.id
+            ? {
+                ...item,
+                fileName,
+                s3Key,
+                description: item.description.trim() ? item.description : fileName,
+              }
+            : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `ev-${Date.now()}`,
+          description: fileName,
+          fileName,
+          s3Key,
+          effectiveness: "effective" as const,
+        },
+      ];
+    });
+  };
+
+  const uploadEvidenceFile = async (file: File, targetId: string | null) => {
+    if (!orgId) {
+      toast.error(t("Organization is required to upload files."));
+      return;
+    }
+    if (!auditPlanIdFromUrl) {
+      toast.error(t("Save the audit plan before uploading documents."));
+      return;
+    }
+    const uploadKey = targetId ?? "supporting-doc";
+    setUploadingEvidenceId(uploadKey);
+    try {
+      const res = await apiClient.uploadAuditDocument(file, orgId, auditPlanIdFromUrl, 3);
+      applyEvidenceUpload(targetId, res.name, res.key);
+      toast.success(t("Supporting document uploaded."));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("Failed to upload file"));
+    } finally {
+      setUploadingEvidenceId(null);
+    }
+  };
+
+  const clearEvidenceFile = (id: string) => {
+    setEvidenceItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, fileName: "", s3Key: "" } : item
+      )
+    );
+  };
+
+  const attachedEvidenceFiles = evidenceItems.filter((item) => item.s3Key);
+
   const [justificationForClassification, setJustificationForClassification] = useState("");
 
   type OfiRow = {
@@ -902,15 +970,15 @@ export default function CreateAuditStep3Page() {
   }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
 
   const canEditStep3 =
-    planStatus !== "closed" && currentUserRole === "assigned_auditor";
+    planStatus !== "closed" && isAssignedAuditor;
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-400]:border-border [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted [&_.bg-gray-700]:bg-muted/80 [&_.bg-gray-800]:bg-muted/80 [&_.bg-gray-900]:bg-card">
@@ -1528,10 +1596,66 @@ export default function CreateAuditStep3Page() {
             )}
           </div>
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
-            <Button variant="outline" size="sm" className="gap-2 border-input font-medium uppercase">
-              <Upload className="h-4 w-4" />
-              {t("Upload Supporting Document")}
-            </Button>
+            <div className="space-y-2 shrink-0">
+              <input
+                ref={supportingDocInputRef}
+                type="file"
+                className="hidden"
+                disabled={!!uploadingEvidenceId}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  await uploadEvidenceFile(file, null);
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-input font-medium uppercase"
+                disabled={!!uploadingEvidenceId}
+                onClick={() => supportingDocInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" />
+                {uploadingEvidenceId === "supporting-doc"
+                  ? t("Uploading...")
+                  : t("Upload Supporting Document")}
+              </Button>
+              {attachedEvidenceFiles.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {attachedEvidenceFiles.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex max-w-xs items-center gap-2 text-sm text-foreground"
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <a
+                        href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-0 truncate font-medium text-primary hover:underline"
+                        title={item.fileName}
+                      >
+                        {item.fileName}
+                      </a>
+                      <button
+                        type="button"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => clearEvidenceFile(item.id)}
+                        aria-label={t("Remove file")}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="max-w-xs text-xs text-muted-foreground">
+                  {t("Files also appear under Objective Evidence below.")}
+                </p>
+              )}
+            </div>
             <div className="flex flex-1 items-start gap-3 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3">
               <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
               <p className="text-sm font-medium text-red-800">
@@ -1847,22 +1971,9 @@ export default function CreateAuditStep3Page() {
                               disabled={!!uploadingEvidenceId}
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
-                                if (!file || !orgId) {
-                                  e.target.value = "";
-                                  return;
-                                }
-                                setUploadingEvidenceId(item.id);
-                                try {
-                                  const planId = auditPlanIdFromUrl || "draft";
-                                  const res = await apiClient.uploadAuditDocument(file, orgId, planId, 3);
-                                  updateEvidenceItem(item.id, "fileName", res.name);
-                                  updateEvidenceItem(item.id, "s3Key", res.key);
-                                } catch (err) {
-                                  console.error(err);
-                                } finally {
-                                  setUploadingEvidenceId(null);
-                                  e.target.value = "";
-                                }
+                                e.target.value = "";
+                                if (!file) return;
+                                await uploadEvidenceFile(file, item.id);
                               }}
                             />
                           </Label>
