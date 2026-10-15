@@ -45,6 +45,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
+import { isAuditorRoleName } from "@/lib/auditor-leadership-policy";
 import {
   Info,
   ExternalLink,
@@ -407,9 +408,9 @@ export default function CreateAuditStep2Page() {
     [program?.programPurpose]
   );
 
-  /** Only org members who have the Auditor additional role — eligible for assignment to perform the audit. */
+  /** Any org member with the Auditor additional role, regardless of site or process. */
   const auditorsOnly = useMemo(
-    () => members.filter((m) => (m.additionalRoles ?? []).includes("Auditor")),
+    () => members.filter((m) => (m.additionalRoles ?? []).some((role) => isAuditorRoleName(role))),
     [members]
   );
 
@@ -576,6 +577,8 @@ export default function CreateAuditStep2Page() {
     setAuditPlanTitle(title);
     setAuditNumber(auditNum);
     setSelectedCriteria(criteriaVal);
+    const checklistIdVal = (plan as { checklistId?: string | null }).checklistId ?? null;
+    if (checklistIdVal) setSelectedChecklistId(checklistIdVal);
     setPlannedDate(planned ? new Date(String(planned).slice(0, 10)) : undefined);
     setDatePrepared(prepared ? new Date(String(prepared).slice(0, 10)) : undefined);
 
@@ -844,6 +847,7 @@ export default function CreateAuditStep2Page() {
         await apiClient.updateAuditPlan(orgId, auditPlanIdFromUrl, {
           title: auditPlanTitle || undefined,
           criteria: selectedCriteria || undefined,
+          checklistId: selectedChecklistId || undefined,
           plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
           datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
           assignedAuditorIds,
@@ -855,9 +859,11 @@ export default function CreateAuditStep2Page() {
           auditProgramId: effectiveProgramId,
           title: auditPlanTitle || undefined,
           criteria: selectedCriteria || undefined,
+          checklistId: selectedChecklistId || undefined,
           plannedDate: plannedDate?.toISOString?.()?.slice(0, 10),
           datePrepared: datePrepared?.toISOString?.()?.slice(0, 10),
           assignedAuditorIds,
+          status: asDraft ? "draft" : "plan_submitted_to_auditee",
         });
         const newPlanId = (createRes as { planId?: string }).planId;
         if (newPlanId) {
@@ -925,18 +931,20 @@ export default function CreateAuditStep2Page() {
 
   const plan = planQuery.data;
   const currentUserRole = plan?.currentUserRole ?? null;
+  const isLeadAuditor = Boolean((plan as { isLeadAuditor?: boolean } | undefined)?.isLeadAuditor) || currentUserRole === "lead_auditor";
+  const isAssignedAuditor = Boolean((plan as { isAssignedAuditor?: boolean } | undefined)?.isAssignedAuditor) || currentUserRole === "assigned_auditor";
   const planStatus = plan?.status ?? null;
   const canEditStep2 =
     planStatus !== "closed" &&
-    (!auditPlanIdFromUrl || currentUserRole === "lead_auditor");
+    (!auditPlanIdFromUrl || isLeadAuditor);
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-100]:border-border/60 [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
@@ -2232,7 +2240,7 @@ export default function CreateAuditStep2Page() {
                   </h4>
                   <p className="mt-0.5 text-xs text-gray-500">
                     {t(
-                      'Search and select auditors from your organization. Only users with the "Auditor" role appear. UIN auto-fills when an auditor is selected. Use Manual Entry for Technical Expert, Observer, and Trainee names.'
+                      'Search and select auditors from your organization. Every user with the "Auditor" role is listed, from any site or process. UIN auto-fills when an auditor is selected. Use Manual Entry for Technical Expert, Observer, and Trainee names.'
                     )}
                   </p>
                 </div>
@@ -2254,14 +2262,9 @@ export default function CreateAuditStep2Page() {
                   .filter((r) => r.id !== resource.id)
                   .map((r) => r.auditorUserId)
                   .filter(Boolean);
-                const auditProcessId = program?.processId ?? null;
-                const userIdsInAuditProcess = auditProcessId
-                  ? auditorsOnly.filter((m) => m.processId === auditProcessId).map((m) => m.id)
-                  : [];
                 const excludeIds = [
                   ...assignedElsewhere,
                   ...(currentUserId ? [currentUserId] : []),
-                  ...userIdsInAuditProcess,
                 ];
                 const dropdownAuditors = getFilteredAuditorsForSearch(resource.auditorSearch, excludeIds);
                 return (

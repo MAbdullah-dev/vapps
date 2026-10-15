@@ -120,6 +120,8 @@ export default function CreateAuditStep1Page() {
   const auditPlanIdFromUrl = searchParams.get("auditPlanId") ?? null;
   const currentUserId = (session?.user as { id?: string })?.id ?? null;
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLeadAuditor, setIsLeadAuditor] = useState(false);
+  const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -137,6 +139,8 @@ export default function CreateAuditStep1Page() {
     apiClient.getAuditPlan(orgId, auditPlanIdFromUrl).then((res) => {
       if (!cancelled && res.plan) {
         setCurrentUserRole(res.plan.currentUserRole ?? null);
+        setIsLeadAuditor(Boolean(res.plan.isLeadAuditor) || res.plan.currentUserRole === "lead_auditor");
+        setIsAssignedAuditor(Boolean(res.plan.isAssignedAuditor) || res.plan.currentUserRole === "assigned_auditor");
         setPlanStatus(res.plan.status ?? null);
       }
     }).catch(() => { if (!cancelled) { setCurrentUserRole(null); setPlanStatus(null); } });
@@ -550,15 +554,15 @@ export default function CreateAuditStep1Page() {
 
   const canEditStep1 =
     planStatus !== "closed" &&
-    (!auditPlanIdFromUrl || currentUserRole === "lead_auditor");
+    (!auditPlanIdFromUrl || isLeadAuditor);
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   const auditScopeOptions = useMemo(
     () =>

@@ -29,6 +29,7 @@ import {
   isTopOrOperationalLeadershipTier,
 } from "@/lib/documentaryEvidenceAccess";
 import { compactSiteCode, compactSiteCodeInDocumentRef } from "@/lib/documentRef";
+import { docAlertInfo } from "@/lib/document-ui-classes";
 
 type DocumentsApiRecord = {
   id: string;

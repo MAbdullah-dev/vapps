@@ -766,11 +766,17 @@ export async function POST(
           return;
         }
         const existing = existingRow.rows[0];
+        const existingFormData =
+          typeof existing.form_data === "object" &&
+          existing.form_data !== null &&
+          !Array.isArray(existing.form_data)
+            ? (existing.form_data as Record<string, unknown>)
+            : null;
         if (
           !isDocumentRecordCreator(
             context.user.id,
             context.user.name,
-            existing.form_data,
+            existingFormData,
             existing.created_by_user_id,
             existing.created_by_user_name
           )
@@ -826,7 +832,8 @@ export async function POST(
           typeof existing.wizard_data === "object" && existing.wizard_data !== null && !Array.isArray(existing.wizard_data)
             ? { ...(existing.wizard_data as Record<string, unknown>) }
             : {};
-        const obsoleteWizard = {
+        // Explicit Record keeps JSON fields (e.g. obsoleteReason) after spreads.
+        const obsoleteWizard: Record<string, unknown> = {
           ...existingWizard,
           ...wizardData,
           actionType: "obsolete",

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
+import {
+  auditPlanForbiddenResponse,
+  canAccessAuditPlan,
+  canSetAuditPlanStatus,
+} from "@/lib/audit-plan-access";
 
 /**
  * GET /api/organization/[orgId]/audit/plans/[planId]
@@ -42,11 +47,15 @@ export async function GET(
       const hasStep6Col = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'step_6_data'`
       );
+      const hasChecklistIdCol = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
+      );
       const stepCols = [
         hasStep4Col.rows.length > 0 ? "ap.step_4_data" : null,
         hasStep2Col.rows.length > 0 ? "ap.step_2_data" : null,
         hasStep5Col.rows.length > 0 ? "ap.step_5_data" : null,
         hasStep6Col.rows.length > 0 ? "ap.step_6_data" : null,
+        hasChecklistIdCol.rows.length > 0 ? "ap.checklist_id" : null,
       ].filter(Boolean).join(", ");
       const stepColsClause = stepCols ? `, ${stepCols}` : "";
 
@@ -122,6 +131,7 @@ export async function GET(
         programName: row.program_name ?? null,
         auditType: row.audit_type ?? null,
         programCriteria: row.program_criteria ?? null,
+        checklistId: (row as { checklist_id?: string | null }).checklist_id ?? null,
         step4Data: (row as { step_4_data?: unknown }).step_4_data ?? null,
         step2Data: step2DataRaw,
         step5Data: step5DataRaw,
@@ -179,15 +189,21 @@ export async function GET(
       return NextResponse.json({ error: "Audit plan not found" }, { status: 404 });
     }
 
+    if (!canAccessAuditPlan(ctx, plan)) {
+      return auditPlanForbiddenResponse();
+    }
+
     const userId = ctx.user.id;
-    plan.currentUserRole =
-      plan.leadAuditorUserId === userId
-        ? "lead_auditor"
-        : plan.auditeeUserId === userId
+    plan.isLeadAuditor = plan.leadAuditorUserId === userId;
+    plan.isAssignedAuditor = Boolean(plan.assignedAuditorIds?.includes(userId));
+    plan.isAuditee = plan.auditeeUserId === userId;
+    plan.currentUserRole = plan.isLeadAuditor
+      ? "lead_auditor"
+      : plan.isAssignedAuditor
+        ? "assigned_auditor"
+        : plan.isAuditee
           ? "auditee"
-          : plan.assignedAuditorIds?.includes(userId)
-            ? "assigned_auditor"
-            : null;
+          : null;
 
     return NextResponse.json({ plan });
   } catch (error) {
@@ -229,6 +245,7 @@ export async function PATCH(
     const title = body.title ?? body.name ?? undefined;
     const auditNumber = body.auditNumber ?? body.audit_number ?? undefined;
     const criteria = body.criteria ?? undefined;
+    const checklistId = body.checklistId ?? body.checklist_id ?? undefined;
     const plannedDate = body.plannedDate ?? body.planned_date ?? undefined;
     const datePrepared = body.datePrepared ?? body.date_prepared ?? undefined;
     const assignedAuditorIds: string[] | undefined = Array.isArray(body.assignedAuditorIds)
@@ -238,12 +255,15 @@ export async function PATCH(
         : undefined;
 
     const hasPlanUpdate = status !== undefined || step4Data !== undefined || step5Data !== undefined || step6Data !== undefined || step2Data !== undefined ||
-      title !== undefined || auditNumber !== undefined || criteria !== undefined ||
+      title !== undefined || auditNumber !== undefined || criteria !== undefined || checklistId !== undefined ||
       plannedDate !== undefined || datePrepared !== undefined || assignedAuditorIds !== undefined;
 
     if (!hasPlanUpdate) {
       return NextResponse.json({ error: "At least one update field is required" }, { status: 400 });
     }
+
+    let planNotFound = false;
+    let accessDenied = false;
 
     await withTenantConnection(connectionString, async (client) => {
       const tableCheck = await client.query(
@@ -253,7 +273,33 @@ export async function PATCH(
         throw new Error("audit_plans table does not exist");
       }
 
-      if (status !== undefined || title !== undefined || auditNumber !== undefined || criteria !== undefined || plannedDate !== undefined || datePrepared !== undefined) {
+      const existing = await client.query(
+        `SELECT lead_auditor_user_id, auditee_user_id FROM audit_plans WHERE id = $1`,
+        [planId]
+      );
+      if (existing.rows.length === 0) {
+        planNotFound = true;
+        return;
+      }
+      const assignResult = await client.query(
+        `SELECT user_id FROM audit_plan_assignments WHERE audit_plan_id = $1`,
+        [planId]
+      );
+      const stakeholders = {
+        leadAuditorUserId: existing.rows[0].lead_auditor_user_id ?? null,
+        auditeeUserId: existing.rows[0].auditee_user_id ?? null,
+        assignedAuditorIds: assignResult.rows.map((r: { user_id: string }) => r.user_id),
+      };
+      if (!canAccessAuditPlan(ctx, stakeholders)) {
+        accessDenied = true;
+        return;
+      }
+      if (status !== undefined && !canSetAuditPlanStatus(ctx, stakeholders, String(status))) {
+        accessDenied = true;
+        return;
+      }
+
+      if (status !== undefined || title !== undefined || auditNumber !== undefined || criteria !== undefined || plannedDate !== undefined || datePrepared !== undefined || checklistId !== undefined) {
         const updates: string[] = ["updated_at = now()"];
         const values: unknown[] = [];
         let idx = 1;
@@ -273,6 +319,15 @@ export async function PATCH(
           updates.push(`criteria = $${idx++}`);
           values.push(criteria);
         }
+        if (checklistId !== undefined) {
+          const hasChecklistCol = await client.query(
+            `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_plans' AND column_name = 'checklist_id'`
+          );
+          if (hasChecklistCol.rows.length > 0) {
+            updates.push(`checklist_id = $${idx++}`);
+            values.push(checklistId || null);
+          }
+        }
         if (plannedDate !== undefined) {
           updates.push(`planned_date = $${idx++}`);
           values.push(typeof plannedDate === "string" ? plannedDate : (plannedDate as Date)?.toISOString?.()?.slice(0, 10) ?? null);
@@ -283,6 +338,9 @@ export async function PATCH(
         }
         if (status === "plan_submitted_to_auditee") {
           updates.push("plan_submitted_at = now()");
+        }
+        if (status === "findings_submitted_to_auditee") {
+          updates.push("findings_submitted_at = now()");
         }
         values.push(planId);
         await client.query(
@@ -410,6 +468,13 @@ export async function PATCH(
         }
       }
     });
+
+    if (planNotFound) {
+      return NextResponse.json({ error: "Audit plan not found" }, { status: 404 });
+    }
+    if (accessDenied) {
+      return auditPlanForbiddenResponse();
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

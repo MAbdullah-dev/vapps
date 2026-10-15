@@ -41,6 +41,13 @@ export async function POST(req: NextRequest) {
     if (!access.ok) return access.response;
     const orgId = access.orgId!;
 
+    if (!auditPlanId || auditPlanId === "draft") {
+      return NextResponse.json(
+        { error: "auditPlanId is required. Save the audit plan before uploading documents." },
+        { status: 400 }
+      );
+    }
+
     const validationError = validateUploadFile(file);
     if (validationError) return validationError;
 

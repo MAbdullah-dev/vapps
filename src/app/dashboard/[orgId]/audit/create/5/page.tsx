@@ -48,6 +48,8 @@ export default function CreateAuditStep5Page() {
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLeadAuditor, setIsLeadAuditor] = useState(false);
+  const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [leadAuditorName, setLeadAuditorName] = useState("—");
   const [leadAuditorIsLead, setLeadAuditorIsLead] = useState(false);
@@ -81,6 +83,8 @@ export default function CreateAuditStep5Page() {
         const plan = planRes.plan;
         if (!cancelled) {
           setCurrentUserRole(plan.currentUserRole ?? null);
+          setIsLeadAuditor(Boolean(plan.isLeadAuditor) || plan.currentUserRole === "lead_auditor");
+          setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
           setPlanStatus(plan.status ?? null);
           const step5 = (plan as { step5Data?: PersistedStep5Data }).step5Data;
           if (step5 && typeof step5 === "object") {
@@ -127,17 +131,22 @@ export default function CreateAuditStep5Page() {
   const handleEvidenceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length || !orgId) return;
-    const planId = auditPlanId || "draft";
+    if (!auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      e.target.value = "";
+      return;
+    }
     setUploadingEvidence(true);
     try {
       const uploaded: { name: string; key: string }[] = [];
       for (let i = 0; i < files.length; i++) {
-        const res = await apiClient.uploadAuditDocument(files[i], orgId, planId, 5);
+        const res = await apiClient.uploadAuditDocument(files[i], orgId, auditPlanId, 5);
         uploaded.push({ name: res.name, key: res.key });
       }
       setEvidenceFiles((prev) => [...prev, ...uploaded]);
     } catch (err) {
       console.error(err);
+      toast.error(t("Could not upload the file. Please try again."));
     } finally {
       setUploadingEvidence(false);
       e.target.value = "";
@@ -145,7 +154,7 @@ export default function CreateAuditStep5Page() {
   };
 
   const canEditStep5 =
-    currentUserRole === "assigned_auditor" &&
+    isAssignedAuditor &&
     !["pending_closure", "closed", "verification_ineffective"].includes(planStatus ?? "");
 
   const validateStep5 = (): boolean => {
@@ -195,10 +204,10 @@ export default function CreateAuditStep5Page() {
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   const leadAuditorDisplay = useMemo(
     () =>

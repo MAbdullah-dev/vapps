@@ -50,6 +50,8 @@ export default function CreateAuditStep4Page() {
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLeadAuditor, setIsLeadAuditor] = useState(false);
+  const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [auditorFeedbackStep5, setAuditorFeedbackStep5] = useState<string | null>(null);
   const [managementFeedbackStep6, setManagementFeedbackStep6] = useState<string | null>(null);
@@ -110,6 +112,8 @@ export default function CreateAuditStep4Page() {
         if (!cancelled) {
           setSubmissionDate(plan.datePrepared ? format(new Date(plan.datePrepared), "dd-MM-yyyy") : format(new Date(), "dd-MM-yyyy"));
           setCurrentUserRole(plan.currentUserRole ?? null);
+          setIsLeadAuditor(Boolean(plan.isLeadAuditor) || plan.currentUserRole === "lead_auditor");
+          setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
           setPlanStatus(plan.status ?? null);
           const step5 = (plan as { step5Data?: { auditorComments?: string } }).step5Data;
           if (step5 && typeof step5 === "object" && typeof step5.auditorComments === "string" && step5.auditorComments.trim()) {
@@ -207,7 +211,12 @@ export default function CreateAuditStep4Page() {
     if (!files?.length || !orgId) return;
     const setFiles = setFilesBySection[section];
     if (!setFiles) return;
-    const planId = auditPlanId || "draft";
+    if (!auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      e.target.value = "";
+      return;
+    }
+    const planId = auditPlanId;
     setUploadingFile(true);
     try {
       const uploaded: { name: string; key: string }[] = [];
@@ -336,10 +345,10 @@ export default function CreateAuditStep4Page() {
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   return (
     <div className="space-y-6">

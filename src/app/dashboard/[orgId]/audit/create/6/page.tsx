@@ -41,6 +41,8 @@ export default function CreateAuditStep6Page() {
 
   const [isLoading, setIsLoading] = useState(!!auditPlanId);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLeadAuditor, setIsLeadAuditor] = useState(false);
+  const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [auditIdDisplay, setAuditIdDisplay] = useState("—");
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState({ name: "—", role: "—" });
@@ -71,6 +73,8 @@ export default function CreateAuditStep6Page() {
         const plan = planRes.plan;
         if (!cancelled) {
           setCurrentUserRole(plan.currentUserRole ?? null);
+          setIsLeadAuditor(Boolean(plan.isLeadAuditor) || plan.currentUserRole === "lead_auditor");
+          setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
           setPlanStatus(plan.status ?? null);
           setAuditIdDisplay(plan.auditNumber || plan.id?.slice(0, 8) || "—");
         }
@@ -100,15 +104,15 @@ export default function CreateAuditStep6Page() {
   }, [orgId, auditPlanId, t]);
 
   const canEditStep6 =
-    planStatus !== "closed" && currentUserRole === "lead_auditor";
+    planStatus !== "closed" && isLeadAuditor;
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
     const locked: number[] = [];
-    if (currentUserRole === "lead_auditor" && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
-    if (currentUserRole === "assigned_auditor" && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
+    if (isLeadAuditor && !["pending_closure", "closed"].includes(planStatus)) locked.push(6);
+    if (isAssignedAuditor && !["ca_submitted_to_auditor", "pending_closure", "closed"].includes(planStatus)) locked.push(5);
     return locked;
-  }, [planStatus, currentUserRole]);
+  }, [planStatus, currentUserRole, isLeadAuditor, isAssignedAuditor]);
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
