@@ -134,11 +134,6 @@ function TableHeader({ title }: { title: string }) {
   return <span className="font-semibold text-foreground">{title}</span>;
 }
 
-const getClassificationColor = (classification: string) => {
-  if (classification === "Major") return "bg-red-500 text-white";
-  return "bg-yellow-100 text-yellow-800";
-};
-
 const getRiskLevelColor = (riskLevel: string) => {
   if (riskLevel === "High") return "bg-red-500 text-white";
   if (riskLevel === "Medium") return "bg-yellow-100 text-yellow-800";
@@ -189,7 +184,7 @@ function getColumns(
   },
   {
     accessorKey: "scopeMethodBoundaries",
-    header: () => <TableHeader title={t("Scope, Method & Boundaries")} />,
+    header: () => <TableHeader title={t("Scope")} />,
     cell: ({ row }) => (
       <span className="text-muted-foreground">{t(row.original.scopeMethodBoundaries)}</span>
     ),
@@ -216,32 +211,6 @@ function getColumns(
     cell: ({ row }) => (
       <span className="text-muted-foreground">{displayCellValue(row.original.process, t)}</span>
     ),
-  },
-  {
-    accessorKey: "clause",
-    header: () => <TableHeader title={t("Clause")} />,
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{displayCellValue(row.original.clause, t)}</span>
-    ),
-  },
-  {
-    accessorKey: "subclauses",
-    header: () => <TableHeader title={t("Subclauses")} />,
-    cell: ({ row }) => (
-      <span className="text-muted-foreground">{displayCellValue(row.original.subclauses, t)}</span>
-    ),
-  },
-  {
-    accessorKey: "ncClassification",
-    header: () => <TableHeader title={t("NC Classification")} />,
-    cell: ({ row }) => {
-      const label = row.original.ncClassification === "Major" ? t("MA") : t("mi");
-      return (
-        <span className={`${getClassificationColor(row.original.ncClassification)} py-1 px-2 rounded-full text-xs font-medium`}>
-          {label}
-        </span>
-      );
-    },
   },
   {
     accessorKey: "riskLevel",
