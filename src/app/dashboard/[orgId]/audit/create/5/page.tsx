@@ -20,6 +20,9 @@ import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
+import { getDashboardPath } from "@/lib/subdomain";
 
 type PersistedStep5Data = {
   verificationOutcome?: string;
@@ -32,6 +35,7 @@ export default function CreateAuditStep5Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
@@ -192,7 +196,8 @@ export default function CreateAuditStep5Page() {
         await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
         toast.success(t("Saved. Audit moved to Step 6 for Lead Auditor."));
       }
-      router.push(`/dashboard/${orgId}/audit`);
+      await invalidateAuditCaches(queryClient);
+      router.push(auditTableHref(orgId));
     } catch (e) {
       console.error(e);
       toast.error(t("Failed to save."));
@@ -232,7 +237,7 @@ export default function CreateAuditStep5Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={5} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
       {!canEditStep5 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
@@ -456,11 +461,13 @@ export default function CreateAuditStep5Page() {
                 if (verificationOutcome === "ineffective") {
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
                   toast.success(t("Returned to Auditee for revision."));
-                  router.push(`/dashboard/${orgId}/audit`);
+                  await invalidateAuditCaches(queryClient);
+                  router.push(auditTableHref(orgId));
                 } else {
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "pending_closure");
                   toast.success(t("Submitted to Lead Auditor."));
-                  router.push(`/dashboard/${orgId}/audit/create/6${stepQuery}`);
+                  await invalidateAuditCaches(queryClient);
+                  router.push(`${getDashboardPath(orgId, "audit/create/6")}${stepQuery}`);
                 }
               } catch (e) {
                 console.error(e);

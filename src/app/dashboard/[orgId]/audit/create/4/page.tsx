@@ -22,12 +22,16 @@ import { apiClient } from "@/lib/api-client";
 import { scrollToField } from "@/lib/scroll-to-field";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateAuditCaches } from "@/lib/audit-query-cache";
+import { getDashboardPath } from "@/lib/subdomain";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 
 export default function CreateAuditStep4Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
@@ -298,6 +302,7 @@ export default function CreateAuditStep4Page() {
     setSavingStep4(true);
     try {
       await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
+      await invalidateAuditCaches(queryClient);
     } catch (e) {
       console.error(e);
     } finally {
@@ -352,7 +357,7 @@ export default function CreateAuditStep4Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
       {!canEditStep4 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
           {planStatus === "closed"
@@ -937,7 +942,8 @@ export default function CreateAuditStep4Page() {
                     // so corrective action data is persisted even if user never clicked SAVE.
                     await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
                     await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "ca_submitted_to_auditor");
-                    router.push(`/dashboard/${orgId}/audit/create/5${stepQuery}`);
+                    await invalidateAuditCaches(queryClient);
+                    router.push(`${getDashboardPath(orgId, "audit/create/5")}${stepQuery}`);
                   } catch (e) {
                     console.error(e);
                   } finally {

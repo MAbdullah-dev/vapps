@@ -11,6 +11,7 @@ import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import { getAdminPortalDashboardUrl } from "@/lib/super-admin-policy";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -871,8 +872,8 @@ export default function CreateAuditStep2Page() {
           queryClient.invalidateQueries({ queryKey: ["auditPlan", orgId, newPlanId] });
         }
       }
-      queryClient.invalidateQueries({ queryKey: ["auditPlans", orgId] });
-      router.push(`/dashboard/${orgId}/audit`);
+      await invalidateAuditCaches(queryClient);
+      router.push(auditTableHref(orgId));
     } catch (e) {
       console.error(e);
       toast.error(t("Could not save the audit plan. Please try again."));
@@ -948,7 +949,7 @@ export default function CreateAuditStep2Page() {
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-100]:border-border/60 [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
-      <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={2} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
       {!canEditStep2 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"

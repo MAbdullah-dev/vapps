@@ -596,7 +596,9 @@ export default function AuditsContent() {
     queryKey: ["auditPlans", slug],
     queryFn: () => apiClient.getAuditPlans(slug),
     enabled: !!slug,
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const audits = useMemo(

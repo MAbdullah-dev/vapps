@@ -47,9 +47,10 @@ export default function AuditWorkflowHeader({
   lockedSteps = [],
   stepQuery,
   saveDraftHref = "#",
-  exitHref = "../..",
+  exitHref,
 }: AuditWorkflowHeaderProps) {
   const { t } = useTranslate();
+  const resolvedExitHref = exitHref || (orgId ? getDashboardPath(orgId, "audit") : "/");
   const getStepHref = (step: number) => {
     if (!orgId) return "#";
     const base = getDashboardPath(orgId, `audit/create/${step}`);
@@ -74,8 +75,8 @@ export default function AuditWorkflowHeader({
             </Button>
 
             <Button variant="outline" size="sm" asChild>
-              <Link href={exitHref} className="text-foreground no-underline">
-                {t("Exit to Dashboard")}
+              <Link href={resolvedExitHref} className="text-foreground no-underline">
+                {t("Exit to Audit Table")}
               </Link>
             </Button>
           </div>

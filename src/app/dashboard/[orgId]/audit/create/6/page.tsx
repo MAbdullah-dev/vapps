@@ -2,6 +2,8 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getDashboardPath } from "@/lib/subdomain";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import {
@@ -25,6 +27,7 @@ export default function CreateAuditStep6Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useTranslate();
   const orgId = params?.orgId as string;
   const programId = searchParams.get("programId") ?? "";
@@ -116,7 +119,7 @@ export default function CreateAuditStep6Page() {
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted">
-      <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={6} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
       {!canEditStep6 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
@@ -310,7 +313,7 @@ export default function CreateAuditStep6Page() {
           asChild
         >
           <Link
-            href={`/dashboard/${orgId}/audit/create/5${stepQuery}`}
+            href={`${getDashboardPath(orgId, "audit/create/5")}${stepQuery}`}
             className="inline-flex items-center gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -349,7 +352,8 @@ export default function CreateAuditStep6Page() {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
                 toast.success(t("Returned to Auditee for revision."));
               }
-              router.push(getDashboardPath(orgId, "audit"));
+              await invalidateAuditCaches(queryClient);
+              router.push(auditTableHref(orgId));
             } catch (e) {
               console.error(e);
               toast.error(

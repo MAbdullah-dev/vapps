@@ -63,6 +63,9 @@ import { apiClient } from "@/lib/api-client";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
+import { getDashboardPath } from "@/lib/subdomain";
 
 type ComplianceStatus =
   | "compliant"
@@ -255,6 +258,7 @@ export default function CreateAuditStep3Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { t } = useTranslate();
   const tRef = useRef(t);
   tRef.current = t;
@@ -725,6 +729,7 @@ export default function CreateAuditStep3Page() {
     await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
     setRows(rowsToPersist);
     rowsRef.current = rowsToPersist;
+    void invalidateAuditCaches(queryClient);
   };
 
   const updateRow = (id: string, field: keyof ChecklistRow, value: string | ComplianceStatus | "high" | "medium" | "low") => {
@@ -988,7 +993,7 @@ export default function CreateAuditStep3Page() {
 
   return (
     <div className="space-y-6 [&_.text-gray-900]:text-foreground [&_.text-gray-800]:text-foreground [&_.text-gray-700]:text-foreground [&_.text-gray-600]:text-muted-foreground [&_.text-gray-500]:text-muted-foreground [&_.text-gray-400]:text-muted-foreground/80 [&_.text-gray-300]:text-muted-foreground/70 [&_.border-gray-200]:border-border [&_.border-gray-300]:border-input [&_.border-gray-400]:border-border [&_.bg-gray-50]:bg-muted [&_.bg-gray-100]:bg-muted [&_.bg-gray-700]:bg-muted/80 [&_.bg-gray-800]:bg-muted/80 [&_.bg-gray-900]:bg-card">
-      <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={3} orgId={orgId} allowedSteps={[3, 5]} stepQuery={stepQuery || undefined}  />
       {!canEditStep3 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed" || planStatus === "findings_submitted_to_auditee"
@@ -2316,7 +2321,10 @@ export default function CreateAuditStep3Page() {
                   }, 150);
                 }
                 const nextIndex = Math.min(currentQuestionIndex + 1, filteredRows.length);
-                if (nextIndex >= filteredRows.length) router.push(`/dashboard/${orgId}/audit`);
+                if (nextIndex >= filteredRows.length) {
+                  await invalidateAuditCaches(queryClient);
+                  router.push(auditTableHref(orgId));
+                }
               } catch (e) {
                 console.error(e);
               } finally {
@@ -2421,7 +2429,8 @@ export default function CreateAuditStep3Page() {
                     updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
                     updateRow(activeCARowId, "riskSeverity", riskSeverity);
                   }
-                  router.push(`/dashboard/${orgId}/audit`);
+                  await invalidateAuditCaches(queryClient);
+                  router.push(auditTableHref(orgId));
                 } catch (e) {
                   console.error(e);
                 } finally {
@@ -2464,11 +2473,12 @@ export default function CreateAuditStep3Page() {
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findingsForSubmit);
                   setRows(rowsToPersist);
                   await apiClient.updateAuditPlanStatus(orgId, auditPlanIdFromUrl, "findings_submitted_to_auditee");
+                  await invalidateAuditCaches(queryClient);
                   const params = new URLSearchParams();
                   if (programIdFromUrl || resolvedProgramId) params.set("programId", programIdFromUrl || resolvedProgramId || "");
                   if (criteria) params.set("criteria", criteria);
                   if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
-                  router.push(`/dashboard/${orgId}/audit/create/4${params.toString() ? `?${params.toString()}` : ""}`);
+                  router.push(`${getDashboardPath(orgId, "audit/create/4")}${params.toString() ? `?${params.toString()}` : ""}`);
                 } catch (e) {
                   console.error(e);
                 } finally {

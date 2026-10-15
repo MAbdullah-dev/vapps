@@ -47,6 +47,9 @@ import { cn } from "@/lib/utils";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
+import { getDashboardPath } from "@/lib/subdomain";
 
 interface OrganizationInfo {
   name?: string;
@@ -111,6 +114,7 @@ function focusFirstInvalid(errors: Record<string, boolean>, fields: { key: strin
 export default function CreateAuditStep1Page() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const { t } = useTranslate();
@@ -647,7 +651,7 @@ export default function CreateAuditStep1Page() {
   if (!isLoading && currentUserId && !currentUserHasAuditorRole) {
     return (
       <div className="space-y-6">
-        <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} exitHref="../.." />
+        <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]}  />
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
           <p className="text-lg font-medium text-amber-800">
             {t("You must have the Auditor additional role to create an audit.")}
@@ -662,7 +666,7 @@ export default function CreateAuditStep1Page() {
 
   return (
     <div className="space-y-6">
-      <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined} exitHref="../.." />
+      <AuditWorkflowHeader currentStep={1} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
       {!canEditStep1 && currentUserRole != null && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {planStatus === "closed"
@@ -1440,10 +1444,12 @@ export default function CreateAuditStep1Page() {
               };
               if (programId) {
                 await apiClient.updateAuditProgram(orgId, programId, payload);
-                router.push(`/dashboard/${orgId}/audit`);
+                await invalidateAuditCaches(queryClient);
+                router.push(auditTableHref(orgId));
               } else {
                 const res = await apiClient.createAuditProgram(orgId, payload);
-                router.push(`/dashboard/${orgId}/audit`);
+                await invalidateAuditCaches(queryClient);
+                router.push(auditTableHref(orgId));
               }
             } catch (e: any) {
               console.error(e);
@@ -1485,11 +1491,11 @@ export default function CreateAuditStep1Page() {
               };
               if (programId) {
                 await apiClient.updateAuditProgram(orgId, programId, payload);
-                router.push(`/dashboard/${orgId}/audit/create/2?programId=${programId}`);
+                router.push(`${getDashboardPath(orgId, "audit/create/2")}?programId=${programId}`);
               } else {
                 const res = await apiClient.createAuditProgram(orgId, payload);
                 const id = res.programId;
-                router.push(`/dashboard/${orgId}/audit/create/2?programId=${id}`);
+                router.push(`${getDashboardPath(orgId, "audit/create/2")}?programId=${id}`);
               }
             } catch (e: any) {
               console.error(e);
