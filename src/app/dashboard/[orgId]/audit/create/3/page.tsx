@@ -240,11 +240,24 @@ const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: strin
   { id: "ev-2", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
 ];
 
+function asPlainText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/<[^>]*>/g, "");
+}
+
+function evidenceItemsForForm(raw: unknown): ObjectiveEvidenceItem[] {
+  const normalized = normalizeObjectiveEvidenceFromApi(raw);
+  if (normalized && normalized.length > 0) return normalized;
+  return DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }));
+}
+
 export default function CreateAuditStep3Page() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { t } = useTranslate();
+  const tRef = useRef(t);
+  tRef.current = t;
   const orgId = params?.orgId as string;
   const programIdFromUrl = searchParams.get("programId") ?? null;
   const criteriaFromUrl = searchParams.get("criteria") ?? null;
@@ -335,7 +348,7 @@ export default function CreateAuditStep3Page() {
           const membersRes = await apiClient.getMembers(orgId);
           if (!cancelled && membersRes.teamMembers?.length) {
             const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
-            setLeadAuditorDisplay(lead ? `${lead.name || lead.email || t("—")} | ${t("LEAD AUDITOR")}` : t("—"));
+            setLeadAuditorDisplay(lead ? `${lead.name || lead.email || tRef.current("—")} | ${tRef.current("LEAD AUDITOR")}` : tRef.current("—"));
           }
         }
 
@@ -515,8 +528,7 @@ export default function CreateAuditStep3Page() {
         }
       } catch (e) {
         if (!cancelled) {
-          setLoadError(t("Failed to load checklist questions."));
-          setRows([]);
+          setLoadError(tRef.current("Failed to load checklist questions."));
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -524,7 +536,7 @@ export default function CreateAuditStep3Page() {
     };
     load();
     return () => { cancelled = true; };
-  }, [orgId, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl, auditPlanIdFromUrl, t]);
+  }, [orgId, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl, auditPlanIdFromUrl]);
 
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return rows;
@@ -669,11 +681,7 @@ export default function CreateAuditStep3Page() {
     setStatementOfNonconformity(row.statementOfNonconformity ?? "");
     setRiskJustification(row.riskJustification ?? "");
     setJustificationForClassification(row.justificationForClassification ?? "");
-    setEvidenceItems(
-      (row.objectiveEvidence && row.objectiveEvidence.length > 0)
-        ? row.objectiveEvidence
-        : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }))
-    );
+    setEvidenceItems(evidenceItemsForForm(row.objectiveEvidence));
     setTimeout(() => {
       checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
@@ -689,9 +697,7 @@ export default function CreateAuditStep3Page() {
       riskJustification: row.riskJustification ?? "",
       justificationForClassification: row.justificationForClassification ?? "",
       objectiveEvidence: isNc
-        ? (row.objectiveEvidence && row.objectiveEvidence.length > 0
-            ? row.objectiveEvidence
-            : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item })))
+        ? evidenceItemsForForm(row.objectiveEvidence)
         : (row.objectiveEvidence ?? null),
     });
     setRowDialogOpen(true);
@@ -778,12 +784,12 @@ export default function CreateAuditStep3Page() {
   };
   const updateEvidenceItem = (id: string, field: keyof ObjectiveEvidenceItem, value: string) => {
     setEvidenceItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      evidenceItemsForForm(prev).map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
   };
   const setEvidenceEffectiveness = (id: string, value: "effective" | "ineffective") => {
     setEvidenceItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, effectiveness: value } : item))
+      evidenceItemsForForm(prev).map((item) => (item.id === id ? { ...item, effectiveness: value } : item))
     );
   };
 
@@ -917,7 +923,7 @@ export default function CreateAuditStep3Page() {
   const isCurrentMinorOrMajorNc =
     currentRow && (currentRow.status === "minor_nc" || currentRow.status === "major_nc");
   const isCaOpenForCurrentRow = currentRow && activeCARowId === currentRow.id;
-  const stripHtml = (s: string) => (s ?? "").replace(/<[^>]*>/g, "").trim();
+  const stripHtml = (s: unknown) => asPlainText(s).trim();
   const caRequiredFieldsFilled =
     stripHtml(statementOfNonconformity) !== "" &&
     stripHtml(riskJustification) !== "" &&
@@ -1075,7 +1081,7 @@ export default function CreateAuditStep3Page() {
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-gray-600">{t("Evidence Seen")}</Label>
                   <Textarea
-                    value={(rowDialogDraft.evidence ?? "").replace(/<[^>]*>/g, "")}
+                    value={asPlainText(rowDialogDraft.evidence)}
                     onChange={(e) => setRowDialogDraft((d) => (d ? { ...d, evidence: e.target.value } : d))}
                     placeholder={t("Evidence seen...")}
                     rows={5}
@@ -1441,11 +1447,7 @@ export default function CreateAuditStep3Page() {
                                         setStatementOfNonconformity(row.statementOfNonconformity ?? "");
                                         setRiskJustification(row.riskJustification ?? "");
                                         setJustificationForClassification(row.justificationForClassification ?? "");
-                                        setEvidenceItems(
-                                          (row.objectiveEvidence && row.objectiveEvidence.length > 0)
-                                            ? row.objectiveEvidence
-                                            : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }))
-                                        );
+                                        setEvidenceItems(evidenceItemsForForm(row.objectiveEvidence));
                                         setTimeout(() => {
                                           checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                                         }, 100);
@@ -1582,7 +1584,7 @@ export default function CreateAuditStep3Page() {
           <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.7 EVIDENCE SEEN")}</Label>
             <Textarea
-              value={(complianceDetails.evidenceSeen ?? "").replace(/<[^>]*>/g, "")}
+              value={asPlainText(complianceDetails.evidenceSeen)}
               onChange={(e) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: e.target.value }))}
               placeholder={t("Document detailed findings, interview notes, and physical evidence observed...")}
               rows={5}
@@ -1656,9 +1658,9 @@ export default function CreateAuditStep3Page() {
                 </p>
               )}
             </div>
-            <div className="flex flex-1 items-start gap-3 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
-              <p className="text-sm font-medium text-red-800">
+            <div className="flex flex-1 items-start gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-red-400" />
+              <p className="text-sm font-medium text-red-300">
                 {t(
                   "Warning: Submission of false evidence or intentional omission of findings is a breach of ISO 19011:2026 professional code of conduct and system integrity."
                 )}
@@ -1671,46 +1673,43 @@ export default function CreateAuditStep3Page() {
         <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
           <h2 className="mb-6 text-xl font-bold uppercase text-foreground">{t("RISK SEVERITY (CURRENT STATUS)")}</h2>
           <div className="flex flex-wrap gap-6">
-            {(["high", "medium", "low"] as const).map((level) => (
-              <Label
-                key={level}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-6 py-4 transition-colors",
-                  riskSeverity === level
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:border-border hover:bg-accent/50"
-                )}
-              >
-                <span
+            {(["high", "medium", "low"] as const).map((level) => {
+              const selected = riskSeverity === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setRiskSeverity(level)}
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
-                    level === "high" && (riskSeverity === "high" ? "border-red-600 bg-red-500" : "border-red-300 bg-red-100"),
-                    level === "medium" && (riskSeverity === "medium" ? "border-primary bg-primary" : "border-primary/30 bg-primary/10"),
-                    level === "low" && (riskSeverity === "low" ? "border-secondary bg-secondary" : "border-border bg-muted")
+                    "flex items-center gap-3 rounded-lg border-2 px-6 py-4 transition-colors",
+                    selected
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:border-border hover:bg-accent/50"
                   )}
                 >
-                  {riskSeverity === level && <span className="h-2 w-2 rounded-full bg-background" />}
-                </span>
-                <input
-                  type="radio"
-                  name="riskSeverity"
-                  value={level}
-                  checked={riskSeverity === level}
-                  onChange={() => setRiskSeverity(level)}
-                  className="sr-only"
-                />
-                <span className={cn("font-semibold uppercase text-foreground", riskSeverity === level && "font-bold")}>
-                  {t(level === "high" ? "HIGH" : level === "medium" ? "MEDIUM" : "LOW")}
-                </span>
-              </Label>
-            ))}
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                      level === "high" && (selected ? "border-red-500 bg-red-500" : "border-red-500/50 bg-transparent"),
+                      level === "medium" && (selected ? "border-primary bg-primary" : "border-primary/50 bg-transparent"),
+                      level === "low" && (selected ? "border-muted-foreground bg-muted-foreground" : "border-muted-foreground/50 bg-transparent")
+                    )}
+                  >
+                    {selected && <span className="h-2 w-2 rounded-full bg-background" />}
+                  </span>
+                  <span className={cn("font-semibold uppercase text-foreground", selected && "font-bold")}>
+                    {t(level === "high" ? "HIGH" : level === "medium" ? "MEDIUM" : "LOW")}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <div ref={refRiskJustification} className={cn("mt-8 space-y-2", fieldErrors.riskJustification && "rounded-lg border-2 border-red-500 bg-red-50/30 p-4")}>
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("RISK JUSTIFICATION & COMMENTS (MANDATORY)")}
             </Label>
             <Textarea
-              value={riskJustification.replace(/<[^>]*>/g, "")}
+              value={asPlainText(riskJustification)}
               onChange={(e) => setRiskJustification(e.target.value)}
               placeholder={t("Explain the rationale behind the selected risk level...")}
               rows={5}
@@ -1866,7 +1865,7 @@ export default function CreateAuditStep3Page() {
             {t("STATEMENT OF NONCONFORMITY")}
           </h2>
           <Textarea
-            value={statementOfNonconformity.replace(/<[^>]*>/g, "")}
+            value={asPlainText(statementOfNonconformity)}
             onChange={(e) => setStatementOfNonconformity(e.target.value)}
             placeholder={t(
               "Document the nonconformity statement precisely. Include specific facts, what was expected, and what was observed."
@@ -1934,9 +1933,9 @@ export default function CreateAuditStep3Page() {
               {t("OBJECTIVE EVIDENCE")}
             </h2>
             <div className="space-y-4">
-              {evidenceItems.map((item, index) => (
+              {evidenceItemsForForm(evidenceItems).map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.id || `ev-${index}`}
                   className="rounded-lg border border-border bg-card p-6 shadow-sm"
                 >
                   <div className="flex gap-4">
@@ -1950,9 +1949,9 @@ export default function CreateAuditStep3Page() {
                         </Label>
                         <Input
                           placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
-                          value={item.description}
+                          value={item.description ?? ""}
                           onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
-                          className="border-border text-sm"
+                          className="border-border bg-background text-sm"
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1960,7 +1959,7 @@ export default function CreateAuditStep3Page() {
                           <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
                             {t("LINKED MEDIA / UPLOAD")}
                           </Label>
-                          <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
                             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                             <span className="truncate">
                               {item.fileName || t("Select file")}
@@ -1976,7 +1975,7 @@ export default function CreateAuditStep3Page() {
                                 await uploadEvidenceFile(file, item.id);
                               }}
                             />
-                          </Label>
+                          </label>
                           {item.s3Key ? (
                             <div className="pointer-events-auto pt-1">
                               <a
@@ -1991,50 +1990,40 @@ export default function CreateAuditStep3Page() {
                           ) : null}
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
                             {t("EFFECTIVENESS SELECTOR")}
-                          </Label>
-                          <div className="flex gap-4">
-                            <Label
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setEvidenceEffectiveness(item.id, "effective")}
                               className={cn(
-                                "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "effective"
-                                  ? "border-primary bg-primary/10 text-primary ring-1 ring-primary"
+                                  ? "border-primary bg-primary/10 text-primary"
                                   : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                               )}
                             >
-                              <input
-                                type="radio"
-                                name={`effectiveness-${item.id}`}
-                                checked={item.effectiveness === "effective"}
-                                onChange={() => setEvidenceEffectiveness(item.id, "effective")}
-                                className="sr-only"
-                              />
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-background")}>
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-transparent")}>
                                 {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-background" />}
                               </span>
                               {t("EFFECTIVE")}
-                            </Label>
-                            <Label
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEvidenceEffectiveness(item.id, "ineffective")}
                               className={cn(
-                                "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                                 item.effectiveness === "ineffective"
-                                  ? "border-red-500 bg-red-50 text-red-700 ring-1 ring-red-500 dark:bg-red-950/40 dark:text-red-300"
+                                  ? "border-red-500 bg-red-500/10 text-red-400"
                                   : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                               )}
                             >
-                              <input
-                                type="radio"
-                                name={`effectiveness-${item.id}`}
-                                checked={item.effectiveness === "ineffective"}
-                                onChange={() => setEvidenceEffectiveness(item.id, "ineffective")}
-                                className="sr-only"
-                              />
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-background")}>
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-transparent")}>
                                 {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-background" />}
                               </span>
                               {t("INEFFECTIVE")}
-                            </Label>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -2063,7 +2052,7 @@ export default function CreateAuditStep3Page() {
             {t("MANDATORY EXPLANATION: WHY MA OR MI?")}
           </p>
           <Textarea
-            value={justificationForClassification.replace(/<[^>]*>/g, "")}
+            value={asPlainText(justificationForClassification)}
             onChange={(e) => setJustificationForClassification(e.target.value)}
             placeholder={t(
               "Provide a logical justification based on the severity of the deviation and its impact on the management system..."
