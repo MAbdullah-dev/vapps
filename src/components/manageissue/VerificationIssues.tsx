@@ -64,6 +64,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
+import { isBeforeToday, startOfToday } from "@/lib/audit-date"
 import { Calendar } from "@/components/ui/calendar"
 import {
     Popover,
@@ -503,6 +504,11 @@ export default function IssuesDashboard({
             return
         }
 
+        if (isBeforeToday(closeOutDate) || isBeforeToday(verificationDate)) {
+            toast.error(t("Date cannot be before today."))
+            return
+        }
+
 
         setIsSubmitting(true)
         try {
@@ -614,6 +620,11 @@ export default function IssuesDashboard({
     const handleSubmitIneffective = async () => {
         if (!selectedIssue || !selectedAssignee || !dueDate || !reassignmentInstructions) {
             toast.error(t("Please fill all required fields"))
+            return
+        }
+
+        if (isBeforeToday(dueDate)) {
+            toast.error(t("Date cannot be before today."))
             return
         }
 
@@ -1637,7 +1648,11 @@ export default function IssuesDashboard({
                                         <Calendar
                                             mode="single"
                                             selected={closeOutDate}
-                                            onSelect={setCloseOutDate}
+                                            disabled={{ before: startOfToday() }}
+                                            onSelect={(selected) => {
+                                                if (selected && isBeforeToday(selected)) return
+                                                setCloseOutDate(selected)
+                                            }}
                                             required
                                         />
                                     </PopoverContent>
@@ -1666,7 +1681,11 @@ export default function IssuesDashboard({
                                         <Calendar
                                             mode="single"
                                             selected={verificationDate}
-                                            onSelect={setVerificationDate}
+                                            disabled={{ before: startOfToday() }}
+                                            onSelect={(selected) => {
+                                                if (selected && isBeforeToday(selected)) return
+                                                setVerificationDate(selected)
+                                            }}
                                             required
                                         />
                                     </PopoverContent>
@@ -1984,8 +2003,11 @@ export default function IssuesDashboard({
                                         <Calendar
                                             mode="single"
                                             selected={dueDate}
-                                            onSelect={setDueDate}
-                                            disabled={(date) => date < new Date()}
+                                            disabled={{ before: startOfToday() }}
+                                            onSelect={(selected) => {
+                                                if (selected && isBeforeToday(selected)) return
+                                                setDueDate(selected)
+                                            }}
                                         />
                                     </PopoverContent>
                                 </Popover>

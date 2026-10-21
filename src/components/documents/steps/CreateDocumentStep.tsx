@@ -38,6 +38,7 @@ import {
   Unlock,
 } from "lucide-react";
 import { format } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { cn, documentActorMatches } from "@/lib/utils";
 import { docAlertInfo, docSelectionActive, docSelectionIdle } from "@/lib/document-ui-classes";
 import { RichTextEditor } from "@/components/editor/rich-text-editor";
@@ -2372,7 +2373,11 @@ export default function CreateDocumentStep({
                   <DatePickerCalendar
                     mode="single"
                     selected={parseDateInput(planDate)}
-                    onSelect={(date) => setPlanDate(toDateInput(date))}
+                    disabled={{ before: startOfToday() }}
+                    onSelect={(date) => {
+                      if (date && isBeforeToday(date)) return;
+                      setPlanDate(toDateInput(date));
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -2400,7 +2405,11 @@ export default function CreateDocumentStep({
                   <DatePickerCalendar
                     mode="single"
                     selected={parseDateInput(actualDate)}
-                    onSelect={(date) => setActualDate(toDateInput(date))}
+                    disabled={{ before: startOfToday() }}
+                    onSelect={(date) => {
+                      if (date && isBeforeToday(date)) return;
+                      setActualDate(toDateInput(date));
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -2427,7 +2436,11 @@ export default function CreateDocumentStep({
                   <DatePickerCalendar
                     mode="single"
                     selected={parseDateInput(endDate)}
-                    onSelect={(date) => setEndDate(toDateInput(date))}
+                    disabled={{ before: startOfToday() }}
+                    onSelect={(date) => {
+                      if (date && isBeforeToday(date)) return;
+                      setEndDate(toDateInput(date));
+                    }}
                     initialFocus
                   />
                 </PopoverContent>

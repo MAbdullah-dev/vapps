@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
@@ -85,9 +86,9 @@ function RequiredLabel({ htmlFor, children, className }: { htmlFor?: string; chi
   );
 }
 
-function FieldError({ show, t }: { show: boolean; t: (text: string) => string }) {
+function FieldError({ show, t, message }: { show: boolean; t: (text: string) => string; message?: string }) {
   if (!show) return null;
-  return <p className="text-xs text-destructive">{t("This field is required")}</p>;
+  return <p className="text-xs text-destructive">{t(message ?? "This field is required")}</p>;
 }
 
 const BASE_FIELD_ORDER = [
@@ -99,7 +100,6 @@ const BASE_FIELD_ORDER = [
   "processId",
   "programOwnerUserId",
   "programPurpose",
-  "objectiveStandard",
   "auditCriteria",
 ] as const;
 
@@ -161,7 +161,6 @@ export default function CreateAuditStep1Page() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [programPurpose, setProgramPurpose] = useState<string | null>(null);
-  const [objectiveStandard, setObjectiveStandard] = useState<string | null>(null);
   const [auditScope, setAuditScope] = useState<string | null>(null);
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
   const [auditType, setAuditType] = useState<string | null>(null);
@@ -170,32 +169,32 @@ export default function CreateAuditStep1Page() {
 
   const canAddTableRows = useMemo(
     () =>
-      !!startPeriod &&
-      !!endPeriod &&
       !!auditScope &&
+      auditScope !== "esg" &&
       selectedSiteIds.length > 0 &&
       !!auditType &&
       auditType !== "spa" &&
       !!processId &&
       !!programOwnerUserId &&
       !!programPurpose &&
-      !!objectiveStandard &&
-      !!auditCriteria,
-    [startPeriod, endPeriod, auditScope, selectedSiteIds, auditType, processId, programOwnerUserId, programPurpose, objectiveStandard, auditCriteria]
+      programPurpose !== "esg" &&
+      !!auditCriteria &&
+      auditCriteria !== "esg" &&
+      auditCriteria !== "legal",
+    [auditScope, selectedSiteIds, auditType, processId, programOwnerUserId, programPurpose, auditCriteria]
   );
 
   const validateBaseForm = (): boolean => {
     const errors = {
-      startPeriod: !startPeriod,
-      endPeriod: !endPeriod,
-      auditScope: !auditScope,
+      startPeriod: false,
+      endPeriod: false,
+      auditScope: !auditScope || auditScope === "esg",
       site: selectedSiteIds.length === 0,
       auditType: !auditType || auditType === "spa",
       processId: !processId,
       programOwnerUserId: !programOwnerUserId,
-      programPurpose: !programPurpose,
-      objectiveStandard: !objectiveStandard,
-      auditCriteria: !auditCriteria,
+      programPurpose: !programPurpose || programPurpose === "esg",
+      auditCriteria: !auditCriteria || auditCriteria === "esg" || auditCriteria === "legal",
     };
     if (Object.values(errors).some(Boolean)) {
       setBaseFormErrors(errors);
@@ -494,13 +493,13 @@ export default function CreateAuditStep1Page() {
       if (p.processId) setProcessId(p.processId);
       if (p.programOwnerUserId) setProgramOwnerUserId(p.programOwnerUserId);
       if (p.programPurpose != null) {
-        const [purpose, standard] = String(p.programPurpose).split("::");
-        setProgramPurpose(purpose || null);
-        setObjectiveStandard(standard || null);
+        const purpose = String(p.programPurpose).split("::")[0];
+        const mapped = purpose === "iso" ? "conformity" : purpose === "legal" ? "risk" : purpose;
+        if (["conformity", "effectiveness", "risk"].includes(mapped)) setProgramPurpose(mapped);
       }
-      if (p.auditScope != null) setAuditScope(p.auditScope);
+      if (p.auditScope != null && p.auditScope !== "esg") setAuditScope(p.auditScope);
       if (p.auditType != null && p.auditType !== "spa") setAuditType(p.auditType);
-      if (p.auditCriteria != null) setAuditCriteria(p.auditCriteria);
+      if (p.auditCriteria != null && p.auditCriteria !== "esg" && p.auditCriteria !== "legal") setAuditCriteria(p.auditCriteria);
       if (p.siteIds?.length) setSelectedSiteIds(p.siteIds);
       if (p.risks?.length) setRisks(p.risks.map((r: any, i: number) => ({
         id: `risk-${i}-${Date.now()}`,
@@ -567,8 +566,8 @@ export default function CreateAuditStep1Page() {
   const auditScopeOptions = useMemo(
     () =>
       [
-        { id: "management", label: "Management Systems" },
-        { id: "esg", label: "ESG Sustainability" },
+        { id: "management", label: "Management Systems", disabled: false },
+        { id: "esg", label: "ESG Sustainability", disabled: true },
       ] as const,
     []
   );
@@ -599,42 +598,19 @@ export default function CreateAuditStep1Page() {
   const programPurposeOptions = useMemo(
     () =>
       [
-        { id: "iso", label: "ISO standards", sub: "ISO 9001, 14001, 45001" },
-        { id: "esg", label: "ESG frameworks", sub: "GRI, IFRS S1/S2" },
-        { id: "legal", label: "Legal & regulatory", sub: "Applicable legal and regulatory requirements" },
+        { id: "conformity", label: "Verify management system conformity (ISO clauses)", disabled: false },
+        { id: "effectiveness", label: "Evaluate system effectiveness & performance", disabled: false },
+        { id: "esg", label: "Assess ESG practices (E/S/G factors)*", disabled: true },
+        { id: "risk", label: "Support risk-based decision-making", disabled: false },
       ] as const,
     []
   );
-  const objectiveStandardOptions = useMemo(
-    () =>
-      ({
-        iso: [
-          { id: "iso-9001", label: "ISO 9001 — Quality management" },
-          { id: "iso-14001", label: "ISO 14001 — Environmental management" },
-          { id: "iso-45001", label: "ISO 45001 — Occupational health and safety" },
-          { id: "iso-27001", label: "ISO 27001 — Information security" },
-          { id: "iatf-16949", label: "IATF 16949 — Automotive quality" },
-        ],
-        esg: [
-          { id: "gri", label: "GRI Standards" },
-          { id: "ifrs-s1", label: "IFRS S1 — General sustainability disclosures" },
-          { id: "ifrs-s2", label: "IFRS S2 — Climate-related disclosures" },
-        ],
-        legal: [
-          { id: "statutory", label: "Statutory requirements" },
-          { id: "regulatory", label: "Regulatory requirements" },
-          { id: "customer", label: "Customer and other requirements" },
-        ],
-      }) as Record<string, { id: string; label: string }[]>,
-    []
-  );
-  const standardOptionsForPurpose = programPurpose ? objectiveStandardOptions[programPurpose] ?? [] : [];
   const auditCriteriaOptions = useMemo(
     () =>
       [
-        { id: "iso", label: "ISO standards" },
-        { id: "esg", label: "ESG frameworks" },
-        { id: "legal", label: "Legal & regulatory" },
+        { id: "iso", label: "ISO standards", disabled: false },
+        { id: "esg", label: "ESG frameworks", disabled: true },
+        { id: "legal", label: "Legal & regulatory", disabled: true },
       ] as const,
     []
   );
@@ -674,21 +650,19 @@ export default function CreateAuditStep1Page() {
         <div className={cn(!canEditStep1 && "pointer-events-none select-none opacity-90")}>
         {/* Organization Context Section */}
         <div className="p-8">
-          <h1 className="mb-4 text-2xl font-bold tracking-tight text-foreground">
-            {t(AUDIT_STEP_HERO[1])}
-          </h1>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {t(AUDIT_STEP_HERO[1])}
+            </h1>
+            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-700">
+              {t("STRATEGIC LEVEL")}
+            </span>
+          </div>
           {/* Header */}
           <p className="mb-4 text-xs font-medium uppercase tracking-wide text-green-600">
             {t("TO BE COMPLETED BY THE AUDIT PROGRAM LEADER/LEAD AUDITOR")}
           </p>
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-1 rounded-full bg-green-500" />
-              <h2 className="text-xl font-bold text-foreground">{t("ORGANIZATION CONTEXT")}</h2>
-              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-700">
-                {t("STRATEGIC LEVEL")}
-              </span>
-            </div>
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
             <Link
               href="#"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
@@ -741,7 +715,8 @@ export default function CreateAuditStep1Page() {
             </div>
           )}
         </div>
-        {/* Period Covered Section */}
+        {/* Hidden for now — restore Period Covered when needed. */}
+        {false && (
         <div className="p-8">
           <h2 className="mb-6 text-xl font-bold text-foreground">{t("PERIOD COVERED")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -767,15 +742,26 @@ export default function CreateAuditStep1Page() {
                   <Calendar
                     mode="single"
                     selected={startPeriod}
+                    disabled={{ before: startOfToday() }}
                     onSelect={(date) => {
+                      if (!date || isBeforeToday(date)) return;
                       setStartPeriod(date);
-                      if (baseFormErrors.startPeriod) setBaseFormErrors((p) => ({ ...p, startPeriod: false }));
+                      setEndPeriod((current) =>
+                        current && startOfDay(current) < startOfDay(date) ? undefined : current
+                      );
+                      if (baseFormErrors.startPeriod || baseFormErrors.endPeriod) {
+                        setBaseFormErrors((p) => ({ ...p, startPeriod: false, endPeriod: false }));
+                      }
                     }}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
-              <FieldError show={!!baseFormErrors.startPeriod} t={t} />
+              <FieldError
+                show={!!baseFormErrors.startPeriod}
+                t={t}
+                message={isBeforeToday(startPeriod) ? "Date cannot be before today." : undefined}
+              />
             </div>
             <div id="audit-field-endPeriod" className="space-y-2">
               <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -799,7 +785,10 @@ export default function CreateAuditStep1Page() {
                   <Calendar
                     mode="single"
                     selected={endPeriod}
+                    disabled={{ before: startPeriod && startOfDay(startPeriod) > startOfToday() ? startOfDay(startPeriod) : startOfToday() }}
                     onSelect={(date) => {
+                      if (!date || isBeforeToday(date)) return;
+                      if (startPeriod && startOfDay(date) < startOfDay(startPeriod)) return;
                       setEndPeriod(date);
                       if (baseFormErrors.endPeriod) setBaseFormErrors((p) => ({ ...p, endPeriod: false }));
                     }}
@@ -807,7 +796,17 @@ export default function CreateAuditStep1Page() {
                   />
                 </PopoverContent>
               </Popover>
-              <FieldError show={!!baseFormErrors.endPeriod} t={t} />
+              <FieldError
+                show={!!baseFormErrors.endPeriod}
+                t={t}
+                message={
+                  isBeforeToday(endPeriod)
+                    ? "Date cannot be before today."
+                    : startPeriod && endPeriod && startOfDay(endPeriod) < startOfDay(startPeriod)
+                      ? "End date cannot be before the start date."
+                      : undefined
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -824,6 +823,7 @@ export default function CreateAuditStep1Page() {
             </p>
           </div>
         </div>
+        )}
 
         {/* Context, Scope, Type & Criteria */}
         <div className="p-8">
@@ -842,16 +842,21 @@ export default function CreateAuditStep1Page() {
                   <Label
                     key={opt.id}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
-                      auditScope === opt.id
+                      "flex items-center gap-3 rounded-lg border p-4 transition-colors",
+                      opt.disabled
+                        ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
+                        : "cursor-pointer",
+                      !opt.disabled && auditScope === opt.id
                         ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                        : "border-border bg-card hover:border-border",
-                      baseFormErrors.auditScope && auditScope !== opt.id && "border-destructive/50"
+                        : !opt.disabled && "border-border bg-card hover:border-border",
+                      !opt.disabled && baseFormErrors.auditScope && auditScope !== opt.id && "border-destructive/50"
                     )}
                   >
                     <Checkbox
-                      checked={auditScope === opt.id}
+                      checked={!opt.disabled && auditScope === opt.id}
+                      disabled={opt.disabled}
                       onCheckedChange={(checked) => {
+                        if (opt.disabled) return;
                         setAuditScope(checked ? opt.id : null);
                         if (baseFormErrors.auditScope) setBaseFormErrors((p) => ({ ...p, auditScope: false }));
                       }}
@@ -1033,59 +1038,32 @@ export default function CreateAuditStep1Page() {
           <h2 className="mb-6 text-xl font-bold text-foreground">
             {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div id="audit-field-programPurpose" className="space-y-2">
-              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("FRAMEWORK")}
-              </RequiredLabel>
-              <Select
-                value={programPurpose ?? ""}
-                onValueChange={(v) => {
-                  setProgramPurpose(v || null);
-                  setObjectiveStandard(null);
-                  if (baseFormErrors.programPurpose || baseFormErrors.objectiveStandard) {
-                    setBaseFormErrors((p) => ({ ...p, programPurpose: false, objectiveStandard: false }));
-                  }
-                }}
-              >
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programPurpose))}>
-                  <SelectValue placeholder={t("Select ISO, ESG, or another objective")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {programPurposeOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {t(opt.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError show={!!baseFormErrors.programPurpose} t={t} />
-            </div>
-            <div id="audit-field-objectiveStandard" className="space-y-2">
-              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("STANDARD")}
-              </RequiredLabel>
-              <Select
-                value={objectiveStandard ?? ""}
-                onValueChange={(v) => {
-                  setObjectiveStandard(v || null);
-                  if (baseFormErrors.objectiveStandard) setBaseFormErrors((p) => ({ ...p, objectiveStandard: false }));
-                }}
-                disabled={!programPurpose}
-              >
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.objectiveStandard))}>
-                  <SelectValue placeholder={programPurpose ? t("Select a standard") : t("Select a framework first")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {standardOptionsForPurpose.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      {t(opt.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError show={!!baseFormErrors.objectiveStandard} t={t} />
-            </div>
+          <div id="audit-field-programPurpose" className="max-w-xl space-y-2">
+            <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t("FRAMEWORK")}
+            </RequiredLabel>
+            <Select
+              value={programPurpose ?? ""}
+              onValueChange={(v) => {
+                if (v === "esg") return;
+                setProgramPurpose(v || null);
+                if (baseFormErrors.programPurpose) {
+                  setBaseFormErrors((p) => ({ ...p, programPurpose: false }));
+                }
+              }}
+            >
+              <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programPurpose))}>
+                <SelectValue placeholder={t("Select an objective")} />
+              </SelectTrigger>
+              <SelectContent>
+                {programPurposeOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id} disabled={opt.disabled}>
+                    {t(opt.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError show={!!baseFormErrors.programPurpose} t={t} />
           </div>
         </div>
 
@@ -1099,16 +1077,21 @@ export default function CreateAuditStep1Page() {
               <Label
                 key={opt.id}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors",
-                  auditCriteria === opt.id
+                  "flex items-center gap-3 rounded-lg border p-4 transition-colors",
+                  opt.disabled
+                    ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
+                    : "cursor-pointer",
+                  !opt.disabled && auditCriteria === opt.id
                     ? "border-primary bg-primary/15 ring-1 ring-primary/30"
-                    : "border-border bg-card hover:border-border",
-                  baseFormErrors.auditCriteria && auditCriteria !== opt.id && "border-destructive/50"
+                    : !opt.disabled && "border-border bg-card hover:border-border",
+                  !opt.disabled && baseFormErrors.auditCriteria && auditCriteria !== opt.id && "border-destructive/50"
                 )}
               >
                 <Checkbox
-                  checked={auditCriteria === opt.id}
+                  checked={!opt.disabled && auditCriteria === opt.id}
+                  disabled={opt.disabled}
                   onCheckedChange={(checked) => {
+                    if (opt.disabled) return;
                     setAuditCriteria(checked ? opt.id : null);
                     if (baseFormErrors.auditCriteria) setBaseFormErrors((p) => ({ ...p, auditCriteria: false }));
                   }}
@@ -1422,10 +1405,12 @@ export default function CreateAuditStep1Page() {
             if (!validateBaseForm()) return;
             setIsSaving(true);
             try {
+              const periodStart = startPeriod ?? startOfToday();
+              const periodEnd = endPeriod ?? periodStart;
               const payload = {
-                startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
-                endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
-                programPurpose: programPurpose && objectiveStandard ? `${programPurpose}::${objectiveStandard}` : programPurpose,
+                startPeriod: periodStart.toISOString().slice(0, 10),
+                endPeriod: periodEnd.toISOString().slice(0, 10),
+                programPurpose,
                 auditScope,
                 auditType,
                 auditCriteria,
@@ -1467,10 +1452,12 @@ export default function CreateAuditStep1Page() {
             if (!validateBaseForm()) return;
             setIsSaving(true);
             try {
+              const periodStart = startPeriod ?? startOfToday();
+              const periodEnd = endPeriod ?? periodStart;
               const payload = {
-                startPeriod: startPeriod?.toISOString?.()?.slice(0, 10),
-                endPeriod: endPeriod?.toISOString?.()?.slice(0, 10),
-                programPurpose: programPurpose && objectiveStandard ? `${programPurpose}::${objectiveStandard}` : programPurpose,
+                startPeriod: periodStart.toISOString().slice(0, 10),
+                endPeriod: periodEnd.toISOString().slice(0, 10),
+                programPurpose,
                 auditScope,
                 auditType,
                 auditCriteria,

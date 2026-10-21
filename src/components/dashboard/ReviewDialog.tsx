@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Upload, X, Paperclip, Calendar as CalendarIcon } from "lucide-react";
 import { format, isValid, parseISO } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
@@ -351,6 +352,16 @@ export default function ReviewDialog({
 
     // Validate that containment text is provided (required field)
     const trimmedContainmentText = containmentText?.trim() || "";
+    const hasPastActionDate = actionPlans.some((plan) => {
+      const planned = parseStoredDate(plan.plannedDate);
+      const actual = parseStoredDate(plan.actualDate);
+      return isBeforeToday(planned) || isBeforeToday(actual);
+    });
+    if (hasPastActionDate) {
+      toast.error("Date cannot be before today.");
+      return;
+    }
+
     if (!trimmedContainmentText) {
       toast.error("Please provide containment/immediate correction details");
       // Focus on the textarea to help user
@@ -1000,7 +1011,11 @@ function ActionPlanDatePicker({
         <Calendar
           mode="single"
           selected={selected}
-          onSelect={(date) => onChange(date ? format(date, "yyyy-MM-dd") : "")}
+          disabled={{ before: startOfToday() }}
+          onSelect={(date) => {
+            if (date && isBeforeToday(date)) return;
+            onChange(date ? format(date, "yyyy-MM-dd") : "");
+          }}
           initialFocus
         />
       </PopoverContent>

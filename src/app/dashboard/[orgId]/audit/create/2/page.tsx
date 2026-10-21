@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
+import { compactSiteCode } from "@/lib/documentRef";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
@@ -87,54 +89,6 @@ function createEmptyAmrcRow(): AmrcRow {
   return { id: `amrc-${Date.now()}`, reviewCategory: "", comments: "", priority: "MEDIUM", action: "" };
 }
 
-const AUDIT_TYPES = [
-  {
-    id: "FPA",
-    title: "FIRST-PARTY AUDIT (INTERNAL - FPA)",
-    description:
-      "Audits conducted by the organization itself for management review and other internal purposes, providing information on the performance of the system.",
-    badge: null,
-    badgeVariant: null,
-    disabled: false,
-  },
-  {
-    id: "SPA",
-    title: "SECOND-PARTY AUDIT (SUPPLIER - SPA)",
-    description:
-      "Audits conducted by parties having an interest in the organization, such as customers or partners. (Auto-selected if SPA chosen in Step 1.7.3).",
-    badge: "CONDITION REQUIRED",
-    badgeVariant: "yellow",
-    disabled: true,
-  },
-  // Third-Party (TPA), Self-Certification (SCA), and Third-Party Records (TPR) — hidden for now.
-  // {
-  //   id: "TPA",
-  //   title: "THIRD-PARTY AUDIT (TPA)",
-  //   description: "Independent certification body or regulatory audit.",
-  //   badge: null,
-  //   badgeVariant: null,
-  //   disabled: false,
-  // },
-  // {
-  //   id: "SCA",
-  //   title: "SELF-CERTIFICATION AUDIT (SCA)",
-  //   description:
-  //     "Audits outside formal Third-Party Certification schemes for self-declaration.",
-  //   badge: null,
-  //   badgeVariant: null,
-  //   disabled: false,
-  // },
-  // {
-  //   id: "TPR",
-  //   title: "THIRD-PARTY RECORDS (TPR)",
-  //   description:
-  //     "Review of third-party certification records and audit results to ensure compliance maintenance. Record retention requirements apply.",
-  //   badge: "SUGGESTED FOR TPA",
-  //   badgeVariant: "blue",
-  //   disabled: false,
-  // },
-] as const;
-
 /** Audit criteria options are loaded from org checklists (managed in platform admin). */
 
 const CORE_AUDITOR_COMPETENCIES = [
@@ -186,7 +140,7 @@ const PROGRAM_PURPOSE_TO_OBJECTIVE: Record<string, string> = {
   conformity: "Verify management system conformity (ISO clauses)",
   effectiveness: "Evaluate system effectiveness & performance",
   iso: "Verify management system conformity (ISO clauses)",
-  esg: "Assess ESG practices (E / S / G factors)",
+  esg: "Assess ESG practices (E/S/G factors)*",
   legal: "Support risk-based decision-making",
   risk: "Support risk-based decision-making",
 };
@@ -308,6 +262,7 @@ export default function CreateAuditStep2Page() {
     name?: string;
     startPeriod?: string | null;
     endPeriod?: string | null;
+    createdAt?: string | null;
     processName?: string | null;
     sites?: { id: string; name: string; code?: string }[];
     auditType?: string | null;
@@ -320,7 +275,6 @@ export default function CreateAuditStep2Page() {
 
   const [identificationOpen, setIdentificationOpen] = useState(true);
   const [objectivesOpen, setObjectivesOpen] = useState(true);
-  const [auditTypeOpen, setAuditTypeOpen] = useState(true);
   const [scopeOpen, setScopeOpen] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(true);
   const [criteriaOpen, setCriteriaOpen] = useState(true);
@@ -445,18 +399,37 @@ export default function CreateAuditStep2Page() {
     if (p.auditScope) setObjectivesOther((prev) => prev || p.auditScope!);
   };
 
+  const programGroupKey = (pg: ProgramListItem) => {
+    const siteRaw = pg.sites?.length ? pg.sites[0].code || pg.sites[0].name || "" : "";
+    const site = siteRaw ? compactSiteCode(siteRaw) : "";
+    const process = (pg.processName ?? "").trim().toLowerCase();
+    const auditType = (pg.auditType || "FPA").toString().toUpperCase();
+    return `${site}|${process}|${auditType}`;
+  };
+
+  const programSequence = (pg: ProgramListItem) => {
+    const key = programGroupKey(pg);
+    const ordered = programsList
+      .filter((item) => programGroupKey(item) === key)
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aTime !== bTime) return aTime - bTime;
+        return a.id.localeCompare(b.id);
+      });
+    const index = ordered.findIndex((item) => item.id === pg.id);
+    return index >= 0 ? String(index + 1) : "1";
+  };
+
   const formatProgramDisplay = (pg: ProgramListItem) => {
-    const audit = pg.name || `Program ${pg.id?.slice(0, 8) ?? ""}`;
-    const yearRaw = pg.startPeriod ?? pg.endPeriod;
-    const year = yearRaw ? String(yearRaw).slice(0, 4) : "";
-    const site = pg.sites?.length
-      ? (pg.sites[0].code || pg.sites[0].name || "")
-      : "";
-    const process = pg.processName ?? "";
-    const auditType = pg.auditType ?? "";
-    const parts = [audit, year, site, process, auditType].filter(Boolean);
-    if (parts.length <= 1) return audit;
-    return parts.join(" / ");
+    const yearRaw = pg.startPeriod ?? pg.endPeriod ?? pg.createdAt;
+    const year = yearRaw ? String(yearRaw).slice(0, 4) : "—";
+    const siteRaw = pg.sites?.length ? pg.sites[0].code || pg.sites[0].name || "" : "";
+    const site = siteRaw ? compactSiteCode(siteRaw) : "—";
+    const process = pg.processName?.trim() || "—";
+    const auditType = (pg.auditType || "FPA").toString().toUpperCase();
+    const seq = programSequence(pg);
+    return `Program AUD/${year}/${site}/${process}/${auditType}/${seq}`;
   };
 
   const filteredProgramsForSearch = useMemo(() => {
@@ -520,6 +493,7 @@ export default function CreateAuditStep2Page() {
           name: pg.name ?? null,
           startPeriod: pg.startPeriod ?? pg.start_period ?? null,
           endPeriod: pg.endPeriod ?? pg.end_period ?? null,
+          createdAt: pg.createdAt ?? pg.created_at ?? null,
           processName: pg.processName ?? pg.process_name ?? null,
           sites: pg.sites ?? [],
           auditType: pg.auditType ?? pg.audit_type ?? null,
@@ -784,11 +758,13 @@ export default function CreateAuditStep2Page() {
   };
 
   const submitAuditPlan = useCallback(async (asDraft: boolean = false) => {
+    const titleTrimmed = auditPlanTitle.trim();
+    const titleTooLong = titleTrimmed.length > 10;
     const errors = {
       program: !effectiveProgramId,
-      title: auditPlanTitle.trim() === "",
-      datePrepared: !datePrepared,
-      plannedDate: !plannedDate,
+      title: titleTrimmed === "" || titleTooLong,
+      datePrepared: !datePrepared || isBeforeToday(datePrepared),
+      plannedDate: !plannedDate || isBeforeToday(plannedDate),
       criteria: !selectedChecklistId && !(selectedCriteria && selectedCriteria.trim()),
     };
     if (Object.values(errors).some(Boolean)) {
@@ -802,7 +778,15 @@ export default function CreateAuditStep2Page() {
       window.setTimeout(() => {
         if (first) scrollToField(`audit-field-${first}`);
       }, 80);
-      toast.error(t("Please fill in all required fields."));
+      toast.error(
+        t(
+          titleTooLong
+            ? "Audit plan title must be 10 characters or fewer."
+            : isBeforeToday(datePrepared) || isBeforeToday(plannedDate)
+              ? "Date cannot be before today."
+              : "Please fill in all required fields."
+        )
+      );
       return;
     }
     setPlanErrors({});
@@ -1087,37 +1071,6 @@ export default function CreateAuditStep2Page() {
                 <div className="rounded-lg border border-primary/25 bg-primary/10 px-4 py-3">
                   <p className="text-sm font-medium text-primary">{t("Linked program:")} {formatProgramDisplay(program as ProgramListItem)}</p>
                   <p className="text-xs text-primary/90 mt-0.5">{t("Objectives, type, criteria, and scope are pre-filled from this program.")}</p>
-                </div>  
-              )}
-              {program && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const key = PROGRAM_PURPOSE_TO_OBJECTIVE[programPurposeKey(program?.programPurpose)]; if (key) setObjectivesCheckboxes((prev) => ({ ...prev, [key]: true })); }}
-                  >
-                    {t("AUTO-POPULATE: AUDIT OBJECTIVES")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const planAuditType = PROGRAM_AUDIT_TYPE_TO_PLAN[program?.auditType ?? ""]; if (planAuditType && planAuditType !== "SPA") setSelectedAuditType(planAuditType); }}
-                  >
-                    {t("AUTO-POPULATE: AUDIT TYPE")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    onClick={(e) => { e.stopPropagation(); const c = PROGRAM_CRITERIA_TO_AUDIT_CRITERIA[program?.auditCriteria ?? ""]; if (c) setSelectedCriteria(c); }}
-                  >
-                    {t("AUTO-POPULATE: AUDIT CRITERIA")}
-                  </Button>
                 </div>
               )}
             </div>
@@ -1243,15 +1196,20 @@ export default function CreateAuditStep2Page() {
                   {t("Audit Plan Title*")}
                 </Label>
                 <Input
-                  placeholder={t("e.g., Quarterly 2026 QMS & ESG Audit Plan")}
+                  placeholder={t("e.g., Q1 Audit")}
+                  maxLength={10}
                   className={cn("h-10 rounded-lg border-gray-300", planErrors.title && "border-destructive focus-visible:ring-destructive")}
                   value={auditPlanTitle}
                   onChange={(e) => {
-                    setAuditPlanTitle(e.target.value);
+                    setAuditPlanTitle(e.target.value.slice(0, 10));
                     if (planErrors.title) setPlanErrors((prev) => ({ ...prev, title: false }));
                   }}
                 />
-                {planErrors.title && <p className="text-xs text-destructive">{t("This field is required")}</p>}
+                {planErrors.title && (
+                  <p className="text-xs text-destructive">
+                    {t(auditPlanTitle.trim().length > 10 ? "Audit plan title must be 10 characters or fewer." : "This field is required")}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-medium uppercase tracking-wide text-gray-700">
@@ -1305,7 +1263,9 @@ export default function CreateAuditStep2Page() {
                       <Calendar
                       mode="single"
                       selected={datePrepared}
+                      disabled={{ before: startOfToday() }}
                       onSelect={(date) => {
+                        if (!date || isBeforeToday(date)) return;
                         setDatePrepared(date);
                         if (planErrors.datePrepared) setPlanErrors((prev) => ({ ...prev, datePrepared: false }));
                       }}
@@ -1313,7 +1273,11 @@ export default function CreateAuditStep2Page() {
                     />
                   </PopoverContent>
                 </Popover>
-                {planErrors.datePrepared && <p className="text-xs text-destructive">{t("This field is required")}</p>}
+                {planErrors.datePrepared && (
+                  <p className="text-xs text-destructive">
+                    {t(isBeforeToday(datePrepared) ? "Date cannot be before today." : "This field is required")}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1391,157 +1355,6 @@ export default function CreateAuditStep2Page() {
                 onChange={(e) => setObjectivesOther(e.target.value)}
               />
             </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* AUDIT TYPE & THIRD-PARTY CERTIFICATION (TPCC) - same tab */}
-      <Collapsible
-        open={auditTypeOpen}
-        onOpenChange={setAuditTypeOpen}
-        className="rounded-lg border border-gray-200 bg-card shadow-sm mb-6"
-      >
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-muted/80 transition-colors rounded-lg">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-            {t("Audit Type")}
-          </h3>
-          {auditTypeOpen ? (
-            <ChevronUp className="h-5 w-5 text-gray-600" />
-          ) : (
-            <ChevronDown className="h-5 w-5 text-gray-600" />
-          )}
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="border-t border-gray-200 px-6 py-5 space-y-6">
-            {/* Audit Type content */}
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-muted px-4 py-3 flex gap-3">
-                <Info className="h-5 w-5 shrink-0 text-muted-foreground mt-0.5" />
-                <p className="text-sm text-foreground italic">
-                  {t(
-                    "Audits assess systems, processes, products, or integrated combinations, including ESG, for compliance and effectiveness."
-                  )}
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {AUDIT_TYPES.map((type) => (
-                  <Button
-                    key={type.id}
-                    type="button"
-                    variant="ghost"
-                    disabled={type.disabled}
-                    onClick={() => {
-                      if (type.disabled) return;
-                      setSelectedAuditType(type.id);
-                    }}
-                    className={cn(
-                      "h-auto flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
-                      type.disabled
-                        ? "cursor-not-allowed border-gray-200 bg-muted/40 opacity-60 hover:bg-muted/40"
-                        : "hover:bg-muted/80",
-                      !type.disabled && selectedAuditType === type.id
-                        ? "border-primary bg-primary/10"
-                        : !type.disabled && "border-gray-200 bg-card"
-                    )}
-                  >
-                    <Checkbox
-                      checked={!type.disabled && selectedAuditType === type.id}
-                      disabled={type.disabled}
-                      onCheckedChange={() => {
-                        if (type.disabled) return;
-                        setSelectedAuditType(type.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-0.5 border-2"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                          {t(type.title)}
-                        </span>
-                        {type.badge && (
-                          <span
-                            className={
-                              type.badgeVariant === "yellow"
-                                ? "inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium uppercase text-amber-900"
-                                : "text-xs font-medium uppercase text-primary"
-                            }
-                          >
-                            {t(type.badge)}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1.5 text-sm text-gray-600">
-                        {t(type.description)}
-                      </p>
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Third-Party Certification Collaboration (TPCC) — hidden for now; restore when third-party collaboration is needed. */}
-            {false && (
-            <div className="pt-4 border-t border-gray-200 space-y-4">
-              <div>
-                <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
-                  {t("Third-Party Certification Collaboration (TPCC)")}
-                </h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  {t("Full digital audit environment for collaboration with external registrars.")}
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
-                    <User className="h-4 w-4 text-gray-500" />
-                    {t("Search Registered Outsourced Process")}
-                  </Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder={t("Name or Email of Registrar/Auditor")}
-                      className="h-10 rounded-lg border-gray-300 pl-9"
-                      value={tpccRegisteredProcess}
-                      onChange={(e) => setTpccRegisteredProcess(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-700">
-                    <FileText className="h-4 w-4 text-gray-500" />
-                    {t("Search Third-Party Audit Reference")}
-                  </Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder={t("Audit Number / Certificate Reference")}
-                      className="h-10 rounded-lg border-gray-300 pl-9"
-                      value={tpccAuditReference}
-                      onChange={(e) => setTpccAuditReference(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg border border-red-300 bg-red-50/80 p-4 dark:border-red-800 dark:bg-red-950/40">
-                <div className="flex gap-3">
-                  <ShieldCheck className="h-6 w-6 shrink-0 text-red-600 dark:text-red-400" />
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-red-800 dark:text-red-200">
-                      {t("TPCC Critical Restriction")}
-                    </h4>
-                    <p className="mt-1.5 text-sm text-red-900/90 dark:text-red-100">
-                      {t(
-                        "“External resources and third-party auditors have restricted system access to Step-3 (Findings) and Step-5 (Verification) modules unless explicit guest permissions are granted.”"
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -1838,7 +1651,9 @@ export default function CreateAuditStep2Page() {
                           <Calendar
                             mode="single"
                             selected={plannedDate}
+                            disabled={{ before: startOfToday() }}
                             onSelect={(date) => {
+                              if (!date || isBeforeToday(date)) return;
                               setPlannedDate(date);
                               if (planErrors.plannedDate) setPlanErrors((prev) => ({ ...prev, plannedDate: false }));
                             }}
@@ -1846,7 +1661,11 @@ export default function CreateAuditStep2Page() {
                           />
                         </PopoverContent>
                       </Popover>
-                      {planErrors.plannedDate && <p className="mt-2 text-xs text-destructive">{t("This field is required")}</p>}
+                      {planErrors.plannedDate && (
+                        <p className="mt-2 text-xs text-destructive">
+                          {t(isBeforeToday(plannedDate) ? "Date cannot be before today." : "This field is required")}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium uppercase text-red-800">

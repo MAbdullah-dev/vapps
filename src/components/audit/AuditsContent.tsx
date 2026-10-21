@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getDashboardPath } from "@/lib/subdomain";
 import { apiClient } from "@/lib/api-client";
+import { compactSiteCode } from "@/lib/documentRef";
 import { useOrg } from "@/components/providers/org-provider";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,8 @@ function translateAuditStatus(status: string, t: (s: string) => string): string 
 
 type Audit = {
   id: string;
-  auditProgramRef: string; // "Audit/Year/Site/Process/Audit Type"
+  auditProgramRef: string; // Program AUD/Year/Site/Process/Type/Sequence
+  planTitle: string;
   auditPlanId?: string;
   auditProgramId?: string;
   nextStepForUser?: number | null;
@@ -174,6 +176,13 @@ function getColumns(
     accessorKey: "auditProgramRef",
     header: () => <TableHeader title={t("Audit Program Ref.")} />,
     cell: ({ row }) => <span className="font-medium text-foreground">{row.original.auditProgramRef}</span>,
+  },
+  {
+    accessorKey: "planTitle",
+    header: () => <TableHeader title={t("Title")} />,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{displayCellValue(row.original.planTitle, t)}</span>
+    ),
   },
   {
     accessorKey: "standard",
@@ -402,13 +411,16 @@ function formatDateTime(value: string | Date | null | undefined): string {
 
 function mapPlansToAudits(list: any[]): Audit[] {
   return list.map((p: any) => {
-    const auditPart = p.auditNumber || p.id || "—";
-    const dateForYear = p.plannedDate || p.datePrepared || p.createdAt;
+    const dateForYear = p.programStartPeriod || p.plannedDate || p.datePrepared || p.createdAt;
     const year = dateForYear ? new Date(dateForYear).getFullYear() : "—";
-    const site = p.site ?? p.siteName ?? p.programSite ?? "—";
+    const siteName = p.site ?? p.siteName ?? p.programSite ?? "—";
+    const siteCodeRaw = p.siteCode || p.site_code || siteName;
+    const siteCode = siteCodeRaw && siteCodeRaw !== "—" ? compactSiteCode(String(siteCodeRaw)) : "—";
     const process = p.process ?? p.processName ?? p.programProcess ?? "—";
     const auditType = (p.auditType || "FPA").toString().toUpperCase();
-    const auditProgramRef = `${auditPart}/${year}/${site}/${process}/${auditType}`;
+    const sequence = p.programSequence || p.program_sequence || "1";
+    const auditProgramRef = `Program AUD/${year}/${siteCode}/${process}/${auditType}/${sequence}`;
+    const site = siteName;
     const plannedDateFormatted = p.plannedDate ? formatDate(p.plannedDate) : "—";
     const dueDate =
       p.plannedDate
@@ -425,6 +437,7 @@ function mapPlansToAudits(list: any[]): Audit[] {
     return {
       id: p.auditNumber || p.id,
       auditProgramRef,
+      planTitle: String(p.title ?? "").trim() || "—",
       auditPlanId: p.id,
       auditProgramId: p.auditProgramId,
       nextStepForUser: p.nextStepForUser ?? null,

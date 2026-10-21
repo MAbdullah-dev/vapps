@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@/lib/request-context";
 import { withTenantConnection } from "@/lib/db/connection-helper";
+import { compactSiteCode } from "@/lib/documentRef";
 import {
   AUDIT_MANAGER_ROLES,
   requireOrgRoles,
@@ -60,7 +61,10 @@ export async function GET(
                 ap.plan_submitted_at, ap.findings_submitted_at, ap.created_at,
                 p.name as program_name, p.audit_type, p.audit_criteria as program_criteria,
                 (SELECT proc.name FROM processes proc WHERE proc.id = p.process_id LIMIT 1) as process_name,
-                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name${findingsSelect}${kpiSelect}
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_name,
+                (SELECT s.code FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = p.id LIMIT 1) as site_code,
+                p.start_period as program_start_period,
+                p.created_at as program_created_at${findingsSelect}${kpiSelect}
          FROM audit_plans ap
          JOIN audit_programs p ON p.id = ap.audit_program_id
          ${findingsJoin}${kpiJoin}
@@ -81,6 +85,38 @@ export async function GET(
         assignResult.rows.forEach((r) => {
           if (!assignmentsByPlan[r.audit_plan_id]) assignmentsByPlan[r.audit_plan_id] = [];
           assignmentsByPlan[r.audit_plan_id].push(r.user_id);
+        });
+      }
+
+      const programSeq = new Map<string, string>();
+      const programRows = await client.query(
+        `SELECT ap.id, ap.created_at, ap.audit_type,
+                proc.name as process_name,
+                (SELECT s.code FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = ap.id LIMIT 1) as site_code,
+                (SELECT s.name FROM audit_program_sites aps JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = ap.id LIMIT 1) as site_name
+         FROM audit_programs ap
+         LEFT JOIN processes proc ON proc.id = ap.process_id`
+      );
+      const grouped = new Map<string, { id: string; createdAt: string | null }[]>();
+      for (const program of programRows.rows) {
+        const siteRaw = program.site_code || program.site_name || "";
+        const site = siteRaw ? compactSiteCode(String(siteRaw)) : "";
+        const process = String(program.process_name ?? "").trim().toLowerCase();
+        const auditType = String(program.audit_type || "FPA").toUpperCase();
+        const key = `${site}|${process}|${auditType}`;
+        const bucket = grouped.get(key) ?? [];
+        bucket.push({ id: program.id, createdAt: program.created_at ?? null });
+        grouped.set(key, bucket);
+      }
+      for (const bucket of grouped.values()) {
+        bucket.sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.id).localeCompare(String(b.id));
+        });
+        bucket.forEach((program, index) => {
+          programSeq.set(String(program.id), String(index + 1));
         });
       }
 
@@ -119,6 +155,9 @@ export async function GET(
           programCriteria: row.program_criteria,
           processName: row.process_name ?? null,
           siteName: row.site_name ?? null,
+          siteCode: row.site_code ?? null,
+          programStartPeriod: row.program_start_period ?? null,
+          programSequence: programSeq.get(String(row.audit_program_id)) ?? "1",
           firstClause: (row as { first_clause?: string }).first_clause ?? null,
           firstSubclauses: (row as { first_subclauses?: string }).first_subclauses ?? null,
           kpiScore: (row as { kpi_score?: string }).kpi_score ?? null,
@@ -169,6 +208,12 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const auditProgramId = body.auditProgramId ?? body.audit_program_id;
     const title = body.title ?? body.name ?? null;
+    if (typeof title === "string" && title.trim().length > 10) {
+      return NextResponse.json(
+        { error: "Audit plan title must be 10 characters or fewer." },
+        { status: 400 }
+      );
+    }
     const auditNumber = body.auditNumber ?? body.audit_number ?? null;
     const criteria = body.criteria ?? null;
     const checklistId = body.checklistId ?? body.checklist_id ?? null;

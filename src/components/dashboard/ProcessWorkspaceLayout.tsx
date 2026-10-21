@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { formatDistanceToNow } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Plus, UserPlus, ChevronDownIcon, Calendar as CalendarIcon, ChevronsUpDown, Check, X, MessageSquare, Send, Info } from "lucide-react";
@@ -500,6 +501,10 @@ export default function ProcessLayout({
       ) {
         errors.sprintProcess = true;
       }
+    }
+    if (date && isBeforeToday(date)) {
+      toast.error(t("Date cannot be before today."));
+      return false;
     }
     if (Object.values(errors).some(Boolean)) {
       setIssueFormErrors(errors);
@@ -1517,8 +1522,10 @@ export default function ProcessLayout({
                       mode="single"
                       selected={date}
                       captionLayout="dropdown"
-                      onSelect={(date) => {
-                        setDate(date)
+                      disabled={{ before: startOfToday() }}
+                      onSelect={(selected) => {
+                        if (selected && isBeforeToday(selected)) return
+                        setDate(selected)
                         setOpen(false)
                       }}
                       className="rounded-lg border"

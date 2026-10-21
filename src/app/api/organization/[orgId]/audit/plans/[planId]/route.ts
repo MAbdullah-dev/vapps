@@ -243,6 +243,12 @@ export async function PATCH(
     const step6Data = body.step6Data;
     const step2Data = body.step2Data;
     const title = body.title ?? body.name ?? undefined;
+    if (typeof title === "string" && title.trim().length > 10) {
+      return NextResponse.json(
+        { error: "Audit plan title must be 10 characters or fewer." },
+        { status: 400 }
+      );
+    }
     const auditNumber = body.auditNumber ?? body.audit_number ?? undefined;
     const criteria = body.criteria ?? undefined;
     const checklistId = body.checklistId ?? body.checklist_id ?? undefined;
