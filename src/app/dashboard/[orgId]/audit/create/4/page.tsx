@@ -2,6 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -277,7 +278,7 @@ export default function CreateAuditStep4Page() {
     const errors = {
       containmentDescription: containmentDescription.trim() === "",
       responsiblePerson: responsiblePerson.trim() === "",
-      targetCompletionDate: !targetCompletionDate,
+      targetCompletionDate: !targetCompletionDate || isBeforeToday(targetCompletionDate),
       filesS2: filesS2.length === 0,
       auditeeComments: auditeeComments.trim() === "",
     };
@@ -286,7 +287,9 @@ export default function CreateAuditStep4Page() {
       const order = ["containmentDescription", "responsiblePerson", "targetCompletionDate", "filesS2", "auditeeComments"] as const;
       const first = order.find((key) => errors[key]);
       if (first) scrollToField(`audit-field-${first}`);
-      toast.error(t("Please fill in all required fields."));
+      toast.error(
+        t(isBeforeToday(targetCompletionDate) ? "Date cannot be before today." : "Please fill in all required fields.")
+      );
       return false;
     }
     setStep4Errors({});
@@ -521,7 +524,9 @@ export default function CreateAuditStep4Page() {
                 <Calendar
                   mode="single"
                   selected={targetCompletionDate}
+                  disabled={{ before: startOfToday() }}
                   onSelect={(date) => {
+                    if (!date || isBeforeToday(date)) return;
                     setTargetCompletionDate(date);
                     if (step4Errors.targetCompletionDate) setStep4Errors((prev) => ({ ...prev, targetCompletionDate: false }));
                   }}
@@ -529,7 +534,11 @@ export default function CreateAuditStep4Page() {
                 />
               </PopoverContent>
             </Popover>
-            {step4Errors.targetCompletionDate && <p className="text-xs text-destructive">{t("This field is required")}</p>}
+            {step4Errors.targetCompletionDate && (
+              <p className="text-xs text-destructive">
+                {t(isBeforeToday(targetCompletionDate) ? "Date cannot be before today." : "This field is required")}
+              </p>
+            )}
           </div>
         </div>
 

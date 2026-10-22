@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Upload, X, Paperclip } from "lucide-react";
+import { format } from "date-fns";
+import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 
 const generateId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -224,13 +226,23 @@ export default function RisksDialog() {
                 />
                 <Input
                   type="date"
+                  min={format(startOfToday(), "yyyy-MM-dd")}
                   value={row.plannedDate}
-                  onChange={(e) => updateActionPlan(row.id, "plannedDate", e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && isBeforeToday(new Date(`${value}T00:00:00`))) return;
+                    updateActionPlan(row.id, "plannedDate", value);
+                  }}
                 />
                 <Input
                   type="date"
+                  min={format(startOfToday(), "yyyy-MM-dd")}
                   value={row.actualDate}
-                  onChange={(e) => updateActionPlan(row.id, "actualDate", e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value && isBeforeToday(new Date(`${value}T00:00:00`))) return;
+                    updateActionPlan(row.id, "actualDate", value);
+                  }}
                 />
 
                 <label className="flex items-center gap-2 cursor-pointer">
