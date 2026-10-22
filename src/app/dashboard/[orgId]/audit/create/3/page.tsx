@@ -1938,135 +1938,114 @@ export default function CreateAuditStep3Page() {
               {t("OBJECTIVE EVIDENCE")}
             </h2>
             <div className="space-y-4">
-<<<<<<< HEAD
               {evidenceItemsForForm(evidenceItems).map((item, index) => (
-=======
-              {evidenceItems.slice(0, 1).map((item) => (
->>>>>>> 0b6a8f062af091c2c9900270e124d84872c1660e
                 <div
                   key={item.id || `ev-${index}`}
                   className="rounded-lg border border-border bg-card p-6 shadow-sm"
                 >
-                  <div className="min-w-0 flex-1 space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                        {t("EVIDENCE DESCRIPTION")}
-                      </Label>
-                      <Input
-                        placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
-                        value={item.description}
-                        onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
-                        className="border-border text-sm"
-                      />
+                  <div className="flex gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
+                      {index + 1}
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                        {t("LINKED MEDIA / UPLOAD")}
-                      </Label>
-                      <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
-                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate">
-                          {item.fileName || t("Select file")}
-                        </span>
-                        <input
-                          type="file"
-                          className="hidden"
-                          disabled={!!uploadingEvidenceId}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (!file) return;
-                            await uploadEvidenceFile(file, item.id);
-                          }}
+                    <div className="min-w-0 flex-1 space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                          {t("EVIDENCE DESCRIPTION")}
+                        </Label>
+                        <Input
+                          placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
+                          value={item.description ?? ""}
+                          onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
+                          className="border-border bg-background text-sm"
                         />
-                      </Label>
-                      {item.s3Key ? (
-                        <div className="pointer-events-auto pt-1">
-                          <a
-                            href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-primary hover:underline"
-                          >
-                            {t("Open uploaded file")}
-                          </a>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                            {t("LINKED MEDIA / UPLOAD")}
+                          </Label>
+                          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate">
+                              {item.fileName || t("Select file")}
+                            </span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              disabled={!!uploadingEvidenceId}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (!file) return;
+                                await uploadEvidenceFile(file, item.id);
+                              }}
+                            />
+                          </label>
+                          {item.s3Key ? (
+                            <div className="pointer-events-auto pt-1">
+                              <a
+                                href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                {t("Open uploaded file")}
+                              </a>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                            {t("EFFECTIVENESS SELECTOR")}
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setEvidenceEffectiveness(item.id, "effective")}
+                              className={cn(
+                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                item.effectiveness === "effective"
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-transparent")}>
+                                {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-background" />}
+                              </span>
+                              {t("EFFECTIVE")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEvidenceEffectiveness(item.id, "ineffective")}
+                              className={cn(
+                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                item.effectiveness === "ineffective"
+                                  ? "border-red-500 bg-red-500/10 text-red-400"
+                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              )}
+                            >
+                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-transparent")}>
+                                {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-background" />}
+                              </span>
+                              {t("INEFFECTIVE")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            {/* Hidden for now — restore numbered items, effectiveness selector, and additional evidence when needed. */}
-            {false && (
-              <>
-                {evidenceItems.map((item, index) => (
-                  <div key={item.id} className="rounded-lg border border-border bg-card p-6 shadow-sm">
-                    <div className="flex gap-4">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
-                        {index + 1}
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                          {t("EFFECTIVENESS SELECTOR")}
-                        </Label>
-                        <div className="flex gap-4">
-                          <Label
-                            className={cn(
-                              "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                              item.effectiveness === "effective"
-                                ? "border-primary bg-primary/10 text-primary ring-1 ring-primary"
-                                : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              name={`effectiveness-${item.id}`}
-                              checked={item.effectiveness === "effective"}
-                              onChange={() => setEvidenceEffectiveness(item.id, "effective")}
-                              className="sr-only"
-                            />
-                            <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-background")}>
-                              {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-background" />}
-                            </span>
-                            {t("EFFECTIVE")}
-                          </Label>
-                          <Label
-                            className={cn(
-                              "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                              item.effectiveness === "ineffective"
-                                ? "border-red-500 bg-red-50 text-red-700 ring-1 ring-red-500 dark:bg-red-950/40 dark:text-red-300"
-                                : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              name={`effectiveness-${item.id}`}
-                              checked={item.effectiveness === "ineffective"}
-                              onChange={() => setEvidenceEffectiveness(item.id, "ineffective")}
-                              className="sr-only"
-                            />
-                            <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-background")}>
-                              {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-background" />}
-                            </span>
-                            {t("INEFFECTIVE")}
-                          </Label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={addEvidenceItem}
-                  className="text-primary hover:bg-primary/10 hover:text-primary"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  <span className="font-bold">{t("ADD ADDITIONAL EVIDENCE ITEM")}</span>
-                </Button>
-              </>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={addEvidenceItem}
+              className="text-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              <span className="font-bold">{t("ADD ADDITIONAL EVIDENCE ITEM")}</span>
+            </Button>
           </div>
         </div>
         {/* Justification for Classification */}
