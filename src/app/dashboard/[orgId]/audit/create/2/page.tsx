@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { format } from "date-fns";
-import { isBeforeToday, startOfToday } from "@/lib/audit-date";
+import { formatOptionalDate, isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { compactSiteCode } from "@/lib/documentRef";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1257,7 +1256,7 @@ export default function CreateAuditStep2Page() {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {datePrepared ? format(datePrepared, "MM-dd-yyyy") : t("Select date")}
+                      {formatOptionalDate(datePrepared, "MM-dd-yyyy") ?? t("Select date")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -1645,7 +1644,7 @@ export default function CreateAuditStep2Page() {
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {plannedDate ? format(plannedDate, "MM-dd-yyyy") : t("Select date")}
+                            {formatOptionalDate(plannedDate, "MM-dd-yyyy") ?? t("Select date")}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
@@ -2251,14 +2250,14 @@ export default function CreateAuditStep2Page() {
               <p className="text-xs font-bold uppercase tracking-wide text-primary">
                 Audit Plan Date
               </p>
-              <p className="mt-1 text-xl font-bold text-foreground">{datePrepared ? format(datePrepared, "MM-dd-yyyy") : "—"}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{formatOptionalDate(datePrepared, "MM-dd-yyyy") ?? "—"}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">Date Prepared</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-primary">
                 Planned Date
               </p>
-              <p className="mt-1 text-xl font-bold text-foreground">{plannedDate ? format(plannedDate, "MM-dd-yyyy") : "—"}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{formatOptionalDate(plannedDate, "MM-dd-yyyy") ?? "—"}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">User-selected</p>
             </div>
             <div>

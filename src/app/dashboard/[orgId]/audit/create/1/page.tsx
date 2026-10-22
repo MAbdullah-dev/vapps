@@ -4,8 +4,13 @@ import { useState, useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { format, startOfDay } from "date-fns";
-import { isBeforeToday, startOfToday } from "@/lib/audit-date";
+import {
+  formatOptionalDate,
+  isBeforeToday,
+  isEndBeforeStart,
+  minSelectableEndDate,
+  startOfToday,
+} from "@/lib/audit-date";
 import { CalendarIcon, Check, ChevronRight, ExternalLink, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
@@ -739,7 +744,7 @@ export default function CreateAuditStep1Page() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startPeriod ? format(startPeriod, "MM-dd-yyyy") : t("Select date")}
+                    {formatOptionalDate(startPeriod, "MM-dd-yyyy") ?? t("Select date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -751,7 +756,7 @@ export default function CreateAuditStep1Page() {
                       if (!date || isBeforeToday(date)) return;
                       setStartPeriod(date);
                       setEndPeriod((current) =>
-                        current && startOfDay(current) < startOfDay(date) ? undefined : current
+                        isEndBeforeStart(date, current) ? undefined : current
                       );
                       if (baseFormErrors.startPeriod || baseFormErrors.endPeriod) {
                         setBaseFormErrors((p) => ({ ...p, startPeriod: false, endPeriod: false }));
@@ -782,17 +787,17 @@ export default function CreateAuditStep1Page() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endPeriod ? format(endPeriod, "MM-dd-yyyy") : t("Select date")}
+                    {formatOptionalDate(endPeriod, "MM-dd-yyyy") ?? t("Select date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={endPeriod}
-                    disabled={{ before: startPeriod && startOfDay(startPeriod) > startOfToday() ? startOfDay(startPeriod) : startOfToday() }}
+                    disabled={{ before: minSelectableEndDate(startPeriod) }}
                     onSelect={(date) => {
                       if (!date || isBeforeToday(date)) return;
-                      if (startPeriod && startOfDay(date) < startOfDay(startPeriod)) return;
+                      if (isEndBeforeStart(startPeriod, date)) return;
                       setEndPeriod(date);
                       if (baseFormErrors.endPeriod) setBaseFormErrors((p) => ({ ...p, endPeriod: false }));
                     }}
@@ -806,7 +811,7 @@ export default function CreateAuditStep1Page() {
                 message={
                   isBeforeToday(endPeriod)
                     ? "Date cannot be before today."
-                    : startPeriod && endPeriod && startOfDay(endPeriod) < startOfDay(startPeriod)
+                    : isEndBeforeStart(startPeriod, endPeriod)
                       ? "End date cannot be before the start date."
                       : undefined
                 }
@@ -1370,7 +1375,7 @@ export default function CreateAuditStep1Page() {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("AUDIT PLAN DATE")}</div>
-                <div className="mt-1 text-xl font-bold text-green-400">{startPeriod ? format(startPeriod, "MM-dd-yyyy") : t("—")}</div>
+                <div className="mt-1 text-xl font-bold text-green-400">{formatOptionalDate(startPeriod, "MM-dd-yyyy") ?? t("—")}</div>
                 <div className="text-xs text-muted-foreground">{t("SYSTEM GENERATED")}</div>
               </div>
               <div>

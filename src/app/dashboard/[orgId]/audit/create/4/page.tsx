@@ -2,6 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { formatOptionalDate } from "@/lib/audit-date";
 import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
@@ -517,7 +518,7 @@ export default function CreateAuditStep4Page() {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {targetCompletionDate ? format(targetCompletionDate, "dd-MM-yyyy") : t("Select date")}
+                  {formatOptionalDate(targetCompletionDate, "dd-MM-yyyy") ?? t("Select date")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
