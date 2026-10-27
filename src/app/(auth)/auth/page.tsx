@@ -61,7 +61,7 @@ function AuthPageContent() {
           inviteToken={inviteToken || undefined}
           inviteEmail={inviteEmail || undefined}
           callbackUrl={resolvedCallbackUrl}
-          adminOnly={isAdminLogin}
+          adminOnly={isAdminLogin} // This is used to check if the user is an admin
         />
       ) : (
         <Register onSwitch={() => setIsLogin(true)} />
