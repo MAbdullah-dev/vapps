@@ -5,6 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { formatOptionalDate, isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { compactSiteCode } from "@/lib/documentRef";
+import { formatAuditProgramRef } from "@/lib/audit-program-ref";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
@@ -429,7 +430,13 @@ export default function CreateAuditStep2Page() {
     const process = pg.processName?.trim() || "—";
     const auditType = (pg.auditType || "FPA").toString().toUpperCase();
     const seq = programSequence(pg);
-    return `Program AUD/${year}/${site}/${process}/${auditType}/${seq}`;
+    return formatAuditProgramRef({
+      year,
+      site,
+      process,
+      auditType,
+      sequence: seq,
+    });
   };
 
   const filteredProgramsForSearch = useMemo(() => {
@@ -1034,7 +1041,7 @@ export default function CreateAuditStep2Page() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
                   type="search"
-                  placeholder={t("Search audit program by name...")}
+                  placeholder={t("Search audit by name...")}
                   className="h-10 rounded-lg border-gray-300 pl-9"
                   value={programSearch}
                   onChange={(e) => setProgramSearch(e.target.value)}

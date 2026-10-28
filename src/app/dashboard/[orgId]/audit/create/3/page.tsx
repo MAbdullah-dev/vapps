@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +37,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Circle,
   Clock,
   Download,
@@ -66,6 +63,11 @@ import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import { useQueryClient } from "@tanstack/react-query";
 import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import { getDashboardPath } from "@/lib/subdomain";
+import { formatNonconformityRef, type AuditProgramRefParts } from "@/lib/audit-program-ref";
+import { compactSiteCode } from "@/lib/documentRef";
+import { getAuditStatusByDays, getAuditStatusColor } from "@/lib/compliance-kpi";
+
+const NC_DUE_DAYS = 60;
 
 type ComplianceStatus =
   | "compliant"
@@ -306,7 +308,10 @@ export default function CreateAuditStep3Page() {
     datePrepared: string | null;
     auditNumber: string | null;
     leadAuditorUserId: string | null;
+    createdAt: string | null;
+    findingsSubmittedAt: string | null;
   } | null>(null);
+  const [programRefParts, setProgramRefParts] = useState<AuditProgramRefParts | null>(null);
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState<string>("—");
   /** Checklist items for manual row search (by clause/subclause) under the selected standard. */
   const [checklistItemsForManual, setChecklistItemsForManual] = useState<ManualChecklistItem[]>([]);
@@ -348,7 +353,37 @@ export default function CreateAuditStep3Page() {
             datePrepared: plan.datePrepared ?? null,
             auditNumber: plan.auditNumber ?? null,
             leadAuditorUserId: plan.leadAuditorUserId ?? null,
+            createdAt: plan.createdAt ?? null,
+            findingsSubmittedAt: plan.findingsSubmittedAt ?? null,
           });
+          try {
+            const plansRes = await apiClient.getAuditPlans(orgId);
+            const listed = Array.isArray(plansRes?.plans)
+              ? plansRes.plans.find((p: { id?: string }) => p.id === auditPlanIdFromUrl)
+              : null;
+            const dateForYear =
+              listed?.programStartPeriod ||
+              plan.plannedDate ||
+              plan.datePrepared ||
+              plan.createdAt;
+            setProgramRefParts({
+              year: dateForYear ? new Date(dateForYear).getFullYear() : new Date().getFullYear(),
+              site: listed?.siteCode || listed?.siteName || "—",
+              process: listed?.processName || listed?.process || "—",
+              auditType: (listed?.auditType || plan.auditType || "FPA").toString().toUpperCase(),
+              sequence: listed?.programSequence || "1",
+            });
+          } catch {
+            setProgramRefParts({
+              year: plan.plannedDate
+                ? new Date(plan.plannedDate).getFullYear()
+                : new Date().getFullYear(),
+              site: "—",
+              process: "—",
+              auditType: (plan.auditType || "FPA").toString().toUpperCase(),
+              sequence: "1",
+            });
+          }
           const membersRes = await apiClient.getMembers(orgId);
           if (!cancelled && membersRes.teamMembers?.length) {
             const lead = membersRes.teamMembers.find((m: { id: string }) => m.id === plan.leadAuditorUserId);
@@ -594,6 +629,48 @@ export default function CreateAuditStep3Page() {
       authKey: planSummary.auditNumber || (auditPlanIdFromUrl ? `FIND_${format(new Date(), "yyyy")}_${auditPlanIdFromUrl.slice(0, 8)}` : dash),
     };
   }, [planSummary, auditPlanIdFromUrl, t]);
+
+  const ncMatrixRows = useMemo(() => {
+    const ncRows = rows.filter((r) => r.status === "major_nc" || r.status === "minor_nc");
+    const refParts: AuditProgramRefParts = programRefParts ?? {
+      year: new Date().getFullYear(),
+      site: "—",
+      process: "—",
+      auditType: "FPA",
+      sequence: "1",
+    };
+    const dueSource =
+      planSummary?.plannedDate ||
+      planSummary?.findingsSubmittedAt ||
+      planSummary?.datePrepared ||
+      planSummary?.createdAt ||
+      null;
+    const dueStart = dueSource ? new Date(dueSource) : null;
+    const dueDate =
+      dueStart && !Number.isNaN(dueStart.getTime())
+        ? format(addDays(dueStart, NC_DUE_DAYS), "dd-MM-yyyy")
+        : "—";
+    const ncStatus = getAuditStatusByDays(
+      planStatus ?? "draft",
+      planSummary?.plannedDate ?? null,
+      planSummary?.datePrepared ?? null,
+      planSummary?.createdAt ?? null
+    );
+    return ncRows.map((row, index) => ({
+      id: row.id,
+      reference: formatNonconformityRef(refParts, index + 1),
+      standard: row.standard || standardName || "—",
+      site: String(refParts.site ?? "").trim() && String(refParts.site).trim() !== "—"
+        ? compactSiteCode(String(refParts.site))
+        : "—",
+      processArea: String(refParts.process ?? "").trim() || "—",
+      clause: row.clause || "—",
+      subclauses: row.subclauses || "—",
+      classification: row.status === "major_nc" ? "MA" : "mi",
+      dueDate,
+      ncStatus,
+    }));
+  }, [rows, programRefParts, planSummary, planStatus, standardName]);
 
   const addRow = () => {
     const currentDisplayedId = filteredRows[currentQuestionIndex]?.id;
@@ -2210,32 +2287,73 @@ export default function CreateAuditStep3Page() {
         {/* Audit Nonconformity Matrix */}
         <div className="rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
-            {t("AUDIT NONCONFORMITY MATRIX")}
+            {t("Nonconformity Matrix")}
           </h2>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="border-border bg-muted">
                   <TableHead className="text-xs font-semibold uppercase text-foreground">
-                    {t("NONCONFORMITY REFERENCE")}
+                    {t("Nonconformity Reference")}
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("STANDARD")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("SITE")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("PROCESS / AREA")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("CLAUSE")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Standard")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Site")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Process / Area")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Clause")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Subclauses")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">
+                    {t("Classification")}
+                    <span className="ml-1 font-normal text-muted-foreground">{t("MA / mi")}</span>
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">
+                    {t("Due Date")}
+                    <span className="ml-1 font-normal text-muted-foreground">{t("(Max 60 days)")}</span>
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">
+                    {t("NC Status")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow className="border-border bg-background">
-                  <TableCell className="text-sm text-foreground">
-                    <span className="text-xs text-muted-foreground">{t("REF:")}</span>{" "}
-                    NC/2806/51/P3/FRA/881
-                  </TableCell>
-                  <TableCell className="text-sm text-foreground">{t("ISO 9001:2015")}</TableCell>
-                  <TableCell className="text-sm font-bold text-foreground">{t("SITE A")}</TableCell>
-                  <TableCell className="text-sm text-foreground">{t("HR")}</TableCell>
-                  <TableCell className="text-sm font-bold text-red-600">5.2.1</TableCell>
-                </TableRow>
+                {ncMatrixRows.length === 0 ? (
+                  <TableRow className="border-border bg-background">
+                    <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
+                      {t("No major or minor nonconformities recorded yet.")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  ncMatrixRows.map((row) => (
+                    <TableRow key={row.id} className="border-border bg-background">
+                      <TableCell className="whitespace-nowrap font-mono text-xs text-foreground">
+                        {row.reference}
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground">{row.standard}</TableCell>
+                      <TableCell className="text-sm font-bold text-foreground">{row.site}</TableCell>
+                      <TableCell className="text-sm text-foreground">{row.processArea}</TableCell>
+                      <TableCell className="text-sm font-bold text-foreground">{row.clause}</TableCell>
+                      <TableCell className="text-sm text-foreground">{row.subclauses}</TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-sm font-bold",
+                          row.classification === "MA" ? "text-red-600" : "text-emerald-600"
+                        )}
+                      >
+                        {row.classification}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-foreground">{row.dueDate}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "inline-flex rounded px-2 py-0.5 text-xs font-semibold",
+                            getAuditStatusColor(row.ncStatus) || "text-foreground"
+                          )}
+                        >
+                          {t(row.ncStatus)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -2246,16 +2364,13 @@ export default function CreateAuditStep3Page() {
                 {t("SYSTEM AUTOMATION RULE (MATRIX LOGIC)")}
               </p>
               <p className="text-muted-foreground">
-                {t("Nonconformity references follow the global standard")}{" "}
-                <span className="underline text-primary">{t("Module")}</span>/
-                <span className="underline text-primary">{t("Year")}</span>/
-                <span className="underline text-primary">{t("Site")}</span>/
-                <span className="underline text-primary">{t("Process")}</span>/
-                <span className="underline text-primary">{t("AuditType")}</span>/
-                <span className="underline text-primary">{t("NCE")}</span>
+                {t("Nonconformity references follow AUD/Year/Site/Process/AuditType/A#/NC#")}
+                {", "}
+                {t("e.g.")}{" "}
+                <span className="font-mono text-primary">AUD/2026/S1/ITMS/FPA/A1/NC1</span>
               </p>
               <p className="text-muted-foreground">
-                {t("All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (m) NCs require CA submission within 60 days.")}
+                {t("All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (mi) NCs require CA submission within 60 days.")}
               </p>
             </div>
           </div>
@@ -2492,51 +2607,7 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
       </div>
-      {/* Bottom navigation */}
-      {/* <div className="flex items-center justify-between py-4">
-        <Button
-          variant="outline"
-          className="border-gray-300 text-gray-600 hover:bg-gray-50"
-          asChild
-        >
-          <Link
-            href={(() => {
-              const params = new URLSearchParams();
-              const pid = programIdFromUrl || resolvedProgramId;
-              if (pid) params.set("programId", pid);
-              if (criteria) params.set("criteria", criteria);
-              if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
-              const q = params.toString();
-              return `/dashboard/${orgId}/audit/create/2${q ? `?${q}` : ""}`;
-            })()}
-            className="inline-flex items-center gap-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous Step
-          </Link>
-        </Button>
-        <Button
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-          asChild
-        >
-          <Link
-            href={(() => {
-              const params = new URLSearchParams();
-              const pid = programIdFromUrl || resolvedProgramId;
-              if (pid) params.set("programId", pid);
-              if (criteria) params.set("criteria", criteria);
-              if (auditPlanIdFromUrl) params.set("auditPlanId", auditPlanIdFromUrl);
-              const q = params.toString();
-              return `/dashboard/${orgId}/audit/create/4${q ? `?${q}` : ""}`;
-            })()}
-            className="inline-flex items-center gap-2"
-          >
-            Save & Continue
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-        </Button>
-      </div> */}
-        </div>
+      </div>
     </div>
   );
 }
