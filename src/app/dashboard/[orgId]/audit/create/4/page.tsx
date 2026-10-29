@@ -5,10 +5,10 @@ import { format } from "date-fns";
 import { formatOptionalDate } from "@/lib/audit-date";
 import { isBeforeToday, startOfToday } from "@/lib/audit-date";
 import { useRef, useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
-import { AuditUploadedFilesList, normalizeAuditUploadedFileRef } from "@/components/audit/AuditUploadedFilesList";
+import { AuditUploadedFilesList } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -25,9 +25,30 @@ import { scrollToField } from "@/lib/scroll-to-field";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { invalidateAuditCaches } from "@/lib/audit-query-cache";
-import { getDashboardPath } from "@/lib/subdomain";
+import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
+import {
+  type AuditNcFinding,
+  type Step4ActionForm,
+  emptyStep4Action,
+  isNcFinding,
+  isStep4ActionComplete,
+  parseStep4Actions,
+} from "@/lib/audit-step4-ca";
+import {
+  type Step5NcVerification,
+  buildStep5Payload,
+  ineffectiveFindingIds,
+  parseStep5Verifications,
+  resetIneffectiveVerifications,
+} from "@/lib/audit-step5-verification";
+import {
+  type Step6NcReview,
+  buildStep6Payload,
+  ineffectiveClosureFindingIds,
+  parseStep6Reviews,
+  resetIneffectiveClosureReviews,
+} from "@/lib/audit-step6-closure";
 
 export default function CreateAuditStep4Page() {
   const params = useParams();
@@ -58,6 +79,7 @@ export default function CreateAuditStep4Page() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [isLeadAuditor, setIsLeadAuditor] = useState(false);
   const [isAssignedAuditor, setIsAssignedAuditor] = useState(false);
+  const [isAuditee, setIsAuditee] = useState(false);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [auditorFeedbackStep5, setAuditorFeedbackStep5] = useState<string | null>(null);
   const [managementFeedbackStep6, setManagementFeedbackStep6] = useState<string | null>(null);
@@ -99,6 +121,14 @@ export default function CreateAuditStep4Page() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [step4Errors, setStep4Errors] = useState<Record<string, boolean>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [ncFindings, setNcFindings] = useState<AuditNcFinding[]>([]);
+  const [currentNcIndex, setCurrentNcIndex] = useState(0);
+  const actionsRef = useRef<Record<string, Step4ActionForm>>({});
+  const currentNc = ncFindings[currentNcIndex] ?? null;
+  const [returnedFindingIds, setReturnedFindingIds] = useState<string[]>([]);
+  const step5MapRef = useRef<Record<string, Step5NcVerification>>({});
+  const step6MapRef = useRef<Record<string, Step6NcReview>>({});
+  const step5StartedAtRef = useRef(format(new Date(), "dd-MMM-yyyy HH:mm"));
 
   useEffect(() => {
     if (!orgId || !auditPlanId) {
@@ -120,12 +150,11 @@ export default function CreateAuditStep4Page() {
           setCurrentUserRole(plan.currentUserRole ?? null);
           setIsLeadAuditor(Boolean(plan.isLeadAuditor) || plan.currentUserRole === "lead_auditor");
           setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
+          setIsAuditee(Boolean(plan.isAuditee) || plan.currentUserRole === "auditee");
           setPlanStatus(plan.status ?? null);
-          const step5 = (plan as { step5Data?: { auditorComments?: string } }).step5Data;
-          if (step5 && typeof step5 === "object" && typeof step5.auditorComments === "string" && step5.auditorComments.trim()) {
-            setAuditorFeedbackStep5(step5.auditorComments.trim());
-          } else {
-            setAuditorFeedbackStep5(null);
+          const step5 = (plan as { step5Data?: { auditorComments?: string; verificationStartedAt?: string } }).step5Data;
+          if (step5 && typeof step5 === "object" && typeof step5.verificationStartedAt === "string") {
+            step5StartedAtRef.current = step5.verificationStartedAt;
           }
           const step6 = (plan as { step6Data?: { managementComments?: string } }).step6Data;
           if (step6 && typeof step6 === "object" && typeof step6.managementComments === "string" && step6.managementComments.trim()) {
@@ -155,47 +184,136 @@ export default function CreateAuditStep4Page() {
           }
         }
 
-        if (!cancelled && plan.step4Data && typeof plan.step4Data === "object") {
-          const d = plan.step4Data as Record<string, unknown>;
-          if (typeof d.containmentDescription === "string") setContainmentDescription(d.containmentDescription);
-          if (typeof d.responsiblePerson === "string") setResponsiblePerson(d.responsiblePerson);
-          if (d.targetCompletionDate != null) setTargetCompletionDate(new Date(d.targetCompletionDate as string));
-          if (typeof d.rootCauseNarrative === "string") setRootCauseNarrative(d.rootCauseNarrative);
-          if (d.similarProcessesImpacted === "yes" || d.similarProcessesImpacted === "no") setSimilarProcessesImpacted(d.similarProcessesImpacted);
-          if (typeof d.similarProcessesList === "string") setSimilarProcessesList(d.similarProcessesList);
-          if (typeof d.rootCauseResult === "string") setRootCauseResult(d.rootCauseResult);
-          if (typeof d.systemicCorrectiveAction === "string") setSystemicCorrectiveAction(d.systemicCorrectiveAction);
-          if (typeof d.rootCauseAnalysis === "string") setRootCauseAnalysis(d.rootCauseAnalysis);
-          if (typeof d.correctiveActionPlan === "string") setCorrectiveActionPlan(d.correctiveActionPlan);
-          if (d.implementationYesNo === "yes" || d.implementationYesNo === "no") setImplementationYesNo(d.implementationYesNo);
-          if (typeof d.implementationDetails === "string") setImplementationDetails(d.implementationDetails);
-          if (typeof d.auditeeComments === "string") setAuditeeComments(d.auditeeComments);
-          if (typeof d.auditeeName === "string") setAuditeeName(d.auditeeName);
-          if (typeof d.auditeePosition === "string") setAuditeePosition(d.auditeePosition);
-          if (d.dateOfReview != null) setDateOfReview(new Date(d.dateOfReview as string));
-          if (typeof d.confirmReviewed === "boolean") setConfirmReviewed(d.confirmReviewed);
-          if (d.riskRatingPostAction === "high" || d.riskRatingPostAction === "medium" || d.riskRatingPostAction === "low") setRiskRatingPostAction(d.riskRatingPostAction);
-          if (typeof d.riskJustificationPost === "string") setRiskJustificationPost(d.riskJustificationPost);
-          const fileList = (x: unknown): { name: string; key: string }[] =>
-            Array.isArray(x)
-              ? x.map(normalizeAuditUploadedFileRef).filter((i): i is { name: string; key: string } => i != null)
-              : [];
-          if (Array.isArray(d.filesS2)) setFilesS2(fileList(d.filesS2));
-          if (Array.isArray(d.filesS3)) setFilesS3(fileList(d.filesS3));
-          if (Array.isArray(d.filesS6)) setFilesS6(fileList(d.filesS6));
-          if (Array.isArray(d.filesS7)) setFilesS7(fileList(d.filesS7));
-          if (Array.isArray(d.files41)) setFiles41(fileList(d.files41));
-          if (Array.isArray(d.files42)) setFiles42(fileList(d.files42));
-          if (Array.isArray(d.files43)) setFiles43(fileList(d.files43));
-          if (Array.isArray(d.files45)) setFiles45(fileList(d.files45));
-          if (Array.isArray(d.files46)) setFiles46(fileList(d.files46));
+        let ncs: AuditNcFinding[] = [];
+        try {
+          const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanId);
+          const all = Array.isArray(findingsRes?.findings) ? findingsRes.findings : [];
+          ncs = all
+            .filter((f: { status?: string; id?: string }) => f?.id && isNcFinding(f.status))
+            .map((f: AuditNcFinding & { id: string }) => ({
+              id: f.id,
+              status: f.status,
+              standard: f.standard ?? null,
+              clause: f.clause ?? null,
+              subclauses: f.subclauses ?? null,
+              requirement: f.requirement ?? null,
+              statementOfNonconformity: f.statementOfNonconformity ?? null,
+            }));
+        } catch {
+          ncs = [];
         }
+        if (cancelled) return;
+        const parsed = parseStep4Actions(plan.step4Data, ncs);
+        const parsedV = parseStep5Verifications(plan.step5Data, ncs);
+        const parsedR = parseStep6Reviews(plan.step6Data, ncs);
+        actionsRef.current = parsed;
+        step5MapRef.current = parsedV;
+        step6MapRef.current = parsedR;
+        const returned =
+          plan.status === "verification_ineffective"
+            ? Array.from(
+                new Set([
+                  ...ineffectiveFindingIds(ncs, parsedV),
+                  ...ineffectiveClosureFindingIds(ncs, parsedR),
+                ])
+              )
+            : [];
+        setReturnedFindingIds(returned);
+        const feedback = returned
+          .map((id) => parsedV[id]?.auditorComments?.trim())
+          .filter(Boolean)
+          .join("\n\n");
+        setAuditorFeedbackStep5(feedback || null);
+        setNcFindings(ncs);
+        const startIdx = returned.length ? Math.max(0, ncs.findIndex((n) => n.id === returned[0])) : 0;
+        setCurrentNcIndex(startIdx);
+        const first = ncs[startIdx] ? parsed[ncs[startIdx].id] : ncs[0] ? parsed[ncs[0].id] : null;
+        if (first) applyActionToForm(first);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [orgId, auditPlanId]);
+
+  const applyActionToForm = (a: Step4ActionForm) => {
+    setContainmentDescription(a.containmentDescription ?? "");
+    setResponsiblePerson(a.responsiblePerson ?? "");
+    setTargetCompletionDate(a.targetCompletionDate ? new Date(a.targetCompletionDate) : undefined);
+    setRootCauseNarrative(a.rootCauseNarrative ?? "");
+    setSimilarProcessesImpacted(a.similarProcessesImpacted);
+    setSimilarProcessesList(a.similarProcessesList ?? "");
+    setRootCauseResult(a.rootCauseResult ?? "");
+    setSystemicCorrectiveAction(a.systemicCorrectiveAction ?? "");
+    setRootCauseAnalysis(a.rootCauseAnalysis ?? "");
+    setCorrectiveActionPlan(a.correctiveActionPlan ?? "");
+    setImplementationYesNo(a.implementationYesNo);
+    setImplementationDetails(a.implementationDetails ?? "");
+    setAuditeeComments(a.auditeeComments ?? "");
+    setAuditeeName(a.auditeeName ?? "");
+    setAuditeePosition(a.auditeePosition ?? "");
+    setDateOfReview(a.dateOfReview ? new Date(a.dateOfReview) : new Date());
+    setConfirmReviewed(Boolean(a.confirmReviewed));
+    setRiskRatingPostAction(a.riskRatingPostAction);
+    setRiskJustificationPost(a.riskJustificationPost ?? "");
+    setFilesS2(a.filesS2 ?? []);
+    setFilesS3(a.filesS3 ?? []);
+    setFilesS6(a.filesS6 ?? []);
+    setFilesS7(a.filesS7 ?? []);
+    setFiles41(a.files41 ?? []);
+    setFiles42(a.files42 ?? []);
+    setFiles43(a.files43 ?? []);
+    setFiles45(a.files45 ?? []);
+    setFiles46(a.files46 ?? []);
+    setStep4Errors({});
+  };
+
+  const collectActionFromForm = (findingId: string): Step4ActionForm => ({
+    findingId,
+    containmentDescription,
+    responsiblePerson,
+    targetCompletionDate: targetCompletionDate ? targetCompletionDate.toISOString() : null,
+    rootCauseNarrative,
+    similarProcessesImpacted,
+    similarProcessesList,
+    rootCauseResult,
+    systemicCorrectiveAction,
+    rootCauseAnalysis,
+    correctiveActionPlan,
+    implementationYesNo,
+    implementationDetails,
+    auditeeComments,
+    auditeeName,
+    auditeePosition,
+    dateOfReview: dateOfReview.toISOString(),
+    confirmReviewed,
+    riskRatingPostAction,
+    riskJustificationPost,
+    filesS2,
+    filesS3,
+    filesS6,
+    filesS7,
+    files41,
+    files42,
+    files43,
+    files45,
+    files46,
+  });
+
+  const flushCurrentAction = () => {
+    if (!currentNc) return collectActionFromForm("legacy");
+    const collected = collectActionFromForm(currentNc.id);
+    actionsRef.current = { ...actionsRef.current, [currentNc.id]: collected };
+    return collected;
+  };
+
+  const goToNc = (index: number) => {
+    if (index < 0 || index >= ncFindings.length || index === currentNcIndex) return;
+    flushCurrentAction();
+    setCurrentNcIndex(index);
+    const nc = ncFindings[index];
+    applyActionToForm(actionsRef.current[nc.id] ?? emptyStep4Action(nc.id));
+  };
 
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
   const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
@@ -244,36 +362,18 @@ export default function CreateAuditStep4Page() {
     }
   };
 
-  const buildStep4Payload = () => ({
-    containmentDescription,
-    responsiblePerson,
-    targetCompletionDate: targetCompletionDate ? targetCompletionDate.toISOString() : null,
-    rootCauseNarrative,
-    similarProcessesImpacted,
-    similarProcessesList,
-    rootCauseResult,
-    systemicCorrectiveAction,
-    rootCauseAnalysis,
-    correctiveActionPlan,
-    implementationYesNo,
-    implementationDetails,
-    auditeeComments,
-    auditeeName,
-    auditeePosition,
-    dateOfReview: dateOfReview.toISOString(),
-    confirmReviewed,
-    riskRatingPostAction,
-    riskJustificationPost,
-    filesS2,
-    filesS3,
-    filesS6,
-    filesS7,
-    files41,
-    files42,
-    files43,
-    files45,
-    files46,
-  });
+  const buildStep4Payload = () => {
+    const current = flushCurrentAction();
+    const actions = ncFindings.map(
+      (nc) => actionsRef.current[nc.id] ?? emptyStep4Action(nc.id)
+    );
+    const primary = currentNc ? (actionsRef.current[currentNc.id] ?? current) : current;
+    return {
+      version: 2,
+      actions,
+      ...primary,
+    };
+  };
 
   const validateStep4 = (): boolean => {
     const errors = {
@@ -298,6 +398,10 @@ export default function CreateAuditStep4Page() {
   };
 
   const handleSaveStep4 = async () => {
+    if (!canEditCurrentNc) {
+      toast.error(t("This nonconformity was verified as effective and does not need a new corrective action."));
+      return;
+    }
     if (!validateStep4()) return;
     if (!orgId || !auditPlanId) {
       toast.error(t("Open this step from a submitted audit plan."));
@@ -307,11 +411,62 @@ export default function CreateAuditStep4Page() {
     try {
       await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
       await invalidateAuditCaches(queryClient);
+      router.push(auditTableHref(orgId));
     } catch (e) {
       console.error(e);
     } finally {
       setSavingStep4(false);
     }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!canEditCurrentNc) {
+      if (currentNcIndex < ncFindings.length - 1) goToNc(currentNcIndex + 1);
+      return;
+    }
+    if (!validateStep4()) return;
+    if (!orgId || !auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      return;
+    }
+    setSavingStep4(true);
+    try {
+      await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
+      await invalidateAuditCaches(queryClient);
+      if (currentNcIndex < ncFindings.length - 1) {
+        goToNc(currentNcIndex + 1);
+        toast.success(t("Saved. Continue with the next nonconformity."));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        toast.success(t("All nonconformity corrective actions are saved. Submit to the auditor when ready."));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingStep4(false);
+    }
+  };
+
+  const validateAllNcActions = (): boolean => {
+    flushCurrentAction();
+    const toCheck =
+      returnedFindingIds.length > 0
+        ? ncFindings.filter((nc) => returnedFindingIds.includes(nc.id))
+        : ncFindings;
+    if (toCheck.length === 0 && ncFindings.length === 0) {
+      toast.error(t("There are no major or minor nonconformities to action."));
+      return false;
+    }
+    const incompleteNc = toCheck.find((nc) => !isStep4ActionComplete(actionsRef.current[nc.id] ?? emptyStep4Action(nc.id)));
+    if (incompleteNc) {
+      const idx = ncFindings.findIndex((n) => n.id === incompleteNc.id);
+      if (idx >= 0) goToNc(idx);
+      toast.error(
+        t("Please complete the corrective action for every Major and Minor nonconformity before submitting.")
+      );
+      return false;
+    }
+    return true;
   };
 
   const AttachFileBlock = ({ section, files }: { section: string; files: { name: string; key: string }[] }) => (
@@ -349,7 +504,14 @@ export default function CreateAuditStep4Page() {
   );
 
   const canEditStep4 =
-    planStatus !== "closed" && currentUserRole === "auditee";
+    planStatus !== "closed" &&
+    isAuditee &&
+    (planStatus == null ||
+      planStatus === "findings_submitted_to_auditee" ||
+      planStatus === "verification_ineffective");
+  const canEditCurrentNc =
+    canEditStep4 &&
+    (!returnedFindingIds.length || (currentNc != null && returnedFindingIds.includes(currentNc.id)));
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -362,11 +524,13 @@ export default function CreateAuditStep4Page() {
   return (
     <div className="space-y-6">
       <AuditWorkflowHeader currentStep={4} orgId={orgId} allowedSteps={[1, 2, 3, 4, 5, 6]} lockedSteps={lockedSteps} stepQuery={stepQuery || undefined}  />
-      {!canEditStep4 && currentUserRole != null && (
+      {!canEditStep4 && (currentUserRole != null || isAuditee) && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
           {planStatus === "closed"
             ? t("View only — this audit is complete; no edits allowed.")
-            : t("View only — only the Auditee can edit this step.")}
+            : isAuditee
+              ? t("View only — wait until findings have been submitted before completing corrective action.")
+              : t("View only — only the Auditee can edit this step.")}
         </div>
       )}
       {planStatus === "verification_ineffective" && (
@@ -381,7 +545,7 @@ export default function CreateAuditStep4Page() {
                 <p className="mt-2 text-sm text-amber-900 whitespace-pre-wrap">{auditorFeedbackStep5}</p>
               ) : (
                 <p className="mt-2 text-sm text-amber-800">
-                  {t("The auditor marked verification as ineffective. Please revise your corrective action and resubmit.")}
+                  {t("The auditor marked one or more nonconformities as ineffective. Revise only those returned NCs and resubmit.")}
                 </p>
               )}
             </div>
@@ -410,6 +574,110 @@ export default function CreateAuditStep4Page() {
         <h2 className="mt-2 text-xl font-bold uppercase tracking-wide text-foreground">
           {t("SYSTEMIC CORRECTIVE ACTION")}
         </h2>
+        {ncFindings.length === 0 && !isLoading && (
+          <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            {t("No Major or Minor nonconformities were recorded in Step 3. Corrective action is only required for those findings.")}
+          </div>
+        )}
+        {ncFindings.length > 0 && currentNc && (
+          <div className="mt-6 rounded-lg border border-border bg-muted/40 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {t("Corrective action")} {currentNcIndex + 1} {t("of")} {ncFindings.length}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded px-2 py-0.5 text-xs font-bold uppercase",
+                      currentNc.status === "major_nc"
+                        ? "bg-red-600 text-white"
+                        : "bg-emerald-600 text-white"
+                    )}
+                  >
+                    {currentNc.status === "major_nc" ? t("Major MA") : t("Minor mi")}
+                  </span>
+                  {returnedFindingIds.length > 0 && currentNc && returnedFindingIds.includes(currentNc.id) && (
+                    <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      {t("Returned — revise this NC")}
+                    </span>
+                  )}
+                  {returnedFindingIds.length > 0 && currentNc && !returnedFindingIds.includes(currentNc.id) && (
+                    <span className="rounded bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                      {t("Verified effective — locked")}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold text-foreground">
+                    {currentNc.standard || t("—")}
+                  </span>
+                </div>
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">{t("Clause")}:</span> {currentNc.clause || t("—")}
+                  {currentNc.subclauses ? ` · ${currentNc.subclauses}` : ""}
+                </p>
+                {currentNc.requirement ? (
+                  <p className="text-sm text-muted-foreground">{currentNc.requirement}</p>
+                ) : null}
+                {currentNc.statementOfNonconformity ? (
+                  <p className="text-sm text-foreground">
+                    <span className="font-semibold">{t("Statement of NC")}:</span>{" "}
+                    {currentNc.statementOfNonconformity}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentNcIndex === 0}
+                  onClick={() => goToNc(currentNcIndex - 1)}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  {t("Previous NC")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentNcIndex >= ncFindings.length - 1}
+                  onClick={() => goToNc(currentNcIndex + 1)}
+                >
+                  {t("Next NC")}
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {ncFindings.length > 1 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {ncFindings.map((nc, i) => {
+                  const complete = isStep4ActionComplete(
+                    i === currentNcIndex
+                      ? collectActionFromForm(nc.id)
+                      : actionsRef.current[nc.id] ?? emptyStep4Action(nc.id)
+                  );
+                  return (
+                    <button
+                      key={nc.id}
+                      type="button"
+                      onClick={() => goToNc(i)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-semibold",
+                        i === currentNcIndex
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : complete
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {nc.status === "major_nc" ? "MA" : "mi"} {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Blue info banner */}
         <div className="mt-6 flex items-center gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
@@ -657,7 +925,7 @@ export default function CreateAuditStep4Page() {
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="radio"
-                name="similarProcesses"
+                name={`similarProcesses-${currentNc?.id ?? "current"}`}
                 checked={similarProcessesImpacted === "yes"}
                 onChange={() => setSimilarProcessesImpacted("yes")}
                 className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
@@ -667,7 +935,7 @@ export default function CreateAuditStep4Page() {
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="radio"
-                name="similarProcesses"
+                name={`similarProcesses-${currentNc?.id ?? "current"}`}
                 checked={similarProcessesImpacted === "no"}
                 onChange={() => setSimilarProcessesImpacted("no")}
                 className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
@@ -850,7 +1118,7 @@ export default function CreateAuditStep4Page() {
               >
                 <input
                   type="radio"
-                  name="riskSeverityReview"
+                  name={`riskSeverityReview-${currentNc?.id ?? "current"}`}
                   checked={riskRatingPostAction === level}
                   onChange={() => setRiskRatingPostAction(level)}
                   className="sr-only"
@@ -929,31 +1197,57 @@ export default function CreateAuditStep4Page() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={savingStep4 || !canEditStep4}
+                disabled={savingStep4 || !canEditCurrentNc}
                 onClick={handleSaveStep4}
                 className="inline-flex items-center gap-2 rounded-lg border-2 border-primary bg-transparent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 hover:text-white"
               >
                 <Save className="h-4 w-4" />
                 {savingStep4 ? t("Saving…") : t("SAVE")}
               </Button>
+              {ncFindings.length > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={savingStep4 || !canEditCurrentNc}
+                  onClick={handleSaveAndContinue}
+                  className="inline-flex items-center gap-2 rounded-lg border-2 border-primary bg-transparent px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 hover:text-white"
+                >
+                  <Save className="h-4 w-4" />
+                  {currentNcIndex < ncFindings.length - 1
+                    ? t("SAVE & CONTINUE")
+                    : t("SAVE THIS NC")}
+                </Button>
+              )}
               <Button
                 type="button"
                 disabled={submittingToAuditor || !canEditStep4}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
                 onClick={async () => {
                   if (!validateStep4()) return;
+                  if (!validateAllNcActions()) return;
                   if (!orgId || !auditPlanId) {
                     toast.error(t("Open this step from a submitted audit plan."));
                     return;
                   }
                   setSubmittingToAuditor(true);
                   try {
-                    // Always save full Step 4 payload before updating status,
-                    // so corrective action data is persisted even if user never clicked SAVE.
                     await apiClient.saveAuditPlanStep4(orgId, auditPlanId, buildStep4Payload());
+                    if (planStatus === "verification_ineffective") {
+                      const reset = resetIneffectiveVerifications(ncFindings, step5MapRef.current);
+                      const map = Object.fromEntries(reset.map((v) => [v.findingId, v]));
+                      const reset6 = resetIneffectiveClosureReviews(ncFindings, step6MapRef.current);
+                      const map6 = Object.fromEntries(reset6.map((r) => [r.findingId, r]));
+                      await apiClient.updateAuditPlan(orgId, auditPlanId, {
+                        step5Data: buildStep5Payload(ncFindings, map, step5StartedAtRef.current),
+                        step6Data: buildStep6Payload(ncFindings, map6, {
+                          dateApproved: format(new Date(), "dd-MMM-yyyy"),
+                          timeApproved: format(new Date(), "HH:mm"),
+                        }),
+                      });
+                    }
                     await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "ca_submitted_to_auditor");
                     await invalidateAuditCaches(queryClient);
-                    router.push(`${getDashboardPath(orgId, "audit/create/5")}${stepQuery}`);
+                    router.push(auditTableHref(orgId));
                   } catch (e) {
                     console.error(e);
                   } finally {

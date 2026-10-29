@@ -1,19 +1,20 @@
 "use client";
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { getDashboardPath } from "@/lib/subdomain";
 import { useQueryClient } from "@tanstack/react-query";
 import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import {
   CheckCircle,
+  ChevronLeft,
   ChevronRight,
   FileCheck,
   MessageSquare,
   Square,
 } from "lucide-react";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
+import { AuditUploadedFilesList } from "@/components/audit/AuditUploadedFilesList";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { scrollToField } from "@/lib/scroll-to-field";
@@ -22,6 +23,29 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
+import {
+  type AuditNcFinding,
+  type Step4ActionForm,
+  emptyStep4Action,
+  isNcFinding,
+  parseStep4Actions,
+} from "@/lib/audit-step4-ca";
+import {
+  type Step5NcVerification,
+  buildStep5Payload,
+  emptyStep5Verification,
+  parseStep5Verifications,
+  resetIneffectiveVerifications,
+} from "@/lib/audit-step5-verification";
+import {
+  type Step6NcReview,
+  allNcsClosureEffective,
+  allNcsClosureReviewed,
+  buildStep6Payload,
+  emptyStep6Review,
+  isStep6ReviewComplete,
+  parseStep6Reviews,
+} from "@/lib/audit-step6-closure";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
@@ -54,11 +78,19 @@ export default function CreateAuditStep6Page() {
   const [stats, setStats] = useState({ total: 0, majorNcs: 0, minorNcs: 0 });
   const [closing, setClosing] = useState(false);
 
-  const [finalDecision, setFinalDecision] = useState<
-    "effective" | "ineffective"
-  >("effective");
+  const [finalDecision, setFinalDecision] = useState<"effective" | "ineffective" | null>(null);
   const [managementComments, setManagementComments] = useState("");
   const [commentsError, setCommentsError] = useState(false);
+  const [ncFindings, setNcFindings] = useState<AuditNcFinding[]>([]);
+  const [currentNcIndex, setCurrentNcIndex] = useState(0);
+  const [caByFindingId, setCaByFindingId] = useState<Record<string, Step4ActionForm>>({});
+  const [vByFindingId, setVByFindingId] = useState<Record<string, Step5NcVerification>>({});
+  const reviewsRef = useRef<Record<string, Step6NcReview>>({});
+  const currentNc = ncFindings[currentNcIndex] ?? null;
+  const currentCa = currentNc ? caByFindingId[currentNc.id] ?? emptyStep4Action(currentNc.id) : null;
+  const currentVerification = currentNc
+    ? vByFindingId[currentNc.id] ?? emptyStep5Verification(currentNc.id)
+    : null;
 
   useEffect(() => {
     if (!orgId || !auditPlanId) {
@@ -90,14 +122,44 @@ export default function CreateAuditStep6Page() {
             role: member?.systemRole || t("Lead Auditor"),
           });
         }
-        const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanId);
-        if (!cancelled && findingsRes.findings?.length) {
-          const f = findingsRes.findings;
-          setStats({
-            total: f.length,
-            majorNcs: f.filter((x: { status: string }) => x.status === "major_nc").length,
-            minorNcs: f.filter((x: { status: string }) => x.status === "minor_nc").length,
-          });
+        let ncs: AuditNcFinding[] = [];
+        try {
+          const findingsRes = await apiClient.getAuditPlanFindings(orgId, auditPlanId);
+          const all = Array.isArray(findingsRes?.findings) ? findingsRes.findings : [];
+          ncs = all
+            .filter((f: { status?: string; id?: string }) => f?.id && isNcFinding(f.status))
+            .map((f: AuditNcFinding & { id: string }) => ({
+              id: f.id,
+              status: f.status,
+              standard: f.standard ?? null,
+              clause: f.clause ?? null,
+              subclauses: f.subclauses ?? null,
+              requirement: f.requirement ?? null,
+              statementOfNonconformity: f.statementOfNonconformity ?? null,
+            }));
+          if (!cancelled) {
+            setStats({
+              total: all.length,
+              majorNcs: ncs.filter((x) => x.status === "major_nc").length,
+              minorNcs: ncs.filter((x) => x.status === "minor_nc").length,
+            });
+          }
+        } catch {
+          ncs = [];
+        }
+        if (cancelled) return;
+        const parsedCa = parseStep4Actions(plan.step4Data, ncs);
+        const parsedV = parseStep5Verifications(plan.step5Data, ncs);
+        const parsedR = parseStep6Reviews(plan.step6Data, ncs);
+        reviewsRef.current = parsedR;
+        setCaByFindingId(parsedCa);
+        setVByFindingId(parsedV);
+        setNcFindings(ncs);
+        setCurrentNcIndex(0);
+        const first = ncs[0] ? parsedR[ncs[0].id] : null;
+        if (first) {
+          setFinalDecision(first.outcome);
+          setManagementComments(first.managementComments ?? "");
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -106,8 +168,39 @@ export default function CreateAuditStep6Page() {
     return () => { cancelled = true; };
   }, [orgId, auditPlanId, t]);
 
+  const applyReviewToForm = (r: Step6NcReview) => {
+    setFinalDecision(r.outcome);
+    setManagementComments(r.managementComments ?? "");
+    setCommentsError(false);
+  };
+
+  const collectReviewFromForm = (findingId: string): Step6NcReview => ({
+    findingId,
+    outcome: finalDecision,
+    managementComments,
+    locked: reviewsRef.current[findingId]?.locked === true,
+  });
+
+  const flushCurrentReview = () => {
+    if (!currentNc) return collectReviewFromForm("legacy");
+    const collected = collectReviewFromForm(currentNc.id);
+    reviewsRef.current = { ...reviewsRef.current, [currentNc.id]: collected };
+    return collected;
+  };
+
+  const goToNc = (index: number) => {
+    if (index < 0 || index >= ncFindings.length || index === currentNcIndex) return;
+    flushCurrentReview();
+    setCurrentNcIndex(index);
+    const nc = ncFindings[index];
+    applyReviewToForm(reviewsRef.current[nc.id] ?? emptyStep6Review(nc.id));
+  };
+
+  const currentReviewLocked = Boolean(currentNc && reviewsRef.current[currentNc.id]?.locked);
+
   const canEditStep6 =
-    planStatus !== "closed" && isLeadAuditor;
+    planStatus !== "closed" && isLeadAuditor && (planStatus == null || planStatus === "pending_closure");
+  const canEditCurrentNc = canEditStep6 && !currentReviewLocked;
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -128,7 +221,7 @@ export default function CreateAuditStep6Page() {
         </div>
       )}
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
-        <div className={cn(!canEditStep6 && "pointer-events-none select-none opacity-90")}>
+        <div className={cn(!canEditCurrentNc && "pointer-events-none select-none opacity-90")}>
         {/* Header - Audit Final Closure */}
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 border-primary/20 bg-primary/5 text-primary">
@@ -144,6 +237,111 @@ export default function CreateAuditStep6Page() {
             {t("ISO 19011:2026 Compliant")}
           </p>
         </div>
+
+        {ncFindings.length === 0 && !isLoading && (
+          <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            {t("No Major or Minor nonconformities were recorded. Closure still requires a final decision.")}
+          </div>
+        )}
+        {ncFindings.length > 0 && currentNc && (
+          <div className="mt-8 rounded-lg border border-border bg-muted/40 p-5 text-left">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {t("Closure review")} {currentNcIndex + 1} {t("of")} {ncFindings.length}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded px-2 py-0.5 text-xs font-bold uppercase",
+                      currentNc.status === "major_nc" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
+                    )}
+                  >
+                    {currentNc.status === "major_nc" ? t("Major MA") : t("Minor mi")}
+                  </span>
+                  {currentReviewLocked && (
+                    <span className="rounded bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                      {t("Closed effective — locked")}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold text-foreground">{currentNc.standard || t("—")}</span>
+                </div>
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">{t("Clause")}:</span> {currentNc.clause || t("—")}
+                  {currentNc.subclauses ? ` · ${currentNc.subclauses}` : ""}
+                </p>
+                {currentNc.statementOfNonconformity ? (
+                  <p className="text-sm text-foreground">
+                    <span className="font-semibold">{t("Statement of NC")}:</span> {currentNc.statementOfNonconformity}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 gap-2 pointer-events-auto">
+                <Button type="button" variant="outline" size="sm" disabled={currentNcIndex === 0} onClick={() => goToNc(currentNcIndex - 1)}>
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  {t("Previous NC")}
+                </Button>
+                <Button type="button" variant="outline" size="sm" disabled={currentNcIndex >= ncFindings.length - 1} onClick={() => goToNc(currentNcIndex + 1)}>
+                  {t("Next NC")}
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {ncFindings.length > 1 && (
+              <div className="mt-4 flex flex-wrap gap-2 pointer-events-auto">
+                {ncFindings.map((nc, i) => {
+                  const r =
+                    i === currentNcIndex
+                      ? collectReviewFromForm(nc.id)
+                      : reviewsRef.current[nc.id] ?? emptyStep6Review(nc.id);
+                  return (
+                    <button
+                      key={nc.id}
+                      type="button"
+                      onClick={() => goToNc(i)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-semibold",
+                        i === currentNcIndex
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : r.outcome === "effective"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                            : r.outcome === "ineffective"
+                              ? "border-red-500 bg-red-50 text-red-800"
+                              : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {nc.status === "major_nc" ? "MA" : "mi"} {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("Corrective action")}</p>
+                <p><span className="font-semibold">{t("Responsible person")}:</span> {currentCa?.responsiblePerson || t("—")}</p>
+                <p><span className="font-semibold">{t("Containment")}:</span> {currentCa?.containmentDescription || t("—")}</p>
+                <AuditUploadedFilesList
+                  files={currentCa ? [...currentCa.filesS2, ...currentCa.filesS3, ...currentCa.filesS6, ...currentCa.filesS7] : []}
+                  className="pointer-events-auto"
+                />
+              </div>
+              <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t("Verification (Step 5)")}</p>
+                <p>
+                  <span className="font-semibold">{t("Outcome")}:</span>{" "}
+                  {currentVerification?.outcome === "effective"
+                    ? t("Effective")
+                    : currentVerification?.outcome === "ineffective"
+                      ? t("Ineffective")
+                      : t("—")}
+                </p>
+                <p><span className="font-semibold">{t("Auditor comments")}:</span> {currentVerification?.auditorComments || t("—")}</p>
+                <AuditUploadedFilesList files={currentVerification?.evidenceFiles ?? []} className="pointer-events-auto" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Management Final Decision & Management Comments - two columns */}
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -171,10 +369,10 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    {t("Effective - Close Audit")}
+                    {t("Effective — this nonconformity")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {t("Confirming all findings are addressed and system is stable.")}
+                    {t("Corrective action and verification are accepted for this NC.")}
                   </p>
                 </div>
               </Button>
@@ -196,12 +394,10 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    {t("Ineffective - Re-open Audit")}
+                    {t("Ineffective — return this NC")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {t(
-                      "Audit does not meet criteria for closure. Further action required."
-                    )}
+                    {t("This nonconformity goes back to the auditee. Effective NCs stay closed.")}
                   </p>
                 </div>
               </Button>
@@ -324,43 +520,66 @@ export default function CreateAuditStep6Page() {
           className="bg-primary text-primary-foreground hover:bg-primary/90 ml-auto"
           disabled={closing || !canEditStep6}
           onClick={async () => {
-            if (managementComments.trim() === "") {
-              setCommentsError(true);
-              scrollToField("audit-field-managementComments");
-              toast.error(t("Please fill in all required fields."));
-              return;
+            if (!currentReviewLocked) {
+              if (finalDecision !== "effective" && finalDecision !== "ineffective") {
+                toast.error(t("Mark this nonconformity as Effective or Ineffective."));
+                return;
+              }
+              if (managementComments.trim() === "") {
+                setCommentsError(true);
+                scrollToField("audit-field-managementComments");
+                toast.error(t("Please fill in all required fields."));
+                return;
+              }
             }
             setCommentsError(false);
             if (!orgId || !auditPlanId) {
               toast.error(t("Open this step from a submitted audit plan."));
               return;
             }
+            flushCurrentReview();
+            if (ncFindings.length > 0) {
+              const incomplete = ncFindings.findIndex(
+                (nc) => !isStep6ReviewComplete(reviewsRef.current[nc.id] ?? emptyStep6Review(nc.id))
+              );
+              if (incomplete >= 0) {
+                goToNc(incomplete);
+                toast.error(t("Review every Major and Minor nonconformity before closing or returning."));
+                return;
+              }
+            }
+            const allEffective =
+              ncFindings.length === 0
+                ? finalDecision === "effective"
+                : allNcsClosureEffective(ncFindings, reviewsRef.current);
             setClosing(true);
             try {
-              if (finalDecision === "effective") {
+              const step6Data = buildStep6Payload(ncFindings, reviewsRef.current, {
+                dateApproved,
+                timeApproved,
+              });
+              await apiClient.updateAuditPlan(orgId, auditPlanId, { step6Data });
+              if (allEffective) {
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "closed");
-                toast.success(t("Audit complete. Status: Closed."));
+                toast.success(t("All nonconformities are effective. Audit closed."));
               } else {
+                const resetV = resetIneffectiveVerifications(ncFindings, vByFindingId);
+                const vMap = Object.fromEntries(resetV.map((v) => [v.findingId, v]));
                 await apiClient.updateAuditPlan(orgId, auditPlanId, {
-                  step6Data: {
-                    managementComments,
-                    finalDecision,
-                    dateApproved,
-                    timeApproved,
-                  },
+                  step5Data: buildStep5Payload(
+                    ncFindings,
+                    vMap,
+                    format(new Date(), "dd-MMM-yyyy HH:mm")
+                  ),
                 });
                 await apiClient.updateAuditPlanStatus(orgId, auditPlanId, "verification_ineffective");
-                toast.success(t("Returned to Auditee for revision."));
+                toast.success(t("Ineffective nonconformities returned to the auditee. Effective ones stay closed."));
               }
               await invalidateAuditCaches(queryClient);
               router.push(auditTableHref(orgId));
             } catch (e) {
               console.error(e);
-              toast.error(
-                finalDecision === "effective"
-                  ? t("Failed to close audit.")
-                  : t("Failed to return to Auditee.")
-              );
+              toast.error(allEffective ? t("Failed to close audit.") : t("Failed to return to Auditee."));
             } finally {
               setClosing(false);
             }
@@ -368,9 +587,15 @@ export default function CreateAuditStep6Page() {
         >
           {closing
             ? t("Saving…")
-            : finalDecision === "effective"
+            : (ncFindings.length === 0 ? finalDecision === "effective" : allNcsClosureReviewed(ncFindings, {
+                  ...reviewsRef.current,
+                  ...(currentNc ? { [currentNc.id]: collectReviewFromForm(currentNc.id) } : {}),
+                }) && allNcsClosureEffective(ncFindings, {
+                  ...reviewsRef.current,
+                  ...(currentNc ? { [currentNc.id]: collectReviewFromForm(currentNc.id) } : {}),
+                }))
               ? t("Finalize Audit & Close")
-              : t("Return to Auditee")}
+              : t("Return ineffective NCs to Auditee")}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

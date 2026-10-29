@@ -65,9 +65,10 @@ import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import { getDashboardPath } from "@/lib/subdomain";
 import { formatNonconformityRef, type AuditProgramRefParts } from "@/lib/audit-program-ref";
 import { compactSiteCode } from "@/lib/documentRef";
-import { getAuditStatusByDays, getAuditStatusColor } from "@/lib/compliance-kpi";
+import { AUDIT_STATUS_LABELS, getAuditStatusByDays, getAuditStatusColor } from "@/lib/compliance-kpi";
 
-const NC_DUE_DAYS = 60;
+const NC_DUE_DAYS_MAJOR = 30;
+const NC_DUE_DAYS_MINOR = 60;
 
 type ComplianceStatus =
   | "compliant"
@@ -242,7 +243,6 @@ const EMPTY_COMPLIANCE_DETAILS = {
 /** Default empty evidence items for CA form reset. */
 const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; s3Key: string; effectiveness: "effective" | "ineffective" }[] = [
   { id: "ev-1", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
-  { id: "ev-2", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
 ];
 
 function asPlainText(value: unknown): string {
@@ -252,7 +252,12 @@ function asPlainText(value: unknown): string {
 
 function evidenceItemsForForm(raw: unknown): ObjectiveEvidenceItem[] {
   const normalized = normalizeObjectiveEvidenceFromApi(raw);
-  if (normalized && normalized.length > 0) return normalized;
+  if (normalized && normalized.length > 0) {
+    const filled = normalized.filter(
+      (item) => item.description.trim() || item.fileName.trim() || item.s3Key.trim()
+    );
+    if (filled.length > 0) return filled;
+  }
   return DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }));
 }
 
@@ -646,30 +651,35 @@ export default function CreateAuditStep3Page() {
       planSummary?.createdAt ||
       null;
     const dueStart = dueSource ? new Date(dueSource) : null;
-    const dueDate =
-      dueStart && !Number.isNaN(dueStart.getTime())
-        ? format(addDays(dueStart, NC_DUE_DAYS), "dd-MM-yyyy")
-        : "—";
+    const dueStartValid = Boolean(dueStart && !Number.isNaN(dueStart.getTime()));
     const ncStatus = getAuditStatusByDays(
       planStatus ?? "draft",
       planSummary?.plannedDate ?? null,
       planSummary?.datePrepared ?? null,
       planSummary?.createdAt ?? null
     );
-    return ncRows.map((row, index) => ({
-      id: row.id,
-      reference: formatNonconformityRef(refParts, index + 1),
-      standard: row.standard || standardName || "—",
-      site: String(refParts.site ?? "").trim() && String(refParts.site).trim() !== "—"
+    const processArea = String(refParts.process ?? "").trim() || "—";
+    const site =
+      String(refParts.site ?? "").trim() && String(refParts.site).trim() !== "—"
         ? compactSiteCode(String(refParts.site))
-        : "—",
-      processArea: String(refParts.process ?? "").trim() || "—",
-      clause: row.clause || "—",
-      subclauses: row.subclauses || "—",
-      classification: row.status === "major_nc" ? "MA" : "mi",
-      dueDate,
-      ncStatus,
-    }));
+        : "—";
+    return ncRows.map((row, index) => {
+      const isMajor = row.status === "major_nc";
+      const dueDays = isMajor ? NC_DUE_DAYS_MAJOR : NC_DUE_DAYS_MINOR;
+      return {
+        id: row.id,
+        reference: formatNonconformityRef(refParts, index + 1),
+        standard: row.standard || standardName || "—",
+        site,
+        processArea,
+        clause: [row.clause, row.requirement].map((v) => String(v ?? "").trim()).filter(Boolean).join(" ") || "—",
+        subclauses: row.subclauses || "—",
+        classification: isMajor ? "MA" : "mi",
+        classificationLabel: isMajor ? "Major" : "Minor",
+        dueDate: dueStartValid ? format(addDays(dueStart!, dueDays), "dd-MM-yyyy") : "—",
+        ncStatus,
+      };
+    });
   }, [rows, programRefParts, planSummary, planStatus, standardName]);
 
   const addRow = () => {
@@ -852,53 +862,31 @@ export default function CreateAuditStep3Page() {
 
   const [evidenceItems, setEvidenceItems] = useState<ObjectiveEvidenceItem[]>([...DEFAULT_EVIDENCE_ITEMS]);
   const [uploadingEvidenceId, setUploadingEvidenceId] = useState<string | null>(null);
-  const addEvidenceItem = () => {
-    setEvidenceItems((prev) => [
-      ...prev,
-      {
-        id: `ev-${Date.now()}`,
-        description: "",
-        fileName: "",
-        s3Key: "",
-        effectiveness: "effective",
-      },
-    ]);
-  };
-  const updateEvidenceItem = (id: string, field: keyof ObjectiveEvidenceItem, value: string) => {
-    setEvidenceItems((prev) =>
-      evidenceItemsForForm(prev).map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
-  const setEvidenceEffectiveness = (id: string, value: "effective" | "ineffective") => {
-    setEvidenceItems((prev) =>
-      evidenceItemsForForm(prev).map((item) => (item.id === id ? { ...item, effectiveness: value } : item))
-    );
+  const evidenceDescription = evidenceItems[0]?.description ?? "";
+  const setEvidenceDescription = (value: string) => {
+    setEvidenceItems((prev) => {
+      const list = evidenceItemsForForm(prev);
+      return list.map((item) => ({ ...item, description: value }));
+    });
   };
 
   const supportingDocInputRef = useRef<HTMLInputElement>(null);
 
-  const applyEvidenceUpload = (targetId: string | null, fileName: string, s3Key: string) => {
+  const applyEvidenceUpload = (fileName: string, s3Key: string) => {
     setEvidenceItems((prev) => {
-      const slot =
-        (targetId && prev.find((item) => item.id === targetId)) ||
-        prev.find((item) => !item.s3Key);
-      if (slot) {
-        return prev.map((item) =>
-          item.id === slot.id
-            ? {
-                ...item,
-                fileName,
-                s3Key,
-                description: item.description.trim() ? item.description : fileName,
-              }
-            : item
+      const list = prev.length > 0 ? prev : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }));
+      const description = list[0]?.description ?? "";
+      const emptySlot = list.find((item) => !item.s3Key);
+      if (emptySlot) {
+        return list.map((item) =>
+          item.id === emptySlot.id ? { ...item, fileName, s3Key, description } : { ...item, description }
         );
       }
       return [
-        ...prev,
+        ...list.map((item) => ({ ...item, description })),
         {
           id: `ev-${Date.now()}`,
-          description: fileName,
+          description,
           fileName,
           s3Key,
           effectiveness: "effective" as const,
@@ -907,7 +895,7 @@ export default function CreateAuditStep3Page() {
     });
   };
 
-  const uploadEvidenceFile = async (file: File, targetId: string | null) => {
+  const uploadEvidenceFile = async (file: File) => {
     if (!orgId) {
       toast.error(t("Organization is required to upload files."));
       return;
@@ -916,12 +904,10 @@ export default function CreateAuditStep3Page() {
       toast.error(t("Save the audit plan before uploading documents."));
       return;
     }
-    const uploadKey = targetId ?? "supporting-doc";
-    setUploadingEvidenceId(uploadKey);
+    setUploadingEvidenceId(file.name);
     try {
       const res = await apiClient.uploadAuditDocument(file, orgId, auditPlanIdFromUrl, 3);
-      applyEvidenceUpload(targetId, res.name, res.key);
-      toast.success(t("Supporting document uploaded."));
+      applyEvidenceUpload(res.name, res.key);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("Failed to upload file"));
     } finally {
@@ -929,12 +915,23 @@ export default function CreateAuditStep3Page() {
     }
   };
 
+  const uploadEvidenceFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    for (const file of files) {
+      await uploadEvidenceFile(file);
+    }
+    if (files.length === 1) toast.success(t("Supporting document uploaded."));
+    else toast.success(t("Supporting documents uploaded."));
+  };
+
   const clearEvidenceFile = (id: string) => {
-    setEvidenceItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, fileName: "", s3Key: "" } : item
-      )
-    );
+    setEvidenceItems((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      if (next.some((item) => item.s3Key) || next.some((item) => item.description.trim())) {
+        return next.length > 0 ? next : DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item }));
+      }
+      return DEFAULT_EVIDENCE_ITEMS.map((item) => ({ ...item, description: prev[0]?.description ?? "" }));
+    });
   };
 
   const attachedEvidenceFiles = evidenceItems.filter((item) => item.s3Key);
@@ -1686,11 +1683,12 @@ export default function CreateAuditStep3Page() {
                 type="file"
                 className="hidden"
                 disabled={!!uploadingEvidenceId}
+                multiple
                 onChange={async (e) => {
-                  const file = e.target.files?.[0];
+                  const files = Array.from(e.target.files ?? []);
                   e.target.value = "";
-                  if (!file) return;
-                  await uploadEvidenceFile(file, null);
+                  if (files.length === 0) return;
+                  await uploadEvidenceFiles(files);
                 }}
               />
               <Button
@@ -1702,7 +1700,7 @@ export default function CreateAuditStep3Page() {
                 onClick={() => supportingDocInputRef.current?.click()}
               >
                 <Upload className="h-4 w-4" />
-                {uploadingEvidenceId === "supporting-doc"
+                {uploadingEvidenceId
                   ? t("Uploading...")
                   : t("Upload Supporting Document")}
               </Button>
@@ -2014,115 +2012,69 @@ export default function CreateAuditStep3Page() {
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               {t("OBJECTIVE EVIDENCE")}
             </h2>
-            <div className="space-y-4">
-              {evidenceItemsForForm(evidenceItems).map((item, index) => (
-                <div
-                  key={item.id || `ev-${index}`}
-                  className="rounded-lg border border-border bg-card p-6 shadow-sm"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
-                      {index + 1}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                          {t("EVIDENCE DESCRIPTION")}
-                        </Label>
-                        <Input
-                          placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
-                          value={item.description ?? ""}
-                          onChange={(e) => updateEvidenceItem(item.id, "description", e.target.value)}
-                          className="border-border bg-background text-sm"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                            {t("LINKED MEDIA / UPLOAD")}
-                          </Label>
-                          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
-                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                            <span className="truncate">
-                              {item.fileName || t("Select file")}
-                            </span>
-                            <input
-                              type="file"
-                              className="hidden"
-                              disabled={!!uploadingEvidenceId}
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = "";
-                                if (!file) return;
-                                await uploadEvidenceFile(file, item.id);
-                              }}
-                            />
-                          </label>
-                          {item.s3Key ? (
-                            <div className="pointer-events-auto pt-1">
-                              <a
-                                href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-medium text-primary hover:underline"
-                              >
-                                {t("Open uploaded file")}
-                              </a>
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                            {t("EFFECTIVENESS SELECTOR")}
-                          </p>
-                          <div className="flex flex-wrap gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setEvidenceEffectiveness(item.id, "effective")}
-                              className={cn(
-                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                                item.effectiveness === "effective"
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-primary", item.effectiveness === "effective" ? "bg-primary" : "bg-transparent")}>
-                                {item.effectiveness === "effective" && <span className="h-1 w-1 rounded-full bg-background" />}
-                              </span>
-                              {t("EFFECTIVE")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEvidenceEffectiveness(item.id, "ineffective")}
-                              className={cn(
-                                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                                item.effectiveness === "ineffective"
-                                  ? "border-red-500 bg-red-500/10 text-red-400"
-                                  : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                              )}
-                            >
-                              <span className={cn("flex h-3 w-3 items-center justify-center rounded-full border-2 border-red-500", item.effectiveness === "ineffective" ? "bg-red-500" : "bg-transparent")}>
-                                {item.effectiveness === "ineffective" && <span className="h-1 w-1 rounded-full bg-background" />}
-                              </span>
-                              {t("INEFFECTIVE")}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                  {t("EVIDENCE DESCRIPTION")}
+                </Label>
+                <Textarea
+                  placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
+                  value={asPlainText(evidenceDescription)}
+                  onChange={(e) => setEvidenceDescription(e.target.value)}
+                  rows={4}
+                  className="min-h-[100px] resize-y border-border bg-background text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                  {t("LINKED MEDIA / UPLOAD")}
+                </Label>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">
+                    {uploadingEvidenceId ? t("Uploading...") : t("Select files")}
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    disabled={!!uploadingEvidenceId}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      e.target.value = "";
+                      if (files.length === 0) return;
+                      await uploadEvidenceFiles(files);
+                    }}
+                  />
+                </label>
+                {attachedEvidenceFiles.length > 0 ? (
+                  <ul className="space-y-1.5 pt-1">
+                    {attachedEvidenceFiles.map((item) => (
+                      <li key={item.id} className="flex items-center gap-2 text-sm text-foreground">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <a
+                          href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-w-0 truncate font-medium text-primary hover:underline"
+                          title={item.fileName}
+                        >
+                          {item.fileName}
+                        </a>
+                        <button
+                          type="button"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => clearEvidenceFile(item.id)}
+                          aria-label={t("Remove file")}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={addEvidenceItem}
-              className="text-primary hover:bg-primary/10 hover:text-primary"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="font-bold">{t("ADD ADDITIONAL EVIDENCE ITEM")}</span>
-            </Button>
           </div>
         </div>
         {/* Justification for Classification */}
@@ -2303,14 +2255,29 @@ export default function CreateAuditStep3Page() {
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Subclauses")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">
                     {t("Classification")}
-                    <span className="ml-1 font-normal text-muted-foreground">{t("MA / mi")}</span>
+                    <span className="ml-1 font-normal">
+                      <span className="font-bold text-red-600">{t("MA")}</span>
+                      {" / "}
+                      <span className="font-bold text-emerald-600">{t("mi")}</span>
+                    </span>
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">
                     {t("Due Date")}
-                    <span className="ml-1 font-normal text-muted-foreground">{t("(Max 60 days)")}</span>
+                    <span className="ml-1 block font-normal normal-case text-[10px] text-muted-foreground">
+                      {t("Major 30 days")} · {t("Minor 60 days")}
+                    </span>
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">
                     {t("NC Status")}
+                    <span className="ml-1 block font-normal normal-case text-[10px] leading-4 text-muted-foreground">
+                      <span className="text-primary">{t(AUDIT_STATUS_LABELS.success)}</span>
+                      {" · "}
+                      <span className="text-amber-600">{t("In-Progress")}</span>
+                      {" · "}
+                      {t(AUDIT_STATUS_LABELS.pending)}
+                      {" · "}
+                      <span className="text-red-600">{t(AUDIT_STATUS_LABELS.fail)}</span>
+                    </span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -2334,11 +2301,12 @@ export default function CreateAuditStep3Page() {
                       <TableCell className="text-sm text-foreground">{row.subclauses}</TableCell>
                       <TableCell
                         className={cn(
-                          "text-sm font-bold",
+                          "whitespace-nowrap text-sm font-bold",
                           row.classification === "MA" ? "text-red-600" : "text-emerald-600"
                         )}
                       >
-                        {row.classification}
+                        {t(row.classificationLabel)}{" "}
+                        <span className="uppercase">{row.classification}</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-foreground">{row.dueDate}</TableCell>
                       <TableCell>

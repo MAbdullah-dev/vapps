@@ -509,15 +509,18 @@ function buildAuditHistoryEntries(plan: any, _audit: Audit, t: (s: string) => st
     });
   }
 
-  const step4 = plan.step4Data as { auditeeComments?: string; dateOfReview?: string } | null | undefined;
+  const step4 = plan.step4Data as { auditeeComments?: string; dateOfReview?: string; actions?: unknown[] } | null | undefined;
   if (step4 && plan.status && ["ca_submitted_to_auditor", "pending_closure", "verification_ineffective", "closed"].includes(plan.status)) {
+    const actionCount = Array.isArray(step4.actions) ? step4.actions.length : 0;
     entries.push({
       id: "ca_submitted",
       type: "Updated",
       title: "Corrective action submitted",
-      description: step4.auditeeComments && String(step4.auditeeComments).trim().length > 0
-        ? String(step4.auditeeComments)
-        : t("Auditee submitted systemic corrective action for review."),
+      description: actionCount > 1
+        ? t("Auditee submitted separate corrective actions for {{count}} nonconformities.").replace("{{count}}", String(actionCount))
+        : step4.auditeeComments && String(step4.auditeeComments).trim().length > 0
+          ? String(step4.auditeeComments)
+          : t("Auditee submitted systemic corrective action for review."),
       date: formatDateTime(step4.dateOfReview ?? plan.updatedAt ?? plan.planSubmittedAt ?? plan.createdAt ?? null),
       by: "Auditee",
     });

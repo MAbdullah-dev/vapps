@@ -395,24 +395,50 @@ export default function AuditDetailHistoryPage() {
             {t("Latest revision (data submitted by auditee after return to auditee).")}
           </p>
         )}
-        <DataRow label={t("Containment description")} value={(step4 as any).containmentDescription} />
-        <DataRow label={t("Responsible person")} value={(step4 as any).responsiblePerson} />
-        <DataRow label={t("Target completion date")} value={(step4 as any).targetCompletionDate} />
-        <DataRow label={t("Root cause narrative")} value={(step4 as any).rootCauseNarrative} />
-        <DataRow label={t("Similar processes impacted")} value={(step4 as any).similarProcessesImpacted} />
-        <DataRow label={t("Similar processes list")} value={(step4 as any).similarProcessesList} />
-        <DataRow label={t("Root cause result")} value={(step4 as any).rootCauseResult} />
-        <DataRow label={t("Root cause analysis")} value={(step4 as any).rootCauseAnalysis} />
-        <DataRow label={t("Systemic corrective action")} value={(step4 as any).systemicCorrectiveAction} />
-        <DataRow label={t("Corrective action plan")} value={(step4 as any).correctiveActionPlan} />
-        <DataRow label={t("Implementation (Y/N)")} value={(step4 as any).implementationYesNo} />
-        <DataRow label={t("Implementation details")} value={(step4 as any).implementationDetails} />
-        <DataRow label={t("Auditee name")} value={(step4 as any).auditeeName} />
-        <DataRow label={t("Auditee position")} value={(step4 as any).auditeePosition} />
-        <DataRow label={t("Date of review")} value={(step4 as any).dateOfReview ? formatDate((step4 as any).dateOfReview) : undefined} />
-        <DataRow label={t("Risk rating post action")} value={(step4 as any).riskRatingPostAction} />
-        <DataRow label={t("Risk justification post")} value={(step4 as any).riskJustificationPost} />
-        <DataRow label={t("Auditee comments")} value={(step4 as any).auditeeComments} />
+        {Array.isArray((step4 as any).actions) && (step4 as any).actions.length > 0 ? (
+          (step4 as any).actions.map((action: any, i: number) => (
+            <div key={action?.findingId ?? i} className="mb-4 rounded-md border border-border p-3 last:mb-0">
+              <p className="mb-2 font-medium text-foreground">
+                {t("Nonconformity")} {i + 1}
+              </p>
+              <DataRow label={t("Containment description")} value={action?.containmentDescription} />
+              <DataRow label={t("Responsible person")} value={action?.responsiblePerson} />
+              <DataRow label={t("Target completion date")} value={action?.targetCompletionDate} />
+              <DataRow label={t("Root cause narrative")} value={action?.rootCauseNarrative} />
+              <DataRow label={t("Similar processes impacted")} value={action?.similarProcessesImpacted} />
+              <DataRow label={t("Similar processes list")} value={action?.similarProcessesList} />
+              <DataRow label={t("Root cause result")} value={action?.rootCauseResult} />
+              <DataRow label={t("Root cause analysis")} value={action?.rootCauseAnalysis} />
+              <DataRow label={t("Systemic corrective action")} value={action?.systemicCorrectiveAction} />
+              <DataRow label={t("Corrective action plan")} value={action?.correctiveActionPlan} />
+              <DataRow label={t("Implementation (Y/N)")} value={action?.implementationYesNo} />
+              <DataRow label={t("Implementation details")} value={action?.implementationDetails} />
+              <DataRow label={t("Auditee comments")} value={action?.auditeeComments} />
+              <DataRow label={t("Risk rating post action")} value={action?.riskRatingPostAction} />
+            </div>
+          ))
+        ) : (
+          <>
+            <DataRow label={t("Containment description")} value={(step4 as any).containmentDescription} />
+            <DataRow label={t("Responsible person")} value={(step4 as any).responsiblePerson} />
+            <DataRow label={t("Target completion date")} value={(step4 as any).targetCompletionDate} />
+            <DataRow label={t("Root cause narrative")} value={(step4 as any).rootCauseNarrative} />
+            <DataRow label={t("Similar processes impacted")} value={(step4 as any).similarProcessesImpacted} />
+            <DataRow label={t("Similar processes list")} value={(step4 as any).similarProcessesList} />
+            <DataRow label={t("Root cause result")} value={(step4 as any).rootCauseResult} />
+            <DataRow label={t("Root cause analysis")} value={(step4 as any).rootCauseAnalysis} />
+            <DataRow label={t("Systemic corrective action")} value={(step4 as any).systemicCorrectiveAction} />
+            <DataRow label={t("Corrective action plan")} value={(step4 as any).correctiveActionPlan} />
+            <DataRow label={t("Implementation (Y/N)")} value={(step4 as any).implementationYesNo} />
+            <DataRow label={t("Implementation details")} value={(step4 as any).implementationDetails} />
+            <DataRow label={t("Auditee name")} value={(step4 as any).auditeeName} />
+            <DataRow label={t("Auditee position")} value={(step4 as any).auditeePosition} />
+            <DataRow label={t("Date of review")} value={(step4 as any).dateOfReview ? formatDate((step4 as any).dateOfReview) : undefined} />
+            <DataRow label={t("Risk rating post action")} value={(step4 as any).riskRatingPostAction} />
+            <DataRow label={t("Risk justification post")} value={(step4 as any).riskJustificationPost} />
+            <DataRow label={t("Auditee comments")} value={(step4 as any).auditeeComments} />
+          </>
+        )}
       </Section>
 
       {/* Step 5 – Verification */}
