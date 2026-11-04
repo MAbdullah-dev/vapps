@@ -50,7 +50,6 @@ import {
   Send,
   ShieldCheck,
   Trash2,
-  Upload,
   UserCheck,
   X,
   Search,
@@ -238,16 +237,6 @@ const STATUS_CHECKLIST_LABEL: Record<ComplianceStatus, string> = {
   missing: "Missing",
 };
 
-/** Empty compliance details — sections stay empty until user selects Document Finding (CA) for a question. */
-const EMPTY_COMPLIANCE_DETAILS = {
-  standard: "",
-  clause: "",
-  subclauses: "",
-  requirement: "",
-  question: "",
-  evidenceExample: "",
-  evidenceSeen: "",
-};
 
 /** Default empty evidence items for CA form reset. */
 const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; s3Key: string; effectiveness: "effective" | "ineffective" }[] = [
@@ -814,7 +803,6 @@ export default function CreateAuditStep3Page() {
     });
     if (activeCARowId === id) {
       setActiveCARowId(null);
-      setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
       setRiskSeverity("medium");
       setStatementOfNonconformity("");
       setRiskJustification("");
@@ -830,16 +818,6 @@ export default function CreateAuditStep3Page() {
     setSearchQuery("");
     if (typeof idx === "number") setCurrentQuestionIndex(idx);
     setActiveCARowId(row.id);
-    setComplianceDetails((prev) => ({
-      ...prev,
-      standard: row.standard,
-      clause: row.clause,
-      subclauses: row.subclauses,
-      requirement: row.requirement,
-      question: row.question,
-      evidenceExample: row.evidenceExample,
-      evidenceSeen: row.evidence,
-    }));
     setRiskSeverity(row.riskSeverity ?? "medium");
     setStatementOfNonconformity(row.statementOfNonconformity ?? "");
     setRiskJustification(row.riskJustification ?? "");
@@ -901,8 +879,6 @@ export default function CreateAuditStep3Page() {
     );
   };
 
-  const [complianceDetails, setComplianceDetails] = useState(EMPTY_COMPLIANCE_DETAILS);
-
   const [riskSeverity, setRiskSeverity] = useState<"high" | "medium" | "low">("medium");
   const [riskJustification, setRiskJustification] = useState("");
   const [statementOfNonconformity, setStatementOfNonconformity] = useState("");
@@ -945,8 +921,6 @@ export default function CreateAuditStep3Page() {
       return list.map((item) => ({ ...item, description: value }));
     });
   };
-
-  const supportingDocInputRef = useRef<HTMLInputElement>(null);
 
   const applyEvidenceUpload = (fileName: string, s3Key: string) => {
     setEvidenceItems((prev) => {
@@ -1086,7 +1060,7 @@ export default function CreateAuditStep3Page() {
       : "—";
   const boundProcessName = findingsContext.processName || "—";
   const boundClauseRef = formatAutoLinkedClause(
-    boundFindingRow?.clause || complianceDetails.clause || "",
+    boundFindingRow?.clause || "",
     findingsContext.siteCode
   );
   const boundClassification =
@@ -1111,7 +1085,7 @@ export default function CreateAuditStep3Page() {
     stripHtml(statementOfNonconformity) !== "" &&
     stripHtml(riskJustification) !== "" &&
     stripHtml(justificationForClassification) !== "" &&
-    (stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "");
+    (currentRow?.evidence ?? "").trim() !== "";
 
   type CaValidationField = "evidenceSeen" | "riskJustification" | "statementOfNonconformity" | "justificationForClassification";
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<CaValidationField, string>>>({});
@@ -1133,8 +1107,8 @@ export default function CreateAuditStep3Page() {
     if (stripHtml(statementOfNonconformity) === "") errors.statementOfNonconformity = t("Statement of Nonconformity is required.");
     if (stripHtml(riskJustification) === "") errors.riskJustification = t("Risk Justification & Comments is required.");
     if (stripHtml(justificationForClassification) === "") errors.justificationForClassification = t("Justification for Classification is required.");
-    const evidenceFilled = stripHtml(complianceDetails.evidenceSeen ?? "") !== "" || (currentRow?.evidence ?? "").trim() !== "";
-    if (!evidenceFilled) errors.evidenceSeen = t("Evidence Seen (or Evidence in the checklist row) is required.");
+    const evidenceFilled = (currentRow?.evidence ?? "").trim() !== "";
+    if (!evidenceFilled) errors.evidenceSeen = t("Evidence Seen is required on the checklist row.");
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const firstField = firstErrorFieldOrder.find((f) => errors[f]);
@@ -1156,7 +1130,7 @@ export default function CreateAuditStep3Page() {
   };
   useEffect(() => {
     if (Object.keys(fieldErrors).length > 0) setFieldErrors({});
-  }, [statementOfNonconformity, riskJustification, justificationForClassification, complianceDetails.evidenceSeen, currentRow?.evidence]);
+  }, [statementOfNonconformity, riskJustification, justificationForClassification, currentRow?.evidence]);
 
   const canEditStep3 =
     planStatus !== "closed" && isAssignedAuditor;
@@ -1536,13 +1510,22 @@ export default function CreateAuditStep3Page() {
                                   <span className="line-clamp-2 text-sm text-muted-foreground">{row.evidenceExample || t("—")}</span>
                                 )}
                               </TableCell>
-                              <TableCell className="align-top py-2 max-w-[140px]">
+                              <TableCell
+                                ref={isCurrent ? refEvidenceSeen : undefined}
+                                className={cn(
+                                  "align-top py-2 max-w-[140px]",
+                                  isCurrent && fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-2"
+                                )}
+                              >
                                 {isCurrent ? (
                                   <Input
                                     value={row.evidence}
                                     onChange={(e) => updateRow(row.id, "evidence", e.target.value)}
                                     placeholder={t("Enter evidence details...")}
-                                    className="min-w-[120px] rounded-md border-border bg-muted/80 text-sm italic text-muted-foreground placeholder:italic"
+                                    className={cn(
+                                      "min-w-[120px] rounded-md border-border bg-muted/80 text-sm italic text-muted-foreground placeholder:italic",
+                                      fieldErrors.evidenceSeen && "border-red-500 focus-visible:ring-red-500"
+                                    )}
                                   />
                                 ) : (
                                   <span className="line-clamp-2 text-sm italic text-muted-foreground">{row.evidence || t("—")}</span>
@@ -1614,29 +1597,7 @@ export default function CreateAuditStep3Page() {
                                     <Button
                                       size="sm"
                                       className="gap-1.5 rounded-md bg-orange-500 px-3 text-xs font-semibold uppercase text-white hover:bg-orange-600"
-                                      onClick={() => {
-                                        setActiveCARowId(row.id);
-                                        setComplianceDetails((prev) => ({
-                                          ...prev,
-                                          standard: row.standard,
-                                          clause: row.clause,
-                                          subclauses: row.subclauses,
-                                          requirement: row.requirement,
-                                          question: row.question,
-                                          evidenceExample: row.evidenceExample,
-                                          evidenceSeen: row.evidence,
-                                        }));
-                                        setRiskSeverity(row.riskSeverity ?? "medium");
-                                        setStatementOfNonconformity(row.statementOfNonconformity ?? "");
-                                        setRiskJustification(row.riskJustification ?? "");
-                                        setJustificationForClassification(row.justificationForClassification ?? "");
-                                        setEvidenceItems(evidenceItemsForForm(row.objectiveEvidence));
-                                        setLocationDescription(row.locationDescription || findingsContext.siteLocation || "");
-                                        setManualAddendum(row.manualAddendum || "");
-                                        setTimeout(() => {
-                                          checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                                        }, 100);
-                                      }}
+                                      onClick={() => openNcFlowForRow(row, idx)}
                                     >
                                       <ArrowRight className="h-3.5 w-3.5" />
                                       {t("Document Finding (CA)")}
@@ -1713,124 +1674,8 @@ export default function CreateAuditStep3Page() {
           </div>
         </div>
 
-        {/* Compliance Details — pre-filled when user clicks Document Finding (CA); scroll target for CA flow */}
+        {/* Risk Severity — Document Finding (CA) scroll target */}
         <div ref={checklistSectionRef} className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
-          <h2 className={cn(auditSectionHeadingClass, "mb-6 uppercase")}>{t("COMPLIANCE DETAILS")}</h2>
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("COMPLIANCE REQUIREMENT")}</Label>
-            <Input
-              value={complianceDetails.requirement}
-              readOnly
-              className="border-border bg-muted text-sm"
-            />
-          </div>
-          <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("AUDIT QUESTION")}</Label>
-            <Input
-              value={complianceDetails.question}
-              readOnly
-              className="border-border bg-muted text-sm"
-            />
-          </div>
-          <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("TYPICAL EXAMPLE OF EVIDENCE")}</Label>
-            <Input
-              value={complianceDetails.evidenceExample}
-              readOnly
-              className="border-border bg-muted text-sm"
-            />
-          </div>
-          <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30 p-4")}>
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("EVIDENCE SEEN")}</Label>
-            <Textarea
-              value={asPlainText(complianceDetails.evidenceSeen)}
-              onChange={(e) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: e.target.value }))}
-              placeholder={t("Document detailed findings, interview notes, and physical evidence observed...")}
-              rows={5}
-              className={cn(
-                "min-h-[120px] resize-y text-sm",
-                fieldErrors.evidenceSeen && "border-red-500 focus-visible:ring-red-500"
-              )}
-            />
-            {fieldErrors.evidenceSeen && (
-              <p className="text-sm font-medium text-red-600">{fieldErrors.evidenceSeen}</p>
-            )}
-          </div>
-          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="space-y-2 shrink-0">
-              <input
-                ref={supportingDocInputRef}
-                type="file"
-                className="hidden"
-                disabled={!!uploadingEvidenceId}
-                multiple
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  e.target.value = "";
-                  if (files.length === 0) return;
-                  await uploadEvidenceFiles(files);
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2 border-input font-medium uppercase"
-                disabled={!!uploadingEvidenceId}
-                onClick={() => supportingDocInputRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" />
-                {uploadingEvidenceId
-                  ? t("Uploading...")
-                  : t("Upload Supporting Document")}
-              </Button>
-              {attachedEvidenceFiles.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {attachedEvidenceFiles.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex max-w-xs items-center gap-2 text-sm text-foreground"
-                    >
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <a
-                        href={`/api/files/download?key=${encodeURIComponent(item.s3Key)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="min-w-0 truncate font-medium text-primary hover:underline"
-                        title={item.fileName}
-                      >
-                        {item.fileName}
-                      </a>
-                      <button
-                        type="button"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => clearEvidenceFile(item.id)}
-                        aria-label={t("Remove file")}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="max-w-xs text-xs text-muted-foreground">
-                  {t("Files also appear under Objective Evidence below.")}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-1 items-start gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-red-400" />
-              <p className="text-sm font-medium text-red-300">
-                {t(
-                  "Warning: Submission of false evidence or intentional omission of findings is a breach of ISO 19011:2026 professional code of conduct and system integrity."
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Risk Severity */}
-        <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
           <h2 className={cn(auditSectionHeadingClass, "mb-6 uppercase")}>{t("RISK SEVERITY (CURRENT STATUS)")}</h2>
           <div className="flex flex-wrap gap-6">
             {(["high", "medium", "low"] as const).map((level) => {
@@ -2070,6 +1915,14 @@ export default function CreateAuditStep3Page() {
             <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
               {t("OBJECTIVE EVIDENCE")}
             </h2>
+            <div className="flex items-start gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3">
+              <AlertCircle className="h-5 w-5 shrink-0 text-red-400" />
+              <p className="text-sm font-medium text-red-300">
+                {t(
+                  "Warning: Submission of false evidence or intentional omission of findings is a breach of ISO 19011:2026 professional code of conduct and system integrity."
+                )}
+              </p>
+            </div>
             <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-foreground">
@@ -2326,7 +2179,7 @@ export default function CreateAuditStep3Page() {
                     requirement: r.requirement,
                     question: r.question,
                     evidenceExample: r.evidenceExample,
-                    evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                    evidenceSeen: r.evidence,
                     status: r.status,
                     statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                     riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
@@ -2341,7 +2194,6 @@ export default function CreateAuditStep3Page() {
                 // Keep in-memory rows consistent so empty manual rows don't reappear.
                 setRows(rowsToPersist);
                 if (wasDocumentingCA && activeCARowId) {
-                  updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
                   updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
                   updateRow(activeCARowId, "riskSeverity", riskSeverity);
                   updateRow(activeCARowId, "riskJustification", riskJustification);
@@ -2350,7 +2202,6 @@ export default function CreateAuditStep3Page() {
                   updateRow(activeCARowId, "manualAddendum", manualAddendum);
                   updateRow(activeCARowId, "objectiveEvidence", evidenceItems as any);
                   setActiveCARowId(null);
-                  setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
                   setRiskSeverity("medium");
                   setStatementOfNonconformity("");
                   setRiskJustification("");
@@ -2454,7 +2305,7 @@ export default function CreateAuditStep3Page() {
                       requirement: r.requirement,
                       question: r.question,
                       evidenceExample: r.evidenceExample,
-                      evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                      evidenceSeen: r.evidence,
                       status: r.status,
                       statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                       riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
@@ -2468,7 +2319,6 @@ export default function CreateAuditStep3Page() {
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
                   setRows(rowsToPersist);
                   if (activeCARowId) {
-                    updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
                     updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
                     updateRow(activeCARowId, "riskSeverity", riskSeverity);
                     updateRow(activeCARowId, "locationDescription", locationDescription);
@@ -2506,7 +2356,7 @@ export default function CreateAuditStep3Page() {
                     return {
                       standard: r.standard, clause: r.clause, subclauses: r.subclauses, requirement: r.requirement,
                       question: r.question, evidenceExample: r.evidenceExample,
-                      evidenceSeen: isActiveCA ? (complianceDetails.evidenceSeen ?? r.evidence) : r.evidence,
+                      evidenceSeen: r.evidence,
                       status: r.status,
                       statementOfNonconformity: isActiveCA ? (statementOfNonconformity || r.statementOfNonconformity) : r.statementOfNonconformity,
                       riskSeverity: isActiveCA ? riskSeverity : r.riskSeverity,
