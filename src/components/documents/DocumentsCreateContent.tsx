@@ -886,6 +886,7 @@ export default function DocumentsCreateContent() {
           setFormData((prev) => ({
             ...prev,
             ...saved,
+            title: String(saved.title ?? prev.title ?? "").slice(0, 30),
             loginUserId: prev.loginUserId,
             loginUserName: prev.loginUserName,
             createdByUserId: String(
@@ -935,7 +936,9 @@ export default function DocumentsCreateContent() {
   }, [orgId, recordId, isEditMode, revisionType]);
 
   const setField = <K extends keyof Step1FormData>(field: K, value: Step1FormData[K]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    const nextValue =
+      field === "title" && typeof value === "string" ? value.slice(0, 30) : value;
+    setFormData((prev) => ({ ...prev, [field]: nextValue as Step1FormData[K] }));
   };
 
   const redirectToDocuments = () => {
@@ -1377,7 +1380,7 @@ export default function DocumentsCreateContent() {
               orgId={orgId}
               formData={formData}
               title={formData.title}
-              setTitle={(value) => setField("title", value)}
+              setTitle={(value) => setField("title", value.slice(0, 30))}
               docType={formData.docType}
               setDocType={(value) => setField("docType", value)}
               site={formData.site}

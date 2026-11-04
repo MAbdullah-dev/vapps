@@ -38,6 +38,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AuditHistoryDialog, { AuditHistoryEntry } from "./AuditHistoryDialog";
 import {
+  AUDIT_KPI_THRESHOLDS,
+  AUDIT_STATUS_LABELS,
   getAuditStatusByDays,
   getAuditStatusColor,
   getAuditComplianceKpi,
@@ -57,15 +59,6 @@ const NEXT_STEP_LABELS: Record<number, string> = {
   4: "Corrective Action (Step 4)",
   5: "Effectiveness Verification (Step 5)",
   6: "Final Closure (Step 6)",
-};
-
-type AuditStatusKey = "success" | "in_progress" | "pending" | "fail";
-
-const AUDIT_STATUS_LABEL_EN: Record<AuditStatusKey, string> = {
-  success: "Success ≤ 30 days",
-  in_progress: "In-Progress < 30 days",
-  pending: "Pending > 30 days",
-  fail: "Fail > 40 days",
 };
 
 const KPI_LABEL_KEYS: Record<Audit["kpiLabel"], string> = {
@@ -94,7 +87,7 @@ function displayCellValue(value: string, t: (s: string) => string): string {
 }
 
 function translateAuditStatus(status: string, t: (s: string) => string): string {
-  const match = Object.values(AUDIT_STATUS_LABEL_EN).find((label) => label === status);
+  const match = Object.values(AUDIT_STATUS_LABELS).find((label) => label === status);
   return match ? t(match) : status;
 }
 
@@ -239,7 +232,7 @@ function getColumns(
   },
   {
     accessorKey: "dueDate",
-    header: () => <TableHeader title={t("Due Date (30 days)")} />,
+    header: () => <TableHeader title={t("Due Date (60 days)")} />,
     cell: ({ row }) => (
       <span className="text-muted-foreground">{displayCellValue(row.original.dueDate, t)}</span>
     ),
@@ -423,7 +416,12 @@ function mapPlansToAudits(list: any[]): Audit[] {
     const plannedDateFormatted = p.plannedDate ? formatDate(p.plannedDate) : "—";
     const dueDate =
       p.plannedDate
-        ? formatDate(new Date(new Date(p.plannedDate).getTime() + 30 * 24 * 60 * 60 * 1000))
+        ? formatDate(
+            new Date(
+              new Date(p.plannedDate).getTime() +
+                AUDIT_KPI_THRESHOLDS.pendingDays * 24 * 60 * 60 * 1000
+            )
+          )
         : "—";
     const kpiScore =
       p.kpiScore != null && String(p.kpiScore).trim() !== "" ? String(p.kpiScore).trim() : null;
@@ -897,7 +895,7 @@ export default function AuditsContent() {
         </CardContent>
       </Card>
 
-      <KpiStatusLogicCard className="mt-6" />
+      <KpiStatusLogicCard className="mt-6" variant="audit" />
 
       {/* Audit History Dialog */}
       <AuditHistoryDialog

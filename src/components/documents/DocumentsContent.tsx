@@ -302,6 +302,7 @@ type EvidenceRegisterView = {
   documentRef: string;
   title: string;
   site: string;
+  process: string;
   docNumber: string;
   version: string;
   tracking: string;
@@ -324,6 +325,9 @@ function toEvidenceRegisterView(
   const refParts = ref.split("/").filter(Boolean);
   const version = refParts.length > 0 ? refParts[refParts.length - 1] ?? "-" : "-";
   const site = compactSiteCode(refParts.length > 2 ? refParts[2] ?? "-" : "-");
+  const process =
+    String(cd.processName ?? cd.processId ?? "").trim() ||
+    (refParts.length > 3 ? refParts[3] ?? "-" : "-");
   const docNumber = refParts.length > 5 ? refParts[5] ?? "-" : "-";
   const fromCapture = String(cd.formTitle ?? "").trim();
   const fromTemplate = String(titleByTemplateId[row.template_record_id] ?? "").trim();
@@ -340,6 +344,7 @@ function toEvidenceRegisterView(
     documentRef: ref || "-",
     title,
     site,
+    process,
     docNumber,
     version,
     tracking,
@@ -1598,8 +1603,8 @@ export default function DocumentsContent() {
         t("Standard"),
         t("Clause"),
         t("Subclause"),
-        t("Doc#"),
-        t("Version"),
+        // t("Doc#"),
+        // t("Version"),
         t("Plan Date"),
         t("Release Date"),
         t("Review Due (Lifecycle in Years)"),
@@ -1618,8 +1623,8 @@ export default function DocumentsContent() {
         docRow.standard,
         docRow.clause,
         docRow.subclause,
-        docRow.docNumber,
-        docRow.version,
+        // docRow.docNumber,
+        // docRow.version,
         docRow.planDate,
         docRow.releaseDate,
         docRow.reviewDue,
@@ -1685,8 +1690,7 @@ export default function DocumentsContent() {
         t("Title"),
         t("Type"),
         t("Site"),
-        t("Doc#"),
-        t("Version"),
+        t("Process"),
         t("Tracking#"),
         t("Effective Date"),
         t("KPI"),
@@ -1700,8 +1704,7 @@ export default function DocumentsContent() {
           view.title,
           "F",
           view.site,
-          view.docNumber,
-          view.version,
+          view.process,
           view.tracking,
           view.effectiveDate,
           t(view.kpi),
@@ -1798,8 +1801,7 @@ export default function DocumentsContent() {
       t("Title"),
       t("Type"),
       t("Site"),
-      t("Doc#"),
-      t("Version"),
+      t("Process"),
       t("Tracking#"),
       t("Effective Date"),
       t("KPI"),
@@ -1812,8 +1814,7 @@ export default function DocumentsContent() {
         view.title,
         "F",
         view.site,
-        view.docNumber,
-        view.version,
+        view.process,
         view.tracking,
         view.effectiveDate,
         t(view.kpi),
@@ -2061,8 +2062,8 @@ export default function DocumentsContent() {
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Standard")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Clause")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Subclause")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead>
+                    {/* <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead> */}
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Plan Date")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Release Date")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground min-w-[140px]">
@@ -2079,13 +2080,13 @@ export default function DocumentsContent() {
                 <TableBody>
                   {!documentsLoaded && orgId ? (
                     <TableRow>
-                      <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={16} className="py-12 text-center text-sm text-muted-foreground">
                         {t("Loading documents…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredMaster.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={18} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={16} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
                           ? t("Open this page from your organization dashboard to load documents.")
                           : masterApiRows.length === 0
@@ -2101,7 +2102,7 @@ export default function DocumentsContent() {
                         </TableCell>
                         <TableCell className="text-sm text-foreground">{t(doc.natureOfDocument)}</TableCell>
                         <TableCell className="text-sm text-foreground max-w-[200px]">
-                          {displayCell(doc.title, t)}
+                          {displayCell(doc.title.slice(0, 30), t)}
                         </TableCell>
                         <TableCell>
                           <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold text-foreground">
@@ -2115,12 +2116,12 @@ export default function DocumentsContent() {
                         <TableCell className="text-sm">{displayCell(doc.standard, t)}</TableCell>
                         <TableCell className="text-sm max-w-[120px]">{displayCell(doc.clause, t)}</TableCell>
                         <TableCell className="text-sm max-w-[160px]">{displayCell(doc.subclause, t)}</TableCell>
-                        <TableCell className="text-sm font-semibold text-foreground">
+                        {/* <TableCell className="text-sm font-semibold text-foreground">
                           {displayCell(doc.docNumber, t)}
                         </TableCell>
                         <TableCell className="text-sm font-semibold text-foreground">
                           {displayCell(doc.version, t)}
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell className="text-sm whitespace-nowrap">
                           {displayCell(doc.planDate, t)}
                         </TableCell>
@@ -2259,10 +2260,7 @@ export default function DocumentsContent() {
                       {t("Site")}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
-                      {t("Doc#")}
-                    </TableHead>
-                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">
-                      {t("Version")}
+                      {t("Process")}
                     </TableHead>
                     <TableHead className="text-xs font-semibold text-primary whitespace-nowrap">
                       {t("Tracking#")}
@@ -2287,13 +2285,13 @@ export default function DocumentsContent() {
                 <TableBody>
                   {!evidenceLoaded ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="py-12 text-center text-sm text-muted-foreground">
                         {t("Loading evidence records…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredEvidence.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="py-12 text-center text-sm text-muted-foreground">
                         {evidenceRows.length === 0
                           ? t("No documentary evidence records yet. Use Capture Records to add one.")
                           : t("No records match your search.")}
@@ -2316,11 +2314,8 @@ export default function DocumentsContent() {
                           <TableCell className="px-3 py-2.5 text-sm text-foreground">
                             {displayCell(view.site, t)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm font-bold text-foreground">
-                            {displayCell(view.docNumber, t)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5 text-sm font-semibold text-amber-600">
-                            {displayCell(view.version, t)}
+                          <TableCell className="px-3 py-2.5 text-sm text-foreground whitespace-nowrap">
+                            {displayCell(view.process, t)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-sm font-semibold text-amber-600">
                             {displayCell(view.tracking, t)}
@@ -2518,8 +2513,8 @@ export default function DocumentsContent() {
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Standard")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Clause")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Subclause")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
-                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead>
+                    {/* <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Doc#")}</TableHead>
+                    <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Version")}</TableHead> */}
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Plan Date")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Release Date")}</TableHead>
                     <TableHead className="text-xs font-semibold text-foreground whitespace-nowrap">{t("Review Due")}</TableHead>
@@ -2528,13 +2523,13 @@ export default function DocumentsContent() {
                 <TableBody>
                   {!documentsLoaded && orgId ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="py-12 text-center text-sm text-muted-foreground">
                         {t("Loading documents…")}
                       </TableCell>
                     </TableRow>
                   ) : filteredMaster.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={13} className="py-12 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={11} className="py-12 text-center text-sm text-muted-foreground">
                         {!orgId
                           ? t("Open this page from your organization dashboard to load documents.")
                           : masterApiRows.length === 0
@@ -2547,7 +2542,7 @@ export default function DocumentsContent() {
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-foreground">{doc.documentRef}</TableCell>
                         <TableCell>{t(doc.natureOfDocument)}</TableCell>
-                        <TableCell>{displayCell(doc.title, t)}</TableCell>
+                        <TableCell>{displayCell(String(doc.title ?? "").slice(0, 30), t)}</TableCell>
                         <TableCell>
                           <span className="rounded-3xl bg-muted px-2 py-1 text-xs font-semibold">
                             {doc.type}
@@ -2558,8 +2553,8 @@ export default function DocumentsContent() {
                         <TableCell>{displayCell(doc.standard, t)}</TableCell>
                         <TableCell>{displayCell(doc.clause, t)}</TableCell>
                         <TableCell>{displayCell(doc.subclause, t)}</TableCell>
-                        <TableCell className="font-semibold">{displayCell(doc.docNumber, t)}</TableCell>
-                        <TableCell className="font-semibold">{displayCell(doc.version, t)}</TableCell>
+                        {/* <TableCell className="font-semibold">{displayCell(doc.docNumber, t)}</TableCell>
+                        <TableCell className="font-semibold">{displayCell(doc.version, t)}</TableCell> */}
                         <TableCell>{displayCell(doc.planDate, t)}</TableCell>
                         <TableCell>{displayCell(doc.releaseDate, t)}</TableCell>
                         <TableCell>{displayCell(doc.reviewDue, t)}</TableCell>

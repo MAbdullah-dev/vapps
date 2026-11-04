@@ -380,7 +380,7 @@ export default function CreateAuditStep5Page() {
           {/* Main title with thick green vertical bar to the left */}
           <div className="flex items-center">
             <div className="h-9 w-1.5 shrink-0 rounded-full bg-primary" />
-            <h1 className="pl-3 text-xl font-bold uppercase tracking-wide text-foreground">
+            <h1 className="pl-3 text-xl font-bold uppercase tracking-tight text-foreground">
               {t("EFFECTIVENESS VERIFICATION")}
             </h1>
           </div>

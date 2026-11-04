@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { addDays, format } from "date-fns";
+import { format } from "date-fns";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,12 +63,14 @@ import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
 import { useQueryClient } from "@tanstack/react-query";
 import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
 import { getDashboardPath } from "@/lib/subdomain";
-import { formatNonconformityRef, type AuditProgramRefParts } from "@/lib/audit-program-ref";
+import { type AuditProgramRefParts } from "@/lib/audit-program-ref";
 import { compactSiteCode } from "@/lib/documentRef";
-import { AUDIT_STATUS_LABELS, getAuditStatusByDays, getAuditStatusColor } from "@/lib/compliance-kpi";
-
-const NC_DUE_DAYS_MAJOR = 30;
-const NC_DUE_DAYS_MINOR = 60;
+import { auditSectionHeadingClass, auditSelectContentClass } from "@/lib/audit-ui";
+import { buildNcMatrixRows } from "@/lib/audit-nc-matrix";
+import { AuditNonconformityMatrix } from "@/components/audit/AuditNonconformityMatrix";
+import { parseStep4Actions } from "@/lib/audit-step4-ca";
+import { parseStep5Verifications } from "@/lib/audit-step5-verification";
+import { parseStep6Reviews } from "@/lib/audit-step6-closure";
 
 type ComplianceStatus =
   | "compliant"
@@ -95,6 +97,8 @@ interface ChecklistRow {
   riskJustification?: string;
   justificationForClassification?: string;
   objectiveEvidence?: ObjectiveEvidenceItem[] | null;
+  locationDescription?: string;
+  manualAddendum?: string;
 }
 
 /** Checklist item for manual row search (clause/subclause → requirement, question, evidenceExample). */
@@ -217,6 +221,11 @@ const LEGEND_ITEMS: { key: ComplianceStatus; label: string; className: string; i
   { key: "missing", label: "MISSING REQUIRED", className: "border-2 border-dashed border-border bg-muted text-foreground rounded-md", icon: "dash" },
 ];
 
+/** Checklist/CA action dropdown: nonconformity workflow only. OFI, PA, and Missing stay on the Findings recording table. */
+const CHECKLIST_ACTION_STATUSES = LEGEND_ITEMS.filter(
+  (item) => item.key !== "ofi" && item.key !== "positive" && item.key !== "missing"
+);
+
 /** Short status labels for checklist list (e.g. "1. Conformity", "2. Not Auditable") */
 const STATUS_CHECKLIST_LABEL: Record<ComplianceStatus, string> = {
   compliant: "Conformity",
@@ -244,6 +253,34 @@ const EMPTY_COMPLIANCE_DETAILS = {
 const DEFAULT_EVIDENCE_ITEMS: { id: string; description: string; fileName: string; s3Key: string; effectiveness: "effective" | "ineffective" }[] = [
   { id: "ev-1", description: "", fileName: "", s3Key: "", effectiveness: "effective" },
 ];
+
+type FindingsBindContext = {
+  siteName: string;
+  siteCode: string;
+  siteLocation: string;
+  processName: string;
+  processId: string;
+  year: number;
+};
+
+const EMPTY_FINDINGS_CONTEXT: FindingsBindContext = {
+  siteName: "",
+  siteCode: "",
+  siteLocation: "",
+  processName: "",
+  processId: "",
+  year: new Date().getFullYear(),
+};
+
+function formatAutoLinkedClause(clause: string, siteCode: string): string {
+  const c = String(clause ?? "").trim();
+  const s = compactSiteCode(String(siteCode ?? "").trim());
+  if (!c && (!s || s === "—")) return "";
+  if (!s || s === "—") return c;
+  if (!c) return `SITE ${s}`;
+  if (/\bSITE\b/i.test(c)) return c;
+  return `${c} SITE ${s}`;
+}
 
 function asPlainText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -317,6 +354,12 @@ export default function CreateAuditStep3Page() {
     findingsSubmittedAt: string | null;
   } | null>(null);
   const [programRefParts, setProgramRefParts] = useState<AuditProgramRefParts | null>(null);
+  const [step4DataRaw, setStep4DataRaw] = useState<unknown>(null);
+  const [step5DataRaw, setStep5DataRaw] = useState<unknown>(null);
+  const [step6DataRaw, setStep6DataRaw] = useState<unknown>(null);
+  const [findingsContext, setFindingsContext] = useState<FindingsBindContext>(EMPTY_FINDINGS_CONTEXT);
+  const [locationDescription, setLocationDescription] = useState("");
+  const [manualAddendum, setManualAddendum] = useState("");
   const [leadAuditorDisplay, setLeadAuditorDisplay] = useState<string>("—");
   /** Checklist items for manual row search (by clause/subclause) under the selected standard. */
   const [checklistItemsForManual, setChecklistItemsForManual] = useState<ManualChecklistItem[]>([]);
@@ -361,6 +404,9 @@ export default function CreateAuditStep3Page() {
             createdAt: plan.createdAt ?? null,
             findingsSubmittedAt: plan.findingsSubmittedAt ?? null,
           });
+          setStep4DataRaw(plan.step4Data ?? null);
+          setStep5DataRaw(plan.step5Data ?? null);
+          setStep6DataRaw(plan.step6Data ?? null);
           try {
             const plansRes = await apiClient.getAuditPlans(orgId);
             const listed = Array.isArray(plansRes?.plans)
@@ -378,6 +424,36 @@ export default function CreateAuditStep3Page() {
               auditType: (listed?.auditType || plan.auditType || "FPA").toString().toUpperCase(),
               sequence: listed?.programSequence || "1",
             });
+            if (programId) {
+              try {
+                const progRes = await apiClient.getAuditProgram(orgId, programId);
+                const prog = progRes?.program;
+                const sites = Array.isArray(prog?.sites) ? prog.sites : [];
+                const site =
+                  sites.find(
+                    (s: { code?: string; name?: string }) =>
+                      s.code === listed?.siteCode || s.name === listed?.siteName
+                  ) || sites[0];
+                const year = dateForYear ? new Date(dateForYear).getFullYear() : new Date().getFullYear();
+                setFindingsContext({
+                  siteName: String(site?.name || listed?.siteName || "").trim(),
+                  siteCode: compactSiteCode(String(site?.code || listed?.siteCode || "").trim()),
+                  siteLocation: String(site?.location || "").trim(),
+                  processName: String(prog?.processName || listed?.processName || listed?.process || "").trim(),
+                  processId: String(prog?.processId || "").trim(),
+                  year,
+                });
+              } catch {
+                setFindingsContext({
+                  siteName: String(listed?.siteName || "").trim(),
+                  siteCode: compactSiteCode(String(listed?.siteCode || "").trim()),
+                  siteLocation: "",
+                  processName: String(listed?.processName || listed?.process || "").trim(),
+                  processId: "",
+                  year: dateForYear ? new Date(dateForYear).getFullYear() : new Date().getFullYear(),
+                });
+              }
+            }
           } catch {
             setProgramRefParts({
               year: plan.plannedDate
@@ -446,6 +522,8 @@ export default function CreateAuditStep3Page() {
           riskJustification: "",
           justificationForClassification: "",
           objectiveEvidence: null,
+          locationDescription: "",
+          manualAddendum: "",
         }));
 
         let loadedFindingsCount = 0;
@@ -483,6 +561,8 @@ export default function CreateAuditStep3Page() {
                 riskJustification: f.riskJustification ?? "",
                 justificationForClassification: f.justificationForClassification ?? "",
                 objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
+                locationDescription: f.locationDescription ?? f.location_description ?? "",
+                manualAddendum: f.manualAddendum ?? f.manual_addendum ?? "",
               }));
             } else {
               // Fewer saved than template: merge by index then append any extra (safety)
@@ -504,6 +584,8 @@ export default function CreateAuditStep3Page() {
                     riskJustification: f.riskJustification ?? "",
                     justificationForClassification: f.justificationForClassification ?? "",
                     objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
+                locationDescription: f.locationDescription ?? f.location_description ?? "",
+                manualAddendum: f.manualAddendum ?? f.manual_addendum ?? "",
                   };
                 }
                 return {
@@ -519,6 +601,8 @@ export default function CreateAuditStep3Page() {
                   riskJustification: "",
                   justificationForClassification: "",
                   objectiveEvidence: null,
+                  locationDescription: "",
+                  manualAddendum: "",
                 };
               });
               for (let i = questions.length; i < saved.length; i++) {
@@ -538,6 +622,8 @@ export default function CreateAuditStep3Page() {
                   riskJustification: f.riskJustification ?? "",
                   justificationForClassification: f.justificationForClassification ?? "",
                   objectiveEvidence: normalizeObjectiveEvidenceFromApi(f.objectiveEvidence ?? f.objective_evidence),
+                locationDescription: f.locationDescription ?? f.location_description ?? "",
+                manualAddendum: f.manualAddendum ?? f.manual_addendum ?? "",
                 });
               }
               mapped = merged;
@@ -636,7 +722,16 @@ export default function CreateAuditStep3Page() {
   }, [planSummary, auditPlanIdFromUrl, t]);
 
   const ncMatrixRows = useMemo(() => {
-    const ncRows = rows.filter((r) => r.status === "major_nc" || r.status === "minor_nc");
+    const ncs = rows
+      .filter((r) => r.status === "major_nc" || r.status === "minor_nc")
+      .map((r) => ({
+        id: r.id,
+        status: r.status,
+        standard: r.standard,
+        clause: r.clause,
+        subclauses: r.subclauses,
+        requirement: r.requirement,
+      }));
     const refParts: AuditProgramRefParts = programRefParts ?? {
       year: new Date().getFullYear(),
       site: "—",
@@ -644,43 +739,20 @@ export default function CreateAuditStep3Page() {
       auditType: "FPA",
       sequence: "1",
     };
-    const dueSource =
-      planSummary?.plannedDate ||
-      planSummary?.findingsSubmittedAt ||
-      planSummary?.datePrepared ||
-      planSummary?.createdAt ||
-      null;
-    const dueStart = dueSource ? new Date(dueSource) : null;
-    const dueStartValid = Boolean(dueStart && !Number.isNaN(dueStart.getTime()));
-    const ncStatus = getAuditStatusByDays(
-      planStatus ?? "draft",
-      planSummary?.plannedDate ?? null,
-      planSummary?.datePrepared ?? null,
-      planSummary?.createdAt ?? null
-    );
-    const processArea = String(refParts.process ?? "").trim() || "—";
-    const site =
-      String(refParts.site ?? "").trim() && String(refParts.site).trim() !== "—"
-        ? compactSiteCode(String(refParts.site))
-        : "—";
-    return ncRows.map((row, index) => {
-      const isMajor = row.status === "major_nc";
-      const dueDays = isMajor ? NC_DUE_DAYS_MAJOR : NC_DUE_DAYS_MINOR;
-      return {
-        id: row.id,
-        reference: formatNonconformityRef(refParts, index + 1),
-        standard: row.standard || standardName || "—",
-        site,
-        processArea,
-        clause: [row.clause, row.requirement].map((v) => String(v ?? "").trim()).filter(Boolean).join(" ") || "—",
-        subclauses: row.subclauses || "—",
-        classification: isMajor ? "MA" : "mi",
-        classificationLabel: isMajor ? "Major" : "Minor",
-        dueDate: dueStartValid ? format(addDays(dueStart!, dueDays), "dd-MM-yyyy") : "—",
-        ncStatus,
-      };
+    return buildNcMatrixRows({
+      findings: ncs,
+      refParts,
+      planStatus,
+      plannedDate: planSummary?.plannedDate,
+      datePrepared: planSummary?.datePrepared,
+      createdAt: planSummary?.createdAt,
+      findingsSubmittedAt: planSummary?.findingsSubmittedAt,
+      standardName,
+      caByFindingId: parseStep4Actions(step4DataRaw, ncs),
+      verificationsByFindingId: parseStep5Verifications(step5DataRaw, ncs),
+      reviewsByFindingId: parseStep6Reviews(step6DataRaw, ncs),
     });
-  }, [rows, programRefParts, planSummary, planStatus, standardName]);
+  }, [rows, programRefParts, planSummary, planStatus, standardName, step4DataRaw, step5DataRaw, step6DataRaw]);
 
   const addRow = () => {
     const currentDisplayedId = filteredRows[currentQuestionIndex]?.id;
@@ -773,6 +845,8 @@ export default function CreateAuditStep3Page() {
     setRiskJustification(row.riskJustification ?? "");
     setJustificationForClassification(row.justificationForClassification ?? "");
     setEvidenceItems(evidenceItemsForForm(row.objectiveEvidence));
+    setLocationDescription(row.locationDescription || findingsContext.siteLocation || "");
+    setManualAddendum(row.manualAddendum || "");
     setTimeout(() => {
       checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
@@ -812,6 +886,8 @@ export default function CreateAuditStep3Page() {
       riskJustification: r.riskJustification,
       justificationForClassification: r.justificationForClassification,
       objectiveEvidence: r.objectiveEvidence,
+      locationDescription: r.locationDescription,
+      manualAddendum: r.manualAddendum,
     }));
     await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
     setRows(rowsToPersist);
@@ -954,7 +1030,7 @@ export default function CreateAuditStep3Page() {
       ofiRef: "OFI-2026-001",
       standard: "ISO 9001:2015",
       site: "SITE A",
-      processArea: "PRODUCTION",
+      processArea: "",
       clause: "7.1.3",
       subclauses: "N/A",
       ofiPa: "ofi",
@@ -999,6 +1075,34 @@ export default function CreateAuditStep3Page() {
   }, [auditPlanIdFromUrl, programIdFromUrl, criteriaFromUrl, checklistIdFromUrl]);
 
   const currentRow = filteredRows[currentQuestionIndex] ?? null;
+  const boundFindingRow =
+    (activeCARowId ? rows.find((r) => r.id === activeCARowId) : null) ?? currentRow;
+  const boundSiteLabel = findingsContext.siteName
+    ? findingsContext.siteCode && findingsContext.siteCode !== "—"
+      ? `${findingsContext.siteName} — ${findingsContext.siteCode}`
+      : findingsContext.siteName
+    : findingsContext.siteCode && findingsContext.siteCode !== "—"
+      ? findingsContext.siteCode
+      : "—";
+  const boundProcessName = findingsContext.processName || "—";
+  const boundClauseRef = formatAutoLinkedClause(
+    boundFindingRow?.clause || complianceDetails.clause || "",
+    findingsContext.siteCode
+  );
+  const boundClassification =
+    boundFindingRow?.status === "major_nc"
+      ? "MA"
+      : boundFindingRow?.status === "minor_nc"
+        ? "mi"
+        : "—";
+
+  useEffect(() => {
+    const rowId = activeCARowId || currentRow?.id;
+    const row = rowId ? rowsRef.current.find((r) => r.id === rowId) : null;
+    setLocationDescription(row?.locationDescription || findingsContext.siteLocation || "");
+    setManualAddendum(row?.manualAddendum || "");
+  }, [activeCARowId, currentRow?.id, findingsContext.siteLocation]);
+
   const isCurrentMinorOrMajorNc =
     currentRow && (currentRow.status === "minor_nc" || currentRow.status === "major_nc");
   const isCaOpenForCurrentRow = currentRow && activeCARowId === currentRow.id;
@@ -1142,11 +1246,11 @@ export default function CreateAuditStep3Page() {
                     }}
                     disabled={!canEditRowDialog}
                   >
-                    <SelectTrigger className="h-9 rounded-md border-gray-200">
+                    <SelectTrigger className="h-10 w-full rounded-lg border-border bg-background">
                       <SelectValue placeholder={t("Select")} />
                     </SelectTrigger>
-                    <SelectContent>
-                      {LEGEND_ITEMS.map((item) => (
+                    <SelectContent className={auditSelectContentClass}>
+                      {CHECKLIST_ACTION_STATUSES.map((item) => (
                         <SelectItem key={item.key} value={item.key}>
                           {t(item.label)}
                         </SelectItem>
@@ -1242,7 +1346,7 @@ export default function CreateAuditStep3Page() {
             <>
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold uppercase text-foreground">{t("AUDIT CHECKLIST")}</h2>
+                  <h2 className={cn(auditSectionHeadingClass, "uppercase")}>{t("AUDIT CHECKLIST")}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {t("Criteria:")} {criteria === "Checklist" ? t("Checklist") : t(criteria)}. {t("One question at a time.")}
                   </p>
@@ -1339,11 +1443,11 @@ export default function CreateAuditStep3Page() {
                           <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">{t("STANDARD (SYSTEM)")}</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">{t("CLAUSE")}</TableHead>
                           <TableHead className="whitespace-nowrap font-semibold uppercase text-foreground">{t("SUBCLAUSES")}</TableHead>
-                          <TableHead className="min-w-[160px] font-semibold uppercase text-foreground">{t("COMPLIANCE")}</TableHead>
+                          <TableHead className="min-w-[160px] font-semibold uppercase text-foreground">{t("COMPLIANCE REQUIREMENT")}</TableHead>
                           <TableHead className="min-w-[200px] font-semibold uppercase text-foreground">{t("AUDIT QUESTION")}</TableHead>
                           <TableHead className="min-w-[160px] font-semibold uppercase text-foreground leading-tight">{t("TYPICAL EXAMPLE OF EVIDENCE")}</TableHead>
                           <TableHead className="min-w-[140px] font-semibold uppercase text-foreground">{t("EVIDENCE SEEN")}</TableHead>
-                          <TableHead className="min-w-[120px] font-semibold uppercase text-foreground">{t("COMPLIANCE")}  </TableHead>
+                          <TableHead className="min-w-[120px] font-semibold uppercase text-foreground">{t("STATUS")}</TableHead>
                           <TableHead className="w-[140px] font-semibold uppercase text-foreground">{t("ACTION")}</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1467,11 +1571,11 @@ export default function CreateAuditStep3Page() {
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
                                   <Select value={row.status} onValueChange={(v) => updateRow(row.id, "status", v as ComplianceStatus)}>
-                                    <SelectTrigger className="h-9 min-w-[100px] rounded-md border-border">
+                                    <SelectTrigger className="h-10 min-w-[140px] rounded-lg border-border bg-background">
                                       <SelectValue placeholder={t("Select")} />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                      {LEGEND_ITEMS.map((item) => (
+                                    <SelectContent className={auditSelectContentClass}>
+                                      {CHECKLIST_ACTION_STATUSES.map((item) => (
                                         <SelectItem key={item.key} value={item.key}>
                                           {t(item.label)}
                                         </SelectItem>
@@ -1527,6 +1631,8 @@ export default function CreateAuditStep3Page() {
                                         setRiskJustification(row.riskJustification ?? "");
                                         setJustificationForClassification(row.justificationForClassification ?? "");
                                         setEvidenceItems(evidenceItemsForForm(row.objectiveEvidence));
+                                        setLocationDescription(row.locationDescription || findingsContext.siteLocation || "");
+                                        setManualAddendum(row.manualAddendum || "");
                                         setTimeout(() => {
                                           checklistSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                                         }, 100);
@@ -1586,7 +1692,7 @@ export default function CreateAuditStep3Page() {
         </div>
         {/* Compliance Legend */}
         <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-4 text-xl font-bold uppercase text-foreground">{t("COMPLIANCE LEGEND")}</h2>
+          <h2 className={cn(auditSectionHeadingClass, "mb-4 uppercase")}>{t("COMPLIANCE LEGEND")}</h2>
           <div className="flex flex-wrap items-center gap-4">
             {LEGEND_ITEMS.map((item) => (
               <div key={item.key} className="flex items-center gap-2">
@@ -1609,35 +1715,9 @@ export default function CreateAuditStep3Page() {
 
         {/* Compliance Details — pre-filled when user clicks Document Finding (CA); scroll target for CA flow */}
         <div ref={checklistSectionRef} className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-foreground">{t("COMPLIANCE DETAILS")}</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.1 STANDARD")}</Label>
-              <Input
-                value={complianceDetails.standard}
-                readOnly
-                className="border-border bg-muted text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.2 CLAUSE")}</Label>
-              <Input
-                value={complianceDetails.clause}
-                readOnly
-                className="border-border bg-primary/10 text-sm font-medium"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.3 SUBCLAUSES")}</Label>
-              <Input
-                value={complianceDetails.subclauses}
-                readOnly
-                className="border-border bg-primary/10 text-sm"
-              />
-            </div>
-          </div>
-          <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.4 COMPLIANCE REQUIREMENT")}</Label>
+          <h2 className={cn(auditSectionHeadingClass, "mb-6 uppercase")}>{t("COMPLIANCE DETAILS")}</h2>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("COMPLIANCE REQUIREMENT")}</Label>
             <Input
               value={complianceDetails.requirement}
               readOnly
@@ -1645,7 +1725,7 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.5 AUDIT QUESTION")}</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("AUDIT QUESTION")}</Label>
             <Input
               value={complianceDetails.question}
               readOnly
@@ -1653,7 +1733,7 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div className="mt-6 space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.6 TYPICAL EXAMPLE OF EVIDENCE")}</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("TYPICAL EXAMPLE OF EVIDENCE")}</Label>
             <Input
               value={complianceDetails.evidenceExample}
               readOnly
@@ -1661,7 +1741,7 @@ export default function CreateAuditStep3Page() {
             />
           </div>
           <div ref={refEvidenceSeen} className={cn("mt-6 space-y-2", fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 dark:bg-red-950/30 p-4")}>
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("3.2.7 EVIDENCE SEEN")}</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("EVIDENCE SEEN")}</Label>
             <Textarea
               value={asPlainText(complianceDetails.evidenceSeen)}
               onChange={(e) => setComplianceDetails((prev) => ({ ...prev, evidenceSeen: e.target.value }))}
@@ -1751,7 +1831,7 @@ export default function CreateAuditStep3Page() {
 
         {/* Risk Severity */}
         <div className="rounded-lg border border-border bg-card p-8 shadow-sm mx-8 my-4">
-          <h2 className="mb-6 text-xl font-bold uppercase text-foreground">{t("RISK SEVERITY (CURRENT STATUS)")}</h2>
+          <h2 className={cn(auditSectionHeadingClass, "mb-6 uppercase")}>{t("RISK SEVERITY (CURRENT STATUS)")}</h2>
           <div className="flex flex-wrap gap-6">
             {(["high", "medium", "low"] as const).map((level) => {
               const selected = riskSeverity === level;
@@ -1813,28 +1893,27 @@ export default function CreateAuditStep3Page() {
               <div>
                 <div className="mb-2 font-semibold uppercase text-red-300">{t("HIGH SEVERITY")}</div>
                 <p className="text-sm text-muted-foreground">
-                  {t("Direct impact on product safety, regulatory compliance, or system-wide failure. Requires immediate containment.")}
+                  {t("Direct impact on management system conformity, a legal or regulatory obligation, or the ability to meet the audit criteria. Requires immediate containment.")}
                 </p>
               </div>
               <div>
                 <div className="mb-2 font-semibold uppercase text-orange-300">{t("MEDIUM SEVERITY")}</div>
                 <p className="text-sm text-muted-foreground">
-                  {t("Partial failure of core process. May impact customer satisfaction or operational efficiency if not addressed.")}
+                  {t("Partial gap against the audited requirement. Customer satisfaction or operational performance may be affected if not addressed.")}
                 </p>
               </div>
               <div>
                 <div className="mb-2 font-semibold uppercase text-primary">{t("LOW SEVERITY")}</div>
                 <p className="text-sm text-muted-foreground">
-                  {t("Isolated administrative error or minor process deviation. Negligible impact on quality or safety.")}
+                  {t("Isolated documentation or administrative deviation with limited effect on the management system.")}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Classification, Site, Process & Standard Requirement - 4 cards as in image */}
+        {/* Classification, Site, Process (Auditee) & Standard Requirement — Form 34v11 */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 mx-8 my-4">
-          {/* Card 1: CLASSIFICATION */}
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               {t("CLASSIFICATION")}
@@ -1845,9 +1924,16 @@ export default function CreateAuditStep3Page() {
               </Label>
               <div className="relative">
                 <Input
-                  value="MA"
+                  value={boundClassification}
                   readOnly
-                  className="h-12 border-2 border-red-500 bg-background pr-10 text-2xl font-bold text-red-600"
+                  className={cn(
+                    "h-12 border-2 bg-background pr-10 text-2xl font-bold",
+                    boundClassification === "MA"
+                      ? "border-red-500 text-red-600"
+                      : boundClassification === "mi"
+                        ? "border-emerald-500 text-emerald-600"
+                        : "border-border text-muted-foreground"
+                  )}
                 />
                 <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               </div>
@@ -1856,86 +1942,58 @@ export default function CreateAuditStep3Page() {
               </p>
             </div>
           </div>
-          {/* Card 2: SITE / UNIT */}
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               {t("SITE / UNIT")}
             </h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("3.5.1 SITE (SYSTEM GENERATED)")}
-                </Label>
-                <Input
-                  value={t("MANUFACTURING COMPLEX - UNIT 4")}
-                  readOnly
-                  className="border-border bg-muted text-sm font-medium text-foreground"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("LOCATION DESCRIPTION")}
-                </Label>
-                <Input
-                  placeholder={t("e.g. Production Floor, Second Bay")}
-                  className="border-border text-sm"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("SITE")}
+              </Label>
+              <Input
+                value={boundSiteLabel}
+                readOnly
+                className="border-border bg-muted text-sm font-medium text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Taken from the selected organizational site on the audit program.")}
+              </p>
             </div>
           </div>
-          {/* Card 3: PROCESS / AREA */}
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
-              {t("PROCESS / AREA")}
+              {t("Process (Auditee)")}
             </h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("3.6.1 PROCESS ID (SYSTEM GENERATED)")}
-                </Label>
-                <Input
-                  value="PROC-2026-MFG-008"
-                  readOnly
-                  className="border-border bg-muted text-sm font-medium text-foreground"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("PROCESS NAME")}
-                </Label>
-                <Input
-                  value={t("CORE PRODUCTION & ASSEMBLY")}
-                  readOnly
-                  className="border-border bg-muted text-sm font-medium text-foreground"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("Process (Auditee)")}
+              </Label>
+              <Input
+                value={boundProcessName}
+                readOnly
+                className="border-border bg-muted text-sm font-medium text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Taken from the process selected on the audit program.")}
+              </p>
             </div>
           </div>
-          {/* Card 4: STANDARD REQUIREMENT */}
           <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
               {t("STANDARD REQUIREMENT")}
             </h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("AUTO-LINKED CLAUSE REFERENCE")}
-                </Label>
-                <Input
-                  value="4.1"
-                  readOnly
-                  className="border-2 border-primary/40 bg-primary/10 text-lg font-bold text-primary"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t("MANUAL REFERENCE / ADDENDUM")}
-                </Label>
-                <Input
-                  placeholder={t("e.g. Clause 4.1.2 - Local Addendum v2")}
-                  className="border-border text-sm"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("AUTO-LINKED CLAUSE REFERENCE")}
+              </Label>
+              <Input
+                value={boundClauseRef || "—"}
+                readOnly
+                className="border-2 border-primary/40 bg-primary/10 text-lg font-bold text-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Clause from the current checklist question.")}
+              </p>
             </div>
           </div>
         </div>
@@ -2018,7 +2076,7 @@ export default function CreateAuditStep3Page() {
                   {t("EVIDENCE DESCRIPTION")}
                 </Label>
                 <Textarea
-                  placeholder={t("e.g. Employee Training Matrix - Unit 4 Rev 2")}
+                  placeholder={t("e.g. Training records, procedure revision, interview notes")}
                   value={asPlainText(evidenceDescription)}
                   onChange={(e) => setEvidenceDescription(e.target.value)}
                   rows={4}
@@ -2119,7 +2177,7 @@ export default function CreateAuditStep3Page() {
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("OFI REF #")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("STANDARD")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("SITE")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("PROCESS / AREA")}</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Process (Auditee)")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("CLAUSE")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("SUBCLAUSES (IF ANY)")}</TableHead>
                   <TableHead className="text-xs font-semibold uppercase text-foreground">{t("OFI / PA")}</TableHead>
@@ -2158,7 +2216,7 @@ export default function CreateAuditStep3Page() {
                         value={row.processArea}
                         onChange={(e) => updateOfiRow(row.id, "processArea", e.target.value)}
                         className="h-8 border-border text-xs"
-                        placeholder={t("PRODUCTION")}
+                        placeholder={t("Process (Auditee)")}
                       />
                     </TableCell>
                     <TableCell className="p-2">
@@ -2236,112 +2294,8 @@ export default function CreateAuditStep3Page() {
             {t("+ ADD MORE OFIS / POSITIVE ASPECTS")}
           </Button>
         </div>
-        {/* Audit Nonconformity Matrix */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm mx-8 my-4">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
-            {t("Nonconformity Matrix")}
-          </h2>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border bg-muted">
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">
-                    {t("Nonconformity Reference")}
-                  </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Standard")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Site")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Process / Area")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Clause")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">{t("Subclauses")}</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">
-                    {t("Classification")}
-                    <span className="ml-1 font-normal">
-                      <span className="font-bold text-red-600">{t("MA")}</span>
-                      {" / "}
-                      <span className="font-bold text-emerald-600">{t("mi")}</span>
-                    </span>
-                  </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">
-                    {t("Due Date")}
-                    <span className="ml-1 block font-normal normal-case text-[10px] text-muted-foreground">
-                      {t("Major 30 days")} · {t("Minor 60 days")}
-                    </span>
-                  </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase text-foreground">
-                    {t("NC Status")}
-                    <span className="ml-1 block font-normal normal-case text-[10px] leading-4 text-muted-foreground">
-                      <span className="text-primary">{t(AUDIT_STATUS_LABELS.success)}</span>
-                      {" · "}
-                      <span className="text-amber-600">{t("In-Progress")}</span>
-                      {" · "}
-                      {t(AUDIT_STATUS_LABELS.pending)}
-                      {" · "}
-                      <span className="text-red-600">{t(AUDIT_STATUS_LABELS.fail)}</span>
-                    </span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ncMatrixRows.length === 0 ? (
-                  <TableRow className="border-border bg-background">
-                    <TableCell colSpan={9} className="py-6 text-center text-sm text-muted-foreground">
-                      {t("No major or minor nonconformities recorded yet.")}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  ncMatrixRows.map((row) => (
-                    <TableRow key={row.id} className="border-border bg-background">
-                      <TableCell className="whitespace-nowrap font-mono text-xs text-foreground">
-                        {row.reference}
-                      </TableCell>
-                      <TableCell className="text-sm text-foreground">{row.standard}</TableCell>
-                      <TableCell className="text-sm font-bold text-foreground">{row.site}</TableCell>
-                      <TableCell className="text-sm text-foreground">{row.processArea}</TableCell>
-                      <TableCell className="text-sm font-bold text-foreground">{row.clause}</TableCell>
-                      <TableCell className="text-sm text-foreground">{row.subclauses}</TableCell>
-                      <TableCell
-                        className={cn(
-                          "whitespace-nowrap text-sm font-bold",
-                          row.classification === "MA" ? "text-red-600" : "text-emerald-600"
-                        )}
-                      >
-                        {t(row.classificationLabel)}{" "}
-                        <span className="uppercase">{row.classification}</span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-foreground">{row.dueDate}</TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex rounded px-2 py-0.5 text-xs font-semibold",
-                            getAuditStatusColor(row.ncStatus) || "text-foreground"
-                          )}
-                        >
-                          {t(row.ncStatus)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
-            <div className="min-w-0 space-y-1 text-sm">
-              <p className="font-bold text-foreground">
-                {t("SYSTEM AUTOMATION RULE (MATRIX LOGIC)")}
-              </p>
-              <p className="text-muted-foreground">
-                {t("Nonconformity references follow AUD/Year/Site/Process/AuditType/A#/NC#")}
-                {", "}
-                {t("e.g.")}{" "}
-                <span className="font-mono text-primary">AUD/2026/S1/ITMS/FPA/A1/NC1</span>
-              </p>
-              <p className="text-muted-foreground">
-                {t("All Major (MA) nonconformities trigger a mandatory follow-up audit within 30 days, while Minor (mi) NCs require CA submission within 60 days.")}
-              </p>
-            </div>
-          </div>
+        <div className="mx-8 my-4">
+          <AuditNonconformityMatrix rows={ncMatrixRows} showLifecycle />
         </div>
         {/* Save & Continue Checklist Loop — ONLY for Minor/Major NC (CA) */}
         {isCurrentMinorOrMajorNc && isCaOpenForCurrentRow && (
@@ -2379,6 +2333,8 @@ export default function CreateAuditStep3Page() {
                     riskJustification: isActiveCA ? riskJustification : r.riskJustification,
                     justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
                     objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
+                    locationDescription: isActiveCA ? locationDescription : r.locationDescription,
+                    manualAddendum: isActiveCA ? manualAddendum : r.manualAddendum,
                   };
                 });
                 await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
@@ -2390,6 +2346,8 @@ export default function CreateAuditStep3Page() {
                   updateRow(activeCARowId, "riskSeverity", riskSeverity);
                   updateRow(activeCARowId, "riskJustification", riskJustification);
                   updateRow(activeCARowId, "justificationForClassification", justificationForClassification);
+                  updateRow(activeCARowId, "locationDescription", locationDescription);
+                  updateRow(activeCARowId, "manualAddendum", manualAddendum);
                   updateRow(activeCARowId, "objectiveEvidence", evidenceItems as any);
                   setActiveCARowId(null);
                   setComplianceDetails(EMPTY_COMPLIANCE_DETAILS);
@@ -2503,6 +2461,8 @@ export default function CreateAuditStep3Page() {
                     riskJustification: isActiveCA ? riskJustification : r.riskJustification,
                     justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
                     objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
+                    locationDescription: isActiveCA ? locationDescription : r.locationDescription,
+                    manualAddendum: isActiveCA ? manualAddendum : r.manualAddendum,
                     };
                   });
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findings);
@@ -2511,6 +2471,8 @@ export default function CreateAuditStep3Page() {
                     updateRow(activeCARowId, "evidence", complianceDetails.evidenceSeen ?? "");
                     updateRow(activeCARowId, "statementOfNonconformity", statementOfNonconformity);
                     updateRow(activeCARowId, "riskSeverity", riskSeverity);
+                    updateRow(activeCARowId, "locationDescription", locationDescription);
+                    updateRow(activeCARowId, "manualAddendum", manualAddendum);
                   }
                   await invalidateAuditCaches(queryClient);
                   router.push(auditTableHref(orgId));
@@ -2551,6 +2513,8 @@ export default function CreateAuditStep3Page() {
                       riskJustification: isActiveCA ? riskJustification : r.riskJustification,
                       justificationForClassification: isActiveCA ? justificationForClassification : r.justificationForClassification,
                       objectiveEvidence: isActiveCA ? evidenceItems : r.objectiveEvidence,
+                    locationDescription: isActiveCA ? locationDescription : r.locationDescription,
+                    manualAddendum: isActiveCA ? manualAddendum : r.manualAddendum,
                     };
                   });
                   await apiClient.saveAuditPlanFindings(orgId, auditPlanIdFromUrl, findingsForSubmit);

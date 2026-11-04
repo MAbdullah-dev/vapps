@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AuditUploadedFileRef = { name: string; key: string };
@@ -34,6 +34,8 @@ type AuditUploadedFilesListProps = {
   className?: string;
   listClassName?: string;
   emptyHint?: React.ReactNode;
+  onRemove?: (file: AuditUploadedFileRef) => void;
+  removeLabel?: string;
 };
 
 export function AuditUploadedFilesList({
@@ -41,6 +43,8 @@ export function AuditUploadedFilesList({
   className,
   listClassName,
   emptyHint,
+  onRemove,
+  removeLabel = "Remove file",
 }: AuditUploadedFilesListProps) {
   const normalized = (Array.isArray(files) ? files : [])
     .map(normalizeAuditUploadedFileRef)
@@ -64,6 +68,16 @@ export function AuditUploadedFilesList({
             {f.name}
           </a>
           <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-70" aria-hidden />
+          {onRemove ? (
+            <button
+              type="button"
+              className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+              onClick={() => onRemove(f)}
+              aria-label={removeLabel}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </li>
       ))}
     </ul>

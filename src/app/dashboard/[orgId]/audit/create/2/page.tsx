@@ -1921,11 +1921,11 @@ export default function CreateAuditStep2Page() {
                         >
                           <SelectTrigger
                             size="sm"
-                            className="h-8 min-w-[90px] rounded-full border-gray-300 bg-muted/80 px-3 text-xs font-medium uppercase text-gray-700"
+                            className="h-9 min-w-[110px] rounded-lg border-border bg-background px-3 text-xs font-medium uppercase text-foreground"
                           >
                             <SelectValue placeholder={t("Priority")} />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="rounded-lg border-border p-1 shadow-lg">
                             <SelectItem value="HIGH">{t("High")}</SelectItem>
                             <SelectItem value="MEDIUM">{t("Medium")}</SelectItem>
                             <SelectItem value="LOW">{t("Low")}</SelectItem>

@@ -52,6 +52,12 @@ import { scrollToField } from "@/lib/scroll-to-field";
 import { cn } from "@/lib/utils";
 import { useTranslate } from "@/components/providers/translation-provider";
 import { AUDIT_STEP_HERO } from "@/lib/audit-step-screen-titles";
+import {
+  auditFieldLabelClass,
+  auditSectionHeadingClass,
+  auditSelectContentClass,
+  auditSelectTrigger,
+} from "@/lib/audit-ui";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { auditTableHref, invalidateAuditCaches } from "@/lib/audit-query-cache";
@@ -836,7 +842,7 @@ export default function CreateAuditStep1Page() {
 
         {/* Context, Scope, Type & Criteria */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-foreground">
+          <h2 className={cn(auditSectionHeadingClass, "mb-6")}>
             {t("CONTEXT, SCOPE, TYPE & CRITERIA")}
           </h2>
           {/* SCOPE OF AUDIT PROGRAM + ORGANIZATIONAL SITES - Half / Half */}
@@ -959,21 +965,23 @@ export default function CreateAuditStep1Page() {
           </div>
         </div>
 
-        {/* Audit Program Owner & Delegation: Select site first, then process (for that site), then responsible owner (from process), then lead auditor (user with Auditor role). */}
-        <div className="rounded-lg border border-border bg-primary/5 p-8 shadow-sm mx-8 my-8">
-          <div className="mb-6 flex items-center gap-2">
-            <h2 className="text-xl font-bold text-primary">{t("Audit Program Owner & Delegation")}</h2>
+        {/* 34v12 §2.4.4 Process/Area to be Audited */}
+        <div className="mx-8 my-8 rounded-xl border border-border bg-card p-8 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className={auditSectionHeadingClass}>{t("Process/Area to be Audited")}</h2>
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <Info className="h-3 w-3" />
             </div>
           </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {t("Select a site above first. Process list shows processes for the selected site. Responsible owner is determined by the selected process. You are the Lead Auditor for audits you create.")}
+          <p className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-relaxed text-foreground">
+            {t(
+              "Select processes and responsible personnel that align with your master audit plan — clearly defined by department, location, or operational area to ensure focused and effective coverage."
+            )}
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div id="audit-field-processId" className="space-y-2">
-              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("PROCESS / DEPARTMENT")}
+              <RequiredLabel className={auditFieldLabelClass}>
+                {t("Process (Auditee)")}
               </RequiredLabel>
               <Select
                 value={processId ?? ""}
@@ -984,12 +992,14 @@ export default function CreateAuditStep1Page() {
                 }}
                 disabled={selectedSiteIds.length === 0}
               >
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.processId))}>
+                <SelectTrigger className={auditSelectTrigger(!!baseFormErrors.processId)}>
                   <SelectValue placeholder={selectedSiteIds.length === 0 ? t("Select a site first") : t("Select process")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={auditSelectContentClass} position="popper">
                   {processesForSelectedSites.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}{p.siteName ? ` (${p.siteName})` : ""}</SelectItem>
+                    <SelectItem key={p.id} value={p.id} className="rounded-md py-2.5">
+                      {p.name}{p.siteName ? ` (${p.siteName})` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -997,8 +1007,8 @@ export default function CreateAuditStep1Page() {
               <p className="text-xs text-muted-foreground">{t("Processes for the selected site are shown.")}</p>
             </div>
             <div id="audit-field-programOwnerUserId" className="space-y-2">
-              <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("RESPONSIBLE OWNER (AUDITEE)")}
+              <RequiredLabel className={auditFieldLabelClass}>
+                {t("Responsible Personnel (Auditee)")}
               </RequiredLabel>
               <Select
                 value={programOwnerUserId ?? ""}
@@ -1008,23 +1018,25 @@ export default function CreateAuditStep1Page() {
                 }}
                 disabled={!processId}
               >
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programOwnerUserId))}>
-                  <SelectValue placeholder={t("Select responsible person")} />
+                <SelectTrigger className={auditSelectTrigger(!!baseFormErrors.programOwnerUserId)}>
+                  <SelectValue placeholder={t("Select responsible personnel")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={auditSelectContentClass} position="popper">
                   {responsibleOwnerCandidates.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}{m.processName ? ` — ${m.processName}` : ""}</SelectItem>
+                    <SelectItem key={m.id} value={m.id} className="rounded-md py-2.5">
+                      {m.name}{m.processName ? ` — ${m.processName}` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <FieldError show={!!baseFormErrors.programOwnerUserId} t={t} />
-              <p className="text-xs text-muted-foreground">{t("Determined by selected site and process (person responsible for that process).")}</p>
+              <p className="text-xs text-muted-foreground">{t("Determined by selected site and process.")}</p>
             </div>
           </div>
-          <p className="mt-3 text-sm text-primary font-medium">
+          <p className="mt-4 text-sm font-medium text-primary">
             {t("Lead Auditor: You (the audit creator is automatically assigned as Lead Auditor).")}
           </p>
-          <p className="mt-4 text-sm italic text-muted-foreground">
+          <p className="mt-3 text-sm italic text-muted-foreground">
             {t("Note: Audit program management may be delegated as per Section 5.3 of ISO 19011:2026.")}
           </p>
         </div>
@@ -1044,11 +1056,11 @@ export default function CreateAuditStep1Page() {
         </div>
         {/* Program Purpose & Objectives */}
         <div className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-foreground">
+          <h2 className={cn(auditSectionHeadingClass, "mb-6")}>
             {t("PROGRAM PURPOSE & OBJECTIVES (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
           <div id="audit-field-programPurpose" className="max-w-xl space-y-2">
-            <RequiredLabel className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <RequiredLabel className={auditFieldLabelClass}>
               {t("FRAMEWORK")}
             </RequiredLabel>
             <Select
@@ -1061,10 +1073,10 @@ export default function CreateAuditStep1Page() {
                 }
               }}
             >
-              <SelectTrigger className={cn("w-full", requiredInputClass(!!baseFormErrors.programPurpose))}>
+              <SelectTrigger className={auditSelectTrigger(!!baseFormErrors.programPurpose)}>
                 <SelectValue placeholder={t("Select an objective")} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={auditSelectContentClass}>
                 {programPurposeOptions.map((opt) => (
                   <SelectItem key={opt.id} value={opt.id} disabled={opt.disabled}>
                     {t(opt.label)}
@@ -1078,7 +1090,7 @@ export default function CreateAuditStep1Page() {
 
         {/* Audit Program Criteria */}
         <div id="audit-field-auditCriteria" className="p-8">
-          <h2 className="mb-6 text-xl font-bold text-foreground">
+          <h2 className={cn(auditSectionHeadingClass, "mb-6")}>
             {t("AUDIT PROGRAM CRITERIA (SELECT ONE)")} <span className="text-destructive" aria-hidden>*</span>
           </h2>
           <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-lg", baseFormErrors.auditCriteria && "ring-1 ring-destructive")}>
@@ -1127,7 +1139,7 @@ export default function CreateAuditStep1Page() {
           <div className="mx-8 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/40">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              {t("Complete all required fields above (period, scope, site, audit type, process, responsible owner, purpose, and criteria) before adding risks, schedule rows, KPIs, or reviews.")}
+              {t("Complete all required fields above (period, scope, site, audit type, process, responsible personnel, purpose, and criteria) before adding risks, schedule rows, KPIs, or reviews.")}
             </p>
           </div>
         )}
@@ -1531,10 +1543,10 @@ export default function CreateAuditStep1Page() {
               <div id="risk-impact" className="space-y-2">
                 <RequiredLabel>{t("Impact (1-5)")}</RequiredLabel>
                 <Select value={riskForm.impact} onValueChange={(v) => { setRiskForm((f) => ({ ...f, impact: v, impactClass: v.includes("05") ? "green" : v.includes("04") ? "orange" : "gray" })); if (riskErrors.impact) setRiskErrors((p) => ({ ...p, impact: false })); }}>
-                  <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.impact))}>
+                  <SelectTrigger className={auditSelectTrigger(!!riskErrors.impact)}>
                     <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={auditSelectContentClass}>
                     <SelectItem value="01 (Low)">{t("01 (Low)")}</SelectItem>
                     <SelectItem value="02 (Low)">{t("02 (Low)")}</SelectItem>
                     <SelectItem value="03 (Medium)">{t("03 (Medium)")}</SelectItem>
@@ -1553,10 +1565,10 @@ export default function CreateAuditStep1Page() {
             <div id="risk-priority" className="space-y-2">
               <RequiredLabel>{t("Priority")}</RequiredLabel>
               <Select value={riskForm.priority} onValueChange={(v) => { setRiskForm((f) => ({ ...f, priority: v, priorityClass: v === "Critical" ? "red" : v === "Strategic" ? "green" : "gray" })); if (riskErrors.priority) setRiskErrors((p) => ({ ...p, priority: false })); }}>
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!riskErrors.priority))}>
+                <SelectTrigger className={auditSelectTrigger(!!riskErrors.priority)}>
                   <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={auditSelectContentClass}>
                   <SelectItem value="Critical">{t("Critical")}</SelectItem>
                   <SelectItem value="Strategic">{t("Strategic")}</SelectItem>
                   <SelectItem value="High">{t("High")}</SelectItem>
@@ -1591,10 +1603,10 @@ export default function CreateAuditStep1Page() {
               <div id="kpi-impact" className="space-y-2">
                 <RequiredLabel>{t("Impact")}</RequiredLabel>
                 <Select value={kpiForm.impact} onValueChange={(v) => { setKpiForm((f) => ({ ...f, impact: v })); if (kpiErrors.impact) setKpiErrors((p) => ({ ...p, impact: false })); }}>
-                  <SelectTrigger className={cn("w-full", requiredInputClass(!!kpiErrors.impact))}>
+                  <SelectTrigger className={auditSelectTrigger(!!kpiErrors.impact)}>
                     <SelectValue placeholder={t("Select impact")} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={auditSelectContentClass}>
                     <SelectItem value="High">{t("High")}</SelectItem>
                     <SelectItem value="Medium">{t("Medium")}</SelectItem>
                     <SelectItem value="Low">{t("Low")}</SelectItem>
@@ -1700,10 +1712,10 @@ export default function CreateAuditStep1Page() {
               <div id="review-type" className="space-y-2">
                 <RequiredLabel>{t("Review Type")}</RequiredLabel>
                 <Select value={reviewForm.type} onValueChange={(v) => { setReviewForm((f) => ({ ...f, type: v })); if (reviewErrors.type) setReviewErrors((p) => ({ ...p, type: false })); }}>
-                  <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.type))}>
+                  <SelectTrigger className={auditSelectTrigger(!!reviewErrors.type)}>
                     <SelectValue placeholder={t("Select type")} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={auditSelectContentClass}>
                     <SelectItem value="Scheduled Review">{t("Scheduled Review")}</SelectItem>
                     <SelectItem value="Feedback">{t("Feedback")}</SelectItem>
                     <SelectItem value="Business Risk Changes">{t("Business Risk Changes")}</SelectItem>
@@ -1721,10 +1733,10 @@ export default function CreateAuditStep1Page() {
             <div id="review-priority" className="space-y-2">
               <RequiredLabel>{t("Priority")}</RequiredLabel>
               <Select value={reviewForm.priority} onValueChange={(v) => { setReviewForm((f) => ({ ...f, priority: v, priorityClass: v === "High" ? "red" : "gray" })); if (reviewErrors.priority) setReviewErrors((p) => ({ ...p, priority: false })); }}>
-                <SelectTrigger className={cn("w-full", requiredInputClass(!!reviewErrors.priority))}>
+                <SelectTrigger className={auditSelectTrigger(!!reviewErrors.priority)}>
                   <SelectValue placeholder={t("Select priority")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={auditSelectContentClass}>
                   <SelectItem value="High">{t("High")}</SelectItem>
                   <SelectItem value="Medium">{t("Medium")}</SelectItem>
                   <SelectItem value="Low">{t("Low")}</SelectItem>

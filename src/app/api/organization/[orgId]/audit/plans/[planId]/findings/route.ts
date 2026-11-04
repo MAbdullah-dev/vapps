@@ -48,6 +48,13 @@ export async function GET(
       );
       if (tableCheck.rows.length === 0) return;
 
+      await client.query(
+        `ALTER TABLE audit_plan_findings ADD COLUMN IF NOT EXISTS location_description TEXT`
+      );
+      await client.query(
+        `ALTER TABLE audit_plan_findings ADD COLUMN IF NOT EXISTS manual_addendum TEXT`
+      );
+
       const colRes = await client.query(
         `SELECT column_name
          FROM information_schema.columns
@@ -58,7 +65,9 @@ export async function GET(
              'risk_severity',
              'risk_justification',
              'justification_for_classification',
-             'objective_evidence'
+             'objective_evidence',
+             'location_description',
+             'manual_addendum'
            )`
       );
       const cols = new Set<string>(colRes.rows.map((r: { column_name: string }) => r.column_name));
@@ -67,6 +76,8 @@ export async function GET(
       const hasRiskJustification = cols.has("risk_justification");
       const hasJustificationForClassification = cols.has("justification_for_classification");
       const hasObjectiveEvidence = cols.has("objective_evidence");
+      const hasLocationDescription = cols.has("location_description");
+      const hasManualAddendum = cols.has("manual_addendum");
 
       const extraSelect = [
         hasStatement ? "statement_of_nonconformity" : null,
@@ -74,6 +85,8 @@ export async function GET(
         hasRiskJustification ? "risk_justification" : null,
         hasJustificationForClassification ? "justification_for_classification" : null,
         hasObjectiveEvidence ? "objective_evidence" : null,
+        hasLocationDescription ? "location_description" : null,
+        hasManualAddendum ? "manual_addendum" : null,
       ].filter(Boolean).join(", ");
       const extraSelectClause = extraSelect ? `, ${extraSelect}` : "";
 
@@ -99,6 +112,8 @@ export async function GET(
           riskJustification: hasRiskJustification ? (row.risk_justification ?? "") : "",
           justificationForClassification: hasJustificationForClassification ? (row.justification_for_classification ?? "") : "",
           objectiveEvidence: hasObjectiveEvidence ? (row.objective_evidence ?? null) : null,
+          locationDescription: hasLocationDescription ? (row.location_description ?? "") : "",
+          manualAddendum: hasManualAddendum ? (row.manual_addendum ?? "") : "",
         });
       }
     });
@@ -172,6 +187,13 @@ export async function PUT(
       try {
       await client.query(`DELETE FROM audit_plan_findings WHERE audit_plan_id = $1`, [planId]);
 
+      await client.query(
+        `ALTER TABLE audit_plan_findings ADD COLUMN IF NOT EXISTS location_description TEXT`
+      );
+      await client.query(
+        `ALTER TABLE audit_plan_findings ADD COLUMN IF NOT EXISTS manual_addendum TEXT`
+      );
+
       const colRes = await client.query(
         `SELECT column_name
          FROM information_schema.columns
@@ -182,7 +204,9 @@ export async function PUT(
              'risk_severity',
              'risk_justification',
              'justification_for_classification',
-             'objective_evidence'
+             'objective_evidence',
+             'location_description',
+             'manual_addendum'
            )`
       );
       const cols = new Set<string>(colRes.rows.map((r: { column_name: string }) => r.column_name));
@@ -191,6 +215,8 @@ export async function PUT(
       const hasRiskJustification = cols.has("risk_justification");
       const hasJustificationForClassification = cols.has("justification_for_classification");
       const hasObjectiveEvidence = cols.has("objective_evidence");
+      const hasLocationDescription = cols.has("location_description");
+      const hasManualAddendum = cols.has("manual_addendum");
 
       for (let i = 0; i < findings.length; i++) {
         const f = findings[i];
@@ -210,6 +236,8 @@ export async function PUT(
           hasRiskJustification ? "risk_justification" : null,
           hasJustificationForClassification ? "justification_for_classification" : null,
           hasObjectiveEvidence ? "objective_evidence" : null,
+          hasLocationDescription ? "location_description" : null,
+          hasManualAddendum ? "manual_addendum" : null,
         ].filter(Boolean) as string[];
 
         const values: any[] = [
@@ -233,6 +261,8 @@ export async function PUT(
           const raw = f.objectiveEvidence ?? f.objective_evidence ?? null;
           values.push(raw != null && typeof raw === "object" ? JSON.stringify(raw) : raw);
         }
+        if (hasLocationDescription) values.push(f.locationDescription ?? f.location_description ?? null);
+        if (hasManualAddendum) values.push(f.manualAddendum ?? f.manual_addendum ?? null);
 
         const placeholders = values.map((_, idx) => `$${idx + 1}`).join(", ");
         try {

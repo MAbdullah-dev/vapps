@@ -46,6 +46,14 @@ import {
   isStep6ReviewComplete,
   parseStep6Reviews,
 } from "@/lib/audit-step6-closure";
+import { AuditNonconformityMatrix } from "@/components/audit/AuditNonconformityMatrix";
+import {
+  buildNcMatrixRows,
+  evaluateNcMatrixForClosure,
+  matrixSnapshotForClosure,
+} from "@/lib/audit-nc-matrix";
+import { isStep4ActionComplete } from "@/lib/audit-step4-ca";
+import { type AuditProgramRefParts } from "@/lib/audit-program-ref";
 
 export default function CreateAuditStep6Page() {
   const params = useParams();
@@ -77,6 +85,13 @@ export default function CreateAuditStep6Page() {
   const [timeApproved, setTimeApproved] = useState(() => format(new Date(), "HH:mm"));
   const [stats, setStats] = useState({ total: 0, majorNcs: 0, minorNcs: 0 });
   const [closing, setClosing] = useState(false);
+  const [programRefParts, setProgramRefParts] = useState<AuditProgramRefParts | null>(null);
+  const [planDates, setPlanDates] = useState<{
+    plannedDate: string | null;
+    datePrepared: string | null;
+    createdAt: string | null;
+    findingsSubmittedAt: string | null;
+  }>({ plannedDate: null, datePrepared: null, createdAt: null, findingsSubmittedAt: null });
 
   const [finalDecision, setFinalDecision] = useState<"effective" | "ineffective" | null>(null);
   const [managementComments, setManagementComments] = useState("");
@@ -112,6 +127,40 @@ export default function CreateAuditStep6Page() {
           setIsAssignedAuditor(Boolean(plan.isAssignedAuditor) || plan.currentUserRole === "assigned_auditor");
           setPlanStatus(plan.status ?? null);
           setAuditIdDisplay(plan.auditNumber || plan.id?.slice(0, 8) || "—");
+          setPlanDates({
+            plannedDate: plan.plannedDate ?? null,
+            datePrepared: plan.datePrepared ?? null,
+            createdAt: plan.createdAt ?? null,
+            findingsSubmittedAt: plan.findingsSubmittedAt ?? null,
+          });
+        }
+        if (!cancelled) {
+          try {
+            const plansRes = await apiClient.getAuditPlans(orgId);
+            const listed = Array.isArray(plansRes?.plans)
+              ? plansRes.plans.find((p: { id?: string }) => p.id === auditPlanId)
+              : null;
+            const dateForYear =
+              listed?.programStartPeriod ||
+              plan.plannedDate ||
+              plan.datePrepared ||
+              plan.createdAt;
+            setProgramRefParts({
+              year: dateForYear ? new Date(dateForYear).getFullYear() : new Date().getFullYear(),
+              site: listed?.siteCode || listed?.siteName || "—",
+              process: listed?.processName || listed?.process || "—",
+              auditType: (listed?.auditType || plan.auditType || "FPA").toString().toUpperCase(),
+              sequence: listed?.programSequence || "1",
+            });
+          } catch {
+            setProgramRefParts({
+              year: plan.plannedDate ? new Date(plan.plannedDate).getFullYear() : new Date().getFullYear(),
+              site: "—",
+              process: "—",
+              auditType: (plan.auditType || "FPA").toString().toUpperCase(),
+              sequence: "1",
+            });
+          }
         }
         const membersRes = await apiClient.getMembers(orgId);
         if (!cancelled && membersRes.teamMembers?.length && plan.leadAuditorUserId) {
@@ -156,7 +205,7 @@ export default function CreateAuditStep6Page() {
         setVByFindingId(parsedV);
         setNcFindings(ncs);
         setCurrentNcIndex(0);
-        const first = ncs[0] ? parsedR[ncs[0].id] : null;
+        const first = ncs[0] ? parsedR[ncs[0].id] : parseStep6Reviews(plan.step6Data, [{ id: "legacy", status: "minor_nc" }]).legacy;
         if (first) {
           setFinalDecision(first.outcome);
           setManagementComments(first.managementComments ?? "");
@@ -201,6 +250,56 @@ export default function CreateAuditStep6Page() {
   const canEditStep6 =
     planStatus !== "closed" && isLeadAuditor && (planStatus == null || planStatus === "pending_closure");
   const canEditCurrentNc = canEditStep6 && !currentReviewLocked;
+
+  const liveReviews = useMemo(() => {
+    const map = { ...reviewsRef.current };
+    if (currentNc) {
+      map[currentNc.id] = {
+        findingId: currentNc.id,
+        outcome: finalDecision,
+        managementComments,
+        locked: reviewsRef.current[currentNc.id]?.locked === true,
+      };
+    }
+    return map;
+  }, [currentNc, finalDecision, managementComments, ncFindings]);
+
+  const matrixRows = useMemo(() => {
+    const refParts: AuditProgramRefParts = programRefParts ?? {
+      year: new Date().getFullYear(),
+      site: "—",
+      process: "—",
+      auditType: "FPA",
+      sequence: "1",
+    };
+    return buildNcMatrixRows({
+      findings: ncFindings,
+      refParts,
+      planStatus,
+      plannedDate: planDates.plannedDate,
+      datePrepared: planDates.datePrepared,
+      createdAt: planDates.createdAt,
+      findingsSubmittedAt: planDates.findingsSubmittedAt,
+      caByFindingId,
+      verificationsByFindingId: vByFindingId,
+      reviewsByFindingId: liveReviews,
+    });
+  }, [ncFindings, programRefParts, planStatus, planDates, caByFindingId, vByFindingId, liveReviews]);
+
+  const closedCounts = useMemo(
+    () => ({
+      major: matrixRows.filter(
+        (r) => r.classification === "MA" && (liveReviews[r.id]?.outcome ?? r.closureOutcome) === "effective"
+      ).length,
+      minor: matrixRows.filter(
+        (r) => r.classification === "mi" && (liveReviews[r.id]?.outcome ?? r.closureOutcome) === "effective"
+      ).length,
+    }),
+    [matrixRows, liveReviews]
+  );
+
+  const currentVerificationEffective = currentVerification?.outcome === "effective";
+  const currentCaComplete = currentCa ? isStep4ActionComplete(currentCa) : ncFindings.length === 0;
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -343,6 +442,14 @@ export default function CreateAuditStep6Page() {
           </div>
         )}
 
+        <div className="mt-8">
+          <AuditNonconformityMatrix
+            rows={matrixRows}
+            showLifecycle
+            highlightFindingId={currentNc?.id ?? null}
+          />
+        </div>
+
         {/* Management Final Decision & Management Comments - two columns */}
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Left: Management Final Decision */}
@@ -354,7 +461,15 @@ export default function CreateAuditStep6Page() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setFinalDecision("effective")}
+                onClick={() => {
+                  if (ncFindings.length > 0 && (!currentCaComplete || !currentVerificationEffective)) {
+                    toast.error(
+                      t("This nonconformity is not complete in the Nonconformity Matrix. Corrective action and effective verification are required before closure.")
+                    );
+                    return;
+                  }
+                  setFinalDecision("effective");
+                }}
                 className={cn(
                   "h-auto w-full flex items-start justify-start gap-4 rounded-lg border-2 p-4 text-left transition-colors whitespace-normal",
                   finalDecision === "effective"
@@ -369,10 +484,12 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    {t("Effective — this nonconformity")}
+                    {ncFindings.length === 0 ? t("Effective — Close Audit") : t("Effective — this nonconformity")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {t("Corrective action and verification are accepted for this NC.")}
+                    {ncFindings.length === 0
+                      ? t("Confirming all findings are addressed and the system is stable.")
+                      : t("Corrective action and verification are accepted for this NC against the Nonconformity Matrix.")}
                   </p>
                 </div>
               </Button>
@@ -394,10 +511,12 @@ export default function CreateAuditStep6Page() {
                 )}
                 <div>
                   <p className="font-bold text-foreground">
-                    {t("Ineffective — return this NC")}
+                    {ncFindings.length === 0 ? t("Ineffective — Re-open Audit") : t("Ineffective — return this NC")}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {t("This nonconformity goes back to the auditee. Effective NCs stay closed.")}
+                    {ncFindings.length === 0
+                      ? t("Audit does not meet criteria for closure. Further action required.")
+                      : t("This nonconformity goes back to the auditee. Effective NCs stay closed.")}
                   </p>
                 </div>
               </Button>
@@ -489,13 +608,17 @@ export default function CreateAuditStep6Page() {
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {t("MAJOR NCS CLOSED")}
             </p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? t("…") : stats.majorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">
+              {isLoading ? t("…") : `${closedCounts.major} / ${stats.majorNcs}`}
+            </p>
           </div>
           <div className="rounded-lg border border-border bg-muted px-6 py-5 md:flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {t("MINOR NCS CLOSED")}
             </p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{isLoading ? t("…") : stats.minorNcs}</p>
+            <p className="mt-2 text-2xl font-bold text-foreground">
+              {isLoading ? t("…") : `${closedCounts.minor} / ${stats.minorNcs}`}
+            </p>
           </div>
         </div>
       </div>
@@ -544,7 +667,7 @@ export default function CreateAuditStep6Page() {
               );
               if (incomplete >= 0) {
                 goToNc(incomplete);
-                toast.error(t("Review every Major and Minor nonconformity before closing or returning."));
+                toast.error(t("Review every Major and Minor nonconformity in the matrix before closing or returning."));
                 return;
               }
             }
@@ -552,11 +675,31 @@ export default function CreateAuditStep6Page() {
               ncFindings.length === 0
                 ? finalDecision === "effective"
                 : allNcsClosureEffective(ncFindings, reviewsRef.current);
+            if (allEffective && ncFindings.length > 0) {
+              const check = evaluateNcMatrixForClosure(matrixRows, reviewsRef.current);
+              if (check.missingCaIds.length > 0) {
+                const idx = ncFindings.findIndex((nc) => check.missingCaIds.includes(nc.id));
+                if (idx >= 0) goToNc(idx);
+                toast.error(t("Every matrix nonconformity must have a completed corrective action before closure."));
+                return;
+              }
+              if (check.unverifiedIds.length > 0) {
+                const idx = ncFindings.findIndex((nc) => check.unverifiedIds.includes(nc.id));
+                if (idx >= 0) goToNc(idx);
+                toast.error(t("Every matrix nonconformity must be verified Effective in Step 5 before the audit can close."));
+                return;
+              }
+            }
             setClosing(true);
             try {
+              const matrix = matrixSnapshotForClosure(matrixRows, reviewsRef.current, {
+                dateApproved,
+                timeApproved,
+              });
               const step6Data = buildStep6Payload(ncFindings, reviewsRef.current, {
                 dateApproved,
                 timeApproved,
+                matrix,
               });
               await apiClient.updateAuditPlan(orgId, auditPlanId, { step6Data });
               if (allEffective) {

@@ -35,6 +35,9 @@ function normalizeDocumentFormData(
   if (!fd.createdByUserId) fd.createdByUserId = user.id;
   if (fd.createdByUserName == null || fd.createdByUserName === "")
     fd.createdByUserName = user.name ?? "";
+  if (typeof fd.title === "string") {
+    fd.title = fd.title.slice(0, 30);
+  }
   if (opts?.clearCorrectionOnSubmit) {
     fd.correctionPhase = "none";
   } else if (fd.correctionPhase == null || fd.correctionPhase === "") {

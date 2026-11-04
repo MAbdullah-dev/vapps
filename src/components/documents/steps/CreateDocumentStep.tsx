@@ -765,7 +765,7 @@ export default function CreateDocumentStep({
       process: !processId?.trim(),
       processOwner: !isRequiredValueFilled(processOwner),
       approver: !isRequiredValueFilled(approverName),
-      title: !isRequiredValueFilled(title),
+      title: !isRequiredValueFilled(title) || title.trim().length > 30,
       managementStandard: !isRequiredValueFilled(managementStandard),
     };
 
@@ -1338,6 +1338,7 @@ export default function CreateDocumentStep({
                     <Input
                       id="transfer-new-title"
                       value={transferTitleChange}
+                      maxLength={30}
                       onChange={(e) => {
                         const next = e.target.value.slice(0, 30);
                         setTransferTitleChange(next);
@@ -1852,6 +1853,7 @@ export default function CreateDocumentStep({
             <Input
               id="doc-title"
               value={title}
+              maxLength={30}
               onChange={(e) => {
                 setTitle(e.target.value.slice(0, 30));
                 if (formErrors.title) setFormErrors((p) => ({ ...p, title: false }));

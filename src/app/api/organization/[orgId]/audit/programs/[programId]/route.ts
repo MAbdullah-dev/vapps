@@ -67,7 +67,7 @@ export async function GET(
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         siteIds: [] as string[],
-        sites: [] as { id: string; name: string; code: string }[],
+        sites: [] as { id: string; name: string; code: string; location: string | null }[],
         risks: [],
         scheduleRows: [],
         kpis: [],
@@ -75,13 +75,18 @@ export async function GET(
       };
 
       const sitesResult = await client.query(
-        `SELECT s.id, s.name, s.code FROM audit_program_sites aps
+        `SELECT s.id, s.name, s.code, s.location FROM audit_program_sites aps
          JOIN sites s ON s.id = aps.site_id WHERE aps.audit_program_id = $1`,
         [programId]
       );
       for (const r of sitesResult.rows) {
         program.siteIds.push(r.id);
-        program.sites.push({ id: r.id, name: r.name, code: r.code });
+        program.sites.push({
+          id: r.id,
+          name: r.name,
+          code: r.code,
+          location: r.location ?? null,
+        });
       }
 
       const risksResult = await client.query(

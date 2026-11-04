@@ -10,6 +10,9 @@ export type Step4ActionForm = {
   rootCauseNarrative: string;
   similarProcessesImpacted: "yes" | "no" | null;
   similarProcessesList: string;
+  notesS2: string;
+  notesS6: string;
+  notesS7: string;
   rootCauseResult: string;
   systemicCorrectiveAction: string;
   rootCauseAnalysis: string;
@@ -58,6 +61,9 @@ export function emptyStep4Action(findingId: string): Step4ActionForm {
     rootCauseNarrative: "",
     similarProcessesImpacted: null,
     similarProcessesList: "",
+    notesS2: "",
+    notesS6: "",
+    notesS7: "",
     rootCauseResult: "",
     systemicCorrectiveAction: "",
     rootCauseAnalysis: "",
@@ -98,6 +104,14 @@ function actionFromRecord(raw: Record<string, unknown>, findingId: string): Step
         ? raw.similarProcessesImpacted
         : null,
     similarProcessesList: typeof raw.similarProcessesList === "string" ? raw.similarProcessesList : "",
+    notesS2: typeof raw.notesS2 === "string" ? raw.notesS2 : "",
+    notesS6:
+      typeof raw.notesS6 === "string"
+        ? raw.notesS6
+        : typeof raw.implementationDetails === "string"
+          ? raw.implementationDetails
+          : "",
+    notesS7: typeof raw.notesS7 === "string" ? raw.notesS7 : "",
     rootCauseResult: typeof raw.rootCauseResult === "string" ? raw.rootCauseResult : "",
     systemicCorrectiveAction:
       typeof raw.systemicCorrectiveAction === "string" ? raw.systemicCorrectiveAction : "",

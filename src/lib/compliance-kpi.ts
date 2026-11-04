@@ -3,6 +3,20 @@ export const COMPLIANCE_KPI_THRESHOLDS = {
   failDays: 40,
 } as const;
 
+/**
+ * Audit module KPI — same Vie curve as compliance (30-day window, zero 10 days later)
+ * shifted so tracking starts after 30 days:
+ * - 0–30: not yet tracking (In-Progress)
+ * - 30–60: due window (standard 30-day clock)
+ * - 60–70: pending
+ * - >70: KPI score is zero
+ */
+export const AUDIT_KPI_THRESHOLDS = {
+  trackStartDays: 30,
+  pendingDays: 60,
+  failDays: 70,
+} as const;
+
 export type ComplianceKpiLabel = "Consistent" | "Pending" | "Inconsistent";
 export type ComplianceStatusLabel = "Success" | "Pending" | "Fail" | "In-Progress";
 
@@ -11,6 +25,8 @@ export type ComplianceKpiResult = {
   statusLabel: ComplianceStatusLabel;
   kpiColorClass: string;
   statusBadgeClass: string;
+  /** 3 Consistent, 2 Pending, 1 Inconsistent, 0 after audit fail threshold. */
+  kpiScore: number;
 };
 
 const MS_PER_DAY = 86400000;
@@ -45,6 +61,7 @@ export function getComplianceKpiFromDays(
       statusLabel: "Success",
       kpiColorClass: "text-primary",
       statusBadgeClass: "bg-primary",
+      kpiScore: 3,
     };
   }
 
@@ -54,6 +71,7 @@ export function getComplianceKpiFromDays(
       statusLabel: "In-Progress",
       kpiColorClass: "text-primary",
       statusBadgeClass: "bg-amber-600",
+      kpiScore: 3,
     };
   }
 
@@ -63,6 +81,7 @@ export function getComplianceKpiFromDays(
       statusLabel: "Fail",
       kpiColorClass: "text-destructive",
       statusBadgeClass: "bg-destructive",
+      kpiScore: 1,
     };
   }
 
@@ -72,6 +91,7 @@ export function getComplianceKpiFromDays(
       statusLabel: "Pending",
       kpiColorClass: "text-amber-600 dark:text-amber-400",
       statusBadgeClass: "bg-amber-600",
+      kpiScore: 2,
     };
   }
 
@@ -80,6 +100,7 @@ export function getComplianceKpiFromDays(
     statusLabel: "Success",
     kpiColorClass: "text-primary",
     statusBadgeClass: "bg-primary",
+    kpiScore: 3,
   };
 }
 
@@ -168,13 +189,69 @@ export function calculateIssueKpiScore(
   return 3;
 }
 
-/** Audit-specific long status labels (backward compatible). */
+/** Audit-specific long status labels (30-day offset from standard Vie 30/40). */
 export const AUDIT_STATUS_LABELS = {
-  success: "Success ≤ 30 days",
+  success: "Success ≤ 60 days",
   inProgress: "In-Progress < 30 days",
-  pending: "Pending > 30 days",
-  fail: "Fail > 40 days",
+  inProgressTracking: "In-Progress + 30 days",
+  pending: "Pending > 60 days",
+  fail: "Fail > 70 days",
 } as const;
+
+export function getAuditKpiFromDays(
+  days: number,
+  options?: { closed?: boolean }
+): ComplianceKpiResult {
+  const { trackStartDays, pendingDays, failDays } = AUDIT_KPI_THRESHOLDS;
+
+  if (days > failDays) {
+    return {
+      kpiLabel: "Inconsistent",
+      statusLabel: "Fail",
+      kpiColorClass: "text-destructive",
+      statusBadgeClass: "bg-destructive",
+      kpiScore: 0,
+    };
+  }
+
+  if (days > pendingDays) {
+    return {
+      kpiLabel: "Pending",
+      statusLabel: "Pending",
+      kpiColorClass: "text-amber-600 dark:text-amber-400",
+      statusBadgeClass: "bg-amber-600",
+      kpiScore: 2,
+    };
+  }
+
+  if (options?.closed) {
+    return {
+      kpiLabel: "Consistent",
+      statusLabel: "Success",
+      kpiColorClass: "text-primary",
+      statusBadgeClass: "bg-primary",
+      kpiScore: 3,
+    };
+  }
+
+  if (days >= trackStartDays) {
+    return {
+      kpiLabel: "Consistent",
+      statusLabel: "In-Progress",
+      kpiColorClass: "text-primary",
+      statusBadgeClass: "bg-amber-600",
+      kpiScore: 3,
+    };
+  }
+
+  return {
+    kpiLabel: "Consistent",
+    statusLabel: "In-Progress",
+    kpiColorClass: "text-primary",
+    statusBadgeClass: "bg-amber-600",
+    kpiScore: 3,
+  };
+}
 
 export function getAuditStatusByDays(
   planStatus: string,
@@ -184,26 +261,18 @@ export function getAuditStatusByDays(
 ): string {
   const refDate = plannedDate || datePrepared || createdAt;
   const days = getDaysSince(refDate);
+  const { trackStartDays, pendingDays, failDays } = AUDIT_KPI_THRESHOLDS;
 
-  if (planStatus === "closed") return AUDIT_STATUS_LABELS.success;
-
-  const inProgress = [
-    "plan_submitted_to_auditee",
-    "findings_submitted_to_auditee",
-    "ca_submitted_to_auditor",
-    "pending_closure",
-    "verification_ineffective",
-  ].includes(planStatus);
-
-  if (inProgress || planStatus === "draft") {
-    if (days < COMPLIANCE_KPI_THRESHOLDS.pendingDays) return AUDIT_STATUS_LABELS.inProgress;
-    if (days <= COMPLIANCE_KPI_THRESHOLDS.failDays) return AUDIT_STATUS_LABELS.pending;
-    return AUDIT_STATUS_LABELS.fail;
+  if (planStatus === "closed") {
+    if (days > failDays) return AUDIT_STATUS_LABELS.fail;
+    if (days > pendingDays) return AUDIT_STATUS_LABELS.pending;
+    return AUDIT_STATUS_LABELS.success;
   }
 
-  if (days < COMPLIANCE_KPI_THRESHOLDS.pendingDays) return AUDIT_STATUS_LABELS.inProgress;
-  if (days <= COMPLIANCE_KPI_THRESHOLDS.failDays) return AUDIT_STATUS_LABELS.pending;
-  return AUDIT_STATUS_LABELS.fail;
+  if (days > failDays) return AUDIT_STATUS_LABELS.fail;
+  if (days > pendingDays) return AUDIT_STATUS_LABELS.pending;
+  if (days >= trackStartDays) return AUDIT_STATUS_LABELS.inProgressTracking;
+  return AUDIT_STATUS_LABELS.inProgress;
 }
 
 export function getAuditComplianceKpi(
@@ -214,21 +283,13 @@ export function getAuditComplianceKpi(
 ): ComplianceKpiResult {
   const refDate = plannedDate || datePrepared || createdAt;
   const days = getDaysSince(refDate);
-  const closed = planStatus === "closed";
-  const inProgress = [
-    "plan_submitted_to_auditee",
-    "findings_submitted_to_auditee",
-    "ca_submitted_to_auditor",
-    "pending_closure",
-    "verification_ineffective",
-    "draft",
-  ].includes(planStatus);
-  return getComplianceKpiFromDays(days, { closed, inProgress: inProgress && !closed });
+  return getAuditKpiFromDays(days, { closed: planStatus === "closed" });
 }
 
 export function getAuditStatusColor(status: string): string {
   if (status === AUDIT_STATUS_LABELS.success) return "bg-primary/15 text-primary dark:bg-primary/25";
   if (status === AUDIT_STATUS_LABELS.inProgress) return "bg-yellow-100 text-yellow-800";
+  if (status === AUDIT_STATUS_LABELS.inProgressTracking) return "bg-amber-100 text-amber-800";
   if (status === AUDIT_STATUS_LABELS.pending) return "bg-gray-100 text-gray-800";
   if (status === AUDIT_STATUS_LABELS.fail) return "bg-red-100 text-red-700";
   return "";

@@ -4,8 +4,8 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { formatOptionalDate } from "@/lib/audit-date";
 import { isBeforeToday, startOfToday } from "@/lib/audit-date";
-import { useRef, useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck } from "lucide-react";
+import { useRef, useState, useEffect, useMemo, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { AlertTriangle, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ExternalLink, Info, Paperclip, Save, Send, ShieldCheck, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AuditWorkflowHeader from "@/components/audit/AuditWorkflowHeader";
 import { AuditUploadedFilesList } from "@/components/audit/AuditUploadedFilesList";
@@ -19,7 +19,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { RichTextEditor } from "@/components/editor/rich-text-editor";
 import { apiClient } from "@/lib/api-client";
 import { scrollToField } from "@/lib/scroll-to-field";
 import { useTranslate } from "@/components/providers/translation-provider";
@@ -50,6 +49,166 @@ import {
   resetIneffectiveClosureReviews,
 } from "@/lib/audit-step6-closure";
 
+type Step4FileRef = { name: string; key: string };
+
+const STEP4_MAX_FILE_BYTES = 25 * 1024 * 1024;
+const STEP4_FILE_ACCEPT = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  "application/pdf",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".txt",
+  ".csv",
+].join(",");
+
+function step4FileRejectReason(file: File): string | null {
+  if (file.size <= 0) return "This file is empty.";
+  if (file.size > STEP4_MAX_FILE_BYTES) return "File too large. Maximum size is 25 MB.";
+  const mime = (file.type || "").toLowerCase();
+  if (!mime) return null;
+  const allowed =
+    mime.startsWith("image/") ||
+    mime === "application/pdf" ||
+    mime === "application/msword" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime === "text/plain" ||
+    mime === "text/csv";
+  return allowed ? null : "This file type is not allowed.";
+}
+
+function htmlToPlainText(value: string): string {
+  const s = String(value ?? "");
+  if (!s.includes("<")) return s;
+  return s
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function Step4InfoBanner({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
+        <Info className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1 text-sm leading-relaxed text-blue-900">{children}</div>
+    </div>
+  );
+}
+
+function Step4FileUpload({
+  files,
+  uploading,
+  disabled,
+  error,
+  onPick,
+  onRemove,
+  browseLabel,
+  uploadingLabel,
+  hint,
+  dragLabel,
+  removeLabel,
+}: {
+  files: Step4FileRef[];
+  uploading: boolean;
+  disabled?: boolean;
+  error?: boolean;
+  onPick: (fileList: File[]) => void;
+  onRemove: (key: string) => void;
+  browseLabel: string;
+  uploadingLabel: string;
+  hint: string;
+  dragLabel: string;
+  removeLabel: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const takeFiles = (list: FileList | File[] | null) => {
+    if (!list || disabled) return;
+    const next = Array.from(list);
+    if (next.length) onPick(next);
+  };
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-dashed bg-muted/40 p-6 transition-colors",
+        error ? "border-destructive ring-1 ring-destructive" : "border-border",
+        dragOver && !disabled ? "border-primary bg-primary/5" : ""
+      )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        takeFiles(e.dataTransfer.files);
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={STEP4_FILE_ACCEPT}
+        multiple
+        className="sr-only"
+        disabled={disabled || uploading}
+        onChange={(e) => {
+          takeFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
+          <Paperclip className="h-6 w-6" />
+        </div>
+        <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{dragLabel}</h3>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+        <AuditUploadedFilesList
+          files={files}
+          onRemove={disabled ? undefined : (f) => onRemove(f.key)}
+          removeLabel={removeLabel}
+          className="pointer-events-auto"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled || uploading}
+          onClick={() => inputRef.current?.click()}
+          className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          {uploading ? uploadingLabel : browseLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function CreateAuditStep4Page() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -60,12 +219,6 @@ export default function CreateAuditStep4Page() {
   const programId = searchParams.get("programId") ?? "";
   const criteria = searchParams.get("criteria") ?? "";
   const auditPlanId = searchParams.get("auditPlanId") ?? "";
-  const step4ImageUploadUrl =
-    orgId && auditPlanId
-      ? `/api/files/audit-upload?orgId=${encodeURIComponent(orgId)}&auditPlanId=${encodeURIComponent(auditPlanId)}&step=4`
-      : orgId
-        ? `/api/files/tiptap/upload?orgId=${encodeURIComponent(orgId)}`
-        : "/api/files/tiptap/upload";
   const stepQuery = (() => {
     const p = new URLSearchParams();
     if (programId) p.set("programId", programId);
@@ -95,6 +248,9 @@ export default function CreateAuditStep4Page() {
   const [rootCauseNarrative, setRootCauseNarrative] = useState("");
   const [similarProcessesImpacted, setSimilarProcessesImpacted] = useState<"yes" | "no" | null>(null);
   const [similarProcessesList, setSimilarProcessesList] = useState("");
+  const [notesS2, setNotesS2] = useState("");
+  const [notesS6, setNotesS6] = useState("");
+  const [notesS7, setNotesS7] = useState("");
   const [rootCauseResult, setRootCauseResult] = useState("");
   const [systemicCorrectiveAction, setSystemicCorrectiveAction] = useState("");
   const [rootCauseAnalysis, setRootCauseAnalysis] = useState("");
@@ -120,7 +276,6 @@ export default function CreateAuditStep4Page() {
   const [files46, setFiles46] = useState<{ name: string; key: string }[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [step4Errors, setStep4Errors] = useState<Record<string, boolean>>({});
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [ncFindings, setNcFindings] = useState<AuditNcFinding[]>([]);
   const [currentNcIndex, setCurrentNcIndex] = useState(0);
   const actionsRef = useRef<Record<string, Step4ActionForm>>({});
@@ -240,9 +395,12 @@ export default function CreateAuditStep4Page() {
     setContainmentDescription(a.containmentDescription ?? "");
     setResponsiblePerson(a.responsiblePerson ?? "");
     setTargetCompletionDate(a.targetCompletionDate ? new Date(a.targetCompletionDate) : undefined);
-    setRootCauseNarrative(a.rootCauseNarrative ?? "");
+    setRootCauseNarrative(htmlToPlainText(a.rootCauseNarrative ?? ""));
     setSimilarProcessesImpacted(a.similarProcessesImpacted);
     setSimilarProcessesList(a.similarProcessesList ?? "");
+    setNotesS2(a.notesS2 ?? "");
+    setNotesS6(a.notesS6 ?? a.implementationDetails ?? "");
+    setNotesS7(a.notesS7 ?? "");
     setRootCauseResult(a.rootCauseResult ?? "");
     setSystemicCorrectiveAction(a.systemicCorrectiveAction ?? "");
     setRootCauseAnalysis(a.rootCauseAnalysis ?? "");
@@ -276,12 +434,15 @@ export default function CreateAuditStep4Page() {
     rootCauseNarrative,
     similarProcessesImpacted,
     similarProcessesList,
+    notesS2,
+    notesS6,
+    notesS7,
     rootCauseResult,
     systemicCorrectiveAction,
     rootCauseAnalysis,
     correctiveActionPlan,
     implementationYesNo,
-    implementationDetails,
+    implementationDetails: notesS6 || implementationDetails,
     auditeeComments,
     auditeeName,
     auditeePosition,
@@ -315,14 +476,11 @@ export default function CreateAuditStep4Page() {
     applyActionToForm(actionsRef.current[nc.id] ?? emptyStep4Action(nc.id));
   };
 
-  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
-  const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
-
-  const setFilesBySection: Record<string, React.Dispatch<React.SetStateAction<{ name: string; key: string }[]>>> = {
-    "s2": setFilesS2,
-    "s3": setFilesS3,
-    "s6": setFilesS6,
-    "s7": setFilesS7,
+  const setFilesBySection: Record<string, Dispatch<SetStateAction<Step4FileRef[]>>> = {
+    s2: setFilesS2,
+    s3: setFilesS3,
+    s6: setFilesS6,
+    s7: setFilesS7,
     "41": setFiles41,
     "42": setFiles42,
     "43": setFiles43,
@@ -330,36 +488,53 @@ export default function CreateAuditStep4Page() {
     "46": setFiles46,
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, section: string) => {
-    const files = e.target.files;
-    if (!files?.length || !orgId) return;
+  const uploadFilesForSection = async (section: string, picked: File[]) => {
     const setFiles = setFilesBySection[section];
-    if (!setFiles) return;
-    if (!auditPlanId) {
-      toast.error(t("Open this step from a submitted audit plan."));
-      e.target.value = "";
+    if (!setFiles || picked.length === 0) return;
+    if (!orgId) {
+      toast.error(t("Organization is required to upload files."));
       return;
     }
-    const planId = auditPlanId;
+    if (!auditPlanId) {
+      toast.error(t("Open this step from a submitted audit plan."));
+      return;
+    }
+    const accepted: File[] = [];
+    for (const file of picked) {
+      const reason = step4FileRejectReason(file);
+      if (reason) {
+        toast.error(`${file.name}: ${t(reason)}`);
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (accepted.length === 0) return;
     setUploadingFile(true);
     try {
-      const uploaded: { name: string; key: string }[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!ALLOWED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE) continue;
-        const res = await apiClient.uploadAuditDocument(file, orgId, planId, 4);
+      const uploaded: Step4FileRef[] = [];
+      for (const file of accepted) {
+        const res = await apiClient.uploadAuditDocument(file, orgId, auditPlanId, 4);
         uploaded.push({ name: res.name, key: res.key });
       }
       setFiles((prev) => [...prev, ...uploaded]);
       if (section === "s2" && uploaded.length > 0) {
         setStep4Errors((prev) => ({ ...prev, filesS2: false }));
       }
+      toast.success(
+        uploaded.length === 1 ? t("File uploaded.") : t("Files uploaded.")
+      );
     } catch (err) {
       console.error(err);
+      toast.error(err instanceof Error ? err.message : t("Could not upload the file. Please try again."));
     } finally {
       setUploadingFile(false);
-      e.target.value = "";
     }
+  };
+
+  const removeFileFromSection = (section: string, key: string) => {
+    const setFiles = setFilesBySection[section];
+    if (!setFiles) return;
+    setFiles((prev) => prev.filter((f) => f.key !== key));
   };
 
   const buildStep4Payload = () => {
@@ -469,40 +644,6 @@ export default function CreateAuditStep4Page() {
     return true;
   };
 
-  const AttachFileBlock = ({ section, files }: { section: string; files: { name: string; key: string }[] }) => (
-    <div className="rounded-lg border border-border bg-muted/80 p-6">
-      <input
-        ref={(el) => { fileInputRefs.current[section] = el; }}
-        type="file"
-        accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
-        multiple
-        className="hidden"
-        onChange={(e) => handleFileChange(e, section)}
-      />
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
-          <Paperclip className="h-6 w-6" />
-        </div>
-        <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
-        <p className="text-xs text-muted-foreground">{t("Drag & drop your file here, or click to browse")}</p>
-        {files.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {files.length} {t("file(s) attached")}
-          </p>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={uploadingFile}
-          onClick={() => fileInputRefs.current[section]?.click()}
-          className="rounded-lg border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
-        >
-          {t("UPLOAD FILE")}
-        </Button>
-      </div>
-    </div>
-  );
-
   const canEditStep4 =
     planStatus !== "closed" &&
     isAuditee &&
@@ -512,6 +653,22 @@ export default function CreateAuditStep4Page() {
   const canEditCurrentNc =
     canEditStep4 &&
     (!returnedFindingIds.length || (currentNc != null && returnedFindingIds.includes(currentNc.id)));
+
+  const renderFileUpload = (section: string, files: Step4FileRef[], error?: boolean) => (
+    <Step4FileUpload
+      files={files}
+      uploading={uploadingFile}
+      disabled={!canEditCurrentNc}
+      error={error}
+      onPick={(list) => void uploadFilesForSection(section, list)}
+      onRemove={(key) => removeFileFromSection(section, key)}
+      browseLabel={t("BROWSE FILES")}
+      uploadingLabel={t("Uploading…")}
+      hint={t("JPG, PNG, PDF, Word, Excel, or text. Maximum size 25 MB. Drag and drop or browse.")}
+      dragLabel={t("ATTACH FILE")}
+      removeLabel={t("Remove file")}
+    />
+  );
 
   const lockedSteps = useMemo(() => {
     if (!planStatus || !currentUserRole) return [];
@@ -539,7 +696,7 @@ export default function CreateAuditStep4Page() {
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold uppercase tracking-wide text-amber-900">
-                {t("Returned for revision — Auditor feedback (Step 5: Verification ineffective)")}
+                {t("Returned for revision — Auditor feedback from Step 5: Verification ineffective")}
               </h3>
               {auditorFeedbackStep5 ? (
                 <p className="mt-2 text-sm text-amber-900 whitespace-pre-wrap">{auditorFeedbackStep5}</p>
@@ -555,7 +712,7 @@ export default function CreateAuditStep4Page() {
               <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold uppercase tracking-wide text-amber-900">
-                  {t("Management feedback (Step 6: Final closure — re-open)")}
+                  {t("Management feedback from Step 6: Final closure — re-open")}
                 </h3>
                 <p className="mt-2 text-sm text-amber-900 whitespace-pre-wrap">{managementFeedbackStep6}</p>
               </div>
@@ -565,13 +722,13 @@ export default function CreateAuditStep4Page() {
       )}
       <div className={canEditStep4 ? "" : "pointer-events-none select-none opacity-90"} style={canEditStep4 ? undefined : { minHeight: "200px" }}>
       <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
-        <h1 className="text-xl font-bold uppercase tracking-wide text-foreground">
+        <h1 className="text-xl font-bold uppercase tracking-tight text-foreground">
           {t(AUDIT_STEP_HERO[4])}
         </h1>
         <p className="mt-3 text-xs font-bold uppercase tracking-wide text-red-600">
           {t("TO BE RESPONDED BY THE AUDITEE")}
         </p>
-        <h2 className="mt-2 text-xl font-bold uppercase tracking-wide text-foreground">
+        <h2 className="mt-2 text-xl font-bold uppercase tracking-tight text-foreground">
           {t("SYSTEMIC CORRECTIVE ACTION")}
         </h2>
         {ncFindings.length === 0 && !isLoading && (
@@ -701,7 +858,7 @@ export default function CreateAuditStep4Page() {
         {/* Yellow Systemic Prevention guideline box */}
         <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50/90 px-5 py-4">
           <p className="text-sm font-bold leading-snug text-amber-900">
-            {t("SYSTEMIC PREVENTION (SYSTEMIC CORRECTIVE ACTION) MEANS FIXING A PROBLEM AT ITS ROOT CAUSE, NOT JUST PATCHING THE SYMPTOM, SO IT DOESN'T HAPPEN AGAIN ANYWHERE IN THE SYSTEM")}
+            {t("SYSTEMIC PREVENTION — SYSTEMIC CORRECTIVE ACTION MEANS FIXING A PROBLEM AT ITS ROOT CAUSE, NOT JUST PATCHING THE SYMPTOM, SO IT DOESN'T HAPPEN AGAIN ANYWHERE IN THE SYSTEM")}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
@@ -727,380 +884,277 @@ export default function CreateAuditStep4Page() {
         </div>
 
         {/* S1 Containment */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("*S1 CONTAINMENT")}{" "}
-          <span className="text-blue-600">{t("(STOP THE 'BLEEDING' IMMEDIATELY!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
-          </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-blue-900">
-            {t("Stop The Bleeding Immediately. Implement Containment Actions With Defined Timelines And Responsible Parties To Control The Issue And Prevent Further Impact Until A Permanent Solution Is Implemented. This Approach Is Typical For *Minor Nonconformities. Major Nonconformities Require Systematic Corrective Actions, Timelines, And Responsible Parties.")}
-          </p>
-        </div>
-        <div id="audit-field-containmentDescription" className="mt-4 space-y-2">
-          <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            {t("CONTAINMENT ACTION DESCRIPTION")}
-          </Label>
-          <Textarea
-            placeholder={t("Describe the immediate actions taken to contain the nonconformity...")}
-            className={cn("min-h-24 rounded-lg border-border", step4Errors.containmentDescription && "border-destructive focus-visible:ring-destructive")}
-            rows={4}
-            value={containmentDescription}
-            onChange={(e) => {
-              setContainmentDescription(e.target.value);
-              if (step4Errors.containmentDescription) setStep4Errors((prev) => ({ ...prev, containmentDescription: false }));
-            }}
-          />
-          {step4Errors.containmentDescription && <p className="text-xs text-destructive">{t("This field is required")}</p>}
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div id="audit-field-responsiblePerson" className="space-y-2">
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S1 CONTAINMENT")}{" "}
+            <span className="text-blue-600">{t("— STOP THE BLEEDING IMMEDIATELY")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("Stop the bleeding immediately. Implement containment actions with defined timelines and responsible parties to control the issue and prevent further impact until a permanent solution is implemented. This approach is typical for minor nonconformities. Major nonconformities require systematic corrective actions, timelines, and responsible parties.")}
+          </Step4InfoBanner>
+          <div id="audit-field-containmentDescription" className="space-y-2">
             <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              {t("RESPONSIBLE PERSON")}
+              {t("CONTAINMENT ACTION DESCRIPTION")}
             </Label>
-            <Input
-              placeholder={t("Full Name / Job Title")}
-              className={cn("rounded-lg border-border", step4Errors.responsiblePerson && "border-destructive focus-visible:ring-destructive")}
-              value={responsiblePerson}
+            <Textarea
+              placeholder={t("Describe the immediate actions taken to contain the nonconformity...")}
+              className={cn("min-h-24 rounded-lg border-border", step4Errors.containmentDescription && "border-destructive focus-visible:ring-destructive")}
+              rows={4}
+              value={containmentDescription}
               onChange={(e) => {
-                setResponsiblePerson(e.target.value);
-                if (step4Errors.responsiblePerson) setStep4Errors((prev) => ({ ...prev, responsiblePerson: false }));
+                setContainmentDescription(e.target.value);
+                if (step4Errors.containmentDescription) setStep4Errors((prev) => ({ ...prev, containmentDescription: false }));
               }}
             />
-            {step4Errors.responsiblePerson && <p className="text-xs text-destructive">{t("This field is required")}</p>}
+            {step4Errors.containmentDescription && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
-          <div id="audit-field-targetCompletionDate" className="space-y-2">
-            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              {t("TARGET COMPLETION DATE")}
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start rounded-lg border-border text-left font-normal",
-                    !targetCompletionDate && "text-muted-foreground",
-                    step4Errors.targetCompletionDate && "border-destructive"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formatOptionalDate(targetCompletionDate, "dd-MM-yyyy") ?? t("Select date")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={targetCompletionDate}
-                  disabled={{ before: startOfToday() }}
-                  onSelect={(date) => {
-                    if (!date || isBeforeToday(date)) return;
-                    setTargetCompletionDate(date);
-                    if (step4Errors.targetCompletionDate) setStep4Errors((prev) => ({ ...prev, targetCompletionDate: false }));
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            {step4Errors.targetCompletionDate && (
-              <p className="text-xs text-destructive">
-                {t(isBeforeToday(targetCompletionDate) ? "Date cannot be before today." : "This field is required")}
-              </p>
-            )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div id="audit-field-responsiblePerson" className="space-y-2">
+              <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                {t("RESPONSIBLE PERSON")}
+              </Label>
+              <Input
+                placeholder={t("Full Name / Job Title")}
+                className={cn("rounded-lg border-border", step4Errors.responsiblePerson && "border-destructive focus-visible:ring-destructive")}
+                value={responsiblePerson}
+                onChange={(e) => {
+                  setResponsiblePerson(e.target.value);
+                  if (step4Errors.responsiblePerson) setStep4Errors((prev) => ({ ...prev, responsiblePerson: false }));
+                }}
+              />
+              {step4Errors.responsiblePerson && <p className="text-xs text-destructive">{t("This field is required")}</p>}
+            </div>
+            <div id="audit-field-targetCompletionDate" className="space-y-2">
+              <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                {t("TARGET COMPLETION DATE")}
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start rounded-lg border-border text-left font-normal",
+                      !targetCompletionDate && "text-muted-foreground",
+                      step4Errors.targetCompletionDate && "border-destructive"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formatOptionalDate(targetCompletionDate, "dd-MM-yyyy") ?? t("Select date")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={targetCompletionDate}
+                    disabled={{ before: startOfToday() }}
+                    onSelect={(date) => {
+                      if (!date || isBeforeToday(date)) return;
+                      setTargetCompletionDate(date);
+                      if (step4Errors.targetCompletionDate) setStep4Errors((prev) => ({ ...prev, targetCompletionDate: false }));
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {step4Errors.targetCompletionDate && (
+                <p className="text-xs text-destructive">
+                  {t(isBeforeToday(targetCompletionDate) ? "Date cannot be before today." : "This field is required")}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* S2 Evidence of S1 */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("*S2 EVIDENCE OF S1")}{" "}
-          <span className="text-blue-600">{t("(PROVE YOU STOPPED IT!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
-          </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-            {t("The Underlying Reason For An Issue, Identified Through Analysis To Ensure A Permanent Solution And Prevent Recurrence. Auditors May Use Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA.")}
-          </p>
-        </div>
-        <div id="audit-field-filesS2" className={cn("mt-4 rounded-lg border border-border bg-muted/80 p-6", step4Errors.filesS2 && "border-destructive ring-1 ring-destructive")}>
-          <input
-            ref={(el) => { fileInputRefs.current["s2"] = el; }}
-            type="file"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFileChange(e, "s2")}
-          />
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
-              <Paperclip className="h-6 w-6" />
-            </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
-            <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            <AuditUploadedFilesList
-              files={filesS2}
-              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S2 EVIDENCE OF S1")}{" "}
+            <span className="text-blue-600">{t("— PROVE YOU STOPPED IT")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("Attach evidence that containment is in place. Describe what was stopped, isolated, or controlled, and upload supporting files such as photos, records, or documents.")}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("EVIDENCE NOTES")}
+            </Label>
+            <Textarea
+              placeholder={t("Describe the evidence that containment actions were implemented...")}
+              className="min-h-24 rounded-lg border-border"
+              rows={4}
+              value={notesS2}
+              onChange={(e) => setNotesS2(e.target.value)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploadingFile}
-              onClick={() => fileInputRefs.current["s2"]?.click()}
-              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
-            >
-              {t("BROWSE FILES")}
-            </Button>
-            {step4Errors.filesS2 && <p className="text-xs text-destructive">{t("This field is required")}</p>}
           </div>
-        </div>
-
-        {/* S3 Root Cause Analysis (RCA) */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("S3 ROOT CAUSE ANALYSIS (RCA)")}{" "}
-          <span className="text-blue-600">{t("(THE 'DEEP DIVE' USING 5-WHY OR FISHBONE!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
+          <div id="audit-field-filesS2">
+            {renderFileUpload("s2", filesS2, step4Errors.filesS2)}
+            {step4Errors.filesS2 && <p className="mt-2 text-xs text-destructive">{t("This field is required")}</p>}
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-            {t("Root Cause Analysis (RCA) Identifies The Underlying Reason For A Problem To Ensure A Permanent Solution And Prevent Recurrence. Methods Like 5 Whys, Fishbone Diagram (Ishikawa), Pareto Analysis, Or FMEA Can Be Used. RCA Is Required For Corrective And Preventive Issues, Optional For Suggestions For Improvement, And Recommended For In-Depth Research Of Major Nonconformities.")}
-          </p>
-        </div>
+        </section>
 
-        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-          <RichTextEditor
-            value={rootCauseNarrative}
-            onChange={setRootCauseNarrative}
-            placeholder={t("Enter the comprehensive root cause analysis narrative...")}
-            minHeight={180}
-            imageUploadUrl={step4ImageUploadUrl}
-          />
-        </div>
-
-        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
-          <input
-            ref={(el) => { fileInputRefs.current["s3"] = el; }}
-            type="file"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFileChange(e, "s3")}
-          />
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
-              <Paperclip className="h-6 w-6" />
-            </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
-            <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            <AuditUploadedFilesList
-              files={filesS3}
-              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+        {/* S3 Root Cause Analysis */}
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S3 ROOT CAUSE ANALYSIS")}{" "}
+            <span className="text-blue-600">{t("— THE DEEP DIVE USING 5-WHY OR FISHBONE")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("Root cause analysis identifies the underlying reason for a problem to ensure a permanent solution and prevent recurrence. Methods like 5 Whys, Fishbone Diagram / Ishikawa, Pareto Analysis, or FMEA can be used. RCA is required for corrective and preventive issues, optional for suggestions for improvement, and recommended for in-depth research of major nonconformities.")}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("ROOT CAUSE ANALYSIS")}
+            </Label>
+            <Textarea
+              placeholder={t("Enter the comprehensive root cause analysis narrative...")}
+              className="min-h-32 rounded-lg border-border"
+              rows={6}
+              value={rootCauseNarrative}
+              onChange={(e) => setRootCauseNarrative(e.target.value)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploadingFile}
-              onClick={() => fileInputRefs.current["s3"]?.click()}
-              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
-            >
-              {t("BROWSE FILES")}
-            </Button>
           </div>
-        </div>
-
-        <div className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("SIMILAR PROCESSES IMPACTED (IF ANY):")}</h3>
-          <div className="flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-              <Info className="h-5 w-5" />
+          {renderFileUpload("s3", filesS3)}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("SIMILAR PROCESSES IMPACTED, IF ANY")}</h3>
+            <Step4InfoBanner>
+              {t("Are there any processes that are affected? Please answer either Yes or No. If the answer is Yes, please provide a list of all the processes that are affected, making sure to include all relevant processes in the list.")}
+            </Step4InfoBanner>
+            <div className="flex flex-wrap gap-6">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name={`similarProcesses-${currentNc?.id ?? "current"}`}
+                  checked={similarProcessesImpacted === "yes"}
+                  onChange={() => setSimilarProcessesImpacted("yes")}
+                  className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
+                />
+                <span className="text-sm font-bold text-foreground">{t("YES")}</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name={`similarProcesses-${currentNc?.id ?? "current"}`}
+                  checked={similarProcessesImpacted === "no"}
+                  onChange={() => setSimilarProcessesImpacted("no")}
+                  className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
+                />
+                <span className="text-sm font-bold text-foreground">{t("NO")}</span>
+              </label>
             </div>
-            <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-              {t("Are There Any Processes That Are Affected? Please Answer Either Yes Or No. If The Answer Is Yes, Please Provide A List Of All The Processes That Are Affected, Making Sure To Include All Relevant Processes In The List.")}
-            </p>
+            <Textarea
+              placeholder={t("Include all relevant processes...")}
+              className="min-h-24 rounded-lg border-border"
+              rows={4}
+              value={similarProcessesList}
+              onChange={(e) => setSimilarProcessesList(e.target.value)}
+            />
           </div>
-          <div className="flex flex-wrap gap-6">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name={`similarProcesses-${currentNc?.id ?? "current"}`}
-                checked={similarProcessesImpacted === "yes"}
-                onChange={() => setSimilarProcessesImpacted("yes")}
-                className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
-              />
-              <span className="text-sm font-bold text-foreground">{t("YES")}</span>
-            </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name={`similarProcesses-${currentNc?.id ?? "current"}`}
-                checked={similarProcessesImpacted === "no"}
-                onChange={() => setSimilarProcessesImpacted("no")}
-                className="h-4 w-4 border-border text-green-600 focus:ring-green-500"
-              />
-              <span className="text-sm font-bold text-foreground">{t("NO")}</span>
-            </label>
-          </div>
-          <Textarea
-            placeholder={t("Include all relevant processes....")}
-            className="min-h-24 rounded-lg border-border"
-            rows={4}
-            value={similarProcessesList}
-            onChange={(e) => setSimilarProcessesList(e.target.value)}
-          />
-        </div>
+        </section>
 
         {/* S4 Root Cause Result */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("S4 ROOT CAUSE RESULT")}{" "}
-          <span className="text-base font-normal normal-case text-blue-600">{t("(CLEAR STATEMENT OF THE 'SYSTEMIC FAILURE'!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S4 ROOT CAUSE RESULT")}{" "}
+            <span className="text-blue-600">{t("— CLEAR STATEMENT OF THE SYSTEMIC FAILURE")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("State the systemic failure clearly. Describe the weakness in process control or awareness that led to the nonconformity, and the result of the analysis in a concise narrative.")}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("ROOT CAUSE RESULT")}
+            </Label>
+            <Textarea
+              placeholder={t("Provide the multiline narrative result of the corrective action implementation...")}
+              className="min-h-32 rounded-lg border-border"
+              rows={6}
+              value={rootCauseResult}
+              onChange={(e) => setRootCauseResult(e.target.value)}
+            />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-            {t("Root Cause Result- Systemic Failure: A Weakness In Process Control And Lack Of Awareness Led To The Nonconformity. Corrective Actions Were Implemented To Close The Control Gap And Improve Awareness. Post-Implementation Results Show Improved Compliance And No Recurrence Of The Issue. If You'd Like It Even Shorter (Executive-Summary Style), I Can Compress It Further.")}
-          </p>
-        </div>
-        <div className="mt-4">
-          <Textarea
-            placeholder={t("Provide the multiline narrative result of the corrective action implementation...")}
-            className="min-h-32 rounded-lg border-border"
-            rows={6}
-            value={rootCauseResult}
-            onChange={(e) => setRootCauseResult(e.target.value)}
-          />
-        </div>
+        </section>
 
         {/* S5 Systemic Corrective Action */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("S5 SYSTEMIC CORRECTIVE ACTION")}{" "}
-          <span className="text-base font-normal normal-case text-blue-600">{t("(CHANGE THE PROCESS, PROCEDURE, CONTROL PLAN, AND FLOWCHART!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S5 SYSTEMIC CORRECTIVE ACTION")}{" "}
+            <span className="text-blue-600">{t("— CHANGE THE PROCESS, PROCEDURE, CONTROL PLAN, AND FLOWCHART")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("Systemic corrective actions include revising the underlying process to address root causes. Updated procedures, control plans, and flowcharts strengthen controls, clarify responsibilities, and ensure consistent implementation. Defined KPIs, internal audits, and management reviews monitor effectiveness to prevent recurrence.")}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("SYSTEMIC CORRECTIVE ACTION")}
+            </Label>
+            <Textarea
+              placeholder={t("Describe the process, procedure, control plan, or flowchart changes...")}
+              className="min-h-32 rounded-lg border-border"
+              rows={6}
+              value={systemicCorrectiveAction}
+              onChange={(e) => setSystemicCorrectiveAction(e.target.value)}
+            />
           </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-            {t("Systemic Corrective Actions Included Revising The Underlying Process To Address Root Causes. Updated Procedures, Control Plans, And Flowcharts Strengthen Controls, Clarify Responsibilities, And Ensure Consistent Implementation. Defined KPIs, Internal Audits, And Management Reviews Monitor Effectiveness To Prevent Recurrence.")}
-          </p>
-        </div>
-        <div className="mt-4">
-          <Textarea
-            placeholder={t("Provide the multiline narrative result of the corrective action implementation...")}
-            className="min-h-32 rounded-lg border-border"
-            rows={6}
-            value={systemicCorrectiveAction}
-            onChange={(e) => setSystemicCorrectiveAction(e.target.value)}
-          />
-        </div>
+        </section>
 
         {/* S6 Evidence of Implementation S5 */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("S6 EVIDENCE OF IMPLEMENTATION S5")}{" "}
-          <span className="text-blue-600">{t("(PROVE THE PROCESS CHANGED!)")}</span>
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-border bg-muted px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
-          </div>
-          <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">
-            {t('Implementation Evidence Should Demonstrate Process Changes And Sustained Compliance. Examples Include Revised Documentation, Training Records, Implementation Photos Or System Logs, And Monitoring Results. Physical Changes E.G., High-Resolution "Before" And "After" Photos Of New Signage, Shadow Boards, Or Poka-Yoke Sensors.')}
-          </p>
-        </div>
-        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
-          <input
-            ref={(el) => { fileInputRefs.current["s6"] = el; }}
-            type="file"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFileChange(e, "s6")}
-          />
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
-              <Paperclip className="h-6 w-6" />
-            </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
-            <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            <AuditUploadedFilesList
-              files={filesS6}
-              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S6 EVIDENCE OF IMPLEMENTATION S5")}{" "}
+            <span className="text-blue-600">{t("— PROVE THE PROCESS CHANGED")}</span>
+          </h2>
+          <Step4InfoBanner>
+            {t("Implementation evidence should demonstrate process changes and sustained compliance. Examples include revised documentation, training records, implementation photos or system logs, and monitoring results. Physical changes such as high-resolution before and after photos of new signage, shadow boards, or poka-yoke sensors.")}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("IMPLEMENTATION NOTES")}
+            </Label>
+            <Textarea
+              placeholder={t("Describe how the systemic corrective action was implemented...")}
+              className="min-h-24 rounded-lg border-border"
+              rows={4}
+              value={notesS6}
+              onChange={(e) => setNotesS6(e.target.value)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploadingFile}
-              onClick={() => fileInputRefs.current["s6"]?.click()}
-              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
-            >
-              {t("BROWSE FILES")}
-            </Button>
           </div>
-        </div>
+          {renderFileUpload("s6", filesS6)}
+        </section>
 
         {/* S7 Verification */}
-        <h2 className="mt-8 text-lg font-bold uppercase tracking-wide text-foreground">
-          {t("S7 VERIFICATION ()")}
-        </h2>
-        <div className="mt-4 flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-            <Info className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-2 text-sm leading-relaxed text-blue-900">
+        <section className="mt-8 space-y-4">
+          <h2 className="text-lg font-bold uppercase tracking-wide text-foreground">
+            {t("S7 VERIFICATION")}
+          </h2>
+          <Step4InfoBanner>
             <p className="font-medium">
-              {t("Objective Evidence That The Corrective Action Actually Eliminated The Root Cause And Remains Effective Over Time.")}
+              {t("Objective evidence that the corrective action actually eliminated the root cause and remains effective over time.")}
             </p>
-            <p>
-              {t("It Requires: Data-Based Proof (E.G., KPI Trends, Defect Rates, Scrap, Customer Complaints), Sustained Performance Over 1-3 Months (Or Defined Production Volume), Confirmation That The Issue Has Not Recurred, Documented Results Or, If Still Within Monitoring Period, A Clear Validation Plan.")}
+            <p className="mt-2">
+              {t("It requires data-based proof such as KPI trends, defect rates, scrap, or customer complaints; sustained performance over 1–3 months or a defined production volume; confirmation that the issue has not recurred; and documented results or, if still within the monitoring period, a clear validation plan.")}
             </p>
-          </div>
-        </div>
-        <div className="mt-4 rounded-lg border border-border bg-muted/80 p-6">
-          <input
-            ref={(el) => { fileInputRefs.current["s7"] = el; }}
-            type="file"
-            accept=".jpg,.jpeg,.png,image/jpeg,image/jpg,image/png"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFileChange(e, "s7")}
-          />
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600">
-              <Paperclip className="h-6 w-6" />
-            </div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("ATTACH FILE")}</h3>
-            <p className="text-xs text-muted-foreground">{t("ALLOWED: JPG / JPEG / PNG • MAX SIZE: 2 MB")}</p>
-            <AuditUploadedFilesList
-              files={filesS7}
-              className={!canEditStep4 ? "pointer-events-auto" : undefined}
+          </Step4InfoBanner>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              {t("VERIFICATION NOTES")}
+            </Label>
+            <Textarea
+              placeholder={t("Describe the verification evidence and monitoring results...")}
+              className="min-h-24 rounded-lg border-border"
+              rows={4}
+              value={notesS7}
+              onChange={(e) => setNotesS7(e.target.value)}
             />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploadingFile}
-              onClick={() => fileInputRefs.current["s7"]?.click()}
-              className="rounded-lg border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40"
-            >
-              {t("BROWSE FILES")}
-            </Button>
           </div>
-        </div>
+          {renderFileUpload("s7", filesS7)}
+        </section>
 
-        {/* Risk Severity (Review) */}
+        {/* Risk Severity Review */}
         <div className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("RISK SEVERITY (REVIEW):")}</h3>
-          <div className="flex gap-4 rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-blue-100 text-blue-600">
-              <Info className="h-5 w-5" />
-            </div>
-            <p className="min-w-0 flex-1 text-sm leading-relaxed text-blue-900">
-              {t("Following Corrective Actions And Root Cause Analysis, The Auditee Should Review Risk Severity To Reflect The Potential Impact And Likelihood Of Nonconformity, Guiding Prioritization, Escalation, And Follow-Up.")}
-            </p>
-          </div>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("RISK SEVERITY REVIEW")}</h3>
+          <Step4InfoBanner>
+            {t("Following corrective actions and root cause analysis, the auditee should review risk severity to reflect the potential impact and likelihood of nonconformity, guiding prioritization, escalation, and follow-up.")}
+          </Step4InfoBanner>
           <div className="flex flex-wrap gap-4">
             {(["high", "medium", "low"] as const).map((level) => (
               <label
@@ -1131,7 +1185,7 @@ export default function CreateAuditStep4Page() {
 
         {/* Auditee Comments (Mandatory) */}
         <div id="audit-field-auditeeComments" className="mt-8 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("AUDITEE COMMENTS (MANDATORY)")}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">{t("AUDITEE COMMENTS — MANDATORY")}</h3>
           <Textarea
             placeholder={t("Final auditee observations regarding the CA effectiveness and risk mitigation...")}
             className={cn("min-h-32 rounded-lg border-border", step4Errors.auditeeComments && "border-destructive focus-visible:ring-destructive")}

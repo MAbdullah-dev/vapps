@@ -51,16 +51,21 @@ export function parseStep6Reviews(
       if (!item || typeof item !== "object") continue;
       const rec = item as Record<string, unknown>;
       const id = typeof rec.findingId === "string" ? rec.findingId : "";
-      if (!id || !map[id]) continue;
+      if (!id) continue;
+      if (!map[id]) {
+        if (ncs.length === 0) map[id] = reviewFromRecord(rec, id);
+        continue;
+      }
       map[id] = reviewFromRecord(rec, id);
     }
     return map;
   }
   const legacy =
     d.finalDecision === "effective" || d.finalDecision === "ineffective" ? d.finalDecision : null;
-  if (legacy && ncs[0]) {
-    map[ncs[0].id] = {
-      findingId: ncs[0].id,
+  if (legacy) {
+    const id = ncs[0]?.id ?? "legacy";
+    map[id] = {
+      findingId: id,
       outcome: legacy,
       managementComments: typeof d.managementComments === "string" ? d.managementComments : "",
       locked: false,
@@ -111,9 +116,12 @@ export function resetIneffectiveClosureReviews(
 export function buildStep6Payload(
   ncs: AuditNcFinding[],
   map: Record<string, Step6NcReview>,
-  extras: { dateApproved: string; timeApproved: string }
+  extras: { dateApproved: string; timeApproved: string; matrix?: Record<string, unknown> }
 ): Record<string, unknown> {
-  const reviews = ncs.map((nc) => map[nc.id] ?? emptyStep6Review(nc.id));
+  const reviews =
+    ncs.length > 0
+      ? ncs.map((nc) => map[nc.id] ?? emptyStep6Review(nc.id))
+      : [map.legacy ?? emptyStep6Review("legacy")];
   const anyIneffective = reviews.some((r) => r.outcome === "ineffective");
   const stored = reviews.map((r) =>
     anyIneffective && r.outcome === "effective" ? { ...r, locked: true } : r
@@ -122,9 +130,11 @@ export function buildStep6Payload(
   return {
     version: 2,
     reviews: stored,
-    finalDecision: anyIneffective ? "ineffective" : "effective",
+    finalDecision: anyIneffective ? "ineffective" : (ncs.length === 0 ? (primary?.outcome ?? "effective") : "effective"),
     managementComments: primary?.managementComments ?? "",
     dateApproved: extras.dateApproved,
     timeApproved: extras.timeApproved,
+    closedAt: extras.matrix && !anyIneffective ? new Date().toISOString() : null,
+    matrix: extras.matrix ?? null,
   };
 }
