@@ -1117,7 +1117,7 @@ export default function CreateAuditStep3Page() {
         if (ref) {
           ref.scrollIntoView({ behavior: "smooth", block: "center" });
           setTimeout(() => {
-            const focusable = ref.querySelector<HTMLElement>("textarea, [contenteditable=\"true\"], .fr-element");
+            const focusable = ref.querySelector<HTMLElement>("input, textarea, [contenteditable=\"true\"], .fr-element");
             if (focusable) focusable.focus();
           }, 400);
         }
@@ -1511,12 +1511,12 @@ export default function CreateAuditStep3Page() {
                                 )}
                               </TableCell>
                               <TableCell
-                                ref={isCurrent ? refEvidenceSeen : undefined}
                                 className={cn(
                                   "align-top py-2 max-w-[140px]",
                                   isCurrent && fieldErrors.evidenceSeen && "rounded-lg border-2 border-red-500 bg-red-50/30 p-2"
                                 )}
                               >
+                                <div ref={isCurrent ? refEvidenceSeen : undefined}>
                                 {isCurrent ? (
                                   <Input
                                     value={row.evidence}
@@ -1550,6 +1550,7 @@ export default function CreateAuditStep3Page() {
                                       ))}
                                   </div>
                                 ) : null}
+                                </div>
                               </TableCell>
                               <TableCell className="align-top py-2">
                                 {isCurrent ? (
